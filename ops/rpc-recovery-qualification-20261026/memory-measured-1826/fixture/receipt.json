@@ -1,0 +1,841 @@
+{
+ "adoptedKilled": [],
+ "allocatedAfter": 0,
+ "allocatedBefore": 0,
+ "cgAfter": {
+  "current": 514801664,
+  "events": {
+   "high": 23378,
+   "low": 0,
+   "max": 0,
+   "oom": 0,
+   "oom_group_kill": 0,
+   "oom_kill": 0,
+   "sock_throttled": 0
+  },
+  "high": "536870912",
+  "max": "805306368",
+  "stat": {
+   "active_file": 1208320,
+   "anon": 36155392,
+   "file": 471273472,
+   "file_mapped": 2031616,
+   "inactive_file": 469827584,
+   "kernel": 3538944,
+   "pagetables": 1171456,
+   "sec_pagetables": 0,
+   "shmem": 0,
+   "slab": 1913632
+  }
+ },
+ "cgBefore": {
+  "current": 45989888,
+  "events": {
+   "high": 0,
+   "low": 0,
+   "max": 0,
+   "oom": 0,
+   "oom_group_kill": 0,
+   "oom_kill": 0,
+   "sock_throttled": 0
+  },
+  "high": "536870912",
+  "max": "805306368",
+  "stat": {
+   "active_file": 315392,
+   "anon": 32444416,
+   "file": 8163328,
+   "file_mapped": 2027520,
+   "inactive_file": 7847936,
+   "kernel": 2134016,
+   "pagetables": 1048576,
+   "sec_pagetables": 0,
+   "shmem": 0,
+   "slab": 642304
+  }
+ },
+ "checks": {
+  "imageHeldReadOnly": {
+   "detail": "qemu-nbd does not hold the image, or not O_RDONLY",
+   "ok": true
+  },
+  "mountReadOnly": {
+   "detail": "not ST_RDONLY",
+   "ok": true
+  },
+  "nbdfuseBound": {
+   "detail": "cmdline / exe differ from what we spawned",
+   "ok": true
+  },
+  "nbdfuseForeground": {
+   "detail": "it daemonized",
+   "ok": true
+  },
+  "onlyDisk": {
+   "detail": [
+    "disk.raw"
+   ],
+   "ok": true
+  },
+  "qemu-nbdBound": {
+   "detail": "cmdline / exe differ from what we spawned",
+   "ok": true
+  },
+  "scopeBound": {
+   "ok": true
+  },
+  "size": {
+   "detail": 8589934592,
+   "ok": true
+  },
+  "socketOurs": {
+   "detail": "not our socket",
+   "ok": true
+  },
+  "writeRefused": {
+   "detail": "an O_WRONLY open succeeded",
+   "ok": true
+  }
+ },
+ "children": {
+  "exec": {
+   "argv": [
+    "/usr/bin/python3",
+    "-I",
+    "-B",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-memory-fixture-stage/r4/runs/fixture-20261027T034625Z-2720327/work/walker.py",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-memory-fixture-stage/r4/runs/fixture-20261027T034625Z-2720327/work/db/disk.raw",
+    "8589934592",
+    "509"
+   ],
+   "pid": 2720400,
+   "returncode": 0
+  },
+  "nbdfuse": {
+   "argv": [
+    "/usr/bin/nbdfuse",
+    "-r",
+    "-C",
+    "1",
+    "-o",
+    "ro",
+    "-P",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-memory-fixture-stage/r4/runs/fixture-20261027T034625Z-2720327/work/nbdfuse.pid",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-memory-fixture-stage/r4/runs/fixture-20261027T034625Z-2720327/work/db/disk.raw",
+    "--unix",
+    "/proc/self/cwd/nbd.sock"
+   ],
+   "exe": [
+    64768,
+    14986678
+   ],
+   "pid": 2720389,
+   "returncode": 0,
+   "startTime": 137789987
+  },
+  "qemu-nbd": {
+   "argv": [
+    "/usr/bin/qemu-nbd",
+    "--read-only",
+    "--shared=1",
+    "--socket=/proc/self/cwd/nbd.sock",
+    "--image-opts",
+    "driver=raw,read-only=on,file.driver=file,file.filename=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-memory-fixture-stage/r4/runs/fixture-20261027T034625Z-2720327/work/sparse.raw"
+   ],
+   "exe": [
+    64768,
+    14981978
+   ],
+   "pid": 2720387,
+   "returncode": 0,
+   "startTime": 137789967
+  }
+ },
+ "childrenAlive": [],
+ "cleanupComplete": true,
+ "cleanupErrors": [],
+ "format": "composite-memory-fixture-receipt/r2",
+ "imageRemoved": true,
+ "interrupted": null,
+ "kernel": "7.2.8-arch1-2",
+ "kind": "synthetic-memory-fixture",
+ "leftoverProcesses": [],
+ "limits": [
+  "MemoryHigh is a reclaim/throttle threshold, not a ceiling",
+  "MemoryHigh applies to the WHOLE queue scope (node memory-guard, job bash, controller, qemu-nbd, nbdfuse, walker): the outer guard and the servers can be throttled too; a result describes whole-scope throttling, not walker-only reclaim",
+  "the memory.max OOM victim is not guaranteed",
+  "the 0.25 s soft stop races the outer 250 ms guard and other host allocations; VmRSS counts shared pages per process and pages charged elsewhere: SOFT-STOP is a realistic outcome",
+  "a wrapper KILL (stuck controller) skips ordered cleanup: servers end by PDEATHSIG only; a dead mount / D-state process may remain",
+  "page-table growth is measured, not asserted",
+  "synthetic zero-filled sparse data, not MDBX"
+ ],
+ "mountLeft": false,
+ "notClaimed": [
+  "MDBX validity",
+  "production lane safety",
+  "a MemoryHigh ceiling",
+  "walker-only reclaim",
+  "the OOM victim",
+  "the outer guard never firing"
+ ],
+ "outcome": "MEASURED",
+ "peaks": {
+  "cgCurrent": 536997888,
+  "cgPagetables": 18059264,
+  "minMemAvailableMiB": 23521.46484375,
+  "treeVmRssMiB": 525.71875,
+  "walkerRssFileKiB": 480016,
+  "walkerVmPTEKiB": 16488,
+  "walkerVmRSSKiB": 484652
+ },
+ "pins": {
+  "fusermount3": {
+   "path": "/usr/bin/fusermount3",
+   "sha256": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f"
+  },
+  "manifest": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/base-multipart-production-20261026/manifest.json",
+   "sha256": "f94807f71c93b1ef639c224dfefb3b6c0f3e7b9289def91fc52b0e79864821a9"
+  },
+  "nbdfuse": {
+   "path": "/usr/bin/nbdfuse",
+   "sha256": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01"
+  },
+  "python3": {
+   "path": "/usr/bin/python3",
+   "sha256": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b"
+  },
+  "qemuNbd": {
+   "path": "/usr/bin/qemu-nbd",
+   "sha256": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934"
+  },
+  "r3Core": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/multipart.py",
+   "sha256": "3159890b5bddcb763f578fa87b833931d695f4181dd447395bb40c2dff1c4381"
+  },
+  "r6Runtime": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r6/composite_session.py",
+   "sha256": "407aa7e98fe18f913112b9f49369416e98524ff28f4e44cde788958f314fdbf6"
+  },
+  "r9OverlaySession": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/overlay_session.py",
+   "sha256": "65d45ab79da8e134772374ec7298cd3a53fc54d68ecb3b3fd407eec4874a8153"
+  },
+  "runner1773": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/jobs/root-multipart-batches-1773.py",
+   "sha256": "5c33f6e24d0b880d47521c08a001c6b8d11af18cfcc044c411ef09a889ad410a"
+  },
+  "systemctl": {
+   "path": "/usr/bin/systemctl",
+   "sha256": "6e727451366c75070ab02f02d945e3c83f8774ddf7e1661c5d71cbbf0d59b3cc"
+  },
+  "walker": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-memory-fixture-stage/r4/walker.py",
+   "sha256": "bb01105dc8de7ba496f4fb67abfd5c73038b07b90d1844786adbc253c72a4113"
+  }
+ },
+ "rc": 0,
+ "reasons": [],
+ "refused": null,
+ "reservation": {
+  "fixtureWriteBoundBytes": 96468992,
+  "floorBytes": 42949672960,
+  "freeBytes": 254259552256,
+  "marginBytes": 760012800,
+  "neededBytes": 253499539456,
+  "remainingRootRecoveryBytes": 201863462912,
+  "rootReserveBytes": 8589934592
+ },
+ "samples": [
+  {
+   "cg": {
+    "current": 46342144,
+    "events": {
+     "high": 0,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 315392,
+     "anon": 32444416,
+     "file": 8163328,
+     "file_mapped": 2027520,
+     "inactive_file": 7847936,
+     "kernel": 2134016,
+     "pagetables": 1048576,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 642304
+    }
+   },
+   "memAvailableMiB": 23589,
+   "t": 0.47,
+   "treeVmRssMiB": 62.4,
+   "walker": {
+    "RssAnonKiB": 3696,
+    "RssFileKiB": 6552,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 64,
+    "VmRSSKiB": 10248
+   }
+  },
+  {
+   "cg": {
+    "current": 536764416,
+    "events": {
+     "high": 441,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 1204224,
+     "anon": 38801408,
+     "file": 490590208,
+     "file_mapped": 486637568,
+     "inactive_file": 489213952,
+     "kernel": 4796416,
+     "pagetables": 2408448,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 1923344
+    }
+   },
+   "memAvailableMiB": 23649,
+   "t": 2.53,
+   "treeVmRssMiB": 525.7,
+   "walker": {
+    "RssAnonKiB": 4636,
+    "RssFileKiB": 480016,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 1304,
+    "VmRSSKiB": 484652
+   }
+  },
+  {
+   "cg": {
+    "current": 536526848,
+    "events": {
+     "high": 2234,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 1204224,
+     "anon": 40902656,
+     "file": 487247872,
+     "file_mapped": 483295232,
+     "inactive_file": 485916672,
+     "kernel": 6131712,
+     "pagetables": 3751936,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 1917824
+    }
+   },
+   "memAvailableMiB": 23565,
+   "t": 4.61,
+   "treeVmRssMiB": 522.7,
+   "walker": {
+    "RssAnonKiB": 4636,
+    "RssFileKiB": 476688,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 2516,
+    "VmRSSKiB": 481324
+   }
+  },
+  {
+   "cg": {
+    "current": 536784896,
+    "events": {
+     "high": 4014,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 1208320,
+     "anon": 40902656,
+     "file": 486178816,
+     "file_mapped": 482222080,
+     "inactive_file": 484593664,
+     "kernel": 7417856,
+     "pagetables": 4972544,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 1973944
+    }
+   },
+   "memAvailableMiB": 23532,
+   "t": 6.66,
+   "treeVmRssMiB": 521.4,
+   "walker": {
+    "RssAnonKiB": 4636,
+    "RssFileKiB": 475400,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 3708,
+    "VmRSSKiB": 480036
+   }
+  },
+  {
+   "cg": {
+    "current": 536858624,
+    "events": {
+     "high": 5823,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 1208320,
+     "anon": 40902656,
+     "file": 484614144,
+     "file_mapped": 480657408,
+     "inactive_file": 483328000,
+     "kernel": 8626176,
+     "pagetables": 6205440,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 1951872
+    }
+   },
+   "memAvailableMiB": 23579,
+   "t": 8.72,
+   "treeVmRssMiB": 520.4,
+   "walker": {
+    "RssAnonKiB": 4636,
+    "RssFileKiB": 474420,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 4912,
+    "VmRSSKiB": 479056
+   }
+  },
+  {
+   "cg": {
+    "current": 536580096,
+    "events": {
+     "high": 7624,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 1208320,
+     "anon": 40902656,
+     "file": 482787328,
+     "file_mapped": 478830592,
+     "inactive_file": 481427456,
+     "kernel": 9814016,
+     "pagetables": 7426048,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 1919328
+    }
+   },
+   "memAvailableMiB": 23656,
+   "t": 10.78,
+   "treeVmRssMiB": 519.2,
+   "walker": {
+    "RssAnonKiB": 4636,
+    "RssFileKiB": 473344,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 6108,
+    "VmRSSKiB": 477980
+   }
+  },
+  {
+   "cg": {
+    "current": 536576000,
+    "events": {
+     "high": 9426,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 1208320,
+     "anon": 40902656,
+     "file": 482242560,
+     "file_mapped": 478285824,
+     "inactive_file": 480788480,
+     "kernel": 11034624,
+     "pagetables": 8654848,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 1905512
+    }
+   },
+   "memAvailableMiB": 23686,
+   "t": 12.86,
+   "treeVmRssMiB": 517.6,
+   "walker": {
+    "RssAnonKiB": 4636,
+    "RssFileKiB": 471420,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 7304,
+    "VmRSSKiB": 476056
+   }
+  },
+  {
+   "cg": {
+    "current": 536547328,
+    "events": {
+     "high": 11231,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 1208320,
+     "anon": 40902656,
+     "file": 480219136,
+     "file_mapped": 476262400,
+     "inactive_file": 478834688,
+     "kernel": 12312576,
+     "pagetables": 9883648,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 1959544
+    }
+   },
+   "memAvailableMiB": 23738,
+   "t": 14.92,
+   "treeVmRssMiB": 516.0,
+   "walker": {
+    "RssAnonKiB": 4636,
+    "RssFileKiB": 470004,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 8500,
+    "VmRSSKiB": 474640
+   }
+  },
+  {
+   "cg": {
+    "current": 536522752,
+    "events": {
+     "high": 13009,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 1208320,
+     "anon": 40902656,
+     "file": 479838208,
+     "file_mapped": 475881472,
+     "inactive_file": 478408704,
+     "kernel": 13467648,
+     "pagetables": 11091968,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 1913144
+    }
+   },
+   "memAvailableMiB": 23765,
+   "t": 16.98,
+   "treeVmRssMiB": 515.8,
+   "walker": {
+    "RssAnonKiB": 4636,
+    "RssFileKiB": 469880,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 9684,
+    "VmRSSKiB": 474516
+   }
+  },
+  {
+   "cg": {
+    "current": 536715264,
+    "events": {
+     "high": 14834,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 1208320,
+     "anon": 40902656,
+     "file": 478072832,
+     "file_mapped": 474116096,
+     "inactive_file": 476618752,
+     "kernel": 14696448,
+     "pagetables": 12328960,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 1892160
+    }
+   },
+   "memAvailableMiB": 23743,
+   "t": 19.05,
+   "treeVmRssMiB": 514.0,
+   "walker": {
+    "RssAnonKiB": 4636,
+    "RssFileKiB": 468052,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 10892,
+    "VmRSSKiB": 472688
+   }
+  },
+  {
+   "cg": {
+    "current": 536686592,
+    "events": {
+     "high": 16615,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 1208320,
+     "anon": 40902656,
+     "file": 476930048,
+     "file_mapped": 472973312,
+     "inactive_file": 475193344,
+     "kernel": 15929344,
+     "pagetables": 13524992,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 1923664
+    }
+   },
+   "memAvailableMiB": 23762,
+   "t": 21.12,
+   "treeVmRssMiB": 512.7,
+   "walker": {
+    "RssAnonKiB": 4636,
+    "RssFileKiB": 466680,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 12056,
+    "VmRSSKiB": 471316
+   }
+  },
+  {
+   "cg": {
+    "current": 536535040,
+    "events": {
+     "high": 18362,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 1208320,
+     "anon": 40902656,
+     "file": 476385280,
+     "file_mapped": 472432640,
+     "inactive_file": 474976256,
+     "kernel": 17072128,
+     "pagetables": 14700544,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 1911912
+    }
+   },
+   "memAvailableMiB": 23768,
+   "t": 23.18,
+   "treeVmRssMiB": 512.2,
+   "walker": {
+    "RssAnonKiB": 4636,
+    "RssFileKiB": 466120,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 13208,
+    "VmRSSKiB": 470756
+   }
+  },
+  {
+   "cg": {
+    "current": 536563712,
+    "events": {
+     "high": 20170,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 1208320,
+     "anon": 40902656,
+     "file": 474595328,
+     "file_mapped": 470638592,
+     "inactive_file": 473219072,
+     "kernel": 18337792,
+     "pagetables": 15917056,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 1944928
+    }
+   },
+   "memAvailableMiB": 23762,
+   "t": 25.24,
+   "treeVmRssMiB": 510.4,
+   "walker": {
+    "RssAnonKiB": 4636,
+    "RssFileKiB": 464056,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 14396,
+    "VmRSSKiB": 468692
+   }
+  },
+  {
+   "cg": {
+    "current": 536723456,
+    "events": {
+     "high": 22008,
+     "low": 0,
+     "max": 0,
+     "oom": 0,
+     "oom_group_kill": 0,
+     "oom_kill": 0,
+     "sock_throttled": 0
+    },
+    "high": "536870912",
+    "max": "805306368",
+    "stat": {
+     "active_file": 1208320,
+     "anon": 40902656,
+     "file": 473624576,
+     "file_mapped": 469667840,
+     "inactive_file": 472166400,
+     "kernel": 19562496,
+     "pagetables": 17149952,
+     "sec_pagetables": 0,
+     "shmem": 0,
+     "slab": 1934408
+    }
+   },
+   "memAvailableMiB": 23818,
+   "t": 27.31,
+   "treeVmRssMiB": 509.1,
+   "walker": {
+    "RssAnonKiB": 4636,
+    "RssFileKiB": 463004,
+    "RssShmemKiB": 0,
+    "VmPTEKiB": 15600,
+    "VmRSSKiB": 467640
+   }
+  }
+ ],
+ "scope": {
+  "after": {
+   "ownHigh": "536870912",
+   "ownMax": "805306368",
+   "parentHigh": "max"
+  },
+  "appliesTo": "the WHOLE scope (see limits)",
+  "before": {
+   "ownHigh": "max",
+   "ownMax": "805306368",
+   "parentHigh": "max"
+  },
+  "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2720317-i40410323.scope",
+  "unit": "run-p2720317-i40410323.scope"
+ },
+ "seconds": 29.3,
+ "steps": [
+  [
+   1793072785.96,
+   "qemu-nbd"
+  ],
+  [
+   1793072786.162,
+   "nbdfuse"
+  ],
+  [
+   1793072786.366,
+   "walker"
+  ],
+  [
+   1793072815.052,
+   "cleanup"
+  ]
+ ],
+ "unmount": {
+  "normal": 0
+ },
+ "walker": {
+  "groupEmpty": true,
+  "groupLeftovers": [],
+  "limitSeconds": 509,
+  "orphansGone": true,
+  "rc": 0,
+  "result": {
+   "nonzeroPages": 0,
+   "pages": 2097152,
+   "scannedBytes": 8589934592,
+   "seconds": 28.417,
+   "timedOut": false
+  },
+  "softStop": null,
+  "timedOut": false
+ },
+ "wrapper": {
+  "killAtSeconds": 900,
+  "killGraceSeconds": 120,
+  "termAtSeconds": 780
+ }
+}

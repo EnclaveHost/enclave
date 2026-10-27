@@ -1,0 +1,47 @@
+{
+ "checks": {
+  "cleanupComplete": true,
+  "controllerRc0": true,
+  "measured": true,
+  "noMountLeft": true,
+  "noProcessLeft": true,
+  "peersUnchanged": true
+ },
+ "controllerKilled": false,
+ "controllerRc": 0,
+ "controllerReceiptSha256": "f7b11bb1ac9ef5cc5621d6ba0f17e8775bc5619b5f82678495aaef81fe2e500a",
+ "format": "composite-memory-fixture-job-receipt/r2",
+ "mountsLeft": "",
+ "outcome": "MEASURED",
+ "pass": true,
+ "peaks": {
+  "cgCurrent": 536997888,
+  "cgPagetables": 18059264,
+  "minMemAvailableMiB": 23521.46484375,
+  "treeVmRssMiB": 525.71875,
+  "walkerRssFileKiB": 480016,
+  "walkerVmPTEKiB": 16488,
+  "walkerVmRSSKiB": 484652
+ },
+ "processesLeft": "",
+ "reasons": [],
+ "scope": "synthetic mechanism measurement only; not MDBX, not production qualification",
+ "stageSums": "25245e21772377bcbacd9e27d8eb9d330e1340a3b2b1de9f98177b3603a17789",
+ "walker": {
+  "groupEmpty": true,
+  "groupLeftovers": [],
+  "limitSeconds": 509,
+  "orphansGone": true,
+  "rc": 0,
+  "result": {
+   "nonzeroPages": 0,
+   "pages": 2097152,
+   "scannedBytes": 8589934592,
+   "seconds": 28.417,
+   "timedOut": false
+  },
+  "softStop": null,
+  "timedOut": false
+ },
+ "wrapperTerm": false
+}
