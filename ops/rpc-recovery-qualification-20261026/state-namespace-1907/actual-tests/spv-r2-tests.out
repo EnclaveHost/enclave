@@ -1,0 +1,26 @@
+[queue] START available=23178MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+
+OK
+{
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "expected": 20,
+ "format": "state-production-test-receipt/r2",
+ "pass": true,
+ "ran": [
+  "20"
+ ],
+ "rc": 0,
+ "scope": "runner logic on SYNTHETIC inputs only: no view, mount, helper run or production data; not a production run, not a state result",
+ "stageSums": "e1353cdc9f3bad35600deb0f487dd1b81a1099b9ff33b584fc52cc847dbc1462"
+}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/state-production-validation-stage/r2/runs/tests-20261027T113056Z-3145879
+## spv-r2-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=4 minHostAvailableMiB=23175
+[memory-guard] at peak: 
+[queue] EXIT 0
