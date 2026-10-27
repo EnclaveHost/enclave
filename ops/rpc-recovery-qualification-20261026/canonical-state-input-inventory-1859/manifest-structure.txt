@@ -1,0 +1,71 @@
+2026-10-26T05:27:03Z
+{'block': 53048526, 'chain_id': 8453, 'storage_version': 2, 'timestamp': 1792888464, 'reth_version': '2.5.2-dev (7134be3)'}
+base_url host https://mainnet-v2-snapshots.base.org
+components type dict 9
+/account_changesets dict 6
+ /account_changesets/blocks_per_file = 500000
+ /account_changesets/total_blocks = 53048526
+ /account_changesets/chunk_sizes list 107
+  /account_changesets/chunk_sizes[0..] 107
+ /account_changesets/chunk_decompressed_sizes list 107
+  /account_changesets/chunk_decompressed_sizes[0..] 107
+ /account_changesets/chunk_files list 107
+  /account_changesets/chunk_files[0..] 107
+ /account_changesets/chunk_output_files list 107
+  /account_changesets/chunk_output_files[0..] 107
+   /account_changesets/chunk_output_files[0][0..] 4
+/headers dict 6
+ /headers/blocks_per_file = 500000
+ /headers/total_blocks = 53048526
+ /headers/chunk_sizes list 107
+  /headers/chunk_sizes[0..] 107
+ /headers/chunk_decompressed_sizes list 107
+  /headers/chunk_decompressed_sizes[0..] 107
+ /headers/chunk_files list 107
+  /headers/chunk_files[0..] 107
+ /headers/chunk_output_files list 107
+  /headers/chunk_output_files[0..] 107
+   /headers/chunk_output_files[0][0..] 3
+/proofs dict 4
+ /proofs/file = proofs.tar.zst
+ /proofs/size = 868126296971
+ /proofs/decompressed_size = 1156234667859
+ /proofs/output_files list 8238
+  /proofs/output_files[0..] 8238
+   /proofs/output_files[0]/path = proofs/037509.sst
+   /proofs/output_files[0]/size = 1183
+   /proofs/output_files[0]/blake3 = 44cc767d8196696bc517446127eb70e0acd3a3157dddbaee2ca0cd1b7ce424bf
+/receipts dict 6
+ /receipts/blocks_per_file = 500000
+ /receipts/total_blocks = 53048526
+ /receipts/chunk_sizes list 107
+  /receipts/chunk_sizes[0..] 107
+ /receipts/chunk_decompressed_sizes list 107
+  /receipts/chunk_decompressed_sizes[0..] 107
+ /receipts/chunk_files list 107
+  /receipts/chunk_files[0..] 107
+ /receipts/chunk_output_files list 107
+  /receipts/chunk_output_files[0..] 107
+   /receipts/chunk_output_files[0][0..] 3
+/rocksdb_indices dict 4
+ /rocksdb_indices/file = 1792886410/rocksdb_indices.tar.zst
+ /rocksdb_indices/size = 597056355503
+ /rocksdb_indices/decompressed_size = 715702288429
+ /rocksdb_indices/output_files list 11740
+  /rocksdb_indices/output_files[0..] 11740
+   /rocksdb_indices/output_files[0]/path = rocksdb/001210.sst
+   /rocksdb_indices/output_files[0]/size = 67208944
+   /rocksdb_indices/output_files[0]/blake3 = e4ef27fb6ae62a41257a89d01ddc1fe7ecf3497bd03198c743845e3b8af3aef1
+/state dict 4
+ /state/file = 1792886410/state.tar.zst
+ /state/size = 761228785915
+ /state/decompressed_size = 1138167361549
+ /state/output_files list 4
+  /state/output_files[0..] 4
+   /state/output_files[0]/path = db/database.version
+   /state/output_files[0]/size = 1
+   /state/output_files[0]/blake3 = 813e9b729141e7f385afa0a2d0df3e6c3789e427ffe4aeef566a565bc8f2fe3d
+total 501217812
+drwxr-x--- 2 rpcbase rpcbase         4096 Oct 25 23:53 .
+drwxr-x--- 4 rpcbase rpcbase         4096 Oct 25 11:11 ..
+-rw-r----- 1 rpcbase rpcbase 761228785915 Oct 26 05:27 state.tar.zst.part

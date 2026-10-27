@@ -1,0 +1,9 @@
+# Additional state-validation inputs: saved-evidence inventory, not qualification
+
+Root corroborated the saved snapshot manifest: Base8453, block53048526, storage_version2, reth7134be3. Saved reports describe136GB of static_files remaining after DB deletion; this is historical reported presence, not a fresh listing or a hash-based integrity result. Existing authenticated L1 anchor evidence is for block52866960, older than the snapshot. It does not establish that the recovered snapshot tip is canonical.
+
+The265 multipart files preserve MDBX only. Before any original RAID reset, locate and preserve or otherwise securely obtain the necessary header segments and configuration, retain provenance evidence, and resolve whether RocksDB exists/is required for the specific checks. Whole-directory preservation must not be assumed to fit: after all reserved parts and floors, extra space is limited. No additional original reads/copies have been started; bounded metadata inspection waits for the current preservation job to finish.
+
+The report is incomplete where marked. Its statement that fresh network/anchor checks require separate authorization refers to that agent's source-only assignment, not a new human approval requirement: the user already authorized RPC replacement. Resource/data gates still apply. A matching DB state root against its own header is self-consistency, not canonical-chain proof. Header withdrawalsRoot handling must be interpreted within the independently authenticated/derived chain; it is not a substitute for authenticating the snapshot tip.
+
+A source-only audit is underway to determine whether the helper's v2 RocksDB CURRENT and checkpoint-equality refusals are justified for its actual MDBX-only checks. No guard has been bypassed and no placeholder files created. USB writes, downloads and RPC VM startup remain paused. This inventory does not authorize deleting the original or accepting recovered state.
