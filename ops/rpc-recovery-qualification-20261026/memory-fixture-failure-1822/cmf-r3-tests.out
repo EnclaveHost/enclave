@@ -1,0 +1,49 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] START available=23760MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Ran 11 tests in 0.655s
+
+FAILED (errors=1)
+{
+ "badMarkers": [
+  "ResourceWarning",
+  "FAIL",
+  "ERROR",
+  "Traceback"
+ ],
+ "checks": {
+  "lastLineOK": false,
+  "noBadMarkers": false,
+  "ranExactly": true,
+  "rc0": false,
+  "stdoutEmpty": true
+ },
+ "expectedTests": 11,
+ "fixtureSha256": "7c1235d047650a40715ec08767212c1aa02dea4a1fda3fe7e5d02dc5c880698e",
+ "format": "composite-memory-fixture-test-receipt/r2",
+ "pass": false,
+ "ran": [
+  "11"
+ ],
+ "rc": 1,
+ "scope": "unit tests only; no mount, no scope change, no measurement",
+ "stageSums": "32b71c04badd0b333da69986a488faa99c13e7aad72073524ed43e46ffe65eda",
+ "testsSha256": "c658cef3cf15412157e6ebfde7f68d77afc3ee82b2a9016d73402795c32d6758"
+}
+## tmp RETAINED: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-memory-fixture-stage/r3/runs/tests-20261027T032312Z-2697726/tmp
+## FAIL
+## receipt /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-memory-fixture-stage/r3/runs/tests-20261027T032312Z-2697726/receipt.json
+## cmf-r3-tests rc=1
+[memory-guard] exit=1 peakTreeRssMiB=65 minHostAvailableMiB=23700
+[memory-guard] at peak: python3:32 python3:26 bash:4 sleep:2 timeout:2
+[queue] EXIT 1
