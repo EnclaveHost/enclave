@@ -1,0 +1,33 @@
+{
+ "binding": {
+  "kind": "session",
+  "manifestSha256": "f94807f71c93b1ef639c224dfefb3b6c0f3e7b9289def91fc52b0e79864821a9",
+  "mntId": 497,
+  "mode": "verify",
+  "multipartSha256": "3159890b5bddcb763f578fa87b833931d695f4181dd447395bb40c2dff1c4381",
+  "overlaySessionSha256": "65d45ab79da8e134772374ec7298cd3a53fc54d68ecb3b3fd407eec4874a8153",
+  "parentPath": "/home/steven/Documents/Codex/2026-10-26/my/work/tr004-readonly/enclave-rpc-production/base-origin.qcow2",
+  "planSha256": "c4e38213847793d5c0868825fe454c5702b4499a6b25315078037b073a4f35a9",
+  "requestSha256": "1728b7b67c9718fb2ca673c2e865914df0ed393a777d3e138bdd593496839cfa",
+  "serverPid": 2521511,
+  "serverStartTime": 136566853,
+  "sessionId": "20261027T002224Z-2521128",
+  "sessionPid": 2521164,
+  "sessionRunDir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/session",
+  "sessionStartTime": 136565794,
+  "target": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/session/work/mnt/data/db/mdbx.dat",
+  "targetIdentity": {
+   "ctimeNs": 1793026311326130230,
+   "dev": 67,
+   "ino": 1950053,
+   "mtimeNs": 1793026311326130230,
+   "size": 1138166333440
+  }
+ },
+ "format": "recovery-multipart-session/v2",
+ "reasons": [],
+ "receiptSha256": "aebe0accc66c9762000f2f9921259816013170e003752fd3058d417a9f5c26bf",
+ "sessionId": "20261027T002224Z-2521128",
+ "sessionRc": 0,
+ "status": "CONFIRMED"
+}
