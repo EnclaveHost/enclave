@@ -1,0 +1,117 @@
+TAP version 13
+# Subtest: root: refuses a receipt for another transaction
+not ok 1 - root: refuses a receipt for another transaction
+  ---
+  duration_ms: 1.658337
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-review-r1/root-receipt.test.mjs:7:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-review-r1/root-receipt.test.mjs:8:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: root: zero block hash preconfirmation is pending even if endpoint echoes it
+not ok 2 - root: zero block hash preconfirmation is pending even if endpoint echoes it
+  ---
+  duration_ms: 4.555614
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-review-r1/root-receipt.test.mjs:10:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + {
+    +   blockHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    +   blockNumber: '0x10',
+    +   logs: [],
+    +   status: '0x1',
+    +   transactionHash: '0x1111111111111111111111111111111111111111111111111111111111111111',
+    +   transactionIndex: '0x0'
+    + }
+    - null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual:
+    transactionHash: '0x1111111111111111111111111111111111111111111111111111111111111111'
+    transactionIndex: '0x0'
+    blockHash: '0x0000000000000000000000000000000000000000000000000000000000000000'
+    blockNumber: '0x10'
+    status: '0x1'
+    logs:
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-review-r1/root-receipt.test.mjs:11:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: root: rejects canonical header number mismatch
+not ok 3 - root: rejects canonical header number mismatch
+  ---
+  duration_ms: 0.287358
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-review-r1/root-receipt.test.mjs:13:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-review-r1/root-receipt.test.mjs:14:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: root: rejects transaction absent from canonical block
+not ok 4 - root: rejects transaction absent from canonical block
+  ---
+  duration_ms: 0.192728
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-review-r1/root-receipt.test.mjs:16:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-review-r1/root-receipt.test.mjs:17:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: root: rejects log for different transaction
+not ok 5 - root: rejects log for different transaction
+  ---
+  duration_ms: 0.317368
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-review-r1/root-receipt.test.mjs:19:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-review-r1/root-receipt.test.mjs:21:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: root: canonical matching receipt passes
+ok 6 - root: canonical matching receipt passes
+  ---
+  duration_ms: 0.782494
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 1
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 16.21418
