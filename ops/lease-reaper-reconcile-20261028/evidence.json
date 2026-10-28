@@ -10,7 +10,7 @@
   "effectiveSupervisorSha256": "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951",
   "sourceMatchesEffectiveImage": true,
   "patchedSupervisorSha256": "017670e667372a7f4ac4696e80a724ead2d2f8723e176d0b56bd6cadc5390b53",
-  "helperSha256": "116a2c3d9e64312654471971d3043240374b009011b253dd6ddcb8028b8e5238",
+  "helperSha256": "b848f8538405967b03c9be4cd169371e3c136a1adb5938282b9f71a24c17dee7",
   "renewal": {
     "value": [
       {
@@ -31,5 +31,19 @@
       "mainnet.base.org: RPC Request failed."
     ]
   },
-  "productionModified": false
+  "productionModified": false,
+  "reviewQualification": {
+    "focusedTests": 20,
+    "productionSourceTests": 20,
+    "combinedTests": 29,
+    "hungPeerIterations": 25,
+    "hungPeerPhases": [
+      "head",
+      "header",
+      "row",
+      "recheck"
+    ],
+    "liveRpcCalls": 0,
+    "productionModified": false
+  }
 }

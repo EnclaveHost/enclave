@@ -39,7 +39,8 @@ test('actual reaper preserves EyesOff after canonical renewal landed following r
 test('actual renewal error marks uncertain outcome; next attempt reconciles without duplicate send',async()=>{
   const {state,ctx,rec}=fixture();state.now=OLD*1000-20000;
   await ctx.renewLeases();assert.equal(state.sends,1);assert.equal(rec._renewNeedsReconcile,true);
-  state.now+=61000;await ctx.renewLeases();assert.equal(state.sends,1);assert.equal(rec._leaseUntil,NEW);
+  state.now+=61000;state.snapshot.timestamp=state.now-4000;
+  await ctx.renewLeases();assert.equal(state.sends,1);assert.equal(rec._leaseUntil,NEW);
 });
 test('genuine canonical expiry is stopped after the existing grace',async()=>{
   const {state,rec}=fixture();state.snapshot=snap(row({leaseUntil:BigInt(OLD)}));
@@ -87,7 +88,7 @@ test('inactive owner or another runner cannot authorize continuation',()=>{
 function client({d=row(),time=NOW-4000,hash='0x'+'ab'.repeat(32),network=8453,reorg=false,hang=false}={}){
   let blocks=0;
   return {getChainId:async()=>network,getBlockNumber:async()=>hang?new Promise(()=>{}):53207945n,
-    getBlock:async()=>({timestamp:BigInt(Math.floor(time/1000)),hash:reorg&&++blocks>1?'other':hash}),
+    getBlock:async()=>({number:53207943n,timestamp:BigInt(Math.floor(time/1000)),hash:reorg&&++blocks>1?'0x'+'cd'.repeat(32):hash}),
     readContract:async q=>{assert.equal(q.address,ledger);assert.equal(q.functionName,'get');assert.deepEqual(q.args,[id]);assert.equal(q.blockNumber,53207943n);return d;}};
 }
 test('reader requires two matching rows, same canonical block, correct chain and fresh time',async()=>{
@@ -102,6 +103,13 @@ test('reader respects observed block floor',async()=>{
   const read=createLeaseExpiryReader({clients:[client(),client()],now:()=>NOW});
   await assert.rejects(read({id,ledger,abi:[],minBlock:53207946}),/floor/);
 });
+test('coalescing cannot weaken a later caller\'s stricter block floor',async()=>{
+  const read=createLeaseExpiryReader({clients:[client(),client()],now:()=>NOW});
+  const first=read({id,ledger,abi:[]});
+  const stricter=read({id,ledger,abi:[],minBlock:53207944});
+  assert.equal((await first).blockNumber,53207943n);
+  await assert.rejects(stricter,/floor/);
+});
 test('two healthy providers can answer despite a hung third provider',async()=>{
   const read=createLeaseExpiryReader({clients:[client(),client(),client({hang:true})],now:()=>NOW,timeoutMs:500});
   assert.equal((await read({id,ledger,abi:[]})).d.leaseUntil,BigInt(NEW));
@@ -110,4 +118,47 @@ test('hung reads time out, retain their slot and never authorize a lease',async(
   const read=createLeaseExpiryReader({clients:[client({hang:true}),client()],now:()=>NOW,timeoutMs:10});
   const a=read({id,ledger,abi:[]});assert.equal(read({id,ledger,abi:[]}),a);
   await assert.rejects(a,/deadline/);assert.equal(read({id,ledger,abi:[]}),a);
+});
+test('repeated successful decisions cannot accumulate requests on a hung third peer',async()=>{
+  for (const phase of ['head','header','row','recheck']) {
+    const stuck=client(), counts={head:0,header:0,row:0}, good=[client(),client()];
+    let outstanding=0, peak=0, release;
+    const hang=()=>{outstanding++;peak=Math.max(peak,outstanding);return new Promise(r=>release=()=>{outstanding--;r();});};
+    stuck.getBlockNumber=async()=>{counts.head++;if(phase==='head'&&counts.head===1)await hang();return 53207945n;};
+    const header=stuck.getBlock;
+    stuck.getBlock=async q=>{counts.header++;if((phase==='header'&&counts.header===1)||(phase==='recheck'&&counts.header===2))await hang();return header(q);};
+    const rowRead=stuck.readContract;
+    stuck.readContract=async q=>{counts.row++;if(phase==='row'&&counts.row===1)await hang();return rowRead(q);};
+    const read=createLeaseExpiryReader({clients:[...good,stuck],now:()=>NOW,timeoutMs:500});
+    for(let i=0;i<25;i++)assert.equal((await read({id,ledger,abi:[]})).blockNumber,53207943n);
+    assert.equal(counts.head,1,phase);assert.equal(peak,1,phase);assert.equal(outstanding,1,phase);
+    release();await new Promise(r=>setImmediate(r));
+    assert.equal(outstanding,0,phase);
+    await read({id,ledger,abi:[]});assert.equal(counts.head,2,phase);
+  }
+});
+test('both providers returning identical malformed header metadata cannot form a quorum',async()=>{
+  const mutations=[
+    h=>delete h.hash,h=>h.hash=undefined,h=>h.hash=null,h=>h.hash='0x'+'00'.repeat(32),
+    h=>h.hash='0x1234',h=>h.hash='0x'+'zz'.repeat(32),
+    h=>delete h.number,h=>h.number=null,h=>h.number='53207943',h=>h.number=53207942n,h=>h.number=53207944n,
+    h=>delete h.timestamp,h=>h.timestamp=null,h=>h.timestamp=Number(h.timestamp),
+  ];
+  for(const mutate of mutations)for(const phase of ['first','recheck']){
+    const peers=[client(),client()].map(c=>{const get=c.getBlock;let calls=0;c.getBlock=async q=>{
+      const h=await get(q);calls++;if(phase==='first'||calls===2)mutate(h);return h;};return c;});
+    const read=createLeaseExpiryReader({clients:peers,now:()=>NOW});
+    await assert.rejects(read({id,ledger,abi:[]}),/quorum/);
+  }
+});
+test('matching block hashes cannot conceal changed canonical timestamps',async()=>{
+  const peers=[client(),client()].map(c=>{const get=c.getBlock;let calls=0;c.getBlock=async q=>{
+    const h=await get(q);if(++calls===2)h.timestamp+=1n;return h;};return c;});
+  await assert.rejects(createLeaseExpiryReader({clients:peers,now:()=>NOW})({id,ledger,abi:[]}),/quorum/);
+});
+test('verdict rejects malformed canonical snapshot identities and stale evidence',()=>{
+  for(const over of [{blockNumber:undefined},{blockNumber:53207943},{blockNumber:-1n},
+    {blockHash:undefined},{blockHash:'0x'+'00'.repeat(32)},{timestamp:undefined},
+    {timestamp:NOW-15000},{timestamp:NOW+6000}])
+    assert.throws(()=>leaseExpiryVerdict({...snap(row()),...over},{id,runner,operator,now:NOW}),/snapshot/);
 });

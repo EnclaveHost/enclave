@@ -16,9 +16,15 @@ The main-branch supervisor and its Dockerfile/metal overlay include `network/lea
 
 ## Validation
 
-- `node --test --test-concurrency=1 test/lease-expiry-reconcile.test.mjs`: 15 passing offline tests.
-- The same 15 tests with `SUPERVISOR_JS` pointing to the patched exact production supervisor: pass. The fixtures execute the real renewal and billing functions, with scripted chain/guest edges.
-- `node --test --test-concurrency=1 test/tenant-lease.test.mjs test/lease-expiry-reconcile.test.mjs`: 24 passing tests.
+- `node --test --test-concurrency=1 test/lease-expiry-reconcile.test.mjs`: 20 passing offline tests.
+- The same 20 tests with `SUPERVISOR_JS` pointing to the patched exact production supervisor: pass. The fixtures execute the real renewal and billing functions, with scripted chain/guest edges.
+- `node --test --test-concurrency=1 test/tenant-lease.test.mjs test/lease-expiry-reconcile.test.mjs`: 29 passing tests.
 - Syntax and whitespace checks pass. No live RPC, VM, GPU, signing or deployment is part of these tests.
 
 Rollout requires a separately reviewed production overlay build, artifact verification and coordination with the funding/recovery owner. This patch does not alter funding contracts, RPC configuration, memory floors, pad-storage guards, lease duration or owner/admin stop authority.
+
+## Review hardening
+
+Each provider retains its own slot until every head/row/header request it started settles, even after another pair returns a successful quorum. Twenty-five sequential reads in each of four stalled-provider phases (head, first header, row, header recheck) retain exactly one stalled request, then admit that provider again after it recovers. This bounds request accumulation across successful calls as well as timed-out calls.
+
+Both canonical header reads must carry the exact requested bigint block number, a nonzero 32-byte hash, and matching valid timestamps. Identical missing, zero, truncated, malformed or wrong-block metadata from two providers fails closed. Snapshot freshness/identity and coalesced callers with stricter block floors are checked too. This helper consumes block-pinned contract reads, not event logs; it does not introduce an alternative receipt/log parser.
