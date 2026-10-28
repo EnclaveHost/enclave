@@ -1,0 +1,4 @@
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/baseline-build/enclave_llama.c:18:10: fatal error: enclave_llama.h: No such file or directory
+   18 | #include "enclave_llama.h"
+      |          ^~~~~~~~~~~~~~~~~
+compilation terminated.
