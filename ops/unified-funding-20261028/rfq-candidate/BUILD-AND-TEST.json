@@ -1,0 +1,44 @@
+{
+  "compiledOriginalRuntimeTemplateBytes": 5433,
+  "compiledOriginalCreationTemplateBytes": 6149,
+  "forge": "forge Version: 1.7.1\nCommit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8\nBuild Timestamp: 2026-05-08T07:50:55.527285345Z (1778226655)\nBuild Profile: dist",
+  "solc": "solc, the solidity compiler commandline interface\nVersion: 0.8.35+commit.47b9dedd.Linux.g++",
+  "originalTests": {
+    "passed": 52,
+    "failed": 0,
+    "skipped": 0,
+    "fuzzRuns": 512,
+    "invariantRuns": 64,
+    "invariantDepth": 64,
+    "log": "original-test-r1.txt"
+  },
+  "originalSourceSHA256": {
+    "work/rpc-production-final-20261025/unified-funding-20261028/r2/src/ILeaseGasFundingRouter.sol": "bd1c0b2729e2c721f54cac82c21e5093c3802a088796540bf0e729ab67b2b859",
+    "work/rpc-production-final-20261025/unified-funding-20261028/r2/src/LeaseGasFundingRouter.sol": "b3c342a276bf688c64ffb7f8d187b893beb6eea3fd665f54bb21b34e953c996b",
+    "work/rpc-production-final-20261025/unified-funding-20261028/r2/test/LeaseGasFundingRouter.t.sol": "316c2198cdcd3251f576ec3b11bdeb18af18e66a45c3e3109570712cd0c67d2b",
+    "work/rpc-production-final-20261025/unified-funding-20261028/r2/test/LeaseGasFundingRouter.invariant.t.sol": "9b6a7d650e9c33add54736d1e0723d71a1c406e27a12f1870ce0b14d925c35ca",
+    "work/rpc-production-final-20261025/unified-funding-20261028/r2/test/LeaseGasFundingRouter.realReserve.t.sol": "29c9422cb21c52c7e7b94e11577ee66379309127eb473421048a66fc35af0624",
+    "work/rpc-production-final-20261025/unified-funding-20261028/r2/test/mocks/RouterMocks.sol": "4c69977cd9e57659ddc15034e6b06f367ff7e256edda3763f1bcc516b9877e8c",
+    "work/enclave/contracts/EnclaveLeaseGasReserve.sol": "1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2"
+  },
+  "packagingChanges": [
+    "test fixture secp256k1 order split into equal-valued halves",
+    "readonly actual reserve source vendored as pinned fixture",
+    "portable Foundry remappings"
+  ],
+  "packagedTests": {
+    "passed": 52,
+    "failed": 0,
+    "skipped": 0,
+    "log": "packaged-test-r1.txt"
+  },
+  "packagedSourceSHA256": {
+    "src/ILeaseGasFundingRouter.sol": "bd1c0b2729e2c721f54cac82c21e5093c3802a088796540bf0e729ab67b2b859",
+    "src/LeaseGasFundingRouter.sol": "b3c342a276bf688c64ffb7f8d187b893beb6eea3fd665f54bb21b34e953c996b",
+    "test/LeaseGasFundingRouter.t.sol": "51ce157d3d5f369adad85138e1e68926b9e91584a6e669972752219a1f10820f",
+    "test/LeaseGasFundingRouter.invariant.t.sol": "9b6a7d650e9c33add54736d1e0723d71a1c406e27a12f1870ce0b14d925c35ca",
+    "test/LeaseGasFundingRouter.realReserve.t.sol": "29c9422cb21c52c7e7b94e11577ee66379309127eb473421048a66fc35af0624",
+    "test/mocks/RouterMocks.sol": "4c69977cd9e57659ddc15034e6b06f367ff7e256edda3763f1bcc516b9877e8c",
+    "test/fixtures/EnclaveLeaseGasReserve.sol": "1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2"
+  }
+}

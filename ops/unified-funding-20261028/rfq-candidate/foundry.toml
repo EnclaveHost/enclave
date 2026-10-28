@@ -1,0 +1,27 @@
+# Standalone, TEST-ONLY Foundry project for the unified-funding r2 slice (LeaseGasFundingRouter).
+# Mirrors source/foundry.toml (solc 0.8.35, optimizer 200, via_ir) and reuses its vendored forge-std read-only.
+# Nothing here deploys; out/ and cache/ feed nothing.
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = ["../../../contracts/foundry/lib"]
+remappings = [
+    "forge-std/=../../../contracts/foundry/lib/forge-std/src/",
+    # the newer lease-reserve source, compiled only by test/LeaseGasFundingRouter.realReserve.t.sol
+    "enclave-src/=test/fixtures/",
+]
+allow_paths = ["../../../contracts/foundry/lib", "test/fixtures"]
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+
+[fuzz]
+runs = 512
+
+[invariant]
+runs = 64
+depth = 64
+fail_on_revert = false

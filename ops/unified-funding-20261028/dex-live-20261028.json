@@ -1,0 +1,52 @@
+{
+  "at": "2026-10-28T11:52:35.067Z",
+  "source": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-base-deployments",
+  "addresses": {
+    "factory": "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+    "router": "0x2626664c2603336E57B271c5C0b26F421741e481",
+    "quoter": "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
+    "weth": "0x4200000000000000000000000000000000000006",
+    "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  },
+  "providers": [
+    "https://base-rpc.publicnode.com",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "blockNumber": "53199497",
+  "blockHash": "0xb411a57c0e55597bf70c04e362097e0f0e87cbc43590f25a42ac07e83eccb6ac",
+  "timestamp": "1793188341",
+  "codeHashes": {
+    "factory": "0x95707a4ac71f20181a63ef7d180e3c625be5d20fc8f6f980befa966bad568132",
+    "router": "0x38bd640f47df62b2fd5a6755a63f4976ad847dc9b946ae0d145d21d16bb124e4",
+    "quoter": "0xceb5b8bc35e09fc64b1c48c6b920e0d2e37d5710e4f3ef214e1a81f75acee51e",
+    "weth": "0x8a3a1f6a9f9dce633117adee5b458245835a8645a8c8726a26382a4622508b1c",
+    "usdc": "0xa6705a10bb756b5dea144591118be77d7af0c3eee3bf2dfe2583dcb0364fefab"
+  },
+  "pools": [
+    {
+      "pool": "0xb4CB800910B228ED3d0834cF79D697127BBB00e5",
+      "fee": 100,
+      "liquidity": "65182744518750195",
+      "ethOut": "20000000000000",
+      "usdcIn6": "47253",
+      "gasEstimate": "86948"
+    },
+    {
+      "pool": "0xd0b53D9277642d899DF5C87A3966A349A798F224",
+      "fee": 500,
+      "liquidity": "971595650348077726",
+      "ethOut": "20000000000000",
+      "usdcIn6": "47290",
+      "gasEstimate": "86937"
+    },
+    {
+      "pool": "0x6c561B446416E1A00E8E93E221854d6eA4171372",
+      "fee": 3000,
+      "liquidity": "40839890814048060327",
+      "ethOut": "20000000000000",
+      "usdcIn6": "47428",
+      "gasEstimate": "86939"
+    }
+  ],
+  "transactionsSent": 0
+}

@@ -1,0 +1,23 @@
+import fs from 'node:fs';
+import {createPublicClient,http,parseAbi,keccak256} from '/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem/_esm/index.js';
+import {VAULT_ABI} from '/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/windows/node/session-api-auth.mjs';
+const vault='0xB794C4DD0e1C5E6B72281799F282BfdE7654345D',sid='0x3aaf56fd65c168ba3e99e204ede06e2f2e8f1ff544ecd28f9ef8a4a011312227';
+const urls=['https://mainnet.base.org','https://base-mainnet.public.blastapi.io'];
+const cs=urls.map(url=>createPublicClient({transport:http(url,{timeout:12000,retryCount:0})}));
+const heads=await Promise.all(cs.map(async c=>{if(await c.getChainId()!==8453)throw Error('chain');return c.getBlockNumber()}));
+const blockNumber=heads.reduce((a,b)=>a<b?a:b)-5n;
+const abi=parseAbi(['function factory() view returns(address)','function implementation() view returns(address)','function usdc() view returns(address)']);
+const results=await Promise.all(cs.map(async c=>{
+const block=await c.getBlock({blockNumber});
+const read=(address,abi,functionName,args=[])=>c.readContract({address,abi,functionName,args,blockNumber});
+const [[s,live,apps],owner,factory,usdc,code]=await Promise.all([read(vault,VAULT_ABI,'sessionOf',[sid]),read(vault,VAULT_ABI,'owner'),read(vault,abi,'factory'),read(vault,abi,'usdc'),c.getCode({address:vault,blockNumber})]);
+if(owner.toLowerCase()!=='0x0b2d009c0c9af05b12100d77f3c815fea822ee61')throw Error('owner');
+const implementation=await read(factory,abi,'implementation');
+const [factoryCode,implementationCode]=await Promise.all([c.getCode({address:factory,blockNumber}),c.getCode({address:implementation,blockNumber})]);
+return {blockNumber,blockHash:block.hash,timestamp:block.timestamp,vault,sid,owner,factory,implementation,usdc,vaultCode:code,factoryCodeHash:keccak256(factoryCode),implementationCodeHash:keccak256(implementationCode),live,balance6:s.balance6,spent6:s.spent6,actions:s.actions,envs:s.envs,expiresAt:s.expiresAt,perPeriod6:s.perPeriod6,maxFee6:s.maxFee6,periodSpent6:s.periodSpent6,apps};
+}));
+const stringify=x=>JSON.stringify(x,(_,v)=>typeof v==='bigint'?String(v):v,2);
+if(stringify(results[0])!==stringify(results[1]))throw Error('quorum disagreement');
+const out={at:new Date().toISOString(),providers:urls,...results[0]};
+fs.writeFileSync(new URL('./session-live-20261028.json',import.meta.url),stringify(out)+'\n',{flag:'wx',mode:0o600});
+console.log(stringify(out));

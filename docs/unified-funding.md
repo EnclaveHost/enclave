@@ -1,6 +1,6 @@
 # Unified platform funding
 
-Status: required for decentralized payment rollout; specification only, not deployed.
+Status: explicitly prioritized for production release by the user on October 28; implementation and qualification in progress, not deployed. The existing funded session is authorized for signatures/actions its current contract permits.
 User requirement recorded October 28, 2026: ETH, USDC, and compute credit must fund platform operations interchangeably. The platform must handle settlement currency rather than require users to maintain separate compute and gas balances.
 
 ## User-visible contract
@@ -51,3 +51,7 @@ Actual asset movement, credit retirement, budget accounting, exact gas-reserve o
 7. Review migration and deployment transactions before requesting administrator signatures or new user grants. Keep old routes usable through staged rollout and document how to stop new intents without stranding existing assets or disabling applications.
 
 Completion requires all routes working end to end with independent submission and no manual currency management inside an authorized budget. A planner, mock swap, successful quote, accounting-only credit, or a new contract without activated session/dashboard support does not satisfy this requirement.
+
+## Initial production route qualification
+
+Read-only evidence in `ops/unified-funding-20261028/dex-live-20261028.json` verifies existing Base USDC/WETH pools and quote agreement. Prefer an adapter using existing exchange liquidity for initial rollout rather than require a new platform-funded maker pool. The optional RFQ router candidate is not a deployed service or proof of available makers. Session capability and closed-loop credit refund restrictions remain blockers until their explicit integrations pass. No funds have been spent by this implementation work.
