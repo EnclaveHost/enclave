@@ -1,0 +1,9 @@
+{
+  "prepare.py": "15b0a500845c74642c04cd599641e2bc090d302d54f74d3f57d636b402a3194a",
+  "foundry.toml": "841a472f00bd9b8638b44c52de848da5ec7401b8639b723855c1520e8db222b6",
+  "SESSION-REVIEW.md": "a323d0711725a95c68fd237b8d9a57025861a11a188786349f688ab666d46407",
+  "src/FundingGasLib.sol": "21607b6a897719ae57846db41968b8a608c3281d807a2735f317160cad2e476f",
+  "test/FundingRig.sol": "5581ae890dd7d70fa1b2b05e4cb1ccb2f15dd6bf176c76e0a210eaac20c9bff8",
+  "test/FundingSessionVault.gas.t.sol": "f96a5aab4c71ccfbf1e0b42305c8f3d941154461fc93076960e5e3aea9af249c",
+  "test/FundingSessionVault.regression.t.sol": "cbe2cc41a1ae19053f70d581de77d2ef6fa309874c524eb9b92a0ad3dda781a2"
+}

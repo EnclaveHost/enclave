@@ -1,0 +1,223 @@
+{
+  "testExitCode": 0,
+  "sizes": {
+    "FundingSessionVault": {
+      "runtimeBytes": 24597,
+      "creationBytes": 25294,
+      "links": {
+        "src/FundingGasLib.sol": {
+          "FundingGasLib": [
+            {
+              "start": 166,
+              "length": 20
+            },
+            {
+              "start": 7869,
+              "length": 20
+            },
+            {
+              "start": 22016,
+              "length": 20
+            }
+          ]
+        },
+        "src/FundingSessionVault.sol": {
+          "FundingSessionVaultLib": [
+            {
+              "start": 3522,
+              "length": 20
+            },
+            {
+              "start": 7082,
+              "length": 20
+            },
+            {
+              "start": 11153,
+              "length": 20
+            },
+            {
+              "start": 13890,
+              "length": 20
+            },
+            {
+              "start": 17079,
+              "length": 20
+            },
+            {
+              "start": 17401,
+              "length": 20
+            },
+            {
+              "start": 17790,
+              "length": 20
+            },
+            {
+              "start": 17987,
+              "length": 20
+            },
+            {
+              "start": 19174,
+              "length": 20
+            },
+            {
+              "start": 19519,
+              "length": 20
+            },
+            {
+              "start": 19808,
+              "length": 20
+            },
+            {
+              "start": 21732,
+              "length": 20
+            },
+            {
+              "start": 21928,
+              "length": 20
+            },
+            {
+              "start": 22259,
+              "length": 20
+            },
+            {
+              "start": 22439,
+              "length": 20
+            },
+            {
+              "start": 24207,
+              "length": 20
+            }
+          ]
+        }
+      }
+    },
+    "FundingSessionVaultFactory": {
+      "runtimeBytes": 2132,
+      "creationBytes": 27796,
+      "links": {
+        "src/FundingGasLib.sol": {
+          "FundingGasLib": [
+            {
+              "start": 2668,
+              "length": 20
+            },
+            {
+              "start": 10371,
+              "length": 20
+            },
+            {
+              "start": 24518,
+              "length": 20
+            }
+          ]
+        },
+        "src/FundingSessionVault.sol": {
+          "FundingSessionVaultLib": [
+            {
+              "start": 6024,
+              "length": 20
+            },
+            {
+              "start": 9584,
+              "length": 20
+            },
+            {
+              "start": 13655,
+              "length": 20
+            },
+            {
+              "start": 16392,
+              "length": 20
+            },
+            {
+              "start": 19581,
+              "length": 20
+            },
+            {
+              "start": 19903,
+              "length": 20
+            },
+            {
+              "start": 20292,
+              "length": 20
+            },
+            {
+              "start": 20489,
+              "length": 20
+            },
+            {
+              "start": 21676,
+              "length": 20
+            },
+            {
+              "start": 22021,
+              "length": 20
+            },
+            {
+              "start": 22310,
+              "length": 20
+            },
+            {
+              "start": 24234,
+              "length": 20
+            },
+            {
+              "start": 24430,
+              "length": 20
+            },
+            {
+              "start": 24761,
+              "length": 20
+            },
+            {
+              "start": 24941,
+              "length": 20
+            },
+            {
+              "start": 26709,
+              "length": 20
+            }
+          ]
+        }
+      }
+    },
+    "FundingSessionVaultLib": {
+      "runtimeBytes": 10727,
+      "creationBytes": 10759,
+      "links": {}
+    },
+    "FundingGasLib": {
+      "runtimeBytes": 7818,
+      "creationBytes": 7850,
+      "links": {
+        "src/FundingSessionVault.sol": {
+          "FundingSessionVaultLib": [
+            {
+              "start": 4389,
+              "length": 20
+            },
+            {
+              "start": 4592,
+              "length": 20
+            }
+          ]
+        }
+      }
+    }
+  },
+  "sizeLimitsPass": false,
+  "compiler": "0.8.35",
+  "optimizerRuns": 1,
+  "viaIR": true,
+  "evmVersion": "osaka",
+  "sourcesUnchanged": true,
+  "inputSHA256": {
+    "src/FundingSessionVault.sol": "77200741e4960e8a6c8e141385054fe0d5767676abe562434e5dd43ec0b0deef",
+    "src/FundingGasLib.sol": "9abefc95d9cdbe79013202eb30b3911af2b02b51870dc36c30cbcc6838429cf2",
+    "test/FundingSessionVault.gas.t.sol": "f96a5aab4c71ccfbf1e0b42305c8f3d941154461fc93076960e5e3aea9af249c",
+    "test/FundingRoot.t.sol": "9a6dfabd0003e19cc8abdae1e9d7da92796325b5441bd1b6875be76141fd140f",
+    "test/FundingSessionVault.regression.t.sol": "cbe2cc41a1ae19053f70d581de77d2ef6fa309874c524eb9b92a0ad3dda781a2",
+    "test/FundingRig.sol": "5581ae890dd7d70fa1b2b05e4cb1ccb2f15dd6bf176c76e0a210eaac20c9bff8"
+  },
+  "productionChanges": false
+}

@@ -1,0 +1,34 @@
+# Standalone Foundry project for unified-funding session-r1 (FundingSessionVault successor + FundingGasLib).
+# Release settings: solc 0.8.35, optimizer runs 1, via_ir - the original SessionVault's reproducible build settings.
+# src/FundingSessionVault.sol does not exist until root runs `python3 prepare.py` (it is generated from the original).
+# Reuses READ-ONLY: vendored forge-std, the enclave contracts (original SessionVault, ledger, catalog, book, router,
+# lease-gas reserve, session mocks) and the dex-r1 adapter + DEX mocks. No RPC is configured; nothing deploys.
+# No size-limit override anywhere: root measures runtime/initcode sizes with `forge build --sizes`.
+# P-256: the tests require the NATIVE P256VERIFY precompile at 0x100 and FAIL (never etch, never skip) without it.
+# If this Foundry's default EVM lacks it, root must choose an evm_version that has it and record that choice next to
+# the size measurement (the release build's evm_version must match what was measured).
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = ["../../../contracts/foundry/lib"]
+remappings = [
+    "forge-std/=../../../contracts/foundry/lib/forge-std/src/",
+    "enclave-src/EnclaveLeaseGasReserve.sol=../rfq-candidate/test/fixtures/EnclaveLeaseGasReserve.sol",
+    "enclave-src/=../../../contracts/",
+    "dex-r1/=../dex-candidate/",
+    "r2/=../rfq-candidate/",
+]
+allow_paths = ["../../../contracts/foundry/lib", "../../../contracts", "../dex-candidate", "../rfq-candidate"]
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 1
+via_ir = true
+evm_version = "osaka"
+# Omit only the IPFS metadata hash; source/build manifest is distributed explicitly.
+# No size override and no runtime safety check is removed.
+bytecode_hash = "none"
+
+[fuzz]
+runs = 256

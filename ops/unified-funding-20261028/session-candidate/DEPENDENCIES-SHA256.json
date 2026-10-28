@@ -1,0 +1,10 @@
+{
+  "contracts/SessionVault.sol": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c",
+  "contracts/EnclaveDeployments.sol": "38fe6729590e159e59e546de000d07efa4025d89fb7211225cde6f9b798e4471",
+  "contracts/EnclaveAppCatalog.sol": "b31744361efbb43fcf60152a5eaaa185d1af07bdc27f077af0a2b48e7de3b191",
+  "contracts/EnclaveAddressBook.sol": "b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8",
+  "contracts/PaymentRouter.sol": "8f28d3e4a313ea66a2dda511fca1194933c845a81756806f9f011ebe3e912ed0",
+  "contracts/foundry/test/mocks/SessionMocks.sol": "47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d",
+  "contracts/foundry/test/mocks/MockUSDC.sol": "a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703",
+  "ops/unified-funding-20261028/rfq-candidate/test/fixtures/EnclaveLeaseGasReserve.sol": "1d173473a4681c8504a264cc51ee486c37c2d3919fe133c6c744ad514ea311e2"
+}
