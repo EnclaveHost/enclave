@@ -1,0 +1,22 @@
+[queue] START available=30247MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: native P-256 gas.fund through the composed host's HTTP handle on an owned Anvil
+ok 1 - native P-256 gas.fund through the composed host's HTTP handle on an owned Anvil
+  ---
+  duration_ms: 1955.047376
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1959.993618
+[memory-guard] exit=0 peakTreeRssMiB=144 minHostAvailableMiB=30156
+[memory-guard] at peak: node:109 anvil:35
+[memory-guard] exit=0 peakTreeRssMiB=204 minHostAvailableMiB=30157
+[memory-guard] at peak: node:109 node:60 anvil:35
+[queue] EXIT 0
