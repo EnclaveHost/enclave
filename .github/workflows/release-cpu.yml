@@ -1,0 +1,60 @@
+name: Reaper artifact only — no deployment
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact reviewed source commit
+        required: true
+      asset_id:
+        description: Owned draft release encrypted input asset ID
+        required: true
+      input_sha256:
+        description: SHA256 of encrypted input
+        required: true
+      recipient:
+        description: Ephemeral age public recipient for encrypted output
+        required: true
+      transport_expires:
+        description: Unix expiry no later than 24 hours after setup
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: reaper-artifact-20261028
+  cancel-in-progress: false
+jobs:
+  artifact:
+    if: github.ref == 'refs/heads/build/lease-reaper-artifact-20261028'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: reaper-artifact-20261028
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Bounded offline overlay build with encrypted transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AGE_IDENTITY: ${{ secrets.REAPER_AGE_IDENTITY }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          ASSET_ID: ${{ inputs.asset_id }}
+          INPUT_SHA256: ${{ inputs.input_sha256 }}
+          AGE_RECIPIENT: ${{ inputs.recipient }}
+          TRANSPORT_EXPIRES: ${{ inputs.transport_expires }}
+        run: timeout --signal=TERM --kill-after=15s 1100s bash qualification/runner.sh
+      - name: Preserve encrypted result and diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: reaper-artifact-${{ github.run_id }}
+          path: ${{ runner.temp }}/reaper-scratch/result/
+          if-no-files-found: warn
+          retention-days: 1
+          compression-level: 0
+      - name: Remove ephemeral plaintext scratch
+        if: always()
+        run: |
+          docker rm -f reaper-deps reaper-test reaper-build reaper-verify >/dev/null 2>&1 || true
+          sudo umount "$RUNNER_TEMP/reaper-scratch" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/reaper-scratch.ext4"

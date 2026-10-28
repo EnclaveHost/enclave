@@ -1,0 +1,20 @@
+{
+  "files": {
+    "initramfs.cpio.gz": {
+      "bytes": 279389821,
+      "sha256": "c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3"
+    },
+    "vmlinuz": {
+      "bytes": 17232384,
+      "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+    },
+    "cmdline": {
+      "bytes": 105,
+      "sha256": "d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8"
+    },
+    "manifest.json": {
+      "bytes": 26105,
+      "sha256": "c7cb436db609f361a07d5f32a8a0d71f4fc399f329d244ff2512da8ca34dfca4"
+    }
+  }
+}

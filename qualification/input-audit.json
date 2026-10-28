@@ -1,0 +1,266 @@
+{
+  "imageSha256": "c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3",
+  "entriesExamined": 29064,
+  "uncompressedBodyBytes": 811314064,
+  "privateKeyMarkerScanAllBodies": true,
+  "sensitiveFilenameScan": true,
+  "nonSecretEnvironmentFieldNames": {
+    "opt/metal/flavor-env.json": [
+      "ACME_CONTACT",
+      "ACME_DIRECTORY_2",
+      "ACME_STORE_DIR",
+      "ADDRESS_BOOK_ADDRESS",
+      "APP_CATALOG_ADDRESS",
+      "APP_CERT_DOMAIN",
+      "AUTO_PROVISION",
+      "AUTO_PROVISION_HOURS",
+      "CERTS_API",
+      "CHAIN_ID",
+      "CLAIM_ENABLED",
+      "CORS_ORIGINS",
+      "DEPLOYMENTS_ADDRESS",
+      "DEP_ADDR_PREFIX",
+      "DNS_API",
+      "EGRESS_DEDICATED_RELAY",
+      "EGRESS_DEFAULT_RELAY",
+      "EGRESS_SOCKS_PORT",
+      "ENCLAVE_REPO",
+      "FORWARDER_ADDRESS",
+      "GPU_COUNT",
+      "GRACE_SEC",
+      "NODE_GFLOPS",
+      "NODE_RAM_GB",
+      "NODE_VCPUS",
+      "PAYMENT_WINDOW_SEC",
+      "PAYOUT_ADDRESS",
+      "PAY_POLL_SEC",
+      "PROVISION_BACKEND",
+      "REGISTRY_ADDRESS",
+      "REGISTRY_ENABLED",
+      "SESSION_TTL",
+      "SIWE_DOMAIN",
+      "SIWE_URI",
+      "TLS_BRIDGE_DOMAIN",
+      "USDC_ADDRESS",
+      "VMMGR_URL"
+    ],
+    "opt/metal/wasm-env.json": [
+      "CUDA_VERSION",
+      "ENCLAVE_GGML_BACKEND_DIR",
+      "LD_LIBRARY_PATH",
+      "NCCL_VERSION",
+      "NVARCH",
+      "NVIDIA_DRIVER_CAPABILITIES",
+      "NVIDIA_PRODUCT_NAME",
+      "NVIDIA_REQUIRE_CUDA",
+      "NVIDIA_VISIBLE_DEVICES",
+      "NV_CUDA_CUDART_VERSION",
+      "NV_CUDA_LIB_VERSION",
+      "NV_CUDNN_PACKAGE",
+      "NV_CUDNN_PACKAGE_NAME",
+      "NV_CUDNN_VERSION",
+      "NV_LIBCUBLAS_PACKAGE",
+      "NV_LIBCUBLAS_PACKAGE_NAME",
+      "NV_LIBCUBLAS_VERSION",
+      "NV_LIBCUSPARSE_VERSION",
+      "NV_LIBNCCL_PACKAGE",
+      "NV_LIBNCCL_PACKAGE_NAME",
+      "NV_LIBNCCL_PACKAGE_VERSION",
+      "NV_LIBNPP_PACKAGE",
+      "NV_LIBNPP_VERSION",
+      "NV_NVTX_VERSION",
+      "PATH",
+      "WASMTIME_BIN",
+      "WASM_APPS_DIR",
+      "WASM_FIXTURES_DIR",
+      "WASM_MANAGER_PORT"
+    ]
+  },
+  "classifiedMarkers": [
+    {
+      "path": "app/node_modules/jose/dist/browser/key/import.js",
+      "category": "packaged parser/docs marker",
+      "completePemPrivateKeyBlock": false,
+      "bytes": 1881
+    },
+    {
+      "path": "app/node_modules/jose/dist/node/cjs/key/import.js",
+      "category": "packaged parser/docs marker",
+      "completePemPrivateKeyBlock": false,
+      "bytes": 2158
+    },
+    {
+      "path": "app/node_modules/jose/dist/node/esm/key/import.js",
+      "category": "packaged parser/docs marker",
+      "completePemPrivateKeyBlock": false,
+      "bytes": 1874
+    },
+    {
+      "path": "app/node_modules/ox/Keystore",
+      "category": "ox package keystore implementation/types, not user keystore"
+    },
+    {
+      "path": "app/node_modules/ox/Keystore/package.json",
+      "category": "ox package keystore implementation/types, not user keystore"
+    },
+    {
+      "path": "app/node_modules/ox/_cjs/core/Keystore.js",
+      "category": "ox package keystore implementation/types, not user keystore"
+    },
+    {
+      "path": "app/node_modules/ox/_cjs/core/Keystore.js.map",
+      "category": "ox package keystore implementation/types, not user keystore"
+    },
+    {
+      "path": "app/node_modules/ox/_esm/core/Keystore.js",
+      "category": "ox package keystore implementation/types, not user keystore"
+    },
+    {
+      "path": "app/node_modules/ox/_esm/core/Keystore.js.map",
+      "category": "ox package keystore implementation/types, not user keystore"
+    },
+    {
+      "path": "app/node_modules/ox/_types/core/Keystore.d.ts",
+      "category": "ox package keystore implementation/types, not user keystore"
+    },
+    {
+      "path": "app/node_modules/ox/_types/core/Keystore.d.ts.map",
+      "category": "ox package keystore implementation/types, not user keystore"
+    },
+    {
+      "path": "app/node_modules/ox/core/Keystore.ts",
+      "category": "ox package keystore implementation/types, not user keystore"
+    },
+    {
+      "path": "opt/roots/wasm/usr/lib/x86_64-linux-gnu/libgio-2.0.so.0.8000.0",
+      "category": "ELF shared-library parser string",
+      "completePemPrivateKeyBlock": false,
+      "bytes": 1887632
+    },
+    {
+      "path": "opt/roots/wasm/usr/lib/x86_64-linux-gnu/libgnutls.so.30.37.1",
+      "category": "ELF shared-library parser string",
+      "completePemPrivateKeyBlock": true,
+      "bytes": 2057632
+    },
+    {
+      "path": "opt/roots/wasm/usr/lib/x86_64-linux-gnu/libssh.so.4.9.6",
+      "category": "ELF shared-library parser string",
+      "completePemPrivateKeyBlock": false,
+      "bytes": 462360
+    },
+    {
+      "path": "usr/lib/modules/7.2.3-arch1-2/kernel/drivers/firmware/qemu_fw_cfg.ko",
+      "category": "kernel fw_cfg driver, not host fw_cfg data"
+    },
+    {
+      "path": "usr/lib/x86_64-linux-gnu/libgnutls.so.30.34.3",
+      "category": "ELF shared-library parser string",
+      "completePemPrivateKeyBlock": true,
+      "bytes": 2205432
+    },
+    {
+      "path": "usr/local/lib/node_modules/npm/docs/content/using-npm/config.md",
+      "category": "packaged parser/docs marker",
+      "completePemPrivateKeyBlock": false,
+      "bytes": 46442
+    },
+    {
+      "path": "usr/local/lib/node_modules/npm/docs/output/using-npm/config.html",
+      "category": "packaged parser/docs marker",
+      "completePemPrivateKeyBlock": false,
+      "bytes": 75798
+    },
+    {
+      "path": "usr/local/lib/node_modules/npm/man/man7/config.7",
+      "category": "packaged parser/docs marker",
+      "completePemPrivateKeyBlock": false,
+      "bytes": 54608
+    },
+    {
+      "path": "usr/local/lib/node_modules/npm/node_modules/@npmcli/config/lib/definitions/definitions.js",
+      "category": "packaged parser/docs marker",
+      "completePemPrivateKeyBlock": false,
+      "bytes": 73793
+    }
+  ],
+  "status": "ALL_REPORTED_FLAGS_CLASSIFIED_NO_DEPLOYMENT_CREDENTIAL_IDENTIFIED",
+  "limitations": "Pattern/content audit is not a proof of absence of every possible secret. Exact four pinned input files only; no host configuration or fw_cfg payload. Transport remains encrypted.",
+  "uploaded": false,
+  "resolvedFindings": [
+    {
+      "path": "opt/roots/wasm/usr/lib/x86_64-linux-gnu/libgnutls.so.30.37.1",
+      "reason": "private-key marker needs manual review"
+    },
+    {
+      "path": "usr/lib/x86_64-linux-gnu/libgnutls.so.30.34.3",
+      "reason": "private-key marker needs manual review"
+    }
+  ],
+  "fixtureClassification": {
+    "status": "ALL_REMAINING_PEM_FLAGS_MATCH_PUBLIC_UPSTREAM_GNUTLS_SELF_TEST_KEYS",
+    "sources": [
+      {
+        "url": "https://raw.githubusercontent.com/gnutls/gnutls/3.7.9/lib/crypto-selftests-pk.c",
+        "sourceSha256": "c3d79122e072177f55dc30a98f68b949c0f36f6159a363aae9512a22a9280ed0",
+        "privateSelfTestKeyDerSha256": [
+          "0294b4406902e33bb02f89eaf4c691328790d7a9cd01b873d68edac994f310a1",
+          "2859ff03b44c8f0e4f96604b8cced325ef4d01ca935422b2041d88d8809f8fa1",
+          "458022ddcb5598b39253bc027eb02c4f3dba00e2bdbaef239a35bc91c9bd4f3a",
+          "87e288dc7dbc29a24241b596ec8c84f949d9f09f34fc0cf69242481fb2274770",
+          "d245e52c341a76645e1b0e56c58dc964cd4f3ecaea64a9c6d6db9897d4948a8a"
+        ]
+      },
+      {
+        "url": "https://raw.githubusercontent.com/gnutls/gnutls/3.8.3/lib/crypto-selftests-pk.c",
+        "sourceSha256": "0199a5b05732d825e235001455afa1d54178d8508da1fd2e0eb8a5ef271405b8",
+        "privateSelfTestKeyDerSha256": [
+          "0294b4406902e33bb02f89eaf4c691328790d7a9cd01b873d68edac994f310a1",
+          "2859ff03b44c8f0e4f96604b8cced325ef4d01ca935422b2041d88d8809f8fa1",
+          "458022ddcb5598b39253bc027eb02c4f3dba00e2bdbaef239a35bc91c9bd4f3a",
+          "87e288dc7dbc29a24241b596ec8c84f949d9f09f34fc0cf69242481fb2274770",
+          "d245e52c341a76645e1b0e56c58dc964cd4f3ecaea64a9c6d6db9897d4948a8a"
+        ]
+      },
+      {
+        "url": "https://raw.githubusercontent.com/gnutls/gnutls/master/lib/crypto-selftests-pk.c",
+        "sourceSha256": "81765f415dd7a711bee4ce15ad114e99f8feb30d9f647f546dfc35f287000736",
+        "privateSelfTestKeyDerSha256": [
+          "0294b4406902e33bb02f89eaf4c691328790d7a9cd01b873d68edac994f310a1",
+          "2859ff03b44c8f0e4f96604b8cced325ef4d01ca935422b2041d88d8809f8fa1",
+          "323a1e2a6917c0615aa5e0144ba9ea0b18553c671284f2b75ca5dde1308c477b",
+          "458022ddcb5598b39253bc027eb02c4f3dba00e2bdbaef239a35bc91c9bd4f3a",
+          "803fc9d7eb40ea13dc82723b2d99780ac1e0335ba0b65d660e66994c613ed422",
+          "87e288dc7dbc29a24241b596ec8c84f949d9f09f34fc0cf69242481fb2274770",
+          "d245e52c341a76645e1b0e56c58dc964cd4f3ecaea64a9c6d6db9897d4948a8a"
+        ]
+      }
+    ],
+    "matches": [
+      {
+        "path": "opt/roots/wasm/usr/lib/x86_64-linux-gnu/libgnutls.so.30.37.1",
+        "elfSha256": "2e644667e5e61567648ef912ea5b54931fee3c3cfc85979dc6b6a575fb306621",
+        "matchedPublicUpstreamSelfTestKeys": [
+          "0294b4406902e33bb02f89eaf4c691328790d7a9cd01b873d68edac994f310a1",
+          "2859ff03b44c8f0e4f96604b8cced325ef4d01ca935422b2041d88d8809f8fa1",
+          "458022ddcb5598b39253bc027eb02c4f3dba00e2bdbaef239a35bc91c9bd4f3a",
+          "87e288dc7dbc29a24241b596ec8c84f949d9f09f34fc0cf69242481fb2274770",
+          "d245e52c341a76645e1b0e56c58dc964cd4f3ecaea64a9c6d6db9897d4948a8a"
+        ]
+      },
+      {
+        "path": "usr/lib/x86_64-linux-gnu/libgnutls.so.30.34.3",
+        "elfSha256": "3a3db153fe2a03fc4ec3fb71339b1e21bdc797537f3c3d9907082278c5e70da9",
+        "matchedPublicUpstreamSelfTestKeys": [
+          "0294b4406902e33bb02f89eaf4c691328790d7a9cd01b873d68edac994f310a1",
+          "2859ff03b44c8f0e4f96604b8cced325ef4d01ca935422b2041d88d8809f8fa1",
+          "458022ddcb5598b39253bc027eb02c4f3dba00e2bdbaef239a35bc91c9bd4f3a",
+          "87e288dc7dbc29a24241b596ec8c84f949d9f09f34fc0cf69242481fb2274770",
+          "d245e52c341a76645e1b0e56c58dc964cd4f3ecaea64a9c6d6db9897d4948a8a"
+        ]
+      }
+    ],
+    "privateKeyValuesSavedOrPrinted": false,
+    "uploaded": false
+  }
+}
