@@ -64,7 +64,7 @@ const readBody = (req, max) => new Promise((resolve, reject) => {
     if (size > max) { reject(new Refusal('body_too_large', `body exceeds ${max} bytes`)); req.pause(); return; }
     chunks.push(c);
   });
-  req.on('end', () => resolve(Buffer.concat(chunks)));
+  req.on('end', () => { req.setTimeout(0); resolve(Buffer.concat(chunks)); });
   req.on('error', reject);
 });
 
@@ -105,6 +105,9 @@ export function createHandler({service, files, capability, token, port}) {
     if (!body || typeof body !== 'object' || Array.isArray(body) || !Object.keys(body).every((k) => ROUTES[name].includes(k))) {
       return deny(res, 400, 'bad_request', `allowed keys: ${ROUTES[name].join(', ')}`);
     }
+    // The upload timeout must not close a fully received request during paced chain checks.
+    // Bound the response separately; an interrupted response still requires journal reconciliation.
+    res.setTimeout(180_000, () => res.destroy());
     const out = await service[name](body);
     return send(res, out.ok ? 200 : 409, out);
   };
