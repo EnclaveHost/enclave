@@ -1,0 +1,27 @@
+{
+  "status": "ISOLATED_NOT_PRODUCTION",
+  "queueAndStatic": {
+    "pass": 34,
+    "fail": 0,
+    "skip": 0
+  },
+  "scriptedActualHostRoutes": {
+    "pass": 5,
+    "fail": 0,
+    "skip": 0
+  },
+  "packagedCombined": {
+    "pass": 39,
+    "fail": 0,
+    "skip": 0
+  },
+  "legacyNativeP256LocalAnvil": {
+    "pass": 13,
+    "fail": 0,
+    "skip": 0
+  },
+  "patchedSessionsSha256": "eb0f5543f2d16bc846ab158b291d26379dc32a7e11461946b1c3537f1b9cd7ba",
+  "successorEndToEndHostQualified": false,
+  "feeEnforcementReady": false,
+  "productionSigning": false
+}

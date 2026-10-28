@@ -1,0 +1,46 @@
+[queue] START available=30691MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: /end on a canonical receipt: the original answer, the revocation, one send
+ok 1 - /end on a canonical receipt: the original answer, the revocation, one send
+  ---
+  duration_ms: 6.885535
+  type: 'test'
+  ...
+# Subtest: /end left preconfirmed: 503 tx_pending with the hash, revocation kept, nothing indexed, one send
+ok 2 - /end left preconfirmed: 503 tx_pending with the hash, revocation kept, nothing indexed, one send
+  ---
+  duration_ms: 1.137068
+  type: 'test'
+  ...
+# Subtest: the HTTP adapter answers a pending send with 503 and the original tx hashes (not a 2xx the SDK would accept)
+ok 3 - the HTTP adapter answers a pending send with 503 and the original tx hashes (not a 2xx the SDK would accept)
+  ---
+  duration_ms: 1.81569
+  type: 'test'
+  ...
+# Subtest: /end on a canonical REVERT: the original 409 revert naming the tx, revocation kept
+ok 4 - /end on a canonical REVERT: the original 409 revert naming the tx, revocation kept
+  ---
+  duration_ms: 0.987219
+  type: 'test'
+  ...
+# Subtest: /end when the node answers with another hash's receipt: never a success; replacements carry identical calldata
+ok 5 - /end when the node answers with another hash's receipt: never a success; replacements carry identical calldata
+  ---
+  duration_ms: 0.779802
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 236.359676
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=30613
+[memory-guard] at peak: 
+[memory-guard] exit=0 peakTreeRssMiB=194 minHostAvailableMiB=30609
+[memory-guard] at peak: node:83 node:60 node:50
+[queue] EXIT 0

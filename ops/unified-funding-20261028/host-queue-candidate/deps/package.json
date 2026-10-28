@@ -1,0 +1,23 @@
+{
+  "name": "nan-relay",
+  "version": "0.1.0",
+  "private": true,
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "description": "Enclave control API, attestation, certificates and authoritative DNS",
+  "main": "api-relay.js",
+  "scripts": {
+    "start": "node api-relay.js",
+    "start:api": "node api-relay.js",
+    "start:dns": "node dns-relay.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "^13.1.1",
+    "jose": "^5.9.6",
+    "viem": "^2.53.1",
+    "ws": "^8.21.0"
+  }
+}

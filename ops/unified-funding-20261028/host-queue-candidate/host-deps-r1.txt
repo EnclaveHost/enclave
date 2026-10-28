@@ -1,0 +1,8 @@
+[queue] START available=30612MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+
+added 37 packages in 1s
+[memory-guard] exit=0 peakTreeRssMiB=204 minHostAvailableMiB=30425
+[memory-guard] at peak: npm:204
+[memory-guard] exit=0 peakTreeRssMiB=261 minHostAvailableMiB=30425
+[memory-guard] at peak: npm:201 node:60
+[queue] EXIT 0

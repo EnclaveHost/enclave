@@ -1,0 +1,30 @@
+[queue] START available=30692MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+prepare-host.py: missing prerequisites (see host/HOST-STAGING.json "missing"): @simplewebauthn/server
+wrote relay/sessions.mjs sha256 eb0f5543f2d16bc846ab158b291d26379dc32a7e11461946b1c3537f1b9cd7ba
+wrote relay/funding-route.mjs sha256 87e6df639df4569d6a5c44439d0448a4fe3ce4c2580c2b7e997baab61f5aa7bc
+wrote relay/funding-abi.mjs sha256 6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7
+wrote test/sessions.test.mjs sha256 481ad082e1300c873dc4aea63c6dc498cf317ae7ee09fb5ae3892f83844e290b
+wrote test/helpers/sessions-chain.mjs sha256 6985591425cd4cb7161625aeca0408ed92c800c7e697194363f814845739dc69
+wrote contracts/foundry/out/SessionMocks.sol/MockUSDC3009.json sha256 07011c210be0fc625cb6b5cf669edc0424e58601256c339fe467e49d2608900b
+wrote contracts/foundry/out/SessionMocks.sol/SessionRegistryStub.json sha256 2486580f1d5d4050b46c564a1f9ac5c4e371119fa67db0596ed1b2054fbd68e9
+wrote contracts/foundry/out/EnclaveAddressBook.sol/EnclaveAddressBook.json sha256 547449efe3593a8d54e63859474dc39349ef956021fee979d9cfa45479dca9f1
+wrote contracts/foundry/out/EnclaveAppCatalog.sol/EnclaveAppCatalog.json sha256 15f7bd4b3982847a5d89e42dbce8cbc1ad291b41946c59a95c902472373129dc
+wrote contracts/foundry/out/PaymentRouter.sol/PaymentRouter.json sha256 e829e09df246a8840552868035d7e909a30611fdba9f7ef6f918ceef7cce643b
+wrote contracts/foundry/out/EnclaveDeployments.sol/EnclaveDeployments.json sha256 311b6accf01d1aa5a56db31ae6f48a61b51e103151123f97ca6a047b691f6822
+wrote contracts/foundry/out/EnclaveDeployments.sol/EnclaveLedgerBandwidth.json sha256 f0226350f6e994e5659620f9435277bccea4c132338b7941397c5ffd2c56c1c8
+wrote HOST-STAGING.json sha256 30d12466deb9f07f48323107d54ebf0276b252b9cfe407b8b66a58088a57d4ba
+linked deploy/ledger/EnclaveDeployments.sol -> ../../../../../source/deploy/ledger/EnclaveDeployments.sol
+linked node_modules -> ../../../source/node_modules
+linked relay/auth.js -> ../../../../source/relay/auth.js
+linked relay/sessions-abi.mjs -> ../../../../source/relay/sessions-abi.mjs
+linked relay/snp-verify.mjs -> ../../../../source/relay/snp-verify.mjs
+linked relay/sso.js -> ../../../../source/relay/sso.js
+linked relay/store.js -> ../../../../source/relay/store.js
+linked scripts/deploy-session-vault.mjs -> ../../../../source/scripts/deploy-session-vault.mjs
+linked sdk/sessions/dist -> ../../../../../source/sdk/sessions/dist
+linked site/js/lib/contract-linker.js -> ../../../../../../source/site/js/lib/contract-linker.js
+[memory-guard] exit=1 peakTreeRssMiB=19 minHostAvailableMiB=30657
+[memory-guard] at peak: python3:19
+[memory-guard] exit=1 peakTreeRssMiB=69 minHostAvailableMiB=30657
+[memory-guard] at peak: node:50 python3:19
+[queue] EXIT 1
