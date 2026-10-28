@@ -14,6 +14,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY supervisor.js ./
+COPY network/lease-expiry-reconcile.mjs ./network/
 COPY windows/node/verification-checkpoints.mjs ./windows/node/
 # wallet sessions as owner credentials (shared with the Windows node, which ships it through deploy-files.mjs)
 COPY windows/node/session-api-auth.mjs ./windows/node/
