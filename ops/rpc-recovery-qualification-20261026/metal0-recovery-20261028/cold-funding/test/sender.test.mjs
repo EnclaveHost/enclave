@@ -21,7 +21,7 @@ async function setup(){
  for(const k of ['chainId','operator','executor','sponsor','valueWei','feeCapWei'])a[k]=typeof cfg[k]==='bigint'?String(cfg[k]):cfg[k];
  a.humanApprovals=[{role:'c9-key-holder',by:'throwaway local test',at:'fixture'},{role:'sponsor-owner',by:'throwaway local test',at:'fixture'}];
  const approvalText=JSON.stringify(a), approvalSha256='0x'+sha256(approvalText);
- let signs=0,sends=0,dropB=false,dropAll=false,wrongReceipts=false;
+ let signs=0,sends=0,dropB=false,dropAll=false,wrongReceipts=false,preconfirmed=false;
  const signers={operator:{address:w.keys.O.address,signAuthorization:async t=>{signs++;return w.keys.O.signAuthorization({chainId:t.chainId,contractAddress:t.address,nonce:t.nonce})}},sponsor:{address:w.keys.S.address,signTransaction:async t=>{signs++;return w.keys.S.signTransaction(t)}}};
  const base=httpRpc();
  const rpc=async(u,m,ps)=>{
@@ -31,13 +31,14 @@ async function setup(){
    const r=await base(u,m,ps);await w.mine(3);return r;
   }
   const r=await base(u,m,ps);
+  if(preconfirmed&&m==='eth_getTransactionReceipt'&&r)return {...r,blockHash:'0x'+'00'.repeat(32)};
   if(wrongReceipts&&m==='eth_getTransactionReceipt'&&r&&u===cfg.rpcs[1])return {...r,status:r.status==='0x1'?'0x0':'0x1'};
   return r;
  };
  const journalDir=dir();
  const sender=createSender({cfg,fixture:true,clock,pacing,rpc,signers,journalDir,pollMs:1000});
  return {p,a,clock,journalDir,sender,signers,rpc,pacing,run:()=>sender.run({planText:p.text,approvalText,approvalSha256}),
-   counts:()=>({signs,sends}),dropB:v=>dropB=v,dropAll:v=>dropAll=v,wrongReceipts:v=>wrongReceipts=v};
+   counts:()=>({signs,sends}),dropB:v=>dropB=v,dropAll:v=>dropAll=v,wrongReceipts:v=>wrongReceipts=v,preconfirmed:v=>preconfirmed=v};
 }
 test('happy path verifies both transactions, exact delegation, funded balance, and unchanged lease state',async()=>{
  const x=await setup(),r=await x.run();assert.equal(r.status,'verified');assert.equal(x.counts().signs,4);
@@ -75,4 +76,9 @@ test('no broadcast can occur before a durable journal exists',async()=>{
 });
 test('expired plan refuses without signing',async()=>{
  const x=await setup();x.clock.t+=301000;await assert.rejects(x.run(),e=>e.code==='approval');assert.equal(x.counts().signs,0);
+});
+
+test('zero-hash Base preconfirmation receipts cannot verify or be classified as stale restoration',async()=>{
+ const x=await setup();x.preconfirmed(true);const r=await x.run();assert.equal(r.status,'recovery-required');assert.equal(r.outcome.state,'pending-confirmations');assert.equal(x.counts().signs,4);
+ x.preconfirmed(false);const rr=await x.sender.resume({planText:x.p.text,rebroadcast:false});assert.equal(rr.status,'verified');assert.equal(x.counts().signs,4);
 });

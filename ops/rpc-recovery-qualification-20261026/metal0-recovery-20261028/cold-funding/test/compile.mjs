@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const sha = (b) => createHash("sha256").update(b).digest("hex");
-const EXEC = "/home/steven/Documents/Codex/2026-10-18/wo/work/history-checkpoint-transport/tree/contracts/EnclaveLeaseExecutor.sol";
+const EXEC = new URL("../vendor/EnclaveLeaseExecutor.sol", import.meta.url);
 const src = fs.readFileSync(EXEC);
 if (sha(src) !== "dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033") throw Error("executor source differs from the reviewed one");
 if (sha(fs.readFileSync(require.resolve("solc/soljson.js"))) !== "fa4345d648d9a09c6601ffc978e78e9f5267b54e6d91e8f8c473f44c0c16323b") throw Error("soljson differs");

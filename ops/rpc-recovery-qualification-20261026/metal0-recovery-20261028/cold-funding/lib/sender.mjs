@@ -189,6 +189,10 @@ export function createSender({ cfg = PRODUCTION, fixture = false, rpc = httpRpc(
     const sponsorNonce = BigInt(await agree("sponsor nonce", "eth_getTransactionCount", [cfg.sponsor, "latest"]));
     const o = { receipts, heads, code, nonce, balance, sponsorNonce };
     const conf = (w) => receipts[w] && heads.every((h) => h - receipts[w].block >= 2n);
+    // Base may return preconfirmation receipts with a zero block hash before eth_getCode/latest catches up.
+    // Neither restoration nor a stale authorization is established until receipts are canonical and deep enough.
+    if (["A", "B"].some(w => receipts[w] && (!/^0x[0-9a-f]{64}$/.test(receipts[w].blockHash) || /^0x0{64}$/.test(receipts[w].blockHash) || !conf(w))))
+      return { ...o, state: "pending-confirmations", why: "receipt not yet canonical with two confirmations" };
     // classification (RECOVERY states)
     if (receipts.A?.status === "0x0") return { ...o, state: "a-reverted" };
     if (receipts.A && !receipts.B) return { ...o, state: code === "0x" ? "a-mined-b-missing" : (code === designatorOf(cfg.executor) ? "b-stale" : "unexpected-code") };
