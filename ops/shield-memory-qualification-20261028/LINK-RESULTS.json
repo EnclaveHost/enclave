@@ -1,0 +1,40 @@
+[
+  {
+    "command": [
+      "./pack24-link-selftest"
+    ],
+    "pack24": null,
+    "exitCode": 0,
+    "seconds": 0.114,
+    "log": "link-0.log"
+  },
+  {
+    "command": [
+      "./spill-link-selftest",
+      "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/spill-xxnt_7zy"
+    ],
+    "pack24": "0",
+    "exitCode": 0,
+    "seconds": 0.665,
+    "log": "link-1.log"
+  },
+  {
+    "command": [
+      "./spill-link-selftest",
+      "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/spill-xxnt_7zy"
+    ],
+    "pack24": "1",
+    "exitCode": 0,
+    "seconds": 0.665,
+    "log": "link-2.log"
+  },
+  {
+    "command": [
+      "./dealt-selftest"
+    ],
+    "pack24": "1",
+    "exitCode": 0,
+    "seconds": 0.032,
+    "log": "link-3.log"
+  }
+]

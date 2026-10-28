@@ -1,0 +1,88 @@
+[shielded] pad ring packed24: 0.0 MiB over 2 groups (int32 ring: 0.0 MiB); request-path unpack scratch up to 0.0 MiB more
+[shielded] pad spill: partition 0, 0.0 GiB, 1920 pads per group over 2 groups (0.01 MiB a row)
+[shielded] pad spill full: 1920 pads per group, 3840 written in 0 s
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad ring packed24: 0.0 MiB over 3 groups (int32 ring: 0.0 MiB); request-path unpack scratch up to 0.0 MiB more
+[shielded] pad spill: re-registration kept the pads of 2 of 3 groups
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 8 pads (0 on the request path); minting back
+[shielded] pad spill full: 1920 pads per group, 6400 written in 1 s
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (16 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (16 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (16 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (16 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (8 on the request path); minting back
+[shielded] pad spill: the last requests imported 16 pads (16 on the request path); minting back
+[shielded] pad spill off: a read on the request path failed (rc -10); minting every pad from here
+{"spill_link_selftest":true,"failures":0,"slots":1920,"fill_s":0.10,"written":6560,"imported":360,"onpath":440,"pads_used":320,"ring_missed":160,"exchanges":130}

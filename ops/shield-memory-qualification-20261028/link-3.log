@@ -1,0 +1,4 @@
+[shielded] SHIELDED_ZERO_PADS: activations go to 127.0.0.1:59117 UNMASKED, products checked mod M by the mint (dealer mode)
+[shielded] pad ring packed24: 0.1 MiB over 2 groups (int32 ring: 0.1 MiB); request-path unpack scratch up to 0.0 MiB more
+dealt-selftest: worker mint via 127.0.0.1:59117 identical on 40 cells
+dealt-selftest: ok
