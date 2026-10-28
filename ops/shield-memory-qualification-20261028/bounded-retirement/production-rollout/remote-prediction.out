@@ -1,0 +1,17 @@
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+release 1da344346ffe01df7695059bf4c27a5ef48ea6dc5cad11f6893683c71e5933f7
+app_id 5bac47ac3b99d9999314ac3f5ee7c2749defdde98b2a52212302d05da13d58eb
+runtime_id 297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8
+runtime_identity_json {"name":"wasmtime","version":"49.0.0","execution":"jit","targetIsa":"x86_64","hostIsa":"x86_64","cpuFeatures":"host-detected","wx":"enforced","cache":"none"}
+measurement f369af4d818204a0f9ddb87d5ecba9c077f7ab13a493447cc22cdf8d1e3575e22d910f7a6ebda2a063535f500bc247c4
+
+Running as unit: enclave-retire-predict-20261028.service; invocation ID: da98a64be430488081b3156ac0e9cc53
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 1min 46.607s
+CPU time consumed: 1min 45.642s
+Memory peak: 7.7M
+Memory swap peak: 0B
+
