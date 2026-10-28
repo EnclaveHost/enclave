@@ -1,0 +1,56 @@
+{
+  "runtimeTemplateBytes": 7669,
+  "creationTemplateBytes": 9276,
+  "compiler": "solc 0.8.35 native, optimizer200, viaIR",
+  "offlineTests": {
+    "passed": 49,
+    "failed": 0,
+    "skipped": 0,
+    "fuzzRuns": 512,
+    "invariantRuns": 64,
+    "invariantDepth": 64
+  },
+  "forkTests": {
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "chainId": 8453,
+    "blockNumber": 53199497,
+    "blockTimestamp": 1793188341,
+    "rpc": "https://base-rpc.publicnode.com",
+    "transactionsBroadcast": 0,
+    "USDCFunding": "Foundry storage cheatcode, fork only"
+  },
+  "sourceSHA256": {
+    "src/ILeaseGasDexAdapter.sol": "015ff6c39408be1343c050b74dd52ce196e1d7366dff240a39c0bd692beb2aeb",
+    "src/LeaseGasDexAdapter.sol": "b87da7547b4401f88b42dd66a41f40fbba2fc02b8f3c34bb7a15d3408576967b",
+    "test/LeaseGasDexAdapter.t.sol": "2ec8b91252bbee6584b071b484d5418940339544822d22a54ee91014930f044b",
+    "test/DexFixture.sol": "1a49d3d08e25990b579d0ddd8028438a39dd43e677fc2a07a6745ee09cc837f6",
+    "test/LeaseGasDexAdapter.realReserve.t.sol": "ee0e5e5aa2032183241a6edc3d2b3201442fae0c2023273b8b14b6397e3f4cf3",
+    "test/LeaseGasDexAdapter.invariant.t.sol": "e84928274c9ebc04a2772c0fa1b603657053a45709f19d87e52800fbf7a1561a",
+    "test/mocks/DexMocks.sol": "a3e18d7629afd96cae1495b96bbbc818c3469eda71897c3cc080f0b2915d5348",
+    "base-fork/test/BaseFork.t.sol": "c8fd37c6fbd78c6aa8651f0315881487a8a6e6f3a4a13a3fa49c9b4af4f1c7fb"
+  },
+  "packagedTests": {
+    "offline": {
+      "passed": 49,
+      "failed": 0,
+      "skipped": 0,
+      "log": "packaged-offline-test-r1.txt"
+    },
+    "forkInitialAttempt": {
+      "failed": 1,
+      "reason": "RPC HTTP429 during setUp; no test case executed",
+      "log": "packaged-fork-test-r1.txt"
+    },
+    "forkRecheck": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "configuredRPC": "https://base-mainnet.public.blastapi.io",
+      "threads": 1,
+      "cache": "Shared Foundry block cache; not a wholly independent provider state reconstruction",
+      "log": "packaged-fork-test-r2.txt"
+    }
+  }
+}
