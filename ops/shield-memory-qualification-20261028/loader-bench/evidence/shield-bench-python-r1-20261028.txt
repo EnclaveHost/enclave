@@ -1,0 +1,161 @@
+[queue] START available=83804MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+Running as unit: enclave-shield-bench-python-r1-20261028.service
+test_generated_argv_is_clean (test_harness.ArgvSafety.test_generated_argv_is_clean) ... ok
+test_violations_detected (test_harness.ArgvSafety.test_violations_detected) ... ok
+test_archives (test_harness.Builder.test_archives) ... ok
+test_wrong_pin_refused_before_output (test_harness.Builder.test_wrong_pin_refused_before_output) ... ok
+test_outcomes (test_harness.Classification.test_outcomes) ... ok
+test_required (test_harness.ResourceFloor.test_required) ... ok
+test_identity_change_refuses_to_stop (test_harness.RunHelper.test_identity_change_refuses_to_stop) ... ok
+test_limits_not_enforced (test_harness.RunHelper.test_limits_not_enforced) ... ok
+test_low_memory_kill_is_never_success (test_harness.RunHelper.test_low_memory_kill_is_never_success) ... ok
+test_low_ram_refused_before_boot (test_harness.RunHelper.test_low_ram_refused_before_boot) ... ok
+test_plan_gates (test_harness.RunHelper.test_plan_gates) ... dry run only: add --execute --coordinated-slot <id> to boot
+ok
+test_preflight_usb_refused_without_start (test_harness.RunHelper.test_preflight_usb_refused_without_start) ... ok
+test_qemu_failure_and_guest_error (test_harness.RunHelper.test_qemu_failure_and_guest_error) ... ok
+test_success_both_arms (test_harness.RunHelper.test_success_both_arms) ... ok
+test_complete_log (test_harness.SerialParser.test_complete_log) ... ok
+test_torn_and_noisy_lines (test_harness.SerialParser.test_torn_and_noisy_lines) ... ok
+test_static_only (test_harness.StaticElf.test_static_only) ... ok
+test_storage (test_harness.Storage.test_storage) ... ok
+test_inventory_and_owned_exclusion (test_resource_guard.ResourceGuardTests.test_inventory_and_owned_exclusion) ... ok
+test_memory_units (test_resource_guard.ResourceGuardTests.test_memory_units) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.014s
+
+OK
+{"receipt": "/tmp/tmpk3j6rbhz/run/receipt.json", "success": false, "outcomes": {"A": "identity_changed", "B": "not_run"}}
+{"receipt": "/tmp/tmpewch25xd/run/receipt.json", "success": false, "outcomes": {"A": "limits_not_enforced", "B": "not_run"}}
+{"receipt": "/tmp/tmpeqvabta4/run/receipt.json", "success": false, "outcomes": {"A": "killed_low_host_memory", "B": "not_run"}}
+{"receipt": "/tmp/tmp8ubg3qh7/run/receipt.json", "success": false, "outcomes": {"A": "preflight_refused", "B": "not_run"}}
+{
+  "dry_run": true,
+  "plan_sha256": "40f2bf0bf6af568ba7861e53011faf1dd76d3038976846b30d391f0e4339ca12",
+  "preflight_now": [],
+  "would_run": [
+    [
+      "systemd-run",
+      "--user",
+      "--quiet",
+      "--unit",
+      "shield-snp-ab-9aeb209a08fbed7c8425855797039a46-A.service",
+      "--service-type=exec",
+      "--description",
+      "shield loader-only SNP A/B bench (owned, transient)",
+      "--property=MemoryMax=50G",
+      "--property=MemorySwapMax=0",
+      "--property=CPUQuota=200%",
+      "--property=RuntimeMaxSec=180",
+      "--property=KillMode=control-group",
+      "--property=RemainAfterExit=yes",
+      "--",
+      "/usr/bin/qemu-system-x86_64",
+      "-nodefaults",
+      "-no-user-config",
+      "-no-reboot",
+      "-display",
+      "none",
+      "-monitor",
+      "none",
+      "-parallel",
+      "none",
+      "-nic",
+      "none",
+      "-serial",
+      "file:/tmp/tmp473oa_5v/run/serial-A.log",
+      "-machine",
+      "q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram0,vmport=off",
+      "-cpu",
+      "EPYC-v4",
+      "-smp",
+      "2",
+      "-m",
+      "48G",
+      "-object",
+      "memory-backend-memfd,id=ram0,size=48G,share=true",
+      "-object",
+      "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on",
+      "-bios",
+      "/home/steven/enclave-prod/release-5cab66e4/firmware.fd",
+      "-kernel",
+      "/home/steven/enclave-prod/release-5cab66e4/kernel",
+      "-initrd",
+      "/b/arm-A.initramfs.cpio.gz",
+      "-append",
+      "console=ttyS0 rdinit=/init loglevel=3 panic=-1",
+      "-drive",
+      "if=none,id=model,file=/home/steven/Projects/enclave-models/qwen3.8-27b-mtp-q4-vl-gguf/Qwen3.8-27B-UD-Q4_K_XL.gguf,format=raw,readonly=on,cache=none",
+      "-device",
+      "virtio-blk-pci,drive=model,disable-legacy=on,iommu_platform=on"
+    ],
+    [
+      "systemd-run",
+      "--user",
+      "--quiet",
+      "--unit",
+      "shield-snp-ab-9aeb209a08fbed7c8425855797039a46-B.service",
+      "--service-type=exec",
+      "--description",
+      "shield loader-only SNP A/B bench (owned, transient)",
+      "--property=MemoryMax=50G",
+      "--property=MemorySwapMax=0",
+      "--property=CPUQuota=200%",
+      "--property=RuntimeMaxSec=180",
+      "--property=KillMode=control-group",
+      "--property=RemainAfterExit=yes",
+      "--",
+      "/usr/bin/qemu-system-x86_64",
+      "-nodefaults",
+      "-no-user-config",
+      "-no-reboot",
+      "-display",
+      "none",
+      "-monitor",
+      "none",
+      "-parallel",
+      "none",
+      "-nic",
+      "none",
+      "-serial",
+      "file:/tmp/tmp473oa_5v/run/serial-B.log",
+      "-machine",
+      "q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram0,vmport=off",
+      "-cpu",
+      "EPYC-v4",
+      "-smp",
+      "2",
+      "-m",
+      "48G",
+      "-object",
+      "memory-backend-memfd,id=ram0,size=48G,share=true",
+      "-object",
+      "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on",
+      "-bios",
+      "/home/steven/enclave-prod/release-5cab66e4/firmware.fd",
+      "-kernel",
+      "/home/steven/enclave-prod/release-5cab66e4/kernel",
+      "-initrd",
+      "/b/arm-B.initramfs.cpio.gz",
+      "-append",
+      "console=ttyS0 rdinit=/init loglevel=3 panic=-1",
+      "-drive",
+      "if=none,id=model,file=/home/steven/Projects/enclave-models/qwen3.8-27b-mtp-q4-vl-gguf/Qwen3.8-27B-UD-Q4_K_XL.gguf,format=raw,readonly=on,cache=none",
+      "-device",
+      "virtio-blk-pci,drive=model,disable-legacy=on,iommu_platform=on"
+    ]
+  ]
+}
+{"receipt": "/tmp/tmpl5_93ot6/run/receipt.json", "success": false, "outcomes": {"A": "preflight_refused", "B": "not_run"}}
+{"receipt": "/tmp/tmp0o87wyxk/run/receipt.json", "success": false, "outcomes": {"A": "qemu_failed", "B": "not_run"}}
+{"receipt": "/tmp/tmpao1n4qfa/run/receipt.json", "success": false, "outcomes": {"A": "guest_error", "B": "not_run"}}
+{"receipt": "/tmp/tmpchgs1j1a/run/receipt.json", "success": true, "outcomes": {"A": "success", "B": "success"}}
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 119ms
+             CPU time consumed: 106ms
+                   Memory peak: 17.3M (swap: 0B)
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0
