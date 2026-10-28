@@ -1,6 +1,10 @@
 # Data preservation before rebuilding the USB array
 
-## Current user decision — October 27, 2026
+## Post-restoration update
+
+Restoration finished and the user subsequently authorized freeing space by retiring verified temporary NVMe backups and the 265 recovered part files. See [the completion receipt and retirement decision](restoration-20261028/README.md). The preservation requirements below describe the earlier pre-restoration stage; they do not override that later cleanup instruction. Old multipart views must not be reused after retirement.
+
+## Pre-restoration user decision — October 27, 2026
 
 The user explicitly chose to defer recovered-database usability validation until later. This supersedes the earlier requirement to complete structural and local-state validation before the RAID reset. Scan 1930 was cancelled cleanly; see [its receipts](structural-user-cancellation-1930/README.md). Do not restart these scans or bulk rehashes as a pre-reset gate.
 
