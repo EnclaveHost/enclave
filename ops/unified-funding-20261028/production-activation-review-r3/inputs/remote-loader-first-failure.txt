@@ -1,0 +1,1 @@
+Actual service-user staged loader import failed before policy evaluation: Cannot find package 'viem' imported from /opt/enclave-funding-staged/activation-r1-20261028/fee-policy.mjs. No active source/service changed. Stage had no installed dependency ancestor. Fix only isolated-stage links to existing production dependencies; do not install or mutate packages.

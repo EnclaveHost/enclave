@@ -1,0 +1,7 @@
+[queue] START available=89032MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{"error":"rpc: mainnet.base.org eth_call: HTTP 429","block":"53218215"}
+[memory-guard] exit=1 peakTreeRssMiB=83 minHostAvailableMiB=88770
+[memory-guard] at peak: node:83
+[memory-guard] exit=1 peakTreeRssMiB=144 minHostAvailableMiB=88771
+[memory-guard] at peak: node:83 node:61
+[queue] EXIT 1

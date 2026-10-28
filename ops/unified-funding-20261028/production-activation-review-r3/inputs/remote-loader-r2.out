@@ -1,0 +1,4 @@
+{"serviceUser":63057,"node":"v22.23.1","status":{"ownerControls":{"on":true,"why":null},"intake":{"on":true,"why":null}},"requests":0,"sessionsImport":true,"productionMutation":false}
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html

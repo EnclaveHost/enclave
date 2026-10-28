@@ -1,0 +1,22 @@
+[queue] NOT STARTED: small allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=88701MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{
+  "out": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-inputs-r1/live-observation-r2.json",
+  "block": {
+    "number": "53218453",
+    "hash": "0x428ba39b2216d57a636b7ed0a1bcab35108aee114fe6425a257f1a1030075e49",
+    "timestamp": "1793226253",
+    "baseFeePerGas": "5000000"
+  },
+  "providers": [
+    "https://mainnet.base.org",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "reads": 54
+}
+[memory-guard] exit=0 peakTreeRssMiB=87 minHostAvailableMiB=88633
+[memory-guard] at peak: node:87
+[memory-guard] exit=0 peakTreeRssMiB=148 minHostAvailableMiB=88633
+[memory-guard] at peak: node:87 node:60
+[queue] EXIT 0

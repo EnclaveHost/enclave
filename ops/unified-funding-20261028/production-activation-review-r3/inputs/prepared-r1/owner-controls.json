@@ -1,0 +1,17 @@
+{
+  "schema": "enclave-funding-owner-controls-r1",
+  "chainId": 8453,
+  "maxBlockAgeSec": 180,
+  "addresses": {
+    "factory": "0x83616b7fA62F8a43cfc634a25c0aCFb0CCAB76e8",
+    "implementation": "0x9a869B2BA0D6FB4F297Eb140406478f0aed55F96",
+    "fundingGasLib": "0x24f30A3aB8FACAFAd65E94764715BC04957859AD",
+    "fundingSessionVaultLib": "0x8229D0bf25328D6317D9B670c982A8ca4Dc537DB"
+  },
+  "codehashes": {
+    "factory": "0xcea778eb9622f6423e8a2159c83ae5b696e81e5f22e87e8c285516e663b87e0f",
+    "implementation": "0x94c41042068ffe6b08f43b6cb9546b4b725c81a60010a201fc0c428382cb3a95",
+    "fundingGasLib": "0x82371b4bf52dfab34a942593061c8f7b9dd91830f236604505702bc5ad051863",
+    "fundingSessionVaultLib": "0xbd9ec83e33bc558de4abd0d9539b03fcbc494194d009bb9b20af05bdcb104c79"
+  }
+}
