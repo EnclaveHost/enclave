@@ -1,0 +1,9 @@
+{
+  "kind": "hash-verified production source snapshot",
+  "originalCommit": "deabf8f90f64902d20d48620fd911d34c445859d",
+  "originalCommitUnavailableFromOrigin": true,
+  "sourceFileCount": 40,
+  "initramfsSha256": "c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3",
+  "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
+  "purpose": "Artifact-only candidate; never deploy or merge this source snapshot as a whole repository."
+}
