@@ -14,7 +14,7 @@ import { EnclaveDeployments } from "enclave-src/EnclaveDeployments.sol";
 import { EnclaveAppCatalog } from "enclave-src/EnclaveAppCatalog.sol";
 import { EnclaveAddressBook } from "enclave-src/EnclaveAddressBook.sol";
 import { PaymentRouter } from "enclave-src/PaymentRouter.sol";
-import { EnclaveLeaseGasReserve, IRegistryR, IL1FeeOracle } from "enclave-src/EnclaveLeaseGasReserve.sol";
+import { EnclaveLeaseGasReserve, IRegistryR, IL1FeeOracle } from "reserve-fixture/EnclaveLeaseGasReserve.sol";
 import { MockUSDC3009, SessionRegistryStub, MockKeyAttestations } from "enclave-src/foundry/test/mocks/SessionMocks.sol";
 // the real dex-r1 adapter, its intent type and its mock DEX (WETH9, V3 factory/pools, SwapRouter02 shape)
 import { LeaseGasDexAdapter } from "dex-r1/src/LeaseGasDexAdapter.sol";

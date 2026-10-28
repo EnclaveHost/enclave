@@ -4,7 +4,7 @@
   "session-candidate/test/FundingSessionVault.gas.t.sol": "f96a5aab4c71ccfbf1e0b42305c8f3d941154461fc93076960e5e3aea9af249c",
   "session-candidate/test/FundingRoot.t.sol": "9a6dfabd0003e19cc8abdae1e9d7da92796325b5441bd1b6875be76141fd140f",
   "session-candidate/test/FundingSessionVault.regression.t.sol": "cbe2cc41a1ae19053f70d581de77d2ef6fa309874c524eb9b92a0ad3dda781a2",
-  "session-candidate/test/FundingRig.sol": "5581ae890dd7d70fa1b2b05e4cb1ccb2f15dd6bf176c76e0a210eaac20c9bff8",
+  "session-candidate/test/FundingRig.sol": "135d415647fa2e667bc4abf8fa1f11aaf239610535be21647a69fcd72fdaddeb",
   "client-candidate/funding-codec.mjs": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7",
   "client-candidate/funding-codec.test.mjs": "d6123d77e3ded69ade7d2d326f42b12db08fa5017e804ef56cea64a4a000d9f1"
 }

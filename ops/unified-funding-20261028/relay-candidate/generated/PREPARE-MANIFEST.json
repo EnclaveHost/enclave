@@ -1,0 +1,28 @@
+{
+  "artifacts": {
+    "../session-candidate/out/FundingGasLib.sol/FundingGasLib.json": "6acf7a7c7636fa60986d09f6a2c7c70a456aa8f7681898f99885a332b4abc3b4",
+    "../session-candidate/out/FundingSessionVault.sol/FundingSessionVault.json": "2ca3a4bef51d78fa7d6a4f5a7a6909672b4a82abcbfe09fc020a9e73931e9aee",
+    "../session-candidate/out/FundingSessionVault.sol/FundingSessionVaultFactory.json": "149183c050d0a3ea0799b2998cfbcfc3d885d7a85aa80392ca1accdb23fbff55",
+    "../session-candidate/out/FundingSessionVault.sol/FundingSessionVaultLib.json": "8247c808057b0a22cbc83fd503b96e35eb1f69fa9c54f94aab5fdb0dc700215a",
+    "../session-candidate/out/FundingSessionVault.sol/ISVLedger.json": "d1631ee03ec7bed29d3afd0751b95fa3d0ce934c6736f3a35c38ad09c21419d5",
+    "../session-candidate/out/LeaseGasDexAdapter.sol/LeaseGasDexAdapter.json": "b342f6e982d902df2e12f7593cd8eb13be62099ce30ff2cc72ba388a9f0a7cd4"
+  },
+  "inputs": {
+    "funding-route.mjs": "0aed70bdc09e7b8c3c9e7b17d55fb94d1924530f3034c0ac3c5d04ef71aad467"
+  },
+  "outputs": {
+    "generated/funding-abi.mjs": "2adf15ce2d42369047aa036c317e1f336a0b43b43fdd5bf4ff608d0376f14840",
+    "patched/relay/funding-abi.mjs": "2adf15ce2d42369047aa036c317e1f336a0b43b43fdd5bf4ff608d0376f14840",
+    "patched/relay/funding-route.mjs": "dedc4102e90e1d47722149ccc65ddab4b5c18ecd620fe986f536e221580e5b9d",
+    "patched/relay/sessions.mjs": "10ce152500fa5eeb800483862b629a71031f51a3e4a65acfded73a233c6d05e6"
+  },
+  "settings": {
+    "bytecodeHash": "none",
+    "evmVersion": "osaka",
+    "runs": 1,
+    "viaIR": true
+  },
+  "source": {
+    "relay/sessions.mjs": "457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d"
+  }
+}
