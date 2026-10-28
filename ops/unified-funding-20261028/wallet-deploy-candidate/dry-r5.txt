@@ -1,0 +1,7 @@
+[queue] START available=29893MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{"ok":true,"index":0,"name":"FundingSessionVaultLib","preflight":{"block":"53208410","blockHash":"0x9e3db061d883ab94b64ba0e685894e9b3cfeb51897d366de92a460ed9c7899b3","baseFeePerGas":"5000000","nonce":"1175","balance":"973231353551517","remainingObservedWei":"296800752165595","liveFees":{"rows":[{"name":"FundingSessionVaultLib","l1ObservedWei":"167969432869","operatorObservedWei":"0","totalObservedWei":"59666369432869"},{"name":"FundingGasLib","l1ObservedWei":"122662456815","operatorObservedWei":"0","totalObservedWei":"43893382456815"},{"name":"LeaseGasDexAdapter","l1ObservedWei":"148140079683","operatorObservedWei":"0","totalObservedWei":"44728740079683"},{"name":"FundingSessionVaultFactory","l1ObservedWei":"435960196228","operatorObservedWei":"0","totalObservedWei":"148512260196228"}],"totalObservedWei":"296800752165595"},"feeHeadroomWei":"13000000"},"params":{"from":"0x0b2d009c0c9Af05b12100D77F3c815fea822eE61","data":"<10718 bytes, keccak 0xe0dce58ee84f668d2e237e4bbf8861ca06b903165d4b168c4e3661e7c1a83e69>","value":"0x0","gas":"0x2d64c8","maxFeePerGas":"0x1312d00","maxPriorityFeePerGas":"0x1e8480","nonce":"0x497","chainId":"0x2105","type":"0x2"}}
+[memory-guard] exit=0 peakTreeRssMiB=82 minHostAvailableMiB=29754
+[memory-guard] at peak: node:82
+[memory-guard] exit=0 peakTreeRssMiB=142 minHostAvailableMiB=29755
+[memory-guard] at peak: node:82 node:60
+[queue] EXIT 0
