@@ -43,4 +43,3 @@ plan['runtime_max_sec']=1200;plan['arm_wall_max_sec']=1260;plan['total_wall_max_
 p=out/'bounded-plan.json'
 F.write_new(str(p),(json.dumps(plan,indent=2,sort_keys=True)+'\n').encode())
 print('Reviewed-plan SHA256:',F.B.sha256_file(str(p)))
-
