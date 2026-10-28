@@ -1,0 +1,94 @@
+[queue] START available=89422MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: well-formed common header accepted
+ok 1 - well-formed common header accepted
+  ---
+  duration_ms: 1.260089
+  type: 'test'
+  ...
+# Subtest: malformed or unsafe pinned timestamp refused: not-a-time
+ok 2 - malformed or unsafe pinned timestamp refused: not-a-time
+  ---
+  duration_ms: 0.332187
+  type: 'test'
+  ...
+# Subtest: malformed or unsafe pinned timestamp refused: 9007199254740993
+ok 3 - malformed or unsafe pinned timestamp refused: 9007199254740993
+  ---
+  duration_ms: 0.116219
+  type: 'test'
+  ...
+# Subtest: missing pinned timestamp refused
+ok 4 - missing pinned timestamp refused
+  ---
+  duration_ms: 0.142608
+  type: 'test'
+  ...
+# Subtest: unlisted sequencer grace weakening refused
+ok 5 - unlisted sequencer grace weakening refused
+  ---
+  duration_ms: 0.509965
+  type: 'test'
+  ...
+# Subtest: same sequencer grace requires no change
+ok 6 - same sequencer grace requires no change
+  ---
+  duration_ms: 0.764213
+  type: 'test'
+  ...
+# Subtest: unreviewed or credentialed providers refused before fetch
+ok 7 - unreviewed or credentialed providers refused before fetch
+  ---
+  duration_ms: 0.943662
+  type: 'test'
+  ...
+# Subtest: send method refused before fetch
+ok 8 - send method refused before fetch
+  ---
+  duration_ms: 0.337777
+  type: 'test'
+  ...
+# Subtest: matching bounded read succeeds
+ok 9 - matching bounded read succeeds
+  ---
+  duration_ms: 15.405564
+  type: 'test'
+  ...
+# Subtest: mismatched response identity refused
+ok 10 - mismatched response identity refused
+  ---
+  duration_ms: 0.393596
+  type: 'test'
+  ...
+# Subtest: JSON-RPC errors and absent version refused
+ok 11 - JSON-RPC errors and absent version refused
+  ---
+  duration_ms: 0.664524
+  type: 'test'
+  ...
+# Subtest: oversized streaming response refused without trusting content length
+ok 12 - oversized streaming response refused without trusting content length
+  ---
+  duration_ms: 1.157919
+  type: 'test'
+  ...
+# Subtest: oversized announced body refused
+ok 13 - oversized announced body refused
+  ---
+  duration_ms: 1.074361
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 276.802631
+[memory-guard] exit=0 peakTreeRssMiB=126 minHostAvailableMiB=89355
+[memory-guard] at peak: node:71 node:54
+[memory-guard] exit=0 peakTreeRssMiB=173 minHostAvailableMiB=89359
+[memory-guard] at peak: node:69 node:54 node:50
+[queue] EXIT 0
