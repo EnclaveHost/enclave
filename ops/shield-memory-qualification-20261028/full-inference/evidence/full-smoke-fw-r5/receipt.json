@@ -1,0 +1,41 @@
+{
+  "arms": [
+    {
+      "arm": "B",
+      "guestd_pending_mib": 0,
+      "host_current_max": 0,
+      "host_peak_last_sample": null,
+      "outcome": "preflight_refused",
+      "owned": {},
+      "problems": [
+        "live guestd commitments equal the reviewed snapshot: guestd held/starting guests changed; guestd GPU cardAllocatedBytes changed; guestd pool allocation/floor changed"
+      ],
+      "requests": [],
+      "samples": [],
+      "seq": 0,
+      "unit": "fullbench-4db267d37fe6a67c-b0.service",
+      "wall_deadline": 1478691.534148319
+    }
+  ],
+  "coordinated_slot": "shield-b-only-20261028-kvm-local-hold",
+  "experimental_firmware": {
+    "original_release_sha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/OVMF.candidate-debug.fd",
+    "scope": "experimental benchmark firmware: a NEW build, not the installed original release firmware and not production-qualified; arm --measurement predictions must be root-computed for this exact binary and every arm still needs a fresh client.mjs VERDICT attested",
+    "sha256": "0598d551eea4e8becd54cb80aa5c7964ee46f21e50936fc06809ed171672594c"
+  },
+  "kind": "shield-full-bench-receipt/2",
+  "ok": false,
+  "plan_sha256": "5594bca2af7ed2d426b39c74e0b2d7e6cc4574a4d3855468b9d6d00a9e2324be",
+  "snp_claim": "configured until each arm's receipt shows client.mjs VERDICT attested; bench measurement, not production; booted experimental firmware 0598d551eea4e8becd54cb80aa5c7964ee46f21e50936fc06809ed171672594c, not the original release firmware",
+  "summary": {
+    "0-B": {
+      "cleanup": null,
+      "decode_tok_s_weighted_per_request": null,
+      "host_peak_last_sample": null,
+      "model_line": null,
+      "outcome": "preflight_refused",
+      "steps": []
+    }
+  }
+}
