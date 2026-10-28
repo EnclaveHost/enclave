@@ -1,0 +1,18 @@
+{
+  "schema": "production-grant-terms-r1-fixture-gen-pins/v1",
+  "note": "Read by fixture/generate_fixture.py. Values are COPIED by the author from client-execution-site-r2/out/GENERATED.json \"outputs\" (the author could not hash anything). ROOT hashes each file independently, compares, and only then sets rootConfirmed to true. null, drift or rootConfirmed != true refuses.",
+  "rootConfirmed": true,
+  "inputs": {
+    "client-execution-site-r2/out/server.mjs": "0eb52c4fcd4852385b4e4de9647cd75aceae8e7a2a6e999a9213f08e3a0d8b15",
+    "client-execution-site-r2/shell/main.mjs": "06420aab7a213d93b49a76cfe83c5bc81c54763ea1d0d003a2aeba7bcb3a925f",
+    "client-execution-site-r2/build/build-harness.mjs": "a53bff1cf08cde010a61f810de3be0a5ca4acd5496ceb22362b6fe2fde6b13a0",
+    "client-execution-site-r2/page/index.html": "fa1109672e22c047d877d280f31d793947f9462a53df7344a692ff9e039bfb5c",
+    "client-execution-site-r2/shell/harness-state.js": "d59a7e1df17ac741c7cde126462cb031e1637b93c5cc48b3c33d8ea1e8d4cf1e",
+    "client-execution-site-r2/shell/facade/api.js": "a704f02e696c307e931d4ab85a3173f8d32e51d1db6be171731d8de1a9c73365",
+    "client-execution-site-r2/shell/facade/wallet.js": "be3b53264988e611f93084fc14c9ce3e63ac54383abd5dc5fa29725199712ff1",
+    "client-execution-site-r2/shell/facade/empty.js": "5dceb4c0198f225d3fe68e3558dd569e7645bddb165ef6656b2be14277d4e3fc",
+    "client-execution-site-r2/shell/facade/config.js": "7e66372bada181a5a2402925c5ea6d718638ae23b3d81f04e73d9debca0d4636",
+    "client-execution-site-r2/shell/facade/sessions.js": "6740608869692f092cbad180c3566f480a80d27f86e7c9a38675fb6564415a77",
+    "client-execution-site-r2/shell/facade/vendor-funding.js": "836f3a710a1a602f59351def81bc3c9e18e99bad21337f5a5b3c7f0e57ce6090"
+  }
+}

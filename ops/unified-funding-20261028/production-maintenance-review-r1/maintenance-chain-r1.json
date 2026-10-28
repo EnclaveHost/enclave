@@ -1,0 +1,19 @@
+{
+  "at": "2026-10-28T22:37:06.212Z",
+  "readOnly": true,
+  "signing": false,
+  "relayer": "0xf4B78D91911e1c064A02E4D28C69E2De6056bE57",
+  "providers": [
+    {
+      "url": "https://mainnet.base.org",
+      "latest": "94",
+      "pending": "94"
+    },
+    {
+      "url": "https://base-mainnet.public.blastapi.io",
+      "latest": "94",
+      "pending": "94"
+    }
+  ],
+  "note": "Equal nonces are supporting evidence only; not in-memory queue quiescence."
+}

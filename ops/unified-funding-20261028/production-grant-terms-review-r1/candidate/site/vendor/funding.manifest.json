@@ -1,0 +1,33 @@
+{
+  "schema": "enclave-funding-vendor-r1",
+  "bundle": "funding.js",
+  "bundleSha256": "3493bb17439d2febeab3d7fea0548261c115845349b85b3312d7cdd5fac0ef88",
+  "coreManifestSha256": "e55cd04c165f1fcd6c80d930f035daa3ea4f4d34375002b25f8b020ba2a62849",
+  "packages": [
+    "@noble/curves",
+    "@noble/hashes",
+    "abitype",
+    "isows",
+    "ox",
+    "viem"
+  ],
+  "allowlist": [
+    "@adraffy/ens-normalize",
+    "@noble/ciphers",
+    "@noble/curves",
+    "@noble/hashes",
+    "@scure/base",
+    "@scure/bip32",
+    "@scure/bip39",
+    "abitype",
+    "bufferutil",
+    "eventemitter3",
+    "isows",
+    "ox",
+    "typescript",
+    "utf-8-validate",
+    "viem",
+    "ws",
+    "zod"
+  ]
+}

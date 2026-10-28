@@ -1,0 +1,17 @@
+{
+  "schema": "production-grant-terms-r1-sdk-pins/v1",
+  "note": "Read by generator/generate_sdk.py. Values are COPIED from source/sdk/funding/MANIFEST.json \"files\" by the author, who could not hash anything (no commands). ROOT must hash the eight files independently (sha256sum source/sdk/funding/*.mjs), compare, and only then set rootConfirmed to true. The generator refuses while rootConfirmed is not true, on any null value, and on any drift.",
+  "rootConfirmed": false,
+  "source": "../source/sdk/funding",
+  "inputs": {
+    "browser-entry.mjs": "9820589c2aab82d3ae22f2ba73011970d0754557f12da7871859f3d368bbf879",
+    "chain-proof.mjs": "ca799d8f86db1dd3a7113703cba5fd929e770f02f5c63fa3f5589b05f5e074b3",
+    "funding-client.mjs": "8d79be4d818556545c98a85025bc3d6bac2e508b2a06ef32ff22a3860f2c0ce0",
+    "funding-codec.mjs": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7",
+    "gas-execution.mjs": "1ccf75dbd8ac248c9a139ab692f1f144b8f0f16c8e2b0334c4047ceac9b3df5c",
+    "migration.mjs": "b168fcc1038c9c5c19c685cd9b336fa7ecbd3fb89d91d8cec92bdbea8d4dccf4",
+    "util.mjs": "38b678a68ecf7fd897fb1ae905d27471a17d10f8061fa29d81f5870549e12e66",
+    "v2-store.mjs": "b00d0742ee3d2b211b4cf811c48c8e7004dbf7e8a4cf30517db5ec199181733c"
+  },
+  "viem": { "path": "../source/node_modules/viem", "version": "2.53.1" }
+}

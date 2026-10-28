@@ -1,0 +1,20 @@
+{
+  "schema": "production-grant-terms-r1-build-pins/v1",
+  "note": "TEMPLATE. Root copies this to generated/BUILD-PINS.json and fills / confirms every sha256 AFTER fixture/generate_fixture.py ran and the successor vendor bundle was built from candidate/sdk/funding. build/build-harness.mjs refuses on null or drift. Non-null values are copied by the author from client-execution-site-r2/generated/BUILD-PINS.json (unchanged files) and must be re-confirmed.",
+  "inputs": {
+    "client-execution-site-r2/candidate/site/js/pages/funding.js": "2730b091138529d08be82504a2121107a202125cf1f55f95b2cc8c715c69bd3c",
+    "client-site-repair-r2/authored/site/js/funding/state.js": "361bae2bc531a640cfb58d389e026d5677eb5da70063f2bdda07070b09397f54",
+    "client-site-repair-r2/authored/site/js/funding/flows.js": "137b4a1babb7ccb5d6f913488c519660c99d5b934c79a433a0255b35e8fa48d1",
+    "../source/site/js/core/util.js": "71a896f187d4577c7cf615daf72dac22f705a45dc9058d994d6983f83358d830",
+    "production-grant-terms-r1/shell/main.mjs": null,
+    "production-grant-terms-r1/shell/harness-state.js": "d59a7e1df17ac741c7cde126462cb031e1637b93c5cc48b3c33d8ea1e8d4cf1e",
+    "production-grant-terms-r1/shell/facade/api.js": "a704f02e696c307e931d4ab85a3173f8d32e51d1db6be171731d8de1a9c73365",
+    "production-grant-terms-r1/shell/facade/wallet.js": "be3b53264988e611f93084fc14c9ce3e63ac54383abd5dc5fa29725199712ff1",
+    "production-grant-terms-r1/shell/facade/empty.js": "5dceb4c0198f225d3fe68e3558dd569e7645bddb165ef6656b2be14277d4e3fc",
+    "production-grant-terms-r1/shell/facade/config.js": null,
+    "production-grant-terms-r1/shell/facade/sessions.js": "6740608869692f092cbad180c3566f480a80d27f86e7c9a38675fb6564415a77",
+    "production-grant-terms-r1/shell/facade/vendor-funding.js": "836f3a710a1a602f59351def81bc3c9e18e99bad21337f5a5b3c7f0e57ce6090",
+    "production-grant-terms-r1/candidate/site/vendor/funding.js": null,
+    "../source/sdk/sessions/dist/browser.mjs": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997"
+  }
+}

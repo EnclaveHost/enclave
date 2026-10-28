@@ -1,0 +1,84 @@
+{
+  "schema": "production-grant-terms-r1-candidate/v1",
+  "id": "gas-recovery-6usdc-r1",
+  "status": "PROPOSED_BY_ROOT_NOT_HUMAN_APPROVED_NOT_SIGNED",
+  "nature": "NEW gas-grant candidate terms. Not a reinterpretation of any existing grant. No production gas grant exists; the original legacy 30 USDC session is untouched. These terms authorize nothing by themselves: every grant built from them still needs the human owner's wallet signature over its exact EIP-712 digest, after root review and a root-approved termsHash.",
+  "supersedes": {
+    "GAS_GRANT_CANDIDATE (source/sdk/funding/funding-client.mjs:282)": {
+      "budget": "1000000", "spendPerPeriod": "1000000", "maxFeePerOp": "50000", "maxGasUsdcPerOp": "100000",
+      "maxEthPerOp": "20000000000000"
+    },
+    "why": "cannot fund the readonly two-provider recovery quote (NucBox 8 ops max 4434142, Metal0 2 ops max 1109714 micro-USDC; each op ~2e14 wei ethOut, +100 bps input, 80000 fee)"
+  },
+  "gasGrantCandidate": {
+    "id": "gas-recovery-6usdc-r1",
+    "preset": "gas-recovery",
+    "actions": ["gas.fund"],
+    "environments": ["staging", "prod"],
+    "budget": "6000000",
+    "spendPerPeriod": "6000000",
+    "periodSeconds": "86400",
+    "opsPerPeriod": "20",
+    "maxFeePerOp": "80000",
+    "maxAppFeePerHour": "0",
+    "maxRatePerHour": "0",
+    "maxGasUsdcPerOp": "600000",
+    "maxUsdcPerEth6": "2500000000",
+    "maxEthPerOp": "200000000000000",
+    "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "unchanged": {
+    "maxUsdcPerEth6": "2500000000", "periodSeconds": "86400", "opsPerPeriod (aggregate)": "20", "environments": "staging+prod",
+    "action": "10 (gas.fund) only", "expiresAt": "<= the original legacy grant's expiresAt", "apps per grant": "finite, 1..8, never \"*\"",
+    "MAX_COMBINED6": "30000000", "owner controls / chain proofs / unknown-outcome recovery": "byte-identical modules or unchanged code paths"
+  },
+  "split": {
+    "total6": "30000000",
+    "legacy6": "24000000",
+    "gas6": "6000000",
+    "parts": [
+      { "name": "nucbox", "budget6": "4800000", "opsPerPeriod": "16" },
+      { "name": "metal", "budget6": "1200000", "opsPerPeriod": "4" }
+    ],
+    "conservation": "24000000 + 4800000 + 1200000 = 30000000 = the fresh old balance (must be re-read untouched at plan time)"
+  },
+  "provisionalPartition": {
+    "note": "PROVISIONAL (from ../recovery-dex-quote-r2.json + the peer recovery-proposal-buffer200.json). freshRecoveryScope re-reads every deployment at one pinned block; the plan uses only what that read proves.",
+    "nucbox": {
+      "deploymentIds": [
+        "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+        "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+        "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+        "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+        "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+        "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+        "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+        "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b"
+      ],
+      "appIds": [
+        "0x093fa91736c2639e93867b76074c6c4dbc5e49150faf4e8618bdf45e30d275c6",
+        "0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7",
+        "0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc",
+        "0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06",
+        "0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef",
+        "0xcdc1fa941d248411e49f922e0bc7adfe8cc343712ca4fe4dfb24fab3ef6c70ce",
+        "0xf1897f065ed94bc096d351b831514311e08b30702148c639cbaf8d0deb74d03a",
+        "0xfd420627abb04e52e7d12e3a535e2df94a048ba51c0b0fec173e9e7de2e24b28"
+      ],
+      "quotedMaxTotal6": "4434142",
+      "headroom6": "365858"
+    },
+    "metal": {
+      "deploymentIds": [
+        "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+        "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c"
+      ],
+      "appIds": [
+        "0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737",
+        "0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6"
+      ],
+      "quotedMaxTotal6": "1109714",
+      "headroom6": "90286"
+    }
+  }
+}
