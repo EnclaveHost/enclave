@@ -69,6 +69,13 @@ DOM_SECCOMP = re.compile(r"^DOM seccomp: app filter installed \(sha256 [0-9a-f]{
 DOM_STARTED = re.compile(r"^DOM started app=(\d+) front=(\d+) at_ms=(\d+)$")
 DOM_SERVING = re.compile(r"^DOM serving vsock=\d+ spki_sha256=([0-9a-f]{64}) ready_ms=(\d+)$")
 DOM_FATAL = re.compile(r"^DOM (ERROR\b|end$)")
+DOM_DECLINED = re.compile(r"^DOM Shield model declined\b")   # FULL.md; the only evidence accepted for model_declined
+
+# wasi-nn registry graph (GRAPH-SELECTION.md): installed dominit.c shield_profile passes -S nn-graph=ggml::/models/<model>
+# and the runtime registers a preloaded dir under its basename. probe-bench otherwise asks for "model", which is not loaded.
+SHIELD_GRAPH = "qwen3.8-27b-mtp-q4-vl-gguf"
+GRAPH_NAME = re.compile(r"[a-z0-9][a-z0-9._-]{0,62}")   # dominit reads the name with %63s; the probe never percent-decodes
+LOAD_NOT_FOUND = re.compile(r"NotFound|\"not-found\"")
 READINESS_SIGNAL = ("untrusted serial timing only: gates WHEN the first attested request is sent, never whether it is "
                     "trusted; every request still needs a fresh client.mjs VERDICT attested")
 
@@ -518,8 +525,14 @@ def probe_argv(p, every=0):
 
 
 def probe_path(query, i):
+    """graph is a plain registry name sent verbatim; every other value is an integer or "<n>+i"."""
     q = {}
     for k, v in query.items():
+        if k == "graph":
+            if not isinstance(v, str) or not GRAPH_NAME.fullmatch(v) or urllib.parse.quote_plus(v) != v:
+                raise ValueError(f"bad workload graph {v!r}")
+            q[k] = v
+            continue
         if isinstance(v, str):
             m = re.fullmatch(r"(\d+)\+i", v)
             if not m:
@@ -529,11 +542,23 @@ def probe_path(query, i):
     return "/?" + urllib.parse.urlencode(sorted(q.items()))
 
 
+def graph_problems(w):
+    """Every step must name the preloaded registry graph; a missing graph falls back to the probe's "model"."""
+    return [f"step {s.get('name')} graph {s.get('query', {}).get('graph')!r} is not the preloaded registry graph "
+            f"{SHIELD_GRAPH}" for s in w.get("steps", []) if s.get("query", {}).get("graph") != SHIELD_GRAPH]
+
+
 def load_workload(path):
     with open(path) as f:
-        w = json.load(f)
+        return check_workload(json.load(f))
+
+
+def check_workload(w):
     if w.get("kind") != "shield-full-bench-workload/1":
         raise ValueError("unknown workload kind")
+    bad = graph_problems(w)
+    if bad:
+        raise ValueError("; ".join(bad))
     for s in w["steps"]:
         q = s["query"]
         total = int(q.get("prompt", 17)) + int(q.get("shared", 0))
@@ -789,6 +814,7 @@ def preflight(host, p, arm=None, live=False, h=None):
         if not GUEST_FLOOR_MIB <= p["guest_mib"] <= GUEST_MAX_SNAPSHOT_MIB:
             problems.append(f"snapshot guest must be {GUEST_FLOOR_MIB}-{GUEST_MAX_SNAPSHOT_MIB} MiB")
     check(lambda: p["required_available_bytes"] == plan_required(p), "resource formula")
+    problems += graph_problems(p["workload"])
     if p.get("guestd"):
         g = p["guestd"]
         check(lambda: host.sha256(g["probe"]) == g["probe_sha256"], "guestd probe identity")
@@ -907,7 +933,7 @@ def make_plan(host, a):
                     "memory_max_mib": a.worker_memory_max_mib},
         "node": a.node, "client": os.path.abspath(a.client), "client_sha256": host.sha256(os.path.abspath(a.client)),
         "fwd": os.path.abspath(a.fwd), "fwd_sha256": host.sha256(os.path.abspath(a.fwd)),
-        "trust": trust, "app_sha": a.app_sha, "workload": json.loads(host.read(a.workload)),
+        "trust": trust, "app_sha": a.app_sha, "workload": check_workload(json.loads(host.read(a.workload))),
         "model_identity": B.model_identity(B.MODEL_PATH, host.stat),
         "production_guests": host.guests(), "pending_extra_bytes": (a.pending_extra_mib or 0) * MiB,
         "memory": memory or {"mode": "strict"}, "guestd": guestd, "gpu": gpu,
@@ -1263,6 +1289,27 @@ def startup_markers(text):
     return dict(started, **serving)
 
 
+def serial_declined(text):
+    return any(DOM_DECLINED.match(l.rstrip("\r")) for l in text.split("\n"))
+
+
+def classify_failure(host, arm, step, res):
+    """model_declined needs the guest's decline line on the serial. Without it a load_by_name NotFound is the requested
+    graph missing from the registry (configuration, or a preload skipped silently), never a capacity decline. Only
+    bodies of attested, pinned responses count."""
+    load = [str(r["body"].get("error", ""))[:200] for r in res if not r["ok"] and r["verdict"] == "attested"
+            and r["pinned"] and isinstance(r["body"], dict) and str(r["body"].get("error", "")).startswith("load_by_name:")]
+    declined = False
+    if host.exists(arm["serial_log"]):
+        declined = serial_declined(host.read_head(arm["serial_log"], SERIAL_HEAD_CAP)[:SERIAL_HEAD_CAP].decode("utf-8", "replace"))
+    ev = {"graph": step["query"].get("graph"), "load_by_name_errors": load[:4], "serial_declined": declined}
+    if load and declined:
+        return "model_declined", ev
+    if load and all(LOAD_NOT_FOUND.search(e) for e in load):
+        return "graph_not_found", ev
+    return ("model_load_failed" if load else "request_failed"), ev
+
+
 def run_arm(host, p, arm, total_deadline):
     h = {"arm": arm["arm"], "unit": arm["unit"], "samples": [], "requests": [], "owned": {}}
     h["wall_deadline"] = min(host.now() + p["arm_wall_max_sec"], total_deadline)
@@ -1330,9 +1377,7 @@ def run_arm(host, p, arm, total_deadline):
                 if rnd == 1 and step["name"] == "fixture":
                     h["first_probe_s"] = host.now() - t_boot
                 if not all(r["ok"] for r in res):
-                    bodies = [r.get("body") or {} for r in res]
-                    h["outcome"] = "model_declined" if any("load_by_name" in str(b.get("error", "")) for b in bodies) \
-                        else "request_failed"
+                    h["outcome"], h["failure_evidence"] = classify_failure(host, arm, step, res)
                     return h
         h["outcome"] = "success"
         return h
@@ -1356,7 +1401,7 @@ def run_arm(host, p, arm, total_deadline):
         if host.exists(arm["serial_log"]):
             log = host.read_head(arm["serial_log"], 8 << 20).decode("utf-8", "replace")
             h["serial_model_line"] = next((l.strip() for l in log.splitlines() if "MODEL verified" in l), None)
-            h["serial_declined"] = "Shield model declined" in log
+            h["serial_declined"] = serial_declined(log)
             h["serial_dom_errors"] = [l.strip()[:200] for l in log.splitlines() if DOM_FATAL.match(l.strip())][:8]
         peaks = [s["memory.peak"] for s in h["samples"] if "memory.peak" in s]
         h["host_peak_last_sample"] = max(peaks) if peaks else None

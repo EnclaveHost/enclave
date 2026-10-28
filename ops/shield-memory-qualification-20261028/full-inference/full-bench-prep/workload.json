@@ -1,11 +1,11 @@
 {
   "kind": "shield-full-bench-workload/1",
-  "note": "Public synthetic token ids only (probe-bench seeds). Identical for every arm. Rounds 2..4 repeat 3x; round 1 is warm-up and reported separately.",
+  "note": "Public synthetic token ids only (probe-bench seeds). Identical for every arm. Rounds 2..4 repeat 3x; round 1 is warm-up and reported separately. graph is the wasi-nn registry name the installed shield_profile preloads (GRAPH-SELECTION.md); without it the probe asks for \"model\".",
   "steps": [
-    {"name": "fixture",    "concurrency": 1,  "query": {"steps": 128, "mtp": 1, "k": 1}, "compare_tokens": true},
-    {"name": "ttft",       "concurrency": 1,  "query": {"steps": 64,  "mtp": 1, "k": 1, "seed": 1001, "prompt": 8500}, "compare_tokens": true},
-    {"name": "fill",       "concurrency": 7,  "query": {"steps": 128, "mtp": 1, "k": 1, "shared_seed": 7, "shared": 6200, "seed": "2000+i", "prompt": 2300}, "compare_tokens": false},
-    {"name": "sessions16", "concurrency": 16, "query": {"steps": 64,  "mtp": 1, "k": 1, "shared_seed": 7, "shared": 6200, "seed": "3000+i", "prompt": 256}, "compare_tokens": false}
+    {"name": "fixture",    "concurrency": 1,  "query": {"graph": "qwen3.8-27b-mtp-q4-vl-gguf", "steps": 128, "mtp": 1, "k": 1}, "compare_tokens": true},
+    {"name": "ttft",       "concurrency": 1,  "query": {"graph": "qwen3.8-27b-mtp-q4-vl-gguf", "steps": 64,  "mtp": 1, "k": 1, "seed": 1001, "prompt": 8500}, "compare_tokens": true},
+    {"name": "fill",       "concurrency": 7,  "query": {"graph": "qwen3.8-27b-mtp-q4-vl-gguf", "steps": 128, "mtp": 1, "k": 1, "shared_seed": 7, "shared": 6200, "seed": "2000+i", "prompt": 2300}, "compare_tokens": false},
+    {"name": "sessions16", "concurrency": 16, "query": {"graph": "qwen3.8-27b-mtp-q4-vl-gguf", "steps": 64,  "mtp": 1, "k": 1, "shared_seed": 7, "shared": 6200, "seed": "3000+i", "prompt": 256}, "compare_tokens": false}
   ],
   "rounds": 4,
   "repeat_from_round": 2,

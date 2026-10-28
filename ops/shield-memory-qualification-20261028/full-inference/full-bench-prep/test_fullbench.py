@@ -21,6 +21,17 @@ CLIENT_OK = ("evidence: x\nVERDICT attested reason=\"ok\"\nRESULT app_status=200
 CLIENT_REJECT = ("RESULT runtime_selftest=\"exec_pages=allowed wx=clean maps=4 runtime=0 root=4 scope=all-processes\"\n"
                  "VERDICT reject reason=\"REJECT: the runtime self-test covered NO runtime process (runtime=0)\"\n"
                  "RESULT gate=closed\nRESULT app_requests_sent=0\n").encode()
+
+
+def client_500(error, verdict="attested"):
+    """probe-bench's 500: {"error": <Rust {:?} of the message>}, relayed by client.mjs."""
+    return (f"VERDICT {verdict} reason=\"x\"\nRESULT app_status=500\nRESULT app_body="
+            + json.dumps(json.dumps({"error": error})) + "\nRESULT app_on_pinned_key=1\n").encode()
+
+
+NOT_FOUND_ERRORS = ("load_by_name: ErrorCode::NotFound: graph not in registry",
+                    'load_by_name: ErrorCode { code: 6, name: "not-found", message: "" }: x')
+DECLINE_LINE = b"DOM Shield model declined: host memory\n"
 # lines of full-smoke-fw-r1/serial-0-A.log, in their real order (the front's lines interleave with init's)
 SERIAL_BOOT = ("\x1b[2J\x1b[001;001H\n"
                "DOM snp=1 vcpus=16 memMiB=56030 boot_ms=7294\n"
@@ -50,7 +61,7 @@ def plan_fixture(**over):
          "trust": {"vcek": "/t/vcek.der", "min_tcb": "/t/tcb.json", "amd_chain": None},
          "node": "/usr/bin/node", "client": "/pgi/client.mjs", "fwd": "/pgi/fwd", "app_sha": "a" * 64,
          "workload": {"rounds": 1, "per_request_timeout_s": 5,
-                      "steps": [{"name": "fixture", "concurrency": 1, "query": {"steps": 8}}]},
+                      "steps": [{"name": "fixture", "concurrency": 1, "query": {"graph": F.SHIELD_GRAPH, "steps": 8}}]},
          "memory": {"mode": "strict"}, "pending_extra_bytes": 0, "production_guests": [], "guestd": None, "gpu": None,
          "poll_sec": 5, "arm_wall_max_sec": 4500, "bank_gib": 1}
     p.update(over)
@@ -451,8 +462,43 @@ class Workload(unittest.TestCase):
 
     def test_probe_path(self):
         self.assertEqual(F.probe_path({"steps": 64, "seed": "3000+i", "prompt": 256}, 5), "/?prompt=256&seed=3005&steps=64")
-        with self.assertRaises(ValueError):
-            F.probe_path({"seed": "x"}, 0)
+        self.assertEqual(F.probe_path({"graph": F.SHIELD_GRAPH, "steps": 64, "seed": "3000+i", "prompt": 256}, 5),
+                         f"/?graph={F.SHIELD_GRAPH}&prompt=256&seed=3005&steps=64")
+        self.assertEqual(F.probe_path({"graph": F.SHIELD_GRAPH, "seed": "2000+i", "shared": 6200}, 0),
+                         f"/?graph={F.SHIELD_GRAPH}&seed=2000&shared=6200")
+        for bad in ("x", "3000+j", "+i", "-1+i", "3000 + i", "1e3", "3000+i&graph=model", F.SHIELD_GRAPH):
+            with self.assertRaises(ValueError, msg=bad):
+                F.probe_path({"seed": bad}, 0)
+
+    def test_graph_malformed_or_injection_refused(self):
+        for bad in ("", "model&steps=999", "a&graph=model", "a b", "a+b", "a%26b", "../models/x", "/models/x", "Qwen3",
+                    "q\n", "x?y", "x=y", "x#y", "-x", ".x", "a" * 64, "ｑwen", 5, None, ["model"]):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                F.probe_path({"graph": bad, "steps": 8}, 0)
+        self.assertEqual(F.probe_path({"graph": "a" * 63}, 0), "/?graph=" + "a" * 63)
+
+    def test_production_workload_requires_explicit_graph(self):
+        w = F.load_workload(os.path.join(F.HERE, "workload.json"))
+        self.assertTrue(all(s["query"]["graph"] == F.SHIELD_GRAPH for s in w["steps"]))
+        for i in range(len(w["steps"])):
+            for g in (None, "model", "qwen2.5-0.5b-q8-gguf"):
+                bad = copy.deepcopy(w)
+                if g is None:
+                    del bad["steps"][i]["query"]["graph"]
+                else:
+                    bad["steps"][i]["query"]["graph"] = g
+                self.assertEqual(len(F.graph_problems(bad)), 1)
+                with self.assertRaises(ValueError):
+                    F.check_workload(bad)
+        p, _ = plan_fixture()
+        self.assertEqual(F.graph_problems(p["workload"]), [])
+        del p["workload"]["steps"][0]["query"]["graph"]
+        self.assertTrue(F.graph_problems(p["workload"]))     # preflight carries these: old plans are refused
+
+    def test_serial_decline_is_a_whole_line(self):
+        self.assertTrue(F.serial_declined("boot\r\nDOM Shield model declined: x\r\n"))
+        self.assertFalse(F.serial_declined("app said DOM Shield model declined\n"))
+        self.assertFalse(F.serial_declined("DOM Shield model loaded\n"))
 
     def test_parse_client(self):
         out = CLIENT_OK.decode()
@@ -672,6 +718,43 @@ class StartupReadiness(RunArmBase):
         self.assertTrue(h["outcome"].startswith("stopped:production_guests_changed"), h["outcome"])
         self.assertEqual(self.clients(host, p), [])
         self.assertEqual(h["cleanup"], "clean")
+
+    def test_client_argv_selects_registry_graph(self):
+        p, arm = plan_fixture()
+        host = FakeHost(p)
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual(h["outcome"], "success")
+        argv = [c.argv for c in host.children if c.argv[1] == p["client"]]
+        self.assertEqual(len(argv), 1)
+        path = argv[0][argv[0].index("--path") + 1]
+        self.assertEqual(path, f"/?graph={F.SHIELD_GRAPH}&steps=8")
+        self.assertEqual(argv[0], F.client_argv(p, arm, 40001, path))   # every trust flag unchanged
+
+    def test_graph_not_found_is_configuration_not_decline(self):
+        p, arm = plan_fixture()
+        for err in NOT_FOUND_ERRORS:
+            host = FakeHost(p)
+            host.client_out = client_500(err)
+            h = F.run_arm(host, p, arm, 1e12)
+            self.assertEqual(h["outcome"], "graph_not_found", err)
+            self.assertEqual(h["failure_evidence"]["graph"], F.SHIELD_GRAPH)
+            self.assertFalse(h["failure_evidence"]["serial_declined"])
+            self.assertFalse(h["serial_declined"])
+            self.assertEqual(len([c for c in host.children if c.argv[1] == p["client"]]), 1)   # not retried
+            self.assertEqual(h["cleanup"], "clean")
+
+    def test_model_declined_needs_serial_decline_and_attested_load_error(self):
+        p, arm = plan_fixture()
+        for serial, out, want in ((SERIAL_READY + DECLINE_LINE, client_500(NOT_FOUND_ERRORS[0]), "model_declined"),
+                                  (SERIAL_READY + DECLINE_LINE, client_500("compute: RuntimeError"), "request_failed"),
+                                  (SERIAL_READY + DECLINE_LINE, client_500(NOT_FOUND_ERRORS[0], "reject"), "request_failed"),
+                                  (SERIAL_READY + DECLINE_LINE, CLIENT_REJECT, "request_failed"),
+                                  (SERIAL_READY, client_500("load_by_name: ErrorCode::RuntimeError: x"), "model_load_failed")):
+            host = FakeHost(p)
+            host.serial, host.client_out = serial, out
+            h = F.run_arm(host, p, arm, 1e12)
+            self.assertEqual(h["outcome"], want, (serial[-60:], out[:60]))
+            self.assertEqual(h["cleanup"], "clean")
 
     def test_reject_after_ready_is_not_retried(self):
         p, arm = plan_fixture()
