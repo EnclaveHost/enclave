@@ -1,0 +1,23 @@
+{
+  "schema": "client-site-repair-r2-source-pins/v1",
+  "note": "ROOT FILLS / CONFIRMS every sha256 (hex, no 0x) after review; generator/generate.py refuses any null or mismatch. Paths are relative to unified-funding-20261028/. The five r4 core values and the codec value are copied from root's own earlier pins as a convenience - root must still confirm them; everything else is null.",
+  "inputs": {
+    "client-repair-r4/lib/util.mjs": "f06901fffafba27cfc59476dbe1e1b367eec8a2eef6eb3d914711695bea8eb6e",
+    "client-repair-r4/lib/v2-store.mjs": "d86b86d40ea833f67d44ab2d8927f9aa55b53703461cd86be865ab62b82fe992",
+    "client-repair-r4/lib/chain-proof.mjs": "b926ef43af1af52135016a438c2b334722320805e2545c84ed009a84353e28e7",
+    "client-repair-r4/lib/funding-client.mjs": "a8cf867acd2b90c9b2f6c69ec23f635ecb9a54c474d9a821492348bcf050d27b",
+    "client-repair-r4/lib/migration.mjs": "594e98a03b5b158df52c131cab3a3ad3294675eb8fa4c79497ad0232fcf74b2b",
+    "client-repair-r4/lib/browser-entry.mjs": "29ad990d3397addf1a5891faeabf15ac4fab7b367c9180fc26132f68d440dd1e",
+    "client-r1/funding-codec.mjs": "42c45e5b7d8ec9abf6fa5b7e43c320999233e0a94cb53de06b6eb963e05b5c10",
+    "client-site-repair-r2/authored/scripts/build-funding-vendor.mjs": "70c432052505c6ad2ad02179a1a6576233135743b098fe332eb152df7208c570",
+    "client-site-repair-r2/authored/site/js/pages/funding.js": "6123b6e202641f3d04f41d9481c3d6a63918013703fafc40bf4de502314c27e3",
+    "client-site-repair-r2/authored/site/js/funding/state.js": "361bae2bc531a640cfb58d389e026d5677eb5da70063f2bdda07070b09397f54",
+    "client-site-repair-r2/authored/site/js/funding/flows.js": "137b4a1babb7ccb5d6f913488c519660c99d5b934c79a433a0255b35e8fa48d1",
+    "../source/site/js/boot.js": "cb1d6710682a25f2a190439fd0bfade4aa4230e3ea5170ccf8fb0f5ce2ae1ac6",
+    "../source/site/js/core/config.js": "abb7461757307b856b912f06623cf1c37df05f6ffd57c79a70b343000b8fb72e",
+    "../source/site/sessions.html": "b3b98a6bc96ef76b58468dfa3395d7c840f3e89e1e4c513ae3afd10834fc361c",
+    "../source/scripts/build-site.mjs": "ac12580edc94078a834e0d44830d687ea8d361a090e5b925c012c66854c3408c",
+    "../source/scripts/build-vendor.mjs": "0f66ed42552a662d7999692a2bc5262b3ef61d0b3b9edcb034ea1f970477cae7",
+    "../source/site/_redirects": "47140c4afb46e00e0bc8da0a5bdd63d9aa42b37b9a7e28f9028916b28a9336d2"
+  }
+}

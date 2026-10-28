@@ -1,0 +1,23 @@
+{
+  "schema": "client-site-repair-r2-source-pins/v1",
+  "note": "ROOT FILLS / CONFIRMS every sha256 (hex, no 0x) after review; generator/generate.py refuses any null or mismatch. Paths are relative to unified-funding-20261028/. The five r4 core values and the codec value are copied from root's own earlier pins as a convenience - root must still confirm them; everything else is null.",
+  "inputs": {
+    "client-repair-r4/lib/util.mjs": "f06901fffafba27cfc59476dbe1e1b367eec8a2eef6eb3d914711695bea8eb6e",
+    "client-repair-r4/lib/v2-store.mjs": "d86b86d40ea833f67d44ab2d8927f9aa55b53703461cd86be865ab62b82fe992",
+    "client-repair-r4/lib/chain-proof.mjs": "b926ef43af1af52135016a438c2b334722320805e2545c84ed009a84353e28e7",
+    "client-repair-r4/lib/funding-client.mjs": "a8cf867acd2b90c9b2f6c69ec23f635ecb9a54c474d9a821492348bcf050d27b",
+    "client-repair-r4/lib/migration.mjs": "594e98a03b5b158df52c131cab3a3ad3294675eb8fa4c79497ad0232fcf74b2b",
+    "client-repair-r4/lib/browser-entry.mjs": null,
+    "client-r1/funding-codec.mjs": "42c45e5b7d8ec9abf6fa5b7e43c320999233e0a94cb53de06b6eb963e05b5c10",
+    "client-site-repair-r2/authored/scripts/build-funding-vendor.mjs": null,
+    "client-site-repair-r2/authored/site/js/pages/funding.js": null,
+    "client-site-repair-r2/authored/site/js/funding/state.js": null,
+    "client-site-repair-r2/authored/site/js/funding/flows.js": null,
+    "../source/site/js/boot.js": null,
+    "../source/site/js/core/config.js": null,
+    "../source/site/sessions.html": null,
+    "../source/scripts/build-site.mjs": null,
+    "../source/scripts/build-vendor.mjs": null,
+    "../source/site/_redirects": null
+  }
+}
