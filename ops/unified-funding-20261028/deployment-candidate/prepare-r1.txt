@@ -1,0 +1,7 @@
+[queue] START available=29768MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{"prepared":true,"signable":false,"block":"53205633","nonce":"1175","transactions":[{"name":"FundingSessionVaultLib","predictedAddress":"0x8229D0bf25328D6317D9B670c982A8ca4Dc537DB"},{"name":"FundingGasLib","predictedAddress":"0x24f30A3aB8FACAFAd65E94764715BC04957859AD"},{"name":"LeaseGasDexAdapter","predictedAddress":"0xE5198b7BA033612C45c720d204C469D9ECe77D9e"},{"name":"FundingSessionVaultFactory","predictedAddress":"0x83616b7fA62F8a43cfc634a25c0aCFb0CCAB76e8"}]}
+[memory-guard] exit=0 peakTreeRssMiB=82 minHostAvailableMiB=29744
+[memory-guard] at peak: node:82
+[memory-guard] exit=0 peakTreeRssMiB=142 minHostAvailableMiB=29746
+[memory-guard] at peak: node:81 node:60
+[queue] EXIT 0
