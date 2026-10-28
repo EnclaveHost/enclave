@@ -3,3 +3,10 @@ ops/shield-memory-qualification-20261028/loader-bench/evidence/bench-run-*/seria
 ops/shield-memory-qualification-20261028/loader-bench/evidence/shield-bench-*.txt -whitespace
 ops/shield-memory-qualification-20261028/full-inference/evidence/*.out -whitespace
 ops/shield-memory-qualification-20261028/full-inference/evidence/failed-full-smoke/serial-*.log -whitespace -text
+
+# Preserve raw boot evidence and unified patch context exactly.
+ops/shield-memory-qualification-20261028/full-inference/evidence/fw-boot-*/*.log -whitespace -text
+ops/shield-memory-qualification-20261028/full-inference/evidence/efi-t1-*/*.log -whitespace -text
+ops/shield-memory-qualification-20261028/full-inference/evidence/firmware-build/*.patch -whitespace
+ops/shield-memory-qualification-20261028/full-inference/evidence/firmware-build/*.txt -whitespace
+ops/shield-memory-qualification-20261028/full-inference/firmware-candidate/*.patch -whitespace

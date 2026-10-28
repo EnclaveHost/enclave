@@ -1,0 +1,158 @@
+{
+  "scope": "GPU-free boot/rejection qualification; not inference or independently verified attestation",
+  "spec": {
+    "target": "candidate-debug",
+    "case": "control8",
+    "firmware_sha256": "0598d551eea4e8becd54cb80aa5c7964ee46f21e50936fc06809ed171672594c",
+    "image_sha256": "7a71d50dfe4282a895d677377347f47f0230b0fc69000b697f38c6a3da8846ec",
+    "qemu": "/usr/bin/qemu-system-x86_64",
+    "qemu_sha256": "a2250f5e2b3b07c754473c0817df1cccf6c3c2443fc616dc474c4c311fa6ef1c",
+    "guest_mib": 8192,
+    "cap_mib": 10240,
+    "no_gpu": true,
+    "no_disks": true,
+    "no_network": true,
+    "override_sha256": null
+  },
+  "argv": [
+    "systemd-run",
+    "--user",
+    "--unit",
+    "fullbench-6014927bc2c24bcf-fw.service",
+    "--service-type=exec",
+    "-p",
+    "MemoryMax=10240M",
+    "-p",
+    "MemorySwapMax=0",
+    "-p",
+    "CPUQuota=200%",
+    "-p",
+    "TasksMax=128",
+    "-p",
+    "RuntimeMaxSec=120",
+    "-p",
+    "TimeoutStopSec=10",
+    "-p",
+    "KillMode=control-group",
+    "--",
+    "/usr/bin/qemu-system-x86_64",
+    "-machine",
+    "q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1",
+    "-object",
+    "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on",
+    "-object",
+    "memory-backend-memfd,id=ram1,size=8192M,share=true",
+    "-cpu",
+    "host",
+    "-smp",
+    "2",
+    "-m",
+    "8192M",
+    "-bios",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/OVMF.candidate-debug.fd",
+    "-kernel",
+    "/home/steven/enclave-prod/release-5cab66e4/kernel",
+    "-initrd",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/A.cpio.gz",
+    "-append",
+    "console=ttyS0 rdinit=/init loglevel=3",
+    "-nodefaults",
+    "-no-user-config",
+    "-nic",
+    "none",
+    "-monitor",
+    "none",
+    "-display",
+    "none",
+    "-serial",
+    "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fw-boot-candidate-debug-control8-r1/serial.log",
+    "-debugcon",
+    "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fw-boot-candidate-debug-control8-r1/debug.log",
+    "-global",
+    "isa-debugcon.iobase=0x402",
+    "-no-reboot"
+  ],
+  "samples": [
+    {
+      "t": 1793169342.8771944,
+      "host_available": 88781352960
+    },
+    {
+      "t": 1793169343.8915176,
+      "host_available": 88824688640
+    },
+    {
+      "t": 1793169344.9092872,
+      "host_available": 88860811264
+    },
+    {
+      "t": 1793169345.924904,
+      "host_available": 88820379648
+    },
+    {
+      "t": 1793169346.9517586,
+      "host_available": 87080439808
+    },
+    {
+      "t": 1793169347.9814708,
+      "host_available": 85013180416
+    },
+    {
+      "t": 1793169348.9991367,
+      "host_available": 84481974272
+    },
+    {
+      "t": 1793169350.0146618,
+      "host_available": 84476424192
+    },
+    {
+      "t": 1793169351.045141,
+      "host_available": 84245127168
+    },
+    {
+      "t": 1793169352.0709226,
+      "host_available": 82675400704
+    },
+    {
+      "t": 1793169353.086426,
+      "host_available": 81714020352
+    },
+    {
+      "t": 1793169354.1020634,
+      "host_available": 81715777536
+    },
+    {
+      "t": 1793169355.1174095,
+      "host_available": 81728012288
+    },
+    {
+      "t": 1793169356.133229,
+      "host_available": 81731608576
+    },
+    {
+      "t": 1793169357.150156,
+      "host_available": 82958692352
+    }
+  ],
+  "outcome": "reached_dominit",
+  "identity": {
+    "unit": "fullbench-6014927bc2c24bcf-fw.service",
+    "binary": "/usr/bin/qemu-system-x86_64",
+    "created_by_us": true,
+    "invocation": "d67150d98be54ddcab004629a0af6fbc",
+    "main_pid": 4189067,
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/fullbench-6014927bc2c24bcf-fw.service",
+    "pid_start": "147445655"
+  },
+  "cleanup_errors": [],
+  "cleanup": "clean",
+  "kernel_entered": true,
+  "fallback": false,
+  "substitution_active": false,
+  "verifier_success": {
+    "kernel": true,
+    "initrd": true,
+    "cmdline": true
+  },
+  "accepted": true
+}

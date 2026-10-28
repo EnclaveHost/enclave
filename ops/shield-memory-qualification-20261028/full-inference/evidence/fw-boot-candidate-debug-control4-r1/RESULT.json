@@ -1,0 +1,154 @@
+{
+  "scope": "GPU-free boot/rejection qualification; not inference or independently verified attestation",
+  "spec": {
+    "target": "candidate-debug",
+    "case": "control4",
+    "firmware_sha256": "0598d551eea4e8becd54cb80aa5c7964ee46f21e50936fc06809ed171672594c",
+    "image_sha256": "7a71d50dfe4282a895d677377347f47f0230b0fc69000b697f38c6a3da8846ec",
+    "qemu": "/usr/bin/qemu-system-x86_64",
+    "qemu_sha256": "a2250f5e2b3b07c754473c0817df1cccf6c3c2443fc616dc474c4c311fa6ef1c",
+    "guest_mib": 4096,
+    "cap_mib": 6144,
+    "no_gpu": true,
+    "no_disks": true,
+    "no_network": true,
+    "override_sha256": null
+  },
+  "argv": [
+    "systemd-run",
+    "--user",
+    "--unit",
+    "fullbench-f1ae256f3c7748e7-fw.service",
+    "--service-type=exec",
+    "-p",
+    "MemoryMax=6144M",
+    "-p",
+    "MemorySwapMax=0",
+    "-p",
+    "CPUQuota=200%",
+    "-p",
+    "TasksMax=128",
+    "-p",
+    "RuntimeMaxSec=120",
+    "-p",
+    "TimeoutStopSec=10",
+    "-p",
+    "KillMode=control-group",
+    "--",
+    "/usr/bin/qemu-system-x86_64",
+    "-machine",
+    "q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1",
+    "-object",
+    "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on",
+    "-object",
+    "memory-backend-memfd,id=ram1,size=4096M,share=true",
+    "-cpu",
+    "host",
+    "-smp",
+    "2",
+    "-m",
+    "4096M",
+    "-bios",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/OVMF.candidate-debug.fd",
+    "-kernel",
+    "/home/steven/enclave-prod/release-5cab66e4/kernel",
+    "-initrd",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/A.cpio.gz",
+    "-append",
+    "console=ttyS0 rdinit=/init loglevel=3",
+    "-nodefaults",
+    "-no-user-config",
+    "-nic",
+    "none",
+    "-monitor",
+    "none",
+    "-display",
+    "none",
+    "-serial",
+    "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fw-boot-candidate-debug-control4-r1/serial.log",
+    "-debugcon",
+    "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fw-boot-candidate-debug-control4-r1/debug.log",
+    "-global",
+    "isa-debugcon.iobase=0x402",
+    "-no-reboot"
+  ],
+  "samples": [
+    {
+      "t": 1793168968.9501038,
+      "host_available": 88812068864
+    },
+    {
+      "t": 1793168969.9650562,
+      "host_available": 88889843712
+    },
+    {
+      "t": 1793168970.9804788,
+      "host_available": 88873603072
+    },
+    {
+      "t": 1793168971.9962091,
+      "host_available": 88752902144
+    },
+    {
+      "t": 1793168973.0238771,
+      "host_available": 86933458944
+    },
+    {
+      "t": 1793168974.0530276,
+      "host_available": 84891754496
+    },
+    {
+      "t": 1793168975.0718844,
+      "host_available": 84435906560
+    },
+    {
+      "t": 1793168976.0876389,
+      "host_available": 84436533248
+    },
+    {
+      "t": 1793168977.1030183,
+      "host_available": 84450676736
+    },
+    {
+      "t": 1793168978.1192374,
+      "host_available": 84405739520
+    },
+    {
+      "t": 1793168979.1344712,
+      "host_available": 84389220352
+    },
+    {
+      "t": 1793168980.1498897,
+      "host_available": 84381958144
+    },
+    {
+      "t": 1793168981.1656363,
+      "host_available": 84379545600
+    },
+    {
+      "t": 1793168982.1824033,
+      "host_available": 87712415744
+    }
+  ],
+  "outcome": "reached_dominit",
+  "identity": {
+    "unit": "fullbench-f1ae256f3c7748e7-fw.service",
+    "binary": "/usr/bin/qemu-system-x86_64",
+    "created_by_us": true,
+    "invocation": "3849d1f158e54a29b1c53dfd86670ac5",
+    "main_pid": 4183254,
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/fullbench-f1ae256f3c7748e7-fw.service",
+    "pid_start": "147408263"
+  },
+  "cleanup_errors": [],
+  "cleanup": "clean",
+  "kernel_entered": true,
+  "fallback": false,
+  "substitution_active": false,
+  "verifier_success": {
+    "kernel": true,
+    "initrd": true,
+    "cmdline": true
+  },
+  "accepted": true
+}

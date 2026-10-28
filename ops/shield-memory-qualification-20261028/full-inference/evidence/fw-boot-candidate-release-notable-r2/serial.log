@@ -1,0 +1,8 @@
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001HBdsDxe: loading Boot0002 "Grub Bootloader" from Fv(7CB8BDC9-F8EB-4F34-AAEA-3EE4AF6516A1)/FvFile(B5AE312C-BC8A-43B1-9C62-EBB826DD5D07)
+BdsDxe: starting Boot0002 "Grub Bootloader" from Fv(7CB8BDC9-F8EB-4F34-AAEA-3EE4AF6516A1)/FvFile(B5AE312C-BC8A-43B1-9C62-EBB826DD5D07)
+Entering grub config
+error: script/function.c:grub_script_function_find:119:can't find command `sevsecret'.
+error: lib/arg.c:grub_arg_parse:291:unknown argument `-s'.
+Failed to mount root securely, retrying with password prompt
+Failed to find any grub configuration on the encrypted volume
+

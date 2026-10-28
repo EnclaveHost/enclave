@@ -1,0 +1,100 @@
+Candidate: SEV-SNP boot window [4GB, 6GB) pre-validation in PlatformPei.
+Base: edk2-stable202608 tree at ~/.cache/enclave-isolation/fwbuild/src/edk2 (root records sha256 of the two
+target files before applying; see BUILD-RECIPE.md step 1).
+Hand-written, NOT yet dry-run. This patch is LF; the edk2 targets are CRLF. Apply per BUILD-RECIPE.md step 3:
+convert targets to LF, patch -p1, convert back to CRLF. The new file
+OvmfPkg/PlatformPei/SnpBootWindow.h is copied from firmware-candidate/src (not part of this patch).
+
+--- a/OvmfPkg/PlatformPei/PlatformPei.inf
++++ b/OvmfPkg/PlatformPei/PlatformPei.inf
+@@ -25,4 +25,5 @@
+ [Sources]
+   AmdSev.c
++  SnpBootWindow.h
+   ClearCache.c
+   FeatureControl.c
+--- a/OvmfPkg/PlatformPei/AmdSev.c
++++ b/OvmfPkg/PlatformPei/AmdSev.c
+@@ -25,6 +25,7 @@
+ #include <ConfidentialComputingGuestAttr.h>
+
+ #include "Platform.h"
++#include "SnpBootWindow.h"
+
+ STATIC
+ UINT64
+@@ -125,6 +126,11 @@
+ {
+   EFI_PEI_HOB_POINTERS         Hob;
+   EFI_HOB_RESOURCE_DESCRIPTOR  *ResourceHob;
++  EFI_HOB_HANDOFF_INFO_TABLE   *PhitHob;
++  EFI_PHYSICAL_ADDRESS         EndOfHobList;
++  SNP_BOOT_WINDOW_ACTION       WindowAction;
++  UINT64                       WindowRemaining;
++  UINT64                       HeadLength;
+   UINT64                       HvFeatures;
+   EFI_STATUS                   PcdStatus;
+
+@@ -143,6 +149,12 @@
+   //
+   // Iterate through the system RAM and validate it.
+   //
++  // Resource HOBs appended by this loop (the deferred tails below) are visited
++  // later in the same walk. They are EFI_RESOURCE_MEMORY_UNACCEPTED, so they
++  // are skipped and never split again.
++  //
++  PhitHob         = GetHobList ();
++  WindowRemaining = SNP_BOOT_WINDOW_LIMIT - SNP_BOOT_WINDOW_BASE;
+   for (Hob.Raw = GetHobList (); !END_OF_HOB_LIST (Hob); Hob.Raw = GET_NEXT_HOB (Hob)) {
+     if ((Hob.Raw != NULL) && (GET_HOB_TYPE (Hob) == EFI_HOB_TYPE_RESOURCE_DESCRIPTOR)) {
+       ResourceHob = Hob.ResourceDescriptor;
+@@ -159,8 +171,47 @@
+         if ((ResourceHob->PhysicalStart >= SIZE_4GB) &&
+             ((ResourceHob->ResourceAttribute & EFI_RESOURCE_ATTRIBUTE_SPECIAL_PURPOSE) == 0))
+         {
+-          ResourceHob->ResourceType = EFI_RESOURCE_MEMORY_UNACCEPTED;
+-          continue;
++          //
++          // Pre-validate only the part of this range that lies inside the boot
++          // window [4GB, 6GB), so boot services can place large buffers (for
++          // example the initrd that the Linux EFI stub copies) above 4GB. The
++          // rest stays unaccepted for the OS. Anything unusual (unaligned,
++          // empty, overflowing, over budget) keeps the original behaviour of
++          // deferring the whole range. See SnpBootWindow.h.
++          //
++          WindowAction = SnpBootWindowClassify (
++                           ResourceHob->PhysicalStart,
++                           ResourceHob->ResourceLength,
++                           WindowRemaining,
++                           &HeadLength
++                           );
++          if (WindowAction == SnpBootWindowSplit) {
++            //
++            // Append the tail as a new unaccepted HOB before shrinking this
++            // one, so a failed append loses no memory. HobLib returns nothing
++            // on failure, so detect it from the PHIT end-of-list pointer.
++            //
++            EndOfHobList = PhitHob->EfiEndOfHobList;
++            BuildResourceDescriptorWithOwnerHob (
++              EFI_RESOURCE_MEMORY_UNACCEPTED,
++              ResourceHob->ResourceAttribute,
++              ResourceHob->PhysicalStart + HeadLength,
++              ResourceHob->ResourceLength - HeadLength,
++              &ResourceHob->Owner
++              );
++            if (PhitHob->EfiEndOfHobList == EndOfHobList) {
++              WindowAction = SnpBootWindowDeferAll;
++            } else {
++              ResourceHob->ResourceLength = HeadLength;
++            }
++          }
++
++          if (WindowAction == SnpBootWindowDeferAll) {
++            ResourceHob->ResourceType = EFI_RESOURCE_MEMORY_UNACCEPTED;
++            continue;
++          }
++
++          WindowRemaining -= HeadLength;
+         }
+
+         MemEncryptSevSnpPreValidateSystemRam (
