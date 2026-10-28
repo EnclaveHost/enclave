@@ -1,0 +1,111 @@
+--- native-migration.test.mjs
++++ native-migration-ten.test.mjs
+@@ -1,3 +1,5 @@
++// ROOT VARIANT: TEST-only wildcard/ten-app fixture derived from the empty/nine-app author fixture below.
++// All terms, keys, apps and funds are local test fixtures; no production approval or grant reconstruction.
+ // client-repair-r4: ONE bounded native MIGRATION flow (successor of client-native-r1/test/migration-native.test.mjs,
+ // whose first root run FAILED at compareGrantToChain: the real original vault stored apps = [] as anyApp = false and r3
+ // required true). UNREVIEWED, NOT RUN by its author.
+@@ -212,7 +214,7 @@
+   return p;
+ }
+ 
+-test("native migration (r4): original 30 [] -> legacy 29 (same key, same [] scope) + gas 0.9 (8 apps) + gas 0.1 (1 app) over real HTTP", { timeout: 300_000 }, async (t) => {
++test("native migration (root r4 ten-app): original wildcard preserved; 29 legacy + 0.8 eight apps + 0.2 two apps; all ten funded", { timeout: 300_000 }, async (t) => {
+   const { rpc, stop } = await startAnvil();
+   t.after(stop);
+   const chain8453 = defineChain({ id: 8453, name: "owned anvil (chain id 8453; NOT Base)", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+@@ -316,10 +318,11 @@
+   const legacySession = async (sid) => { const [s, live, apps] = await rd(legacyVault, "legacyVault", "sessionOf", [sid]); return { ...s, live, apps }; };
+   const gasSession = async (sid) => { const [s, live] = await rd(vault, "implementation", "sessionOf", [sid]); return { ...s, live }; };
+ 
+-  // ---- nine wallet-held deployments of nine DISTINCT test catalog apps (8 "NucBox" + 1 "image", TEST ids) ------------
+-  const APPS = Array.from({ length: 9 }, (_, i) => keccak256(toHex(`client-native-r1 TEST app ${i}`)).toLowerCase());
++  // ---- ten wallet-held deployments of ten DISTINCT test catalog apps (8 NucBox + 2 Metal0, TEST ids) ------------
++  const APPS = Array.from({ length: 10 }, (_, i) => keccak256(toHex(`client-native-r1 TEST app ${i}`)).toLowerCase());
+   const IMAGE = APPS[0];
+-  const NUC = APPS.slice(1).sort();
++  const METAL = [APPS[0], APPS[9]].sort();
++  const NUC = APPS.slice(1, 9).sort();
+   const deps = [];
+   for (const app of APPS) {
+     const id = String(await write(ledger, "ledger", "create", [`catalog://${app}/1`, 0n, 1000n, 8080n, "", false, "", ZERO, 0n, 1000n], ownerW)).toLowerCase();
+@@ -397,7 +400,7 @@
+   const { signer: oldSigner, record } = await S.newSessionKey(legacyStore, { relay: origin, chainId: 8453, label: "client-repair-r4 TEST original", extractable: false });
+   assert.equal(record.privateKey.extractable, false);
+   const t0 = BigInt((await pc.getBlock({ blockTag: "latest" })).timestamp);
+-  const oldGrant = { label: "client-repair-r4 TEST original", preset: "browser", sessionKey: oldSigner.keyHash, actions: OLD_ACTIONS, apps: [],
++  const oldGrant = { label: "client-repair-r4 TEST original", preset: "browser", sessionKey: oldSigner.keyHash, actions: OLD_ACTIONS, apps: ["*"],
+     environments: ["staging", "prod"], budget: OLD_BUDGET, spendPerPeriod: 100_000_000n, periodSeconds: 86_400, opsPerPeriod: 1000,
+     maxFeePerOp: 250_000n, maxAppFeePerHour: 0n, maxRatePerHour: 5_000_000n, expiresAt: t0 + 7n * 86_400n, measurement: ZERO32,
+     grantNonce: toHex(randomBytes(32)), signBefore: t0 + 900n };
+@@ -412,9 +415,9 @@
+   assert.equal(await usdcOf(owner), ownerStart - OLD_BUDGET);
+   const s0 = await legacySession(oldSid);
+   assert.equal(s0.live, true);
+-  // ACTUAL scope fact (the r3 native failure): the original vault stores apps = [] as a no-app scope, not a wildcard
+-  assert.equal(s0.anyApp, false, "apps = [] must read back as anyApp = false");
+-  assert.deepEqual([...s0.apps], [], "apps = [] stores no app ids");
++  // This second fixture opens an EXPLICIT wildcard and checks exact preservation.
++  assert.equal(s0.anyApp, true, "explicit wildcard must read back as anyApp = true");
++  assert.deepEqual([...s0.apps], [], "explicit wildcard stores no finite app ids");
+ 
+   // ---- 2. wire format: the relay writes bigints as "123n"; the DEFAULT client must normalise them (r4 fix) -------------
+   const rawCfg = await (await fetch(`${origin}/v1/sessions/funding/config`)).json();
+@@ -442,15 +445,15 @@
+   const legacyConfig = await sdkRelay.config();
+   const evidence = await MIG.loadLegacyEvidence({ S, legacyStore, sid: oldSid, owner, chain, legacyConfig, runtime, now: nowS() });
+   assert.equal(evidence.state.balance6, OLD_BUDGET);
+-  assert.equal(evidence.state.anyApp, false);
++  assert.equal(evidence.state.anyApp, true);
+   const gasStore = new V2.MemoryV2Store();
+   const split = { legacy6: 29_000_000n, gas: [
+-    { name: "nucbox", budget6: 900_000n, opsPerPeriod: 18n, appIds: NUC },
+-    { name: "image", budget6: 100_000n, opsPerPeriod: 2n, appIds: [IMAGE] }] };           // TEST terms only
++    { name: "nucbox", budget6: 800_000n, opsPerPeriod: 16n, appIds: NUC },
++    { name: "image", budget6: 200_000n, opsPerPeriod: 4n, appIds: METAL }] };           // TEST terms only
+   const plan = await MIG.buildMigrationPlan({ S, evidence, runtime, scope, split, now: nowS(), gasStore, relayBase: origin });
+   const FULL = ["terminate", "legacyOpen", "gasOpen:nucbox", "gasOpen:image"];
+   assert.deepEqual(plan.terms.order, FULL);
+-  assert.deepEqual(plan.steps.legacyOpen.review.grant.apps, [], "the replacement keeps the exact empty scope");
++  assert.deepEqual(plan.steps.legacyOpen.review.grant.apps, ["*"], "the replacement keeps the explicit original wildcard");
+   const keyHashes = [plan.terms.legacy.keyHash, plan.steps["gasOpen:nucbox"].review.keyHash, plan.steps["gasOpen:image"].review.keyHash];
+   assert.equal(new Set(keyHashes).size, 3);
+   assert.equal(plan.terms.legacy.keyHash, oldSigner.keyHash.toLowerCase());
+@@ -495,7 +498,7 @@
+   const repRec = await legacyStore.load(newSid);
+   assert.equal(repRec.privateKey, oldRec.privateKey, "same non-extractable legacy key, by reference");
+   assert.equal(repRec.grant.budget, 29_000_000n);
+-  assert.deepEqual(repRec.grant.apps, []);
++  assert.deepEqual(repRec.grant.apps, ["*"]);
+   const apiUrl = "http://127.0.0.1:9/v1/client-repair-r4/api-probe";
+   const apiVerify = async (rec) => {
+     const header = await (await S.sessionFromRecord(rec)).apiAuthorization("GET", apiUrl);
+@@ -506,7 +509,7 @@
+   const repState = await legacySession(newSid);
+   assert.equal(B(repState.actions), MIG.actionsMaskV1(S, OLD_ACTIONS));
+   assert.equal(B(repState.maxRateHour6), 5_000_000n);
+-  assert.equal(repState.anyApp, false, "the replacement is not widened to a wildcard");
++  assert.equal(repState.anyApp, true, "the replacement preserves the explicit original wildcard");
+   assert.deepEqual([...repState.apps], []);
+ 
+   // ---- 8. first gas part: its REPLY is lost too; reconcile finds the part's own event; nothing resent ----------------
+@@ -527,14 +530,14 @@
+   assert.equal(await usdcOf(vault), 1_000_000n);
+   const nucSid = (await step("gasOpen:nucbox")).review.sid;
+   const imgSid = (await step("gasOpen:image")).review.sid;
+-  assert.equal(B((await gasSession(nucSid)).balance6), 900_000n);
+-  assert.equal(B((await gasSession(imgSid)).balance6), 100_000n);
++  assert.equal(B((await gasSession(nucSid)).balance6), 800_000n);
++  assert.equal(B((await gasSession(imgSid)).balance6), 200_000n);
+   assert.deepEqual((await rd(vault, "implementation", "sessionOf", [nucSid]))[2].map((a) => a.toLowerCase()).sort(), NUC);
+-  assert.deepEqual((await rd(vault, "implementation", "sessionOf", [imgSid]))[2].map((a) => a.toLowerCase()), [IMAGE]);
++  assert.deepEqual((await rd(vault, "implementation", "sessionOf", [imgSid]))[2].map((a) => a.toLowerCase()).sort(), METAL);
+ 
+   // ---- 10. real P-256 gas.fund through the grant whose scope names each app ---------------------------------------
+   scope = await FC.freshRecoveryScope({ rpc: rpcFn, book, owner, legacyVault, deploymentIds: deps.map((d) => d.id), now: nowS() });
+-  for (const d of [deps[1], deps[0]]) {
++  for (const d of deps) {
+     const rec = FC.selectGasRecord(await gasStore.listKeys(), scope, d.id);
+     assert.ok(rec.grant.apps.includes(d.app));
+     const before = B((await gasSession(rec.sid)).balance6);

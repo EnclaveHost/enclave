@@ -1,0 +1,44 @@
+[queue] START available=90075MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: native migration (r4): original 30 [] -> legacy 29 (same key, same [] scope) + gas 0.9 (8 apps) + gas 0.1 (1 app) over real HTTP
+not ok 1 - native migration (r4): original 30 [] -> legacy 29 (same key, same [] scope) + gas 0.9 (8 apps) + gas 0.1 (1 app) over real HTTP
+  ---
+  duration_ms: 750.451624
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-repair-r4/test/native-migration.test.mjs:215:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'POST /v1/sessions/open'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'POST /v1/sessions/open'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-repair-r4/test/native-migration.test.mjs:473:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 754.550917
+[memory-guard] exit=1 peakTreeRssMiB=147 minHostAvailableMiB=90016
+[memory-guard] at peak: node:113 anvil:35
+[memory-guard] exit=1 peakTreeRssMiB=198 minHostAvailableMiB=90020
+[memory-guard] at peak: node:111 node:52 anvil:35
+[queue] EXIT 1

@@ -1,0 +1,52 @@
+{
+  "status": "VERIFIED_ARTIFACT_NOT_ACTIVATED",
+  "sourceSha": "134ebf93eed01120a75c16d26b3117dd1ff129fe",
+  "runId": 40746765766,
+  "runUrl": "https://github.com/EnclaveHost/enclave/actions/runs/40746765766",
+  "baselineInitramfsSha256": "c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3",
+  "verification": {
+    "status": "verified-offline-not-booted",
+    "sourceCommit": "134ebf93eed01120a75c16d26b3117dd1ff129fe",
+    "changedImagePaths": [
+      "app/network/lease-expiry-reconcile.mjs",
+      "app/supervisor.js",
+      "opt/metal/manifest.json"
+    ],
+    "files": {
+      "initramfs.cpio.gz": {
+        "sha256": "8377c63dfb02448eda1a42881d1847e54a381f504c5a2a7fa052e47c937f1d2b",
+        "bytes": 279391663
+      },
+      "vmlinuz": {
+        "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
+        "bytes": 17232384
+      },
+      "cmdline": {
+        "sha256": "d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8",
+        "bytes": 105
+      },
+      "manifest.json": {
+        "sha256": "21c7b6e71fe43941c5b4963c3e74ddbe95a2392e933d8f95523d3dcdec095817",
+        "bytes": 35855
+      }
+    }
+  },
+  "remoteTestsPassed": 20,
+  "transportTestsPassed": 18,
+  "candidateDirectory": "/home/steven/Documents/Codex/2026-10-23/it/work/restore-queued-20261028/reaper-candidate-134ebf93",
+  "cleanupVerification": {
+    "at": "2026-10-28T18:47:34.581909+00:00",
+    "remote": {
+      "environments/reaper-artifact-20261028-f7153e9f4108": "absent-404",
+      "releases/427045574": "absent-404",
+      "git/ref/tags/reaper-input-20261028-f7153e9f4108": "absent-404"
+    },
+    "artifacts": 0,
+    "localKeyDirectoryAbsent": true,
+    "timerRemoved": true
+  },
+  "redundantArchivesRemoved": true,
+  "productionModified": false,
+  "booted": false,
+  "launchMeasurement": null
+}
