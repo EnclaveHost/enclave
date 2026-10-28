@@ -1,0 +1,14 @@
+{
+  "sourcePins": {
+    "build_init.py": "054675ecbfd07eb97424794fd06a337e8b4f78030e3f6ff0297813a252ec19a8",
+    "test_build_init.py": "6931c52df5641ce0178562b17b2d7543c689a82297749a9997499117dcbb9614",
+    "test_retire_marker.c": "eeca880f3b9d3e5c507ce50b701e68e202fa9e4dc14209e1b3844b9f8d3557a5",
+    "shield-retire-marker.h": "87e23f75f856ffed94025e6a180c626cecdb323204e8b44bdc894530ff9fb8d4",
+    "test_io_guards.py": "dadc420a2ede0b03fbe4cce0ec930de60822278a86b7a40f9c9c9027df0ac610",
+    "compose_init_release.py": "166b631913abf06c3ac6c8523e69530aa8f01ab7a52fc6ef53aaa08e0fc4c515",
+    "test_compose_init_release.py": "8dbf2d7a03cf23216ab4cfbc615e8b11f16deb1d3127cde5068a7ba2e86246cc",
+    "run.py": "05cf10b65f5cc9922fe95aa13407e339a762928aea1b54544a973fc1bed118f1"
+  },
+  "result": "passed",
+  "productionEnabled": false
+}

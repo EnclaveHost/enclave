@@ -1,0 +1,257 @@
+test_baseline_already_wired_refused (test_build_init.Build.test_baseline_already_wired_refused) ... ok
+test_baseline_not_reproduced_stops_before_candidate (test_build_init.Build.test_baseline_not_reproduced_stops_before_candidate) ... ok
+test_candidate_without_wiring_refused (test_build_init.Build.test_candidate_without_wiring_refused) ... ok
+test_dynamic_baseline_refused (test_build_init.Build.test_dynamic_baseline_refused) ... ok
+test_existing_marker_header_refused (test_build_init.Build.test_existing_marker_header_refused) ... ok
+test_happy_path (test_build_init.Build.test_happy_path) ... ok
+test_input_pins (test_build_init.Build.test_input_pins) ... ok
+test_out_rules (test_build_init.Build.test_out_rules) ... ok
+test_symlinked_source_refused (test_build_init.Build.test_symlinked_source_refused) ... ok
+test_dynamic_refused (test_build_init.ElfGate.test_dynamic_refused) ... ok
+test_static_accepted (test_build_init.ElfGate.test_static_accepted) ... ok
+test_anchor_missing_or_repeated (test_build_init.Transform.test_anchor_missing_or_repeated) ... ok
+test_env_before_drop_is_refused (test_build_init.Transform.test_env_before_drop_is_refused) ... ok
+test_envp_bound (test_build_init.Transform.test_envp_bound) ... ok
+test_pure_insertions_in_order (test_build_init.Transform.test_pure_insertions_in_order) ... ok
+test_real_original (test_build_init.Transform.test_real_original) ... ok
+test_tampered_candidate_rejected (test_build_init.Transform.test_tampered_candidate_rejected) ... ok
+test_base_expected_binaries (test_compose_init_release.Compose.test_base_expected_binaries) ... ERROR
+test_base_tampered_or_extra (test_compose_init_release.Compose.test_base_tampered_or_extra) ... ERROR
+test_candidate_changed_during_compose (test_compose_init_release.Compose.test_candidate_changed_during_compose) ... ERROR
+test_candidate_init (test_compose_init_release.Compose.test_candidate_init) ... ERROR
+test_candidate_shim (test_compose_init_release.Compose.test_candidate_shim) ... ERROR
+test_cli (test_compose_init_release.Compose.test_cli) ... ERROR
+test_exact_three_path_delta (test_compose_init_release.Compose.test_exact_three_path_delta) ... ERROR
+test_forbidden_and_preexisting (test_compose_init_release.Compose.test_forbidden_and_preexisting) ... ERROR
+test_independent_expected_id (test_compose_init_release.Compose.test_independent_expected_id) ... ERROR
+test_out_and_receipt_rules (test_compose_init_release.Compose.test_out_and_receipt_rules) ... ERROR
+test_pins (test_compose_init_release.Compose.test_pins) ... ERROR
+test_required_markers (test_compose_init_release.Compose.test_required_markers) ... ERROR
+test_source_changed_during_copy (test_compose_init_release.Compose.test_source_changed_during_copy) ... ERROR
+test_fifo_refused_without_waiting_for_writer (test_io_guards.NonRegularInputs.test_fifo_refused_without_waiting_for_writer) ... ok
+
+======================================================================
+ERROR: test_base_expected_binaries (test_compose_init_release.Compose.test_base_expected_binaries)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 106, in setUp
+    self.new_base()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 119, in new_base
+    self.base_id = make_release(self.base, self.tool, extra, drop)
+                   ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 82, in make_release
+    tool.write(root, CMDLINE)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py", line 68, in write
+    raise SystemExit(f"REFUSED: a release needs {need}")
+SystemExit: REFUSED: a release needs template/rt/runtime.json
+
+======================================================================
+ERROR: test_base_tampered_or_extra (test_compose_init_release.Compose.test_base_tampered_or_extra)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 106, in setUp
+    self.new_base()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 119, in new_base
+    self.base_id = make_release(self.base, self.tool, extra, drop)
+                   ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 82, in make_release
+    tool.write(root, CMDLINE)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py", line 68, in write
+    raise SystemExit(f"REFUSED: a release needs {need}")
+SystemExit: REFUSED: a release needs template/rt/runtime.json
+
+======================================================================
+ERROR: test_candidate_changed_during_compose (test_compose_init_release.Compose.test_candidate_changed_during_compose)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 106, in setUp
+    self.new_base()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 119, in new_base
+    self.base_id = make_release(self.base, self.tool, extra, drop)
+                   ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 82, in make_release
+    tool.write(root, CMDLINE)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py", line 68, in write
+    raise SystemExit(f"REFUSED: a release needs {need}")
+SystemExit: REFUSED: a release needs template/rt/runtime.json
+
+======================================================================
+ERROR: test_candidate_init (test_compose_init_release.Compose.test_candidate_init)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 106, in setUp
+    self.new_base()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 119, in new_base
+    self.base_id = make_release(self.base, self.tool, extra, drop)
+                   ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 82, in make_release
+    tool.write(root, CMDLINE)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py", line 68, in write
+    raise SystemExit(f"REFUSED: a release needs {need}")
+SystemExit: REFUSED: a release needs template/rt/runtime.json
+
+======================================================================
+ERROR: test_candidate_shim (test_compose_init_release.Compose.test_candidate_shim)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 106, in setUp
+    self.new_base()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 119, in new_base
+    self.base_id = make_release(self.base, self.tool, extra, drop)
+                   ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 82, in make_release
+    tool.write(root, CMDLINE)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py", line 68, in write
+    raise SystemExit(f"REFUSED: a release needs {need}")
+SystemExit: REFUSED: a release needs template/rt/runtime.json
+
+======================================================================
+ERROR: test_cli (test_compose_init_release.Compose.test_cli)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 106, in setUp
+    self.new_base()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 119, in new_base
+    self.base_id = make_release(self.base, self.tool, extra, drop)
+                   ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 82, in make_release
+    tool.write(root, CMDLINE)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py", line 68, in write
+    raise SystemExit(f"REFUSED: a release needs {need}")
+SystemExit: REFUSED: a release needs template/rt/runtime.json
+
+======================================================================
+ERROR: test_exact_three_path_delta (test_compose_init_release.Compose.test_exact_three_path_delta)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 106, in setUp
+    self.new_base()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 119, in new_base
+    self.base_id = make_release(self.base, self.tool, extra, drop)
+                   ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 82, in make_release
+    tool.write(root, CMDLINE)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py", line 68, in write
+    raise SystemExit(f"REFUSED: a release needs {need}")
+SystemExit: REFUSED: a release needs template/rt/runtime.json
+
+======================================================================
+ERROR: test_forbidden_and_preexisting (test_compose_init_release.Compose.test_forbidden_and_preexisting)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 106, in setUp
+    self.new_base()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 119, in new_base
+    self.base_id = make_release(self.base, self.tool, extra, drop)
+                   ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 82, in make_release
+    tool.write(root, CMDLINE)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py", line 68, in write
+    raise SystemExit(f"REFUSED: a release needs {need}")
+SystemExit: REFUSED: a release needs template/rt/runtime.json
+
+======================================================================
+ERROR: test_independent_expected_id (test_compose_init_release.Compose.test_independent_expected_id)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 106, in setUp
+    self.new_base()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 119, in new_base
+    self.base_id = make_release(self.base, self.tool, extra, drop)
+                   ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 82, in make_release
+    tool.write(root, CMDLINE)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py", line 68, in write
+    raise SystemExit(f"REFUSED: a release needs {need}")
+SystemExit: REFUSED: a release needs template/rt/runtime.json
+
+======================================================================
+ERROR: test_out_and_receipt_rules (test_compose_init_release.Compose.test_out_and_receipt_rules)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 106, in setUp
+    self.new_base()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 119, in new_base
+    self.base_id = make_release(self.base, self.tool, extra, drop)
+                   ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 82, in make_release
+    tool.write(root, CMDLINE)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py", line 68, in write
+    raise SystemExit(f"REFUSED: a release needs {need}")
+SystemExit: REFUSED: a release needs template/rt/runtime.json
+
+======================================================================
+ERROR: test_pins (test_compose_init_release.Compose.test_pins)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 106, in setUp
+    self.new_base()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 119, in new_base
+    self.base_id = make_release(self.base, self.tool, extra, drop)
+                   ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 82, in make_release
+    tool.write(root, CMDLINE)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py", line 68, in write
+    raise SystemExit(f"REFUSED: a release needs {need}")
+SystemExit: REFUSED: a release needs template/rt/runtime.json
+
+======================================================================
+ERROR: test_required_markers (test_compose_init_release.Compose.test_required_markers)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 106, in setUp
+    self.new_base()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 119, in new_base
+    self.base_id = make_release(self.base, self.tool, extra, drop)
+                   ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 82, in make_release
+    tool.write(root, CMDLINE)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py", line 68, in write
+    raise SystemExit(f"REFUSED: a release needs {need}")
+SystemExit: REFUSED: a release needs template/rt/runtime.json
+
+======================================================================
+ERROR: test_source_changed_during_copy (test_compose_init_release.Compose.test_source_changed_during_copy)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 106, in setUp
+    self.new_base()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 119, in new_base
+    self.base_id = make_release(self.base, self.tool, extra, drop)
+                   ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/init-release-prep/test_compose_init_release.py", line 82, in make_release
+    tool.write(root, CMDLINE)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/release-manifest.py", line 68, in write
+    raise SystemExit(f"REFUSED: a release needs {need}")
+SystemExit: REFUSED: a release needs template/rt/runtime.json
+
+----------------------------------------------------------------------
+Ran 31 tests in 0.052s
+
+FAILED (errors=13)
