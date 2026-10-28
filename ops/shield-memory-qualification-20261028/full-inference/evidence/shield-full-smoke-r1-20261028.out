@@ -1,0 +1,27 @@
+Running as unit: enclave-shield-full-smoke-r1-20261028.service
+{
+  "receipt": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-smoke-r1/receipt.json",
+  "ok": false,
+  "summary": {
+    "0-A": {
+      "outcome": "stopped:owned_identity_changed:guest",
+      "cleanup": "clean",
+      "decode_tok_s_weighted_per_request": null,
+      "steps": [
+        {
+          "round": 1,
+          "step": "fixture",
+          "wall_s": 13.490694185951725,
+          "completed_tokens_per_wall_s": 0.0
+        }
+      ],
+      "host_peak_last_sample": 2503041024,
+      "model_line": null
+    }
+  }
+}
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 25.088s
+             CPU time consumed: 1.888s
+                   Memory peak: 512M (swap: 0B)

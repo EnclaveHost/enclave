@@ -1,0 +1,38 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=84364MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+Running as unit: enclave-shield-cuda-netns-smoke-r1-20261028.service
+{
+  "scope": "CUDA initialization and listening inside PrivateNetwork only; no model or inference qualification",
+  "worker_sha256": "f242fccebd04e1c58c5da154e2987c8706db57bb5bebad921fb256efad8e9d96",
+  "arms": [
+    {
+      "card": "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+      "unit": "shield-netns-smoke-22d476eb7620.service",
+      "cuda_pid_observed": true,
+      "listening": true,
+      "private_network": true,
+      "ok": true,
+      "cleanup_gone": true
+    },
+    {
+      "card": "GPU-042eb279-e6e6-9866-5823-015b8d26946a",
+      "unit": "shield-netns-smoke-ff23f73578dd.service",
+      "cuda_pid_observed": true,
+      "listening": true,
+      "private_network": true,
+      "ok": true,
+      "cleanup_gone": true
+    }
+  ],
+  "production_identities_unchanged": true,
+  "ok": true
+}
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 6.484s
+             CPU time consumed: 133ms
+                   Memory peak: 56M (swap: 0B)
+[memory-guard] exit=0 peakTreeRssMiB=5 minHostAvailableMiB=84170
+[memory-guard] at peak: systemd-run:5
+[queue] EXIT 0

@@ -1,0 +1,17 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] START available=84341MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+Running as unit: enclave-shield-full-tools-build-r1-20261028.service
+Offline bundle and loopback-forwarder tools built; no guest or GPU started
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 415ms
+             CPU time consumed: 337ms
+                   Memory peak: 92.8M (swap: 0B)
+[memory-guard] exit=0 peakTreeRssMiB=5 minHostAvailableMiB=84314
+[memory-guard] at peak: systemd-run:5
+[queue] EXIT 0

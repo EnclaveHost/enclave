@@ -1,0 +1,295 @@
+{
+  "arms": [
+    {
+      "arm": "A",
+      "cleanup": "clean",
+      "guestd_pending_mib": 1551,
+      "host_current_max": 2494640128,
+      "host_peak_last_sample": 2503041024,
+      "next_gpu": 1472209.630607885,
+      "outcome": "stopped:owned_identity_changed:guest",
+      "owned": {
+        "guest": {
+          "binary": "/usr/bin/qemu-system-x86_64",
+          "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/fullbench-25a3da1cf3456b47-a0.service",
+          "created_by_us": true,
+          "invocation": "2ee7ee8348724c648c8135b38961ba3b",
+          "main_pid": 4135018,
+          "pid_start": "147219421",
+          "unit": "fullbench-25a3da1cf3456b47-a0.service"
+        },
+        "w0": {
+          "binary": "/home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker",
+          "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/fullbench-25a3da1cf3456b47-w0.service",
+          "created_by_us": true,
+          "invocation": "92a0d6a0d4dd41c8afffa20fcbc0a2cb",
+          "main_pid": 4134795,
+          "pid_start": "147218364",
+          "unit": "fullbench-25a3da1cf3456b47-w0.service"
+        },
+        "w1": {
+          "binary": "/home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker",
+          "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/fullbench-25a3da1cf3456b47-w1.service",
+          "created_by_us": true,
+          "invocation": "e70d50ea41cd4e36bd6f04418dc972b8",
+          "main_pid": 4134813,
+          "pid_start": "147218367",
+          "unit": "fullbench-25a3da1cf3456b47-w1.service"
+        }
+      },
+      "probe_out": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-smoke-r1/guestd-0.jsonl",
+      "probe_seen_at": 1472204.630587436,
+      "probe_seq": 5,
+      "requests": [
+        {
+          "results": [
+            {
+              "body": null,
+              "exit": -9,
+              "ok": false,
+              "pinned": false,
+              "status": null,
+              "verdict": null
+            }
+          ],
+          "round": 1,
+          "step": "fixture",
+          "wall_s": 13.490694185951725
+        }
+      ],
+      "samples": [
+        {
+          "host_available": 88527056896,
+          "t": 1793167069.980584,
+          "w0.memory.current": 4231168,
+          "w1.memory.current": 4055040
+        },
+        {
+          "host_available": 88278142976,
+          "t": 1793167070.1287298,
+          "w0.memory.current": 42033152,
+          "w1.memory.current": 42631168
+        },
+        {
+          "host_available": 88262098944,
+          "t": 1793167071.148187,
+          "w0.memory.current": 44560384,
+          "w1.memory.current": 45133824
+        },
+        {
+          "host_available": 88219807744,
+          "t": 1793167072.167656,
+          "w0.memory.current": 44290048,
+          "w1.memory.current": 44679168
+        },
+        {
+          "host_available": 88215699456,
+          "t": 1793167073.1890097,
+          "w0.memory.current": 44290048,
+          "w1.memory.current": 44441600
+        },
+        {
+          "host_available": 88215621632,
+          "t": 1793167074.2099993,
+          "w0.memory.current": 44183552,
+          "w1.memory.current": 44220416
+        },
+        {
+          "host_available": 88214081536,
+          "t": 1793167075.2309234,
+          "w0.memory.current": 44183552,
+          "w1.memory.current": 44220416
+        },
+        {
+          "host_available": 88209911808,
+          "t": 1793167076.3202171,
+          "w0.memory.current": 44183552,
+          "w1.memory.current": 44036096
+        },
+        {
+          "host_available": 88212910080,
+          "t": 1793167077.340902,
+          "w0.memory.current": 44183552,
+          "w1.memory.current": 43798528
+        },
+        {
+          "host_available": 88208486400,
+          "t": 1793167078.3612645,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43798528
+        },
+        {
+          "host_available": 88209055744,
+          "t": 1793167079.3812327,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43798528
+        },
+        {
+          "host_available": 88202354688,
+          "t": 1793167080.401422,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43798528
+        },
+        {
+          "host_available": 88201596928,
+          "memory.current": 2527232,
+          "memory.peak": 2621440,
+          "t": 1793167080.5199814,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43790336
+        },
+        {
+          "host_available": 88197050368,
+          "memory.current": 11612160,
+          "memory.peak": 11677696,
+          "t": 1793167080.5420456,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43790336
+        },
+        {
+          "host_available": 88197038080,
+          "memory.current": 11612160,
+          "memory.peak": 11677696,
+          "t": 1793167080.5621068,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43790336
+        },
+        {
+          "host_available": 88256159744,
+          "memory.current": 217493504,
+          "memory.peak": 217493504,
+          "t": 1793167081.5839329,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43790336
+        },
+        {
+          "host_available": 88240783360,
+          "memory.current": 324218880,
+          "memory.peak": 324218880,
+          "t": 1793167082.608918,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43589632
+        },
+        {
+          "host_available": 88242647040,
+          "memory.current": 334794752,
+          "memory.peak": 334794752,
+          "t": 1793167083.634039,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43589632
+        },
+        {
+          "host_available": 87528677376,
+          "memory.current": 1032904704,
+          "memory.peak": 1032904704,
+          "t": 1793167084.659185,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43589632
+        },
+        {
+          "host_available": 86056656896,
+          "memory.current": 2494328832,
+          "memory.peak": 2495033344,
+          "t": 1793167085.7000484,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43487232
+        },
+        {
+          "host_available": 86036361216,
+          "memory.current": 2493607936,
+          "memory.peak": 2495033344,
+          "t": 1793167086.7898242,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43487232
+        },
+        {
+          "host_available": 86023843840,
+          "memory.current": 2494640128,
+          "memory.peak": 2503041024,
+          "t": 1793167087.8144686,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43487232
+        },
+        {
+          "host_available": 86023966720,
+          "memory.current": 2494398464,
+          "memory.peak": 2503041024,
+          "t": 1793167088.8401985,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43241472
+        },
+        {
+          "host_available": 86079913984,
+          "memory.current": 2494173184,
+          "memory.peak": 2503041024,
+          "t": 1793167089.8638113,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43241472
+        },
+        {
+          "host_available": 86080507904,
+          "memory.current": 2493923328,
+          "memory.peak": 2503041024,
+          "t": 1793167090.8886623,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43241472
+        },
+        {
+          "host_available": 86085611520,
+          "memory.current": 2493923328,
+          "memory.peak": 2503041024,
+          "t": 1793167091.9751391,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43241472
+        },
+        {
+          "host_available": 86084214784,
+          "memory.current": 2493812736,
+          "memory.peak": 2503041024,
+          "t": 1793167092.9997993,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43241472
+        },
+        {
+          "host_available": 88279195648,
+          "t": 1793167094.0246677,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43241472
+        },
+        {
+          "host_available": 88296570880,
+          "t": 1793167094.0523417,
+          "w0.memory.current": 43937792,
+          "w1.memory.current": 43241472
+        }
+      ],
+      "seq": 0,
+      "serial_declined": false,
+      "serial_model_line": null,
+      "unit": "fullbench-25a3da1cf3456b47-a0.service",
+      "wall_deadline": 1473442.834588938
+    }
+  ],
+  "coordinated_slot": "kvm-hold-shield-startup-20261028",
+  "kind": "shield-full-bench-receipt/2",
+  "ok": false,
+  "plan_sha256": "1f29e35a3e48238bf52ce36ad2efc6dd42c36eec2afb753f8315f0f0feb68d38",
+  "snp_claim": "configured until each arm's receipt shows client.mjs VERDICT attested; bench measurement, not production",
+  "summary": {
+    "0-A": {
+      "cleanup": "clean",
+      "decode_tok_s_weighted_per_request": null,
+      "host_peak_last_sample": 2503041024,
+      "model_line": null,
+      "outcome": "stopped:owned_identity_changed:guest",
+      "steps": [
+        {
+          "completed_tokens_per_wall_s": 0.0,
+          "round": 1,
+          "step": "fixture",
+          "wall_s": 13.490694185951725
+        }
+      ]
+    }
+  }
+}

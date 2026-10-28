@@ -1,3 +1,5 @@
 # Preserve raw benchmark serial CRLF and queue output byte-for-byte.
 ops/shield-memory-qualification-20261028/loader-bench/evidence/bench-run-*/serial-*.log -whitespace -text
 ops/shield-memory-qualification-20261028/loader-bench/evidence/shield-bench-*.txt -whitespace
+ops/shield-memory-qualification-20261028/full-inference/evidence/*.out -whitespace
+ops/shield-memory-qualification-20261028/full-inference/evidence/failed-full-smoke/serial-*.log -whitespace -text
