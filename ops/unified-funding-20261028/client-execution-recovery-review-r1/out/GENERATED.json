@@ -1,0 +1,9 @@
+{
+  "source": {
+    "client-browser-migration-r1/harness/server.mjs": "48246ef1b746ab57705586b894012cc8517d8cfd073fcba928b5f470bf1c53ef"
+  },
+  "outputs": {
+    "out/server.mjs": "d1378f691666c85f0cabca4f4b2bb6bd0fed98c88e78808d68c4f150570164cd"
+  },
+  "edits": 7
+}

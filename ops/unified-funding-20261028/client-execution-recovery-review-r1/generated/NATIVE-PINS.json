@@ -1,0 +1,7 @@
+{
+  "schema": "client-execution-recovery-r1-native-pins/v1",
+  "note": "The prior fixture server as root last ran it. This value is copied from root's client-site-browser-r1/generated/GENERATOR-PINS.json; root must confirm it.",
+  "inputs": {
+    "client-browser-migration-r1/harness/server.mjs": "48246ef1b746ab57705586b894012cc8517d8cfd073fcba928b5f470bf1c53ef"
+  }
+}

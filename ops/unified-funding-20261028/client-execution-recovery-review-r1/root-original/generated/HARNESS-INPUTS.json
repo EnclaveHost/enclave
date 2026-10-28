@@ -1,0 +1,8 @@
+{
+  "schema": "client-execution-recovery-r1-harness-inputs/v1",
+  "note": "Read by out/server.mjs as OWN_INPUTS (the derived prior-fixture server). ROOT FILLS both sha256 values; the server refuses to start on null or drift.",
+  "files": {
+    "client-execution-recovery-r1/page/index.html": null,
+    "client-execution-recovery-r1/page/dist/harness.js": null
+  }
+}

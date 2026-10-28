@@ -1,0 +1,38 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] START available=90251MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+harness: TEST ONLY http://127.0.0.1:36025/  (owned anvil http://127.0.0.1:46703; stops after 900s or Ctrl-C)
+harness: page TEST databases: client-site-browser-r1-TEST-legacy-54978f923e2f5190, client-site-browser-r1-TEST-v2-cf54e6b7ed3b3a2f
+harness: TEST owner signature #1 SessionGrant @ 0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5
+harness: TEST owner signature #2 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #3 Terminate @ 0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5
+harness: TEST owner signature #4 SessionGrant @ 0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5
+harness: TEST owner signature #5 Terminate @ 0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5
+harness: TEST owner signature #6 SessionGrant @ 0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5
+harness: TEST owner signature #7 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #8 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #9 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #10 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #11 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #12 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #13 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #14 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #15 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST intake-off fault ON
+harness: TEST owner signature #16 Terminate @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST intake-off fault OFF
+harness: stopping (SIGTERM)

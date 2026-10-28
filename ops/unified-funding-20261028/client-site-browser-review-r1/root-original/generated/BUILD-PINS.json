@@ -1,0 +1,20 @@
+{
+  "schema": "client-site-browser-r1-build-pins/v1",
+  "note": "ROOT FILLS / CONFIRMS every sha256 (hex). Paths relative to unified-funding-20261028/. build/build-harness.mjs refuses any null or drift, and requires the bundle's inputs to be EXACTLY the .js/.mjs files listed here (candidate funding.js and the SDK bundle are not bundled: they are served as-is and listed only as drift checks). The three r2 values and the funding.js / SDK values are copied from root's r2 SOURCE-PINS, root's reported funding.js build and r4 NATIVE-INPUTS; root must confirm them.",
+  "inputs": {
+    "client-site-repair-r2/authored/site/js/pages/funding.js": "6123b6e202641f3d04f41d9481c3d6a63918013703fafc40bf4de502314c27e3",
+    "client-site-repair-r2/authored/site/js/funding/state.js": "361bae2bc531a640cfb58d389e026d5677eb5da70063f2bdda07070b09397f54",
+    "client-site-repair-r2/authored/site/js/funding/flows.js": "137b4a1babb7ccb5d6f913488c519660c99d5b934c79a433a0255b35e8fa48d1",
+    "../source/site/js/core/util.js": null,
+    "client-site-browser-r1/shell/main.mjs": null,
+    "client-site-browser-r1/shell/harness-state.js": null,
+    "client-site-browser-r1/shell/facade/api.js": null,
+    "client-site-browser-r1/shell/facade/wallet.js": null,
+    "client-site-browser-r1/shell/facade/empty.js": null,
+    "client-site-browser-r1/shell/facade/config.js": null,
+    "client-site-browser-r1/shell/facade/sessions.js": null,
+    "client-site-browser-r1/shell/facade/vendor-funding.js": null,
+    "client-site-repair-r2/candidate/site/vendor/funding.js": "4c56d071892815cc1169bf410243b22f6b2730994d4f05283c0cefe348fd613b",
+    "../source/sdk/sessions/dist/browser.mjs": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997"
+  }
+}

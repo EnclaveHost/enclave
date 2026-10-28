@@ -1,0 +1,66 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 9 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 10 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 11 not started; sleep 30
+[queue] START available=89925MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+[build] clean dist/
+[build] contract artifacts (admin console deploy bytecode + selectors)
+[build] tailwind css/src/main.css -> css/site.css
+npm notice run enclave-supervisor@0.1.0 npx
+npm notice run 'tailwindcss' -i site/css/src/main.css -o site/css/site.css --minify
+≈ tailwindcss v4.3.2
+
+Done in 144ms
+[build] esbuild (router entry + code-split pages, templates inlined)
+▲ [WARNING] The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected [commonjs-variable-in-esm]
+
+    site/js/lib/qr.js:2300:6:
+      2300 │       module.exports = factory();
+           ╵       ~~~~~~
+
+  This file is considered to be an ECMAScript module because of the "export" keyword here:
+
+    site/js/lib/qr.js:2306:0:
+      2306 │ export function qrSvg(text, opts){
+           ╵ ~~~~~~
+
+[build] copy pages (components prerendered) + static files
+node:fs:3090
+  binding.copyFile(
+          ^
+
+Error: ENOENT: no such file or directory, copyfile '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-repair-r2/full-site-build/THIRD-PARTY-NOTICES.md' -> '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-repair-r2/full-site-build/site/dist/THIRD-PARTY-NOTICES.md'
+    at Object.copyFileSync (node:fs:3090:11)
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-repair-r2/full-site-build/scripts/build-site.mjs:229:4
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'copyfile',
+  path: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-repair-r2/full-site-build/THIRD-PARTY-NOTICES.md',
+  dest: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/client-site-repair-r2/full-site-build/site/dist/THIRD-PARTY-NOTICES.md'
+}
+
+Node.js v22.23.3
+[memory-guard] exit=1 peakTreeRssMiB=402 minHostAvailableMiB=89545
+[memory-guard] at peak: node:323 node:66 python3:13
+[memory-guard] exit=1 peakTreeRssMiB=464 minHostAvailableMiB=89545
+[memory-guard] at peak: node:323 node:66 node:63 python3:13
+[queue] EXIT 1

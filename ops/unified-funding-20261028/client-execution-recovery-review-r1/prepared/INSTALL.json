@@ -1,0 +1,48 @@
+{
+  "schema": "client-execution-recovery-r1-install/v1",
+  "note": "Install ONLY after root review: a replaced target must still have replaces_sha256, a new one must not exist. Then rebuild site/vendor/funding.js with scripts/build-funding-vendor.mjs. Every FUNDING_* value stays null.",
+  "targets": {
+    "sdk/funding/MANIFEST.json": {
+      "action": "replace",
+      "replaces_sha256": "ac8972fa2598da46f63e45a402da25b7a8457681c7b34dca9495d442ebf4d50d",
+      "sha256": "6316bb23f0a1255a2151107ccf75f36c3c8b4945cc79d8c716793d6f9d2d31ac",
+      "rollback": "restore the replaced bytes"
+    },
+    "sdk/funding/browser-entry.mjs": {
+      "action": "replace",
+      "replaces_sha256": "29ad990d3397addf1a5891faeabf15ac4fab7b367c9180fc26132f68d440dd1e",
+      "sha256": "9820589c2aab82d3ae22f2ba73011970d0754557f12da7871859f3d368bbf879",
+      "rollback": "restore the replaced bytes"
+    },
+    "sdk/funding/chain-proof.mjs": {
+      "action": "unchanged",
+      "sha256": "ca799d8f86db1dd3a7113703cba5fd929e770f02f5c63fa3f5589b05f5e074b3"
+    },
+    "sdk/funding/funding-client.mjs": {
+      "action": "unchanged",
+      "sha256": "8d79be4d818556545c98a85025bc3d6bac2e508b2a06ef32ff22a3860f2c0ce0"
+    },
+    "sdk/funding/funding-codec.mjs": {
+      "action": "unchanged",
+      "sha256": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7"
+    },
+    "sdk/funding/gas-execution.mjs": {
+      "action": "new",
+      "must_not_exist": true,
+      "sha256": "1ccf75dbd8ac248c9a139ab692f1f144b8f0f16c8e2b0334c4047ceac9b3df5c",
+      "rollback": "delete"
+    },
+    "sdk/funding/migration.mjs": {
+      "action": "unchanged",
+      "sha256": "b168fcc1038c9c5c19c685cd9b336fa7ecbd3fb89d91d8cec92bdbea8d4dccf4"
+    },
+    "sdk/funding/util.mjs": {
+      "action": "unchanged",
+      "sha256": "38b678a68ecf7fd897fb1ae905d27471a17d10f8061fa29d81f5870549e12e66"
+    },
+    "sdk/funding/v2-store.mjs": {
+      "action": "unchanged",
+      "sha256": "b00d0742ee3d2b211b4cf811c48c8e7004dbf7e8a4cf30517db5ec199181733c"
+    }
+  }
+}

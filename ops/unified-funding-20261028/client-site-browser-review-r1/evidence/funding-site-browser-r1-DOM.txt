@@ -1,0 +1,26 @@
+Observed through CUA Chromium browser 4, tab 723100807, 2026-10-28 ~20:51 UTC.
+Final DOM excerpt (transcribed, not a screenshot):
+PASS: ALL PHASES PASS (TEST fixture only)
+phase: done
+TEST databases: client-site-browser-r1-TEST-legacy-54978f923e2f5190, client-site-browser-r1-TEST-v2-cf54e6b7ed3b3a2f
+ok page: not set up / not available
+ok no enabled button anywhere on the page
+ok no prompt, no POST
+Gas funding is not set up on this site (funding_runtime_unconfigured: funding_runtime_unconfigured: no DEPLOYED successor runtime is configured for this site (FUNDING_RUNTIME is null); nothing is offered).
+Funding migration: Not available: no deployed successor is configured for this site.
+Gas for your apps: Not available here.
+
+Earlier phase observations (each reported PASS in CUA; each driven by the actual page's buttons through the reviewed TEST shell):
+- Original TEST session: random isolated IndexedDB, non-extractable key, 30 mock USDC, two fixture prompts.
+- Prepared exact 29 + 0.8 + 0.2 plan; same legacy key and explicit wildcard; finite disjoint 8 + 2 gas apps; no prompts or POST until TEST approval.
+- Account switch while second fixture prompt open: stopped, no POST, all steps planned, no held signatures after owner returned.
+- Seven fixture migration prompts, then terminate/replacement proven; first gas-open response truncated after headers: one POST, admitted/no hash, second part untouched.
+- Real page reload, Check status on chain: first gas open proven, zero signatures/resends.
+- Chain switch at next send's first chain read: stopped before admission, no POST, previous outcomes retained.
+- Completion: 15 fixture prompts total including cancelled and dropped bundles; exact POST counts; legacy vault29, successor vault1; same key/API/wildcard retained, old session401, finite8+2 scopes.
+- Quote survives rerender. Deployment, amount and tier changes each invalidate quote; stale Fund attempts produce no execute.
+- One actual page Fund: canonical settlement, displayed maximum respected, session and vault debited exactly0.073024 mock USDC, exactlyone execute.
+- Intake off, then config/catalog unavailable: controls remain; one fixture owner Terminate prompt/POST; metal grant ended on the local chain.
+- Null-runtime reload: no enabled page actions, no prompts or POST for the bounded observation.
+
+This is actual Chromium page behavior over owned loopback Anvil8453, native P256/real HTTP/one TxQueue, public fixture signer, mockUSDC/DEX/fixed fee. It is not a real wallet flow, Base production, or execution-recovery successor qualification. The page/core are the unchanged r2/r4 version. No screenshot claimed. TEST databases retained; delete button never used.
