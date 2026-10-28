@@ -1,0 +1,5 @@
+{
+  "fadvise_linux_amd64.go": "7b78900ab779002a9fb26be8f29a5bb7aa63293eef9f8dc9a07994531625c8de",
+  "main.go": "5fabc993bfe2c63ea4abe8701a833d91554af4b717bdd549226cb344f43c8157",
+  "main_test.go": "8a30f8d9a4322cad0310506ee651ea3bf0293f9ee5733842163a74a2d087c1cc"
+}
