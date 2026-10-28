@@ -1,0 +1,20 @@
+Oct 28 00:07:40 warden-host systemd[1899]: Starting [systemd-run] /home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker --host 127.0.0.1 --port 19601 --vram-gb 16 --shm /dev/shm/fullbench-381e31fd90101eb3/card-0...
+Oct 28 00:07:40 warden-host systemd[1899]: Started [systemd-run] /home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker --host 127.0.0.1 --port 19601 --vram-gb 16 --shm /dev/shm/fullbench-381e31fd90101eb3/card-0.
+Oct 28 00:07:40 warden-host shielded-worker[25852]: [shielded-worker] MR8 G4 planner policy: off
+Oct 28 00:07:40 warden-host shielded-worker[25852]: [shielded-worker] shm ring file /dev/shm/fullbench-381e31fd90101eb3/card-0: 8 ring(s) of 8 MiB (request slot 2044 KiB, reply slot 6 MiB)
+Oct 28 00:07:40 warden-host systemd[1899]: Starting [systemd-run] /home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker --host 127.0.0.1 --port 19602 --vram-gb 16 --shm /dev/shm/fullbench-381e31fd90101eb3/card-1...
+Oct 28 00:07:40 warden-host systemd[1899]: Started [systemd-run] /home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker --host 127.0.0.1 --port 19602 --vram-gb 16 --shm /dev/shm/fullbench-381e31fd90101eb3/card-1.
+Oct 28 00:07:40 warden-host shielded-worker[25871]: [shielded-worker] MR8 G4 planner policy: off
+Oct 28 00:07:40 warden-host shielded-worker[25871]: [shielded-worker] shm ring file /dev/shm/fullbench-381e31fd90101eb3/card-1: 8 ring(s) of 8 MiB (request slot 2044 KiB, reply slot 6 MiB)
+Oct 28 00:07:41 warden-host shielded-worker[25852]: [shielded-worker] Tesla PG500-216, sm_70, 31.7 GiB total, budget 16.0 GiB, 72 SMs @ 1.38 GHz -> 101.7 TFLOPS fp16 rated
+Oct 28 00:07:41 warden-host shielded-worker[25871]: [shielded-worker] Tesla V100-PCIE-32GB, sm_70, 31.7 GiB total, budget 16.0 GiB, 80 SMs @ 1.38 GHz -> 113.0 TFLOPS fp16 rated
+Oct 28 00:07:41 warden-host shielded-worker[25852]: [shielded-worker] field GEMM throughput 2550 G-MAC/s (measured, masked path)
+Oct 28 00:07:41 warden-host shielded-worker[25852]: [shielded-worker] [yield] background mode on: duty 25% of the card while the owner is active (SHIELDED_YIELD_DUTY), detection by turn timing; SHIELDED_YIELD=0 disables
+Oct 28 00:07:41 warden-host shielded-worker[25852]: [shielded-worker] listening on 127.0.0.1:19601 (guest reaches it at 10.0.2.2:19601)
+Oct 28 00:07:41 warden-host shielded-worker[25871]: [shielded-worker] field GEMM throughput 2290 G-MAC/s (measured, masked path)
+Oct 28 00:07:41 warden-host shielded-worker[25871]: [shielded-worker] [yield] background mode on: duty 25% of the card while the owner is active (SHIELDED_YIELD_DUTY), detection by turn timing; SHIELDED_YIELD=0 disables
+Oct 28 00:07:41 warden-host shielded-worker[25871]: [shielded-worker] listening on 127.0.0.1:19602 (guest reaches it at 10.0.2.2:19602)
+Oct 28 00:09:49 warden-host systemd[1899]: Stopping [systemd-run] /home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker --host 127.0.0.1 --port 19601 --vram-gb 16 --shm /dev/shm/fullbench-381e31fd90101eb3/card-0...
+Oct 28 00:09:49 warden-host systemd[1899]: Stopped [systemd-run] /home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker --host 127.0.0.1 --port 19601 --vram-gb 16 --shm /dev/shm/fullbench-381e31fd90101eb3/card-0.
+Oct 28 00:09:49 warden-host systemd[1899]: Stopping [systemd-run] /home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker --host 127.0.0.1 --port 19602 --vram-gb 16 --shm /dev/shm/fullbench-381e31fd90101eb3/card-1...
+Oct 28 00:09:49 warden-host systemd[1899]: Stopped [systemd-run] /home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker --host 127.0.0.1 --port 19602 --vram-gb 16 --shm /dev/shm/fullbench-381e31fd90101eb3/card-1.

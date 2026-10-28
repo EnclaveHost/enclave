@@ -1,0 +1,239 @@
+{
+  "allowed_cpus": "8-15,24-31",
+  "app_sha": "f957f6cba2b43fc4a68e065bcd10fa3447514bd93261d7c17058a32ea024b5ed",
+  "arm_wall_max_sec": 4500,
+  "arms": [
+    {
+      "arm": "A",
+      "bank": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-smoke-banks/fullbench-381e31fd90101eb3-0-A.padbank",
+      "cid": 203737,
+      "image": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/A.cpio.gz",
+      "image_sha256": "7a71d50dfe4282a895d677377347f47f0230b0fc69000b697f38c6a3da8846ec",
+      "measurement": "a3810f4eff8d0307ee432f7a3bb3067a426f0ff5d94ead620c6be36e05690d74f3decec13528a8c916c95b4ee8013485",
+      "seq": 0,
+      "serial_log": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-smoke-fw-r3/serial-0-A.log",
+      "unit": "fullbench-381e31fd90101eb3-a0.service"
+    },
+    {
+      "arm": "B",
+      "bank": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-smoke-banks/fullbench-381e31fd90101eb3-1-B.padbank",
+      "cid": 203738,
+      "image": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/B.cpio.gz",
+      "image_sha256": "355b93ef88bf1edc3de1e2e693f73ae6bc4f39ae5236b4f56499178e2d991ea6",
+      "measurement": "5a6d603a27b8c04c2d16999b160299c80afd34b6d483e4e8dca0ed248dbe3b4faffdb09ab09a0a8370bf40c712de341f",
+      "seq": 1,
+      "serial_log": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-smoke-fw-r3/serial-1-B.log",
+      "unit": "fullbench-381e31fd90101eb3-b1.service"
+    }
+  ],
+  "bank_dir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-smoke-banks",
+  "bank_gib": 64,
+  "client": "/home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov-init/isolation/m2/client.mjs",
+  "client_sha256": "1c6b2df07bff0fb22985e2fda55d8616f77710109ee29f835cc03d8640fa03df",
+  "cmdline": "console=ttyS0 rdinit=/init loglevel=3",
+  "experimental_firmware": {
+    "original_release_sha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/OVMF.candidate-debug.fd",
+    "scope": "experimental benchmark firmware: a NEW build, not the installed original release firmware and not production-qualified; arm --measurement predictions must be root-computed for this exact binary and every arm still needs a fresh client.mjs VERDICT attested",
+    "sha256": "0598d551eea4e8becd54cb80aa5c7964ee46f21e50936fc06809ed171672594c"
+  },
+  "fwd": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-tools-build-r1/fwd",
+  "fwd_sha256": "40cdca28b5310675459976cb27e2994ccd064d11a9d5a08c38430144e211432d",
+  "gpu": {
+    "cards": {
+      "GPU-042eb279-e6e6-9866-5823-015b8d26946a": {
+        "allowed": [
+          {
+            "pid": 5683,
+            "required": true,
+            "start": "7134",
+            "used_mib_max": 5000
+          },
+          {
+            "pid": 355837,
+            "required": true,
+            "start": "828964",
+            "used_mib_max": 64
+          }
+        ],
+        "unlisted_mib_max": 128
+      },
+      "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c": {
+        "allowed": [
+          {
+            "pid": 5685,
+            "required": true,
+            "start": "7134",
+            "used_mib_max": 5000
+          },
+          {
+            "pid": 355837,
+            "required": true,
+            "start": "828964",
+            "used_mib_max": 64
+          }
+        ],
+        "unlisted_mib_max": 128
+      }
+    },
+    "context_headroom_mib": 1024,
+    "mode": "shared"
+  },
+  "guest_mib": 57344,
+  "guestd": {
+    "client": "/home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov-init/isolation/m4/guestd/control-client.mjs",
+    "client_sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+    "key_file": "/home/steven/enclave-prod/guestd-pair.key",
+    "probe": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-bench-prep/guestd_commitments_probe.mjs",
+    "probe_sha256": "a7f1d3ea1977d446c43f9ac8955560dd27324583d7ec400f793219567ff941f9",
+    "snapshot": {
+      "held": [
+        {
+          "cpuPct": 800,
+          "gpuCardBytes": 4327179550,
+          "idSha256": "4612596612b039ca",
+          "memMiB": 6912,
+          "status": "running"
+        }
+      ],
+      "inference": {
+        "cardAllocatedBytes": 4327179550,
+        "cardBudgetBytes": 33285996544,
+        "cardFreeBytes": 28958816994,
+        "cards": 2,
+        "modelFloorsMiB": {
+          "qwen3.8-27b-mtp-q4-vl-gguf": 73728,
+          "z-image-turbo-q4km-sd": 6144
+        },
+        "shareBoundedMemory": true
+      },
+      "instance": "edc73bb7b2aec53c",
+      "kind": "guestd-commitments/1",
+      "pool": {
+        "allocatedMemMiB": 6912,
+        "budgetMemMiB": 98304,
+        "floorMiB": 18432,
+        "guests": 1,
+        "memAvailableMiB": 84689,
+        "pendingMiB": 1551,
+        "unreadUnits": 0
+      },
+      "seq": 1
+    },
+    "url": "http://127.0.0.1:8095"
+  },
+  "kind": "shield-full-bench-plan/2",
+  "memory": {
+    "extra_headroom_mib": 1024,
+    "helper_cap_mib": 512,
+    "mode": "snapshot",
+    "other_units": [
+      {
+        "budget_mib": 4864,
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal.service",
+        "name": "enclave-metal.service"
+      },
+      {
+        "budget_mib": 3840,
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-custodian-v2.service",
+        "name": "enclave-custodian-v2.service"
+      }
+    ]
+  },
+  "model_identity": {
+    "ctime_ns": 1792900032848536549,
+    "dev": 64769,
+    "ino": 147981760,
+    "mtime_ns": 1788304922518471895,
+    "size": 17559178144
+  },
+  "node": "/usr/bin/node",
+  "out": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-smoke-fw-r3",
+  "pending_extra_bytes": 0,
+  "pins": {
+    "firmware": "/home/steven/enclave-prod/release-5cab66e4/firmware.fd",
+    "kernel": "/home/steven/enclave-prod/release-5cab66e4/kernel",
+    "runtime": "/home/steven/enclave-prod/release-5cab66e4/template/rt/runtime.json"
+  },
+  "plan_time_problems": [],
+  "poll_sec": 5,
+  "production_guests": [
+    {
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-custodian-v2.service",
+      "pid": 3817658,
+      "ram_bytes": 3221225472,
+      "start": "32598976"
+    },
+    {
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal.service",
+      "pid": 3967858,
+      "ram_bytes": 4294967296,
+      "start": "146386551"
+    },
+    {
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gd8b0d8776-3970531.service",
+      "pid": 3970560,
+      "ram_bytes": 6442450944,
+      "start": "146403173"
+    }
+  ],
+  "qemu": {
+    "path": "/usr/bin/qemu-system-x86_64",
+    "sha256": "a2250f5e2b3b07c754473c0817df1cccf6c3c2443fc616dc474c4c311fa6ef1c"
+  },
+  "release": "/home/steven/enclave-prod/release-5cab66e4",
+  "required_available_bytes": 94773444608,
+  "ring_dir": "/dev/shm/fullbench-381e31fd90101eb3",
+  "run_id": "381e31fd90101eb3",
+  "runtime_max_sec": 3600,
+  "snp_claim": "configured until each arm's receipt shows client.mjs VERDICT attested; bench measurement, not production; booted experimental firmware 0598d551eea4e8becd54cb80aa5c7964ee46f21e50936fc06809ed171672594c, not the original release firmware",
+  "soak": false,
+  "total_wall_max_sec": 9000,
+  "trust": {
+    "amd_chain": "Turin=/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/test/fixtures/amd/Turin-cert_chain.pem",
+    "min_tcb": "/home/steven/.cache/enclave-isolation/m3-clean/min-tcb.json",
+    "vcek": "/home/steven/.cache/enclave-isolation/m3-clean/vcek.der"
+  },
+  "trust_sha256": {
+    "amd_chain": "cc9a52fbed3fbc6e4a0a50149a541a75938f975658909c2a6084767829b36e85",
+    "min_tcb": "fe90824f469db17cad41a895f45803d66bef5058ff829e36302fe35328179d9c",
+    "vcek": "7370435c9f70be9fff3991b7a6dfff31d0a5f7f982eb74c89a90af1963a77835"
+  },
+  "workers": {
+    "gpu_uuids": [
+      "GPU-1397d8cd-27ae-e1a6-a7ed-e485e7ca002c",
+      "GPU-042eb279-e6e6-9866-5823-015b8d26946a"
+    ],
+    "memory_max_mib": 1024,
+    "path": "/home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker",
+    "ports": [
+      19601,
+      19602
+    ],
+    "sha256": "f242fccebd04e1c58c5da154e2987c8706db57bb5bebad921fb256efad8e9d96",
+    "vram_gb": 16
+  },
+  "workload": {
+    "kind": "shield-full-bench-workload/1",
+    "max_sessions": 16,
+    "max_total_tokens_per_request": 16384,
+    "note": "Startup/attestation/8-token smoke only, not pressure or throughput qualification",
+    "per_request_timeout_s": 900,
+    "pooled_ctx": 65536,
+    "repeat_from_round": 2,
+    "rounds": 1,
+    "steps": [
+      {
+        "compare_tokens": true,
+        "concurrency": 1,
+        "name": "fixture",
+        "query": {
+          "graph": "qwen3.8-27b-mtp-q4-vl-gguf",
+          "k": 1,
+          "mtp": 1,
+          "steps": 8
+        }
+      }
+    ]
+  }
+}

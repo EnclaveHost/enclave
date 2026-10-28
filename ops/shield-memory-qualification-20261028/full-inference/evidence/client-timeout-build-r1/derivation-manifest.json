@@ -1,0 +1,58 @@
+{
+  "benchmark_only": true,
+  "dependencies_sha256": {
+    "/home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov-init/isolation/contract/runtime.mjs": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+    "/home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov-init/isolation/m2/judge.mjs": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+    "/home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov-init/isolation/m2/port-connector.mjs": "79a9cb0114b5c861d3886ef8eb86eb396b37ef4bdd19fb4c859f9bea01b6acb3",
+    "/home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov-init/relay/snp-verify.mjs": "866a0946f5160049c8db29f0e63f107d532968c2428c55ffdccabead59b78206"
+  },
+  "dependency_bare_specifiers": [
+    "node:crypto",
+    "node:dgram",
+    "node:net",
+    "node:stream"
+  ],
+  "deriver": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-bench-prep/client-timeout/derive_client.py",
+    "sha256": "9097217ea739063c47bdd47ef175c0f7ddf6842f87c3b41869553df33414a686"
+  },
+  "edits": [
+    {
+      "line": 144,
+      "new": "    r.setTimeout(app ? 840000 : 60000, () => r.destroy(new Error('timeout')));",
+      "old": "    r.setTimeout(60000, () => r.destroy(new Error('timeout')));"
+    },
+    {
+      "line": 53,
+      "new": "import { judge } from 'file:///home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov-init/isolation/m2/judge.mjs';",
+      "old": "import { judge } from './judge.mjs';"
+    },
+    {
+      "line": 54,
+      "new": "import { startConnector, parseBindings } from 'file:///home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov-init/isolation/m2/port-connector.mjs';",
+      "old": "import { startConnector, parseBindings } from './port-connector.mjs';"
+    },
+    {
+      "line": 55,
+      "new": "import { seedCertChain } from 'file:///home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov-init/relay/snp-verify.mjs';",
+      "old": "import { seedCertChain } from '../../relay/snp-verify.mjs';"
+    }
+  ],
+  "generated": {
+    "bytes": 17160,
+    "file": "client-bench-timeout.mjs",
+    "sha256": "3ef76257bda9bc1fe7b266b49db6769e33e4a7435cd08643c34a4366865f70c2"
+  },
+  "kind": "shield-bench-client-derivation/1",
+  "original": {
+    "path": "/home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov-init/isolation/m2/client.mjs",
+    "realpath": "/home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov-init/isolation/m2/client.mjs",
+    "sha256": "1c6b2df07bff0fb22985e2fda55d8616f77710109ee29f835cc03d8640fa03df"
+  },
+  "purpose": "full-model bench: let one attested, pinned application GET stay idle up to 840 s while the model loads and decodes; not for production, not a replacement for client.mjs",
+  "timeouts_ms": {
+    "application_request_idle": 840000,
+    "attestation_request_idle": 60000
+  },
+  "unchanged": "judge, verdict gate, TLS key pin on every handshake, second-nonce freshness, replay check, runtime pin, min-TCB, --answer-within, the 60 s 502-retry window, tunnel timeouts, exit codes"
+}

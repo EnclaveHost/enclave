@@ -102,6 +102,7 @@ STARTUP_ALLOW_SEC = 900
 CHILD_WAIT = 10
 CLIENT_OUT_CAP = 1 << 20
 FWD_OUT_CAP = 4096
+STDERR_HEAD_CAP = 4096  # first bytes of a client/fwd stderr file, recorded as a diagnostic only
 PROBE_TAIL_CAP = 1 << 16
 STARTUP_READY_SEC = 180          # after the fwd line: boot + model copy-verify + front + app start (smoke: ~37 s guest)
 SERIAL_HEAD_CAP = 8 << 20
@@ -578,13 +579,20 @@ class Host:
         r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
         return r.returncode, r.stdout, r.stderr
 
-    def popen(self, argv, out_path):
-        """stdout goes to a new 0600 file, never a pipe the helper could fail to drain."""
-        fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    def popen(self, argv, out_path, err_path=None):
+        """stdout goes to a new 0600 file, never a pipe the helper could fail to drain. stderr goes to a second new
+        0600 file when err_path is given (diagnostics only, never parsed for results), else to /dev/null."""
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW
+        fd, efd = os.open(out_path, flags, 0o600), None
         try:
-            return subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=fd, stderr=subprocess.DEVNULL)
+            if err_path is not None:
+                efd = os.open(err_path, flags, 0o600)
+            return subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=fd,
+                                    stderr=subprocess.DEVNULL if efd is None else efd)
         finally:
             os.close(fd)
+            if efd is not None:
+                os.close(efd)
 
     def read(self, path):
         with open(path) as f:
@@ -1209,12 +1217,25 @@ def parse_client(stdout):
     return r
 
 
+def stderr_diag(host, path):
+    """The head of a helper's stderr file, bounded and made printable. Diagnostic only: it is a separate file from
+    the stdout parse_client reads, so nothing in it can produce or change a result."""
+    try:
+        if not host.exists(path):
+            return None
+        raw = host.read_head(path, STDERR_HEAD_CAP)
+    except OSError as e:
+        return {"unreadable": e.__class__.__name__, "diagnostic_only": True}
+    text = "".join(c if c == "\n" or c.isprintable() else "?" for c in raw[:STDERR_HEAD_CAP].decode("utf-8", "replace"))
+    return {"head": text, "truncated": len(raw) > STDERR_HEAD_CAP, "diagnostic_only": True}
+
+
 def run_step(host, p, arm, port, step, h, procs, tag):
     """Concurrent attested requests, with the watchdog running while they are in flight. Every child is reaped."""
     mine = []
     for i in range(step["concurrency"]):
         out = os.path.join(p["out"], f"client-{arm['seq']}-{tag}-{i}.out")
-        pr = host.popen(client_argv(p, arm, port, probe_path(step["query"], i)), out)
+        pr = host.popen(client_argv(p, arm, port, probe_path(step["query"], i)), out, err_path=out + ".err")
         procs.append(pr)
         mine.append((pr, out))
     until = host.now() + p["workload"]["per_request_timeout_s"]
@@ -1231,7 +1252,8 @@ def run_step(host, p, arm, port, step, h, procs, tag):
         host.sleep(1)
     res = []
     for pr, out in mine:
-        if pr.poll() is None:
+        killed = pr.poll() is None
+        if killed:
             pr.kill()
         try:
             pr.wait(timeout=CHILD_WAIT)
@@ -1243,6 +1265,8 @@ def run_step(host, p, arm, port, step, h, procs, tag):
             r["ok"], r["output_oversize"] = False, True
         r["exit"] = pr.returncode
         r["ok"] = r["ok"] and pr.returncode == 0
+        r["killed_by_harness"] = killed                    # diagnostics below; neither changes ok
+        r["stderr"] = stderr_diag(host, out + ".err")
         res.append(r)
     return res, reason
 
@@ -1313,7 +1337,7 @@ def classify_failure(host, arm, step, res):
 def run_arm(host, p, arm, total_deadline):
     h = {"arm": arm["arm"], "unit": arm["unit"], "samples": [], "requests": [], "owned": {}}
     h["wall_deadline"] = min(host.now() + p["arm_wall_max_sec"], total_deadline)
-    procs, started = [], False
+    procs, started, fwd_err = [], False, None
     try:
         probs = preflight(host, p, arm, live=True, h=h)
         if probs:
@@ -1341,7 +1365,9 @@ def run_arm(host, p, arm, total_deadline):
             h["outcome"] = "limits_not_enforced"
             return h
         fwd_out = os.path.join(p["out"], f"fwd-{arm['seq']}-{arm['arm']}.out")
-        fwd = host.popen([p["fwd"], "-cid", str(arm["cid"])], fwd_out)
+        # the probe's stderr stays /dev/null: it holds the guestd key in-process and its errors are a fixed word
+        fwd_err = fwd_out + ".err"
+        fwd = host.popen([p["fwd"], "-cid", str(arm["cid"])], fwd_out, err_path=fwd_err)
         procs.append(fwd)
         box = {}
 
@@ -1398,6 +1424,8 @@ def run_arm(host, p, arm, total_deadline):
                 h["cleanup_errors"] = errs
                 h["workload_outcome"] = h.get("outcome")
                 h["outcome"] = "cleanup_failed"
+        if fwd_err:
+            h["fwd_stderr"] = stderr_diag(host, fwd_err)   # read after reap; diagnostic only
         if host.exists(arm["serial_log"]):
             log = host.read_head(arm["serial_log"], 8 << 20).decode("utf-8", "replace")
             h["serial_model_line"] = next((l.strip() for l in log.splitlines() if "MODEL verified" in l), None)

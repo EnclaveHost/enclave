@@ -122,6 +122,7 @@ class FakeHost:
         self.smi_apps, self.smi_gpu = "", f"{U0}, 10, 32768\n{U1}, 10, 32768\n"
         self.fwd_out, self.client_exits, self.foreign_exec = b"FWD listening 127.0.0.1:40001 cid=200123\n", True, False
         self.serial, self.client_out = SERIAL_READY, CLIENT_OK   # what the guest unit writes to its -serial file
+        self.client_err, self.fwd_err, self.popens = b"", b"", []
 
     def next_pid(self):
         self._pid += 1
@@ -173,12 +174,16 @@ class FakeHost:
             return 0, (self.smi_apps if "--query-compute-apps=gpu_uuid,pid,used_memory" in argv else self.smi_gpu), ""
         return 0, "", ""
 
-    def popen(self, argv, out_path):
-        assert out_path not in self.files
-        if argv[0] == self.p["fwd"]:
+    def popen(self, argv, out_path, err_path=None):
+        assert out_path not in self.files and err_path not in self.files and err_path != out_path
+        self.popens.append((argv, out_path, err_path))
+        fwd = argv[0] == self.p["fwd"]
+        if fwd:
             self.files[out_path], pr = self.fwd_out, FakeProc(self, argv, exits=False)
         else:
             self.files[out_path], pr = self.client_out, FakeProc(self, argv, exits=self.client_exits)
+        if err_path is not None:
+            self.files[err_path] = self.fwd_err if fwd else self.client_err
         self.children.append(pr)
         return pr
 
@@ -648,10 +653,10 @@ class StartupReadiness(RunArmBase):
         host.on_tick = guest_progresses
         real_popen = host.popen
 
-        def popen(argv, out):
+        def popen(argv, out, **kw):
             if argv[1] == p["client"]:
                 at_popen.append(host.files.get(log, b""))   # the serial as it stood when the client was started
-            return real_popen(argv, out)
+            return real_popen(argv, out, **kw)
         host.popen = popen
         h = F.run_arm(host, p, arm, 1e12)
         self.assertEqual((h["outcome"], h["cleanup"]), ("success", "clean"))
@@ -768,6 +773,117 @@ class StartupReadiness(RunArmBase):
 
 
 # ---------------------------------------------------------------- stage
+
+class StderrCapture(RunArmBase):
+    """Client/fwd stderr lands in its own file and is recorded as a bounded diagnostic; it never makes a result."""
+    # what client.mjs prints before its request() timeout escapes as an uncaught Error (exit 1, no app_status)
+    ATTESTED_NO_RESPONSE = (b"RESULT mode=trusted\nVERDICT attested reason=\"ok\"\nRESULT gate=open\n"
+                            b"RESULT second_nonce_verdict=attested\nRESULT replay_rejected=1\n")
+    NODE_TIMEOUT = b"file:///x/client.mjs:144\n    r.setTimeout(60000, () => r.destroy(new Error('timeout')));\nError: timeout\n"
+
+    def result(self, h):
+        return h["requests"][0]["results"][0]
+
+    def test_timeout_reason_recorded_without_changing_verdict(self):
+        p, arm = plan_fixture()
+        host = FakeHost(p)
+        host.client_out, host.client_err = self.ATTESTED_NO_RESPONSE, self.NODE_TIMEOUT
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual((h["outcome"], h["cleanup"]), ("request_failed", "clean"))
+        r = self.result(h)
+        self.assertEqual((r["verdict"], r["ok"], r["status"]), ("attested", False, None))
+        self.assertIn("Error: timeout", r["stderr"]["head"])
+        self.assertTrue(r["stderr"]["diagnostic_only"])
+        self.assertFalse(r["killed_by_harness"])
+
+    def test_stderr_cannot_forge_a_result(self):
+        p, arm = plan_fixture()
+        host = FakeHost(p)
+        host.client_out, host.client_err = b"", CLIENT_OK          # a full success transcript, but on stderr
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual(h["outcome"], "request_failed")
+        r = self.result(h)
+        self.assertEqual((r["verdict"], r["status"], r["pinned"], r["ok"]), (None, None, False, False))
+
+    def test_stderr_noise_does_not_fail_success(self):
+        p, arm = plan_fixture()
+        host = FakeHost(p)
+        host.client_err = b"(node:7) ExperimentalWarning: x\n"
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual((h["outcome"], h["cleanup"]), ("success", "clean"))
+        self.assertTrue(all(r["ok"] for q in h["requests"] for r in q["results"]))
+        self.assertIn("ExperimentalWarning", self.result(h)["stderr"]["head"])
+
+    def test_bounded_and_printable(self):
+        p, arm = plan_fixture()
+        host = FakeHost(p)
+        host.client_out, host.client_err = b"", b"\x1b[2J\x00\rErr\n" + b"A" * (3 * F.STDERR_HEAD_CAP)
+        d = self.result(F.run_arm(host, p, arm, 1e12))["stderr"]
+        self.assertTrue(d["truncated"])
+        self.assertLessEqual(len(d["head"]), F.STDERR_HEAD_CAP)
+        self.assertTrue(d["head"].startswith("?[2J??Err\n"))
+        self.assertTrue(all(c == "\n" or c.isprintable() for c in d["head"]))
+
+    def test_killed_client_keeps_its_stderr(self):
+        p, arm = plan_fixture()
+        host = FakeHost(p)
+        host.client_exits, host.client_err = False, b"still waiting\n"
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual(h["outcome"], "stopped:request_timeout")
+        r = self.result(h)
+        self.assertTrue(r["killed_by_harness"])
+        self.assertFalse(r["ok"])
+        self.assertIn("still waiting", r["stderr"]["head"])
+
+    def test_separate_sibling_files_fwd_recorded_probe_not_captured(self):
+        p, arm = plan_fixture()
+        host = FakeHost(p)
+        host.fwd_err = b"fwd: vsock dial: connection reset\n"
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertIn("connection reset", h["fwd_stderr"]["head"])
+        for argv, out, err in host.popens:
+            if argv[0] == p["fwd"] or argv[1] == p["client"]:
+                self.assertEqual(err, out + ".err")
+            else:
+                self.assertIsNone(err, argv)                              # the guestd probe: still /dev/null
+
+    def test_real_host_popen_exclusive_0600(self):
+        d = tempfile.mkdtemp()
+        seen = []
+
+        def fake_popen(argv, stdin=None, stdout=None, stderr=None):
+            if stderr != subprocess.DEVNULL:
+                os.write(stdout, b"VERDICT attested\n")
+                os.write(stderr, b"Error: timeout\n")
+            seen.append((stdout, stderr))
+            return "proc"
+        real = F.subprocess.Popen
+        F.subprocess.Popen = fake_popen
+        try:
+            out = os.path.join(d, "c.out")
+            self.assertEqual(F.Host().popen(["x"], out, err_path=out + ".err"), "proc")
+            self.assertNotEqual(*seen[0])
+            with open(out, "rb") as f:
+                self.assertEqual(f.read(), b"VERDICT attested\n")
+            with open(out + ".err", "rb") as f:
+                self.assertEqual(f.read(), b"Error: timeout\n")
+            for path in (out, out + ".err"):
+                self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+            for i, pre in enumerate(("file", "symlink")):
+                o = os.path.join(d, f"{pre}.out")
+                if pre == "file":
+                    open(o + ".err", "w").close()
+                else:
+                    os.symlink(os.path.join(d, "elsewhere"), o + ".err")
+                with self.assertRaises(FileExistsError):
+                    F.Host().popen(["x"], o, err_path=o + ".err")
+            self.assertEqual(len(seen), 1)                                # refused before any child is started
+            self.assertFalse(os.path.lexists(os.path.join(d, "elsewhere")))
+            F.Host().popen(["x"], os.path.join(d, "probe.out"))
+            self.assertEqual(seen[-1][1], subprocess.DEVNULL)             # no err_path: unchanged behaviour
+        finally:
+            F.subprocess.Popen = real
+
 
 class Stage(unittest.TestCase):
     def setUp(self):
