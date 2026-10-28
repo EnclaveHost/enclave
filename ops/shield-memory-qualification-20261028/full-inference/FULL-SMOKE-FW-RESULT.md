@@ -1,0 +1,7 @@
+# Full-model startup on experimental firmware — attestation rejected
+
+The new DEBUG firmware booted the full56GiB/16CPU A baseline. The loader verified all17,559,178,144 model bytes against the pinned SHA in29,223ms. Front started and served over vsock. The first client rejected the quote because the W^X self-test covered zero runtime processes (`runtime=0`, no seccomp statement). No application request was sent. Baseline sampled guest-unit peak40,144,949,248 bytes is startup evidence only; B did not run, and this is NOT a full-inference comparison or attestation pass. Owned guest/workers/rings/padbank cleanup passed.
+
+The installed init starts the front and waits for config before spawning the app. Attestation can race that startup: the front can enumerate processes before the nonroot app exists. The captured ordering is consistent with that race but does not rule out another runtime startup fault. A source-only bounded public-serial readiness barrier is being prepared. Serial will be used only as an untrusted timing signal; every subsequent client must still independently verify a fresh quote with all original gates. No rejection may be overridden.
+
+The initial bounded-plan writer tried to overwrite the harness's immutable plan and received PermissionError before any launch. A separate bounded-plan.json was created, reviewed and hash-approved. The original plan and failure log are retained. Future runs require new output paths and fresh reservations.

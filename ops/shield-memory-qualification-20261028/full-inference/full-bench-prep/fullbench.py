@@ -13,7 +13,9 @@
   execute  Needs --plan and --approve-plan-sha256. Without --execute it is a
            dry run. With --execute --coordinated-slot it runs the arms
            serially: bench rings, two bench workers, one SNP guest, the
-           localhost forwarder, attested public-probe requests, cleanup.
+           localhost forwarder, a bounded wait for the public serial's
+           DOM started/serving lines (untrusted timing only), attested
+           public-probe requests, cleanup.
 
 It owns only units named fullbench-<run>-* that it saw absent before creating
 and whose InvocationID/MainPID start it recorded after, its own ring dir and pad
@@ -59,6 +61,21 @@ CPUSET = re.compile(r"^\d+(-\d+)?(,\d+(-\d+)?)*$")
 FWD_LINE = re.compile(r"^FWD listening 127\.0\.0\.1:(\d+) ")
 LOOPBACK_URL = re.compile(r"^https?://(127\.0\.0\.1|\[::1\]):\d{1,5}$")
 CGROUP_PATH = re.compile(r"^/[A-Za-z0-9@._:+-]+(/[A-Za-z0-9@._:+-]+)*\.(service|scope)$")
+SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+
+# public serial startup markers (STARTUP-READINESS.md): dominit.c prints SECCOMP then STARTED once spawn_app returns
+# (the app has exec'd, dropped and filtered); the front prints SERVING. UNTRUSTED timing only, never attestation.
+DOM_SECCOMP = re.compile(r"^DOM seccomp: app filter installed \(sha256 [0-9a-f]{64}, \d+ rules\)$")
+DOM_STARTED = re.compile(r"^DOM started app=(\d+) front=(\d+) at_ms=(\d+)$")
+DOM_SERVING = re.compile(r"^DOM serving vsock=\d+ spki_sha256=([0-9a-f]{64}) ready_ms=(\d+)$")
+DOM_FATAL = re.compile(r"^DOM (ERROR\b|end$)")
+READINESS_SIGNAL = ("untrusted serial timing only: gates WHEN the first attested request is sent, never whether it is "
+                    "trusted; every request still needs a fresh client.mjs VERDICT attested")
+
+# explicit opt-in benchmark firmware (EXPERIMENTAL-FIRMWARE.md); never discovered, never the default
+EXPERIMENTAL_FW_SCOPE = ("experimental benchmark firmware: a NEW build, not the installed original release firmware and "
+                         "not production-qualified; arm --measurement predictions must be root-computed for this exact "
+                         "binary and every arm still needs a fresh client.mjs VERDICT attested")
 
 # shared-GPU option [user, FULL-ROOT-FACTS]
 SHIELD_CARD_BYTES = 33285996544               # guestd /health cardBudgetBytes (31 GiB)
@@ -79,6 +96,8 @@ CHILD_WAIT = 10
 CLIENT_OUT_CAP = 1 << 20
 FWD_OUT_CAP = 4096
 PROBE_TAIL_CAP = 1 << 16
+STARTUP_READY_SEC = 180          # after the fwd line: boot + model copy-verify + front + app start (smoke: ~37 s guest)
+SERIAL_HEAD_CAP = 8 << 20
 
 
 class Stop(Exception):
@@ -301,6 +320,79 @@ def stage(release, candidate_loader, out, arms=ARMS):
     return manifest
 
 
+# ---------------------------------------------------------------- firmware
+
+def boot_firmware(p):
+    """-bios for every arm: the original release pin unless the plan carries the explicit experimental pair."""
+    x = p.get("experimental_firmware")
+    return x["path"] if x else p["pins"]["firmware"]
+
+
+def experimental_pair(path, sha):
+    """Shape only, before anything is read: both flags or neither. None means the original release firmware."""
+    if path is None and sha is None:
+        return None
+    if not path or not sha:
+        raise ValueError("--experimental-firmware and --experimental-firmware-sha256 are required together")
+    if not SHA256_HEX.match(sha):
+        raise ValueError("--experimental-firmware-sha256 must be 64 lowercase hex")
+    path = os.path.abspath(path)
+    if not SAFE.match(path):
+        raise ValueError(f"unsafe path for QEMU argv: {path}")
+    return path, sha
+
+
+def experimental_firmware_record(host, path, sha, release=RELEASE):
+    """The hashed plan record for an opt-in firmware, or None. The file must already hash to the approved value."""
+    pair = experimental_pair(path, sha)
+    if pair is None:
+        return None
+    path, sha = pair
+    if os.path.commonpath([path, os.path.abspath(release)]) == os.path.abspath(release):
+        raise ValueError("experimental firmware may not live inside the production release")
+    orig = release_manifest(release)["files"]["firmware.fd"]["sha256"]
+    if sha == orig:
+        raise ValueError("that sha256 is the original release firmware; omit the experimental flags")
+    got = host.sha256(path)
+    if got != sha:
+        raise ValueError(f"experimental firmware sha256 {got} != approved {sha}")
+    return {"path": path, "sha256": sha, "original_release_sha256": orig, "scope": EXPERIMENTAL_FW_SCOPE}
+
+
+def firmware_problems(host, p, rel):
+    """Preflight. The original release firmware must still match release.json whether or not a candidate is used;
+    a candidate, when planned, must independently match its approved sha256."""
+    bad = []
+
+    def ident(path, want, what):
+        try:
+            if host.sha256(path) != want:
+                bad.append(what)
+        except OSError as e:
+            bad.append(f"{what}: {e}")
+
+    try:
+        orig = rel["files"]["firmware.fd"]["sha256"]
+    except KeyError:
+        return ["firmware pin: release.json lacks firmware.fd"]
+    pin = p["pins"]["firmware"]
+    if pin != os.path.join(p["release"], "firmware.fd"):
+        bad.append("firmware pin path is not the release firmware.fd")
+    ident(pin, orig, "firmware pin")
+    x = p.get("experimental_firmware")
+    if x is None:
+        return bad
+    if not isinstance(x, dict) or x.get("scope") != EXPERIMENTAL_FW_SCOPE or not SHA256_HEX.match(str(x.get("sha256"))) \
+            or not os.path.isabs(str(x.get("path"))) or not SAFE.match(str(x.get("path"))) or x["path"] == pin:
+        return bad + ["experimental firmware record malformed"]
+    if x.get("original_release_sha256") != orig:
+        bad.append("experimental firmware: original release firmware.fd changed since plan")
+    if x["sha256"] == orig:
+        bad.append("experimental firmware is the original release firmware")
+    ident(x["path"], x["sha256"], "experimental firmware identity")
+    return bad
+
+
 # ---------------------------------------------------------------- argv
 
 def qemu_argv(p, arm):
@@ -310,7 +402,7 @@ def qemu_argv(p, arm):
             "-object", "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on",
             "-object", f"memory-backend-memfd,id=ram1,size={g}M,share=true",
             "-cpu", "host", "-smp", str(VCPUS), "-m", f"{g}M",
-            "-bios", p["pins"]["firmware"], "-kernel", p["pins"]["kernel"], "-initrd", arm["image"],
+            "-bios", boot_firmware(p), "-kernel", p["pins"]["kernel"], "-initrd", arm["image"],
             "-append", p["cmdline"], "-device", f"vhost-vsock-pci,guest-cid={arm['cid']}",
             "-object", f"memory-backend-file,id=sh0,mem-path={p['ring_dir']}/card-0,size=64M,share=on",
             "-device", "ivshmem-plain,memdev=sh0,addr=5",
@@ -344,6 +436,8 @@ def qemu_violations(q, p, arm):
     if bad:
         return bad
     one = {o: v[0] for o, v in opts.items()}
+    if one["-machine"] != "q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1":
+        bad.append("machine must bind the SNP guest and planned memory")
     if one["-monitor"] != "none" or one["-display"] != "none":
         bad.append("monitor/display must be none")
     if one["-m"] != f"{p['guest_mib']}M" or one["-smp"] != str(VCPUS) or one["-cpu"] != "host":
@@ -352,7 +446,7 @@ def qemu_violations(q, p, arm):
         bad.append("guest below floor")
     if one["-initrd"] != arm["image"] or one["-append"] != p["cmdline"]:
         bad.append("initrd/cmdline differ from plan")
-    if one["-bios"] != p["pins"]["firmware"] or one["-kernel"] != p["pins"]["kernel"]:
+    if one["-bios"] != boot_firmware(p) or one["-kernel"] != p["pins"]["kernel"]:
         bad.append("kernel/firmware differ from pins")
     if one["-serial"] != f"file:{arm['serial_log']}":
         bad.append("serial must be the planned file")
@@ -719,7 +813,7 @@ def preflight(host, p, arm=None, live=False, h=None):
     check(lambda: host.euid() != 0, "must run as the unprivileged owner")
     rel = release_manifest(p["release"])
     check(lambda: host.sha256(p["pins"]["kernel"]) == rel["files"]["kernel"]["sha256"], "kernel pin")
-    check(lambda: host.sha256(p["pins"]["firmware"]) == rel["files"]["firmware.fd"]["sha256"], "firmware pin")
+    problems += firmware_problems(host, p, rel)
     check(lambda: host.sha256(p["pins"]["runtime"]) == rel["files"]["template/rt/runtime.json"]["sha256"], "runtime pin")
     check(lambda: host.sha256(p["qemu"]["path"]) == p["qemu"]["sha256"], "qemu identity")
     check(lambda: host.sha256(p["workers"]["path"]) == p["workers"]["sha256"], "worker identity")
@@ -733,7 +827,7 @@ def preflight(host, p, arm=None, live=False, h=None):
         check(lambda a=a: host.sha256(a["image"]) == a["image_sha256"], f"arm {a['arm']} image digest")
         check(lambda a=a: not qemu_violations(unit_argv(p, a)[unit_argv(p, a).index("--") + 1:], p, a),
               f"arm {a['arm']} qemu invariants")
-    for path in [B.MODEL_PATH, p["pins"]["kernel"], p["pins"]["firmware"], p["out"], p["bank_dir"]] + [a["image"] for a in arms]:
+    for path in [B.MODEL_PATH, p["pins"]["kernel"], boot_firmware(p), p["out"], p["bank_dir"]] + [a["image"] for a in arms]:
         check(lambda path=path: host.storage_check(path), f"storage of {path} (USB/removable refused)")
     for dev in ("/dev/kvm", "/dev/sev", "/dev/vhost-vsock"):
         check(lambda dev=dev: host.access_rw(dev), f"{dev} read/write")
@@ -769,6 +863,8 @@ def kv(items):
 
 
 def make_plan(host, a):
+    fw_path, fw_sha = getattr(a, "experimental_firmware", None), getattr(a, "experimental_firmware_sha256", None)
+    experimental_pair(fw_path, fw_sha)   # one-sided or malformed flags refuse before anything is read
     out = os.path.abspath(a.out)
     if out.startswith(RELEASE):
         raise ValueError("plan dir may not be inside the production release")
@@ -794,6 +890,7 @@ def make_plan(host, a):
     if memory is None and a.pending_extra_mib is None:
         raise ValueError("strict memory mode needs --pending-extra-mib")
     rel = release_manifest(RELEASE)
+    fw = experimental_firmware_record(host, fw_path, fw_sha)
     run_id = secrets.token_hex(8)
     runtime = 7800 if a.soak else 3600
     trust = {"vcek": a.vcek, "amd_chain": a.amd_chain, "min_tcb": a.min_tcb}
@@ -815,7 +912,9 @@ def make_plan(host, a):
         "production_guests": host.guests(), "pending_extra_bytes": (a.pending_extra_mib or 0) * MiB,
         "memory": memory or {"mode": "strict"}, "guestd": guestd, "gpu": gpu,
         "ring_dir": f"/dev/shm/fullbench-{run_id}", "bank_dir": os.path.abspath(a.bank_dir), "bank_gib": a.bank_gib,
-        "snp_claim": "configured until each arm's receipt shows client.mjs VERDICT attested; bench measurement, not production",
+        "snp_claim": "configured until each arm's receipt shows client.mjs VERDICT attested; bench measurement, not production"
+                     + (f"; booted experimental firmware {fw['sha256']}, not the original release firmware" if fw else ""),
+        "experimental_firmware": fw,
         "arms": [],
     }
     p["trust_sha256"] = {k: host.sha256(v) for k, v in trust_files(p).items()}
@@ -1136,6 +1235,34 @@ def fwd_port(host, fwd, path):
     return int(m.group(1))
 
 
+def startup_markers(text):
+    """Complete serial lines only. None = not yet; a dict = the app was started and the front says serving; Stop = fail
+    closed (a DOM ERROR/end, init's order broken, or an ambiguous start). Timing only: it proves nothing about the guest."""
+    seccomp, started, serving = False, None, None
+    for raw in text.split("\n")[:-1]:
+        l = raw.rstrip("\r")
+        if DOM_FATAL.match(l):
+            raise Stop("guest_startup_error: " + l[:200])
+        if DOM_SECCOMP.match(l):
+            seccomp = True
+        m = DOM_STARTED.match(l)
+        if m:
+            if started is not None:
+                raise Stop("startup_marker_duplicate")
+            if not seccomp:
+                raise Stop("startup_marker_order: DOM started before the app's seccomp line")
+            started = {"app_pid": int(m.group(1)), "front_pid": int(m.group(2)), "started_at_ms": int(m.group(3)),
+                       "serving_seen_before_started": serving is not None}
+        m = DOM_SERVING.match(l)
+        if m and serving is None:
+            serving = {"spki_sha256": m.group(1), "serving_ready_ms": int(m.group(2))}
+    if started is None or serving is None:
+        return None
+    if started["app_pid"] <= 1 or started["front_pid"] <= 1 or started["app_pid"] == started["front_pid"]:
+        raise Stop("startup_marker_malformed")
+    return dict(started, **serving)
+
+
 def run_arm(host, p, arm, total_deadline):
     h = {"arm": arm["arm"], "unit": arm["unit"], "samples": [], "requests": [], "owned": {}}
     h["wall_deadline"] = min(host.now() + p["arm_wall_max_sec"], total_deadline)
@@ -1175,6 +1302,19 @@ def run_arm(host, p, arm, total_deadline):
             box["port"] = fwd_port(host, fwd, fwd_out)
             return box["port"] is not None
         wait_for(host, p, h, ready, FWD_FIRST_LINE_SEC, "fwd_first_line")
+
+        def app_started():
+            # the front listens before init forks the app; a document issued in that window scans no runtime process
+            if not host.exists(arm["serial_log"]):
+                return False
+            head = host.read_head(arm["serial_log"], SERIAL_HEAD_CAP)
+            if len(head) > SERIAL_HEAD_CAP:
+                raise Stop("serial_oversize")
+            box["startup"] = startup_markers(head.decode("utf-8", "replace"))
+            return box["startup"] is not None
+        t_wait = host.now()
+        wait_for(host, p, h, app_started, STARTUP_READY_SEC, "startup_readiness")
+        h["startup_readiness"] = dict(box["startup"], waited_s=host.now() - t_wait, signal=READINESS_SIGNAL)
         for rnd in range(1, p["workload"]["rounds"] + 1):
             for step in p["workload"]["steps"]:
                 if step["name"] == "fixture" and rnd > 1:
@@ -1217,6 +1357,7 @@ def run_arm(host, p, arm, total_deadline):
             log = host.read_head(arm["serial_log"], 8 << 20).decode("utf-8", "replace")
             h["serial_model_line"] = next((l.strip() for l in log.splitlines() if "MODEL verified" in l), None)
             h["serial_declined"] = "Shield model declined" in log
+            h["serial_dom_errors"] = [l.strip()[:200] for l in log.splitlines() if DOM_FATAL.match(l.strip())][:8]
         peaks = [s["memory.peak"] for s in h["samples"] if "memory.peak" in s]
         h["host_peak_last_sample"] = max(peaks) if peaks else None
         h["host_current_max"] = max([s.get("memory.current", 0) for s in h["samples"]] or [0])
@@ -1252,6 +1393,7 @@ def execute(host, a):
         raise ValueError("plan predates revision 2; re-plan")
     if not a.execute:
         print(json.dumps({"dry_run": True, "preflight_now": preflight(host, p),
+                          "experimental_firmware": p.get("experimental_firmware"),
                           "workers": [worker_argv(p, c) for c in (0, 1)],
                           "arms": [unit_argv(p, x) for x in p["arms"]]}, indent=2))
         return 0
@@ -1261,7 +1403,7 @@ def execute(host, a):
     if host.exists(receipt_path):
         raise ValueError("receipt exists")
     receipt = {"kind": "shield-full-bench-receipt/2", "plan_sha256": digest, "coordinated_slot": a.coordinated_slot,
-               "snp_claim": p["snp_claim"], "arms": []}
+               "snp_claim": p["snp_claim"], "experimental_firmware": p.get("experimental_firmware"), "arms": []}
     total_deadline = host.now() + p["total_wall_max_sec"]
     try:
         for arm in p["arms"]:
@@ -1305,6 +1447,8 @@ def main(argv=None, host=None):
     p.add_argument("--workload", default=os.path.join(HERE, "workload.json"))
     p.add_argument("--order", default="A,B,B,A", help="comma list of arms, e.g. A,B,B,A or A,A1,B")
     p.add_argument("--soak", action="store_true")
+    p.add_argument("--experimental-firmware", help="opt-in NEW benchmark firmware path; needs the sha256 flag too")
+    p.add_argument("--experimental-firmware-sha256", help="root-approved sha256 of --experimental-firmware")
     e = sub.add_parser("execute")
     e.add_argument("--plan", required=True)
     e.add_argument("--approve-plan-sha256", required=True)
@@ -1321,6 +1465,7 @@ def main(argv=None, host=None):
             print(json.dumps({"plan": os.path.join(plan["out"], "plan.json"), "plan_sha256": digest,
                               "memory_mode": plan["memory"]["mode"], "gpu_mode": (plan["gpu"] or {"mode": "strict"})["mode"],
                               "required_available_bytes": plan["required_available_bytes"],
+                              "experimental_firmware": plan["experimental_firmware"],
                               "plan_time_problems": plan["plan_time_problems"]}, indent=2))
             return 0
         return execute(host, a)

@@ -1,0 +1,21 @@
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H
+DOM snp=1 vcpus=16 memMiB=56030 boot_ms=7294
+DOM yama ptrace_scope=1 -> 2
+DOM user.max_user_namespaces=221199 -> 0
+DOM kernel.io_uring_disabled=0 -> 2
+DOM Shield dynamic RAM budget: 51655 MiB, controller=enforced
+DOM Shield idle driver: haltpoll
+
+DOM Shield pad spill: /dev/vdb, 64 GiB
+MODEL verified bytes=17559178144 sha256=3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e copy_verify_ms=29223
+Shield private worker routes ready
+DOM front: not dumpable; none of its 5 threads traced
+DOM runtime wasmtime/49.0.0 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none id=297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8
+DOM runtime selftest exec_pages=allowed wx=at-each-attestation
+DOM certificate: HOST_DATA names no deployment; self-signed only
+DOM release: none (this guest's HOST_DATA names no deployment)
+DOM app config: none
+DOM Shield pad spill: minting on spare CPU (measured, 1 core kept free)
+DOM seccomp: app filter installed (sha256 d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66, 71 rules)
+DOM started app=216 front=210 at_ms=36643
+DOM serving vsock=443 spki_sha256=ae2aa7dd6129e3fac4b23d7ddb31c6ad1be3139a31db90c5a5fb3dda9a3e6631 ready_ms=36675

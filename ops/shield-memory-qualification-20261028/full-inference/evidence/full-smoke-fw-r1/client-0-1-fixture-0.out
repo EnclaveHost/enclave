@@ -1,0 +1,19 @@
+RESULT mode=trusted
+RESULT tier=T1
+RESULT spki_sha256=ae2aa7dd6129e3fac4b23d7ddb31c6ad1be3139a31db90c5a5fb3dda9a3e6631
+RESULT doc_key_matches_handshake=1
+evidence: the runtime identity is the expected one: wasmtime/49.0.0 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none
+evidence: REJECT: the runtime self-test covered NO runtime process (runtime=0): measured before the runtime ran, or unable to see it; nothing shows W^X of the runtime
+RESULT measurement=a3810f4eff8d0307ee432f7a3bb3067a426f0ff5d94ead620c6be36e05690d74f3decec13528a8c916c95b4ee8013485
+RESULT report_data=d247749a48f4e1029d6077b2c6edc5e93b00e384beb35b61fb945afc980620abf957f6cba2b43fc4a68e065bcd10fa3447514bd93261d7c17058a32ea024b5ed
+RESULT expected_vmpl=0
+RESULT host_data_checked=0
+RESULT report_vmpl=0
+RESULT abi=enclave-domain-abi/2
+RESULT runtime_pinned=1
+RESULT runtime={"name":"wasmtime","version":"49.0.0","execution":"jit","targetIsa":"x86_64","hostIsa":"x86_64","cpuFeatures":"host-detected","wx":"enforced","cache":"none"}
+RESULT runtime_selftest="exec_pages=allowed wx=clean maps=4 runtime=0 root=4 scope=all-processes"
+VERDICT reject reason="REJECT: the runtime self-test covered NO runtime process (runtime=0): measured before the runtime ran, or unable to see it; nothing shows W^X of the runtime"
+RESULT gate=closed
+RESULT app_requests_sent=0
+RESULT refused_handshakes=0

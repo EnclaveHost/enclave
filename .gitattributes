@@ -10,3 +10,4 @@ ops/shield-memory-qualification-20261028/full-inference/evidence/efi-t1-*/*.log 
 ops/shield-memory-qualification-20261028/full-inference/evidence/firmware-build/*.patch -whitespace
 ops/shield-memory-qualification-20261028/full-inference/evidence/firmware-build/*.txt -whitespace
 ops/shield-memory-qualification-20261028/full-inference/firmware-candidate/*.patch -whitespace
+ops/shield-memory-qualification-20261028/full-inference/evidence/full-smoke-fw-*/*.log -whitespace -text

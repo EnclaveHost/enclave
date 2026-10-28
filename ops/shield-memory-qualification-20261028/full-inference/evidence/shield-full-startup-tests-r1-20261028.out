@@ -1,0 +1,15 @@
+[queue] START available=84716MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+Running as unit: enclave-shield-full-startup-tests-r1-20261028.service
+..............................................................
+----------------------------------------------------------------------
+Ran 62 tests in 0.023s
+
+OK
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 114ms
+             CPU time consumed: 108ms
+                   Memory peak: 17.7M (swap: 0B)
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

@@ -1,7 +1,13 @@
 import copy, unittest
 import fullbench as F
-from test_fullbench import SNAP
+from test_fullbench import SNAP, plan_fixture, qemu_of
 class RootReview(unittest.TestCase):
+ def test_machine_cannot_detach_snp_or_replace_memory(self):
+  p,arm=plan_fixture();q=qemu_of(p,arm)
+  self.assertEqual(F.qemu_violations(q,p,arm),[])
+  for bad in ('q35,accel=kvm','q35,accel=kvm,confidential-guest-support=sev0,memory-backend=other'):
+   altered=q.copy();altered[altered.index('-machine')+1]=bad
+   self.assertTrue(F.qemu_violations(altered,p,arm))
  def test_snapshot_inconsistent_counts_fail_closed(self):
   s=copy.deepcopy(SNAP);s['held']=[]
   with self.assertRaisesRegex(ValueError,'inconsistent'):F.check_snapshot(s)

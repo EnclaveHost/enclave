@@ -18,6 +18,19 @@ U0, U1 = "GPU-11111111-2222-3333-4444-555555555555", "GPU-66666666-7777-8888-999
 CLIENT_OK = ("evidence: x\nVERDICT attested reason=\"ok\"\nRESULT app_status=200\nRESULT app_body="
              + json.dumps(json.dumps({"tokens": [1, 2], "tokens_fnv1a64": "00", "decode_ms": 10}))
              + "\nRESULT app_on_pinned_key=1\n").encode()
+CLIENT_REJECT = ("RESULT runtime_selftest=\"exec_pages=allowed wx=clean maps=4 runtime=0 root=4 scope=all-processes\"\n"
+                 "VERDICT reject reason=\"REJECT: the runtime self-test covered NO runtime process (runtime=0)\"\n"
+                 "RESULT gate=closed\nRESULT app_requests_sent=0\n").encode()
+# lines of full-smoke-fw-r1/serial-0-A.log, in their real order (the front's lines interleave with init's)
+SERIAL_BOOT = ("\x1b[2J\x1b[001;001H\n"
+               "DOM snp=1 vcpus=16 memMiB=56030 boot_ms=7294\n"
+               "MODEL verified bytes=17559178144 sha256=" + "3f" * 32 + " copy_verify_ms=29223\n"
+               "DOM runtime selftest exec_pages=allowed wx=at-each-attestation\n"
+               "DOM app config: none\n").encode()
+SECCOMP_LINE = ("DOM seccomp: app filter installed (sha256 " + "d4" * 32 + ", 71 rules)\n").encode()
+STARTED_LINE = b"DOM started app=216 front=210 at_ms=36643\n"
+SERVING_LINE = ("DOM serving vsock=443 spki_sha256=" + "ae" * 32 + " ready_ms=36675\n").encode()
+SERIAL_READY = SERIAL_BOOT + SECCOMP_LINE + STARTED_LINE + SERVING_LINE
 SNAP = {"kind": "guestd-commitments/1", "seq": 1, "instance": "0123456789abcdef",
         "pool": {"budgetMemMiB": 98304, "allocatedMemMiB": 6912, "guests": 1, "floorMiB": 18432,
                  "memAvailableMiB": 84081, "pendingMiB": 1551, "unreadUnits": 0},
@@ -97,6 +110,7 @@ class FakeHost:
         self.avail, self._pid, self.on_tick, self.run_timeout = 200 * GiB, 1000, None, set()
         self.smi_apps, self.smi_gpu = "", f"{U0}, 10, 32768\n{U1}, 10, 32768\n"
         self.fwd_out, self.client_exits, self.foreign_exec = b"FWD listening 127.0.0.1:40001 cid=200123\n", True, False
+        self.serial, self.client_out = SERIAL_READY, CLIENT_OK   # what the guest unit writes to its -serial file
 
     def next_pid(self):
         self._pid += 1
@@ -139,6 +153,8 @@ class FakeHost:
             mm = [x for x in argv if x.startswith("--property=MemoryMax=")][0].split("=")[-1]
             self.files[f"/sys/fs/cgroup{cg}/memory.max"] = str(int(mm[:-1]) * MiB).encode()
             self.files[f"/sys/fs/cgroup{cg}/memory.swap.max"] = b"0"
+            if "-serial" in argv and self.serial is not None:
+                self.files[argv[argv.index("-serial") + 1][len("file:"):]] = self.serial
             if unit in self.run_timeout:
                 raise subprocess.TimeoutExpired(argv, timeout)
             return 0, "", ""
@@ -151,7 +167,7 @@ class FakeHost:
         if argv[0] == self.p["fwd"]:
             self.files[out_path], pr = self.fwd_out, FakeProc(self, argv, exits=False)
         else:
-            self.files[out_path], pr = CLIENT_OK, FakeProc(self, argv, exits=self.client_exits)
+            self.files[out_path], pr = self.client_out, FakeProc(self, argv, exits=self.client_exits)
         self.children.append(pr)
         return pr
 
@@ -551,6 +567,121 @@ class Arms(RunArmBase):
         h = F.run_arm(host, p, arm, 5)
         self.assertEqual(h["outcome"], "stopped:wall_deadline")
         self.assertEqual(h["cleanup"], "clean")
+
+
+# ---------------------------------------------------------------- startup readiness (STARTUP-READINESS.md)
+
+class StartupReadiness(RunArmBase):
+    def clients(self, host, p):
+        return [c for c in host.children if c.argv[1] == p["client"]]
+
+    def test_real_serial_order_parses(self):
+        m = F.startup_markers(SERIAL_READY.decode())
+        self.assertEqual((m["app_pid"], m["front_pid"], m["started_at_ms"], m["serving_ready_ms"]), (216, 210, 36643, 36675))
+        self.assertFalse(m["serving_seen_before_started"])
+        self.assertIsNone(F.startup_markers(SERIAL_READY.decode()[:-1]))           # a partial last line is not read
+        self.assertIsNone(F.startup_markers((SERIAL_BOOT + SECCOMP_LINE + STARTED_LINE).decode()))   # not serving yet
+        self.assertIsNone(F.startup_markers((SERIAL_BOOT + SERVING_LINE).decode()))   # serving alone: app not started
+        either = F.startup_markers((SERIAL_BOOT + SECCOMP_LINE + SERVING_LINE + STARTED_LINE).decode())
+        self.assertTrue(either["serving_seen_before_started"])                   # the front's goroutine may print first
+
+    def test_no_request_before_markers(self):
+        p, arm = plan_fixture()
+        host = FakeHost(p)
+        host.serial = SERIAL_BOOT
+        log, boot, at_popen = arm["serial_log"], {}, []
+
+        def guest_progresses(hst):           # the app starts 20 s after the guest, the front says serving 5 s later
+            if log not in hst.files:
+                return
+            boot.setdefault("t", hst.t)
+            if hst.t - boot["t"] >= 20 and STARTED_LINE not in hst.files[log]:
+                hst.files[log] += SECCOMP_LINE + STARTED_LINE
+            elif hst.t - boot["t"] >= 25 and SERVING_LINE not in hst.files[log]:
+                hst.files[log] += SERVING_LINE
+        host.on_tick = guest_progresses
+        real_popen = host.popen
+
+        def popen(argv, out):
+            if argv[1] == p["client"]:
+                at_popen.append(host.files.get(log, b""))   # the serial as it stood when the client was started
+            return real_popen(argv, out)
+        host.popen = popen
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual((h["outcome"], h["cleanup"]), ("success", "clean"))
+        self.assertEqual(len(at_popen), 1)
+        self.assertTrue(STARTED_LINE in at_popen[0] and SERVING_LINE in at_popen[0])
+        r = h["startup_readiness"]
+        self.assertEqual((r["app_pid"], r["front_pid"]), (216, 210))
+        self.assertIn("untrusted", r["signal"])
+        self.assertGreater(r["waited_s"], 0)
+
+    def test_missing_markers_time_out_without_request(self):
+        p, arm = plan_fixture()
+        host = FakeHost(p)
+        host.serial = SERIAL_BOOT + SECCOMP_LINE          # boot and filter, but never started/serving
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual(h["outcome"], "stopped:timeout:startup_readiness")
+        self.assertEqual(self.clients(host, p), [])
+        self.assertEqual(h["requests"], [])
+        self.assertEqual(h["cleanup"], "clean")
+
+    def test_missing_serial_file_times_out(self):
+        p, arm = plan_fixture()
+        host = FakeHost(p)
+        host.serial = None
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual(h["outcome"], "stopped:timeout:startup_readiness")
+        self.assertEqual(self.clients(host, p), [])
+
+    def test_guest_error_fails_closed(self):
+        p, arm = plan_fixture()
+        for tail in (b"DOM ERROR the front release failed: the app is not started\n",
+                     SECCOMP_LINE + STARTED_LINE + b"DOM ERROR app exited status=1\nDOM end\n" + SERVING_LINE,
+                     b"DOM end\n"):
+            host = FakeHost(p)
+            host.serial = SERIAL_BOOT + tail
+            h = F.run_arm(host, p, arm, 1e12)
+            self.assertTrue(h["outcome"].startswith("stopped:guest_startup_error: DOM "), h["outcome"])
+            self.assertEqual(self.clients(host, p), [])
+            self.assertTrue(h["serial_dom_errors"])
+            self.assertEqual(h["cleanup"], "clean")
+
+    def test_marker_order_and_shape_fail_closed(self):
+        p, arm = plan_fixture()
+        for serial, why in ((SERIAL_BOOT + STARTED_LINE + SECCOMP_LINE + SERVING_LINE, "stopped:startup_marker_order"),
+                            (SERIAL_READY + STARTED_LINE, "stopped:startup_marker_duplicate"),
+                            (SERIAL_BOOT + SECCOMP_LINE + b"DOM started app=210 front=210 at_ms=1\n" + SERVING_LINE,
+                             "stopped:startup_marker_malformed")):
+            host = FakeHost(p)
+            host.serial = serial
+            h = F.run_arm(host, p, arm, 1e12)
+            self.assertTrue(h["outcome"].startswith(why), h["outcome"])
+            self.assertEqual(self.clients(host, p), [])
+
+    def test_full_watchdog_runs_during_wait(self):
+        p, arm = plan_fixture()
+        host = FakeHost(p)
+        host.serial = SERIAL_BOOT
+
+        def production_starts(hst):
+            if arm["unit"] in hst.units and hst.t >= 60:
+                hst.qemu = [{"pid": 777, "start": "1", "ram_bytes": 64281 * MiB, "cgroup": "0::/x"}]
+        host.on_tick = production_starts
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertTrue(h["outcome"].startswith("stopped:production_guests_changed"), h["outcome"])
+        self.assertEqual(self.clients(host, p), [])
+        self.assertEqual(h["cleanup"], "clean")
+
+    def test_reject_after_ready_is_not_retried(self):
+        p, arm = plan_fixture()
+        host = FakeHost(p)
+        host.client_out = CLIENT_REJECT
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual(h["outcome"], "request_failed")
+        self.assertEqual(len(self.clients(host, p)), 1)                       # one attempt; the verdict stands
+        self.assertEqual(h["requests"][0]["results"][0]["verdict"], "reject")
+        self.assertFalse(F.arm_ok(h))
 
 
 # ---------------------------------------------------------------- stage
