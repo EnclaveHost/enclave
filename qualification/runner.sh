@@ -69,6 +69,7 @@ docker run --rm --name reaper-deps "${limits[@]}" \
     if(result.error) throw result.error;
     process.exit(result.status ?? 1);
   ' > "$out/dependencies.log" 2>&1
+mkdir -p "$repo_root/node_modules"
 docker run --rm --name reaper-test "${limits[@]}" --network=none \
   -v "$repo_root:/src:ro" -v "$scratch/deps/node_modules:/src/node_modules:ro" -w /src "$node_image" \
   node --test --test-timeout=120000 test/lease-expiry-reconcile.test.mjs > "$out/tests.tap" 2>&1
