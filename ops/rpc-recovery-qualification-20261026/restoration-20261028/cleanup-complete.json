@@ -1,0 +1,35 @@
+{
+  "complete": true,
+  "completed_at": "2026-10-28T02:00:17.849643+00:00",
+  "authorization": "User requested freeing space after completed restoration",
+  "deleted_files": 2410,
+  "allocated_bytes_retired_by_device": {
+    "64768": 957238149120,
+    "64769": 643278467072
+  },
+  "free_bytes_before": {
+    "/": 56900956160,
+    "/vm": 77019439104,
+    "/mnt/usb": 52399022800896
+  },
+  "free_bytes_after": {
+    "/": 1014138368000,
+    "/vm": 720297906176,
+    "/mnt/usb": 52399022800896
+  },
+  "restored_usb_files_retained": true,
+  "recovery_metadata_and_receipts_retained": true,
+  "retained_files": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-26/my/work/tr004/preserved-files/.radicle/node/node.log",
+      "size": 3607,
+      "reason": "linked recovery log"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-26/my/work/tr004/preserved-files/.radicle/node/node.log.1",
+      "size": 3607,
+      "reason": "linked recovery log"
+    }
+  ],
+  "database_integrity_scan_waived": true
+}
