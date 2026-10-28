@@ -1,0 +1,19 @@
+# SOURCE-ONLY TEMPLATE: replace both placeholders before review/install; not started.
+[Unit]
+Description=Bounded exact-owned session gate interruption recovery
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=root
+UMask=0077
+ExecStart=/usr/bin/python3 __REVIEWED_SOURCE_DIR__/interruption_watchdog.py --op __OPERATION_ID__ --seconds 900 --apply
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2
+RuntimeMaxSec=1020
+MemoryMax=64M
+CPUQuota=10%
+StandardOutput=journal
+StandardError=journal

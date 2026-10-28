@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "source": "us-west:/opt/enclave-site/bafybeifidlcmnobifev33hflaicusmzjpcqgwutobbzilaoc6tgylwlzcm/site",
+  "destination": "<recovery-workspace>/live-site-preserved-bafybeifidl",
+  "files": 1126,
+  "bytes": 74403175,
+  "inventorySha256": "9269fe1f19b3d4e32aa109717c8e187ddfd4300294ef1d52e52bfc65642fa372",
+  "exactPathSizeShaMatch": true,
+  "symlinksSpecialTraversalUnlistedRejected": true,
+  "capturedAtUnix": 1793226572.5692542,
+  "productionMutations": []
+}

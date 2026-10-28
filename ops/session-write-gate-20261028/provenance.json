@@ -1,0 +1,23 @@
+{
+  "schema": "session-gate-qualification-publication/1",
+  "status": "source-only-not-deployed",
+  "sourceHelpers": {
+    "session_gate.py": "1fa1385b6b8b295be40ceb398ac285c0aa2e88076f7067e90fe7ca9d39f73187",
+    "interruption_watchdog.py": "fe3e4ab1b8de00246ddd7414e33df8a3175728ac77e234f1b3ef77f53dcc749a",
+    "test_session_gate.py": "8c49144e98ac17d8bfda16fc1213fda2fab2a194704d36c8ffef5c92cd15efb4",
+    "test_interruption_watchdog.py": "32561ec9638de655a9f349b6678e809abd9069b10d1d4873b9bf038b0c8ee65e",
+    "watchdog.service.template": "354d0183ab2f54cd02900686c4ae6d7296503a479c68c597a6cd012772b525a9"
+  },
+  "actualCaddyChecks": 13,
+  "unitChecks": 14,
+  "qualificationLimitations": [
+    "Watchdog deadline fast-forwarded with fixture clock; relay identity is a fixture, not production process.",
+    "Actual systemd watchdog installation/restart not exercised; source unit template remains uninstalled.",
+    "Production TLS private keys/config were not loaded; actual route shapes/host matchers and matching Caddy binary used with loopback HTTP."
+  ],
+  "sanitization": [
+    "Private control-VM SSH connection omitted from procedure.",
+    "Workstation-specific absolute workspace paths normalized in log/copy-result; operational source files byte-identical."
+  ],
+  "productionMutations": []
+}

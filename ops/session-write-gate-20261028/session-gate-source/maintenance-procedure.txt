@@ -1,0 +1,61 @@
+SOURCE-ONLY HANDOFF — NO GATE OR RESTART EXECUTED
+
+Purpose: temporarily refuse new mutating wallet-session HTTP requests at the existing control VM TLS front, preserve read visibility and unrelated apps, and provide a bounded relay activation review. This helper does not drain the queue, restart any service, send a transaction, or make the remaining risk disappear.
+
+Exact target:
+  Use the existing verified control-VM SSH connection; private connection details are omitted.
+  Caddy: enclave-control-tls.service; /etc/enclave-control-tls/caddy.json;
+  existing root-access Unix admin /run/enclave-control-tls/admin.sock.
+  Relay: enclave-api-relay.service, PID228946 as observed; /opt/nan-relay/api-relay.js.
+  Preserve actual api-relay.js SHA481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d.
+  Old sessions.mjs SHA457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d.
+
+Helper review and validation before use:
+  session_gate.py is prepared locally only. Eight local unit tests pass. It has NOT been loaded by Caddy, tested against an isolated Caddy instance, installed remotely, or run against production.
+  Review native Caddy matcher/schema and fixture-test exact path, prefix, case/encoding, host-with-port, OPTIONS, GET and every mutating method. Test each listed alias and unrelated app route; Caddy path normalization differs from Node URL parsing. Do not use valid financial requests as probes.
+  Gate matches the five known control aliases: api.enclave.host, mcp.enclave.host, api.enclavehost.eth, mcp.enclavehost.eth, and legacy62.238.4.214. Wildcard tenant app hosts are deliberately not blocked. Any added control alias or direct-local caller is a preflight change requiring review.
+  Static refusal is503/session_maintenance, no-store, Retry-After60, exact-site CORS; GET/HEAD/OPTIONS are retained. Owner mutation operations are paused with other writes. No credentials, source-code changes, metrics enablement or inspector access are part of this helper.
+
+Preflight:
+  1. Coordinator keeps sole relayer financial lane and confirms no other service/host uses its signing identity. No sender is introduced by this helper. Refresh RPC health with bounded requests; preserve429backoff.
+  2. Verify live service PIDs/source hashes and successor manifest. Back up actual affected source files and journal with original owner/mode; do not export env/private keys or replace the full API tree. Do not restart Caddy during the observation window.
+  3. Read active Caddy configuration and inspect ETag/digest using helper inspect. Compare live aliases/routes with this preparation; retain existing disk/live-config difference and decide persistence explicitly. The helper changes only live route-array state; it does NOT overwrite caddy.json. Caddy auto-save behavior is existing behavior. A service restart may load the disk config and remove the transient gate, so monitor gate presence until closure.
+  4. Snapshot journal hashes/count/statuses and canonical relayer nonce/receipts. Latest observed journal89allmined, last record04:19:29UTC, no session messages in30min. These are historical evidence, not a fresh gate.
+  5. Refresh index: latest29records,1not-ended,0past-expiry. Earliest expiry2026-11-04T04:18:44Z. Require no eligible keeper work throughout a15min observation window plus restart/rollback allowance; refresh after one15sec index tick. Direct onchain changes can alter this.
+
+Future explicit helper operations (examples, NOT executed):
+  python3 /reviewed/path/session_gate.py inspect
+  python3 /reviewed/path/session_gate.py gate --op recovery-20261028-r1 --expected-hash <inspect hash> --expected-etag '<inspect ETag>' --apply
+  python3 /reviewed/path/session_gate.py status --op recovery-20261028-r1
+  python3 /reviewed/path/session_gate.py restore --op recovery-20261028-r1 --expected-hash <fresh inspect hash> --expected-etag '<fresh inspect ETag>' --apply
+
+Each mutation requires root and explicit --apply. Caller must supply fresh digest AND ETag; Caddy PATCH also uses If-Match. There is no retry loop. Gate creation refuses any existing maintenance marker and reusing the operation directory. Backups/intents are root-owned0700 directories/0600 files under /var/lib/enclave-maintenance/session-write-gate/<op>. Before sending, intent phase is fsynced as gate-unknown or restore-unknown. A timeout/412/lost response remains unknown until status and live config are reviewed. No automatic inverse mutation is sent on failure.
+
+Observation and finite decision:
+  Start a15min MAXIMUM observation budget after confirmed gate; do not turn it into a15min automatic restart timer. Preserve ordinary API reads and unrelated apps throughout.
+  Verify all aliases refuse only new write routes before dispatch and ownership marker remains present. Read existing admin GET/reverse_proxy/upstreams for8100 active count; it aggregates all requests, including unrelated streams, and does not label sessions. A zero point is supporting evidence, not a mandatory indefinitely-blocking condition nor proof of no detached work.
+  At bounded intervals (e.g.30sec), capture summary journal hash/mtime/count/status and recent session error/replace counts, keeper index counts/next expiry, and gate presence. Coordinate canonical nonce/receipt comparisons at start/end rather than repeatedly hammering RPCs. Any newly observed send, uncertain hash, nonce change, keeper eligibility or stalled RPC becomes a specific reconciliation task.
+  Whole-RPC duration is NOT hard-bounded: installed viem2.54.3 gives10sec attempts,2HTTP retries/400ms delay, default3fallback retries/150ms delay, and accepts unbounded Retry-After. One queue item's receipt waits total375sec, not all-work lifetime. Node300sec request timeout bounds receipt of request body, not handler execution. Systemd3min stop timeout is not a drain protocol.
+  After observation: coordinator may review combined stable evidence, lack of known accepted work/keeper candidates and single-writer accounting and proceed under existing authorization, explicitly accepting old-process prehash/disconnected-work visibility limits. If any concrete unknown remains or evidence is inadequate at15min, abort THIS attempt, preserve original running relay, and restore only owned gate after fresh CAS review. Do not wait forever or kill uncertain work just to finish.
+
+Activation/closure by coordinator only:
+  Keep gate present while performing the separately reviewed narrow source activation and one relay restart; helper does neither. Verify successor source hashes, health, original journal continuity, relayer identity and canonical uncertain transaction reconciliation before admitting writes. Do not auto-resend old requests, reset nonce, clear journals or restore an old journal over new transactions.
+  Restore obtains fresh live routes/ETag and removes exactly this operation's unchanged marker/body while preserving unrelated concurrent route edits. It refuses missing, changed or duplicate markers. If live routes already equal original and gate absent after an ambiguous attempt, record that externally as reconciled/no-op rather than resend. A full original route snapshot is recovery evidence, not permission to overwrite unrelated changes.
+  Record final source hashes, gateabsence, healthy GET/session owner view and application checks. No guest controller, guestd, GPU, VM admission or app reserves are modified by this procedure.
+
+
+INTERRUPTION ADDENDUM (source-only, supersedes any interpretation that chat must stay alive)
+
+New files interruption_watchdog.py and watchdog.service.template are NOT deployed or started. Gate helper session_gate.py itself is unchanged. Fourteen local unit tests pass, including six watchdog recovery cases; no isolated/live Caddy or systemd integration test has run.
+
+Before installing a gate, the coordinator must first install/start the reviewed watchdog as an independent ROOT SYSTEM service with a unique operation ID matching the gate. Do not run it in an SSH/chat-owned PTY. Substitute the reviewed absolute source directory and operation ID in the template; verify all file hashes and root ownership, daemon-reload/start ONLY as part of later approved activation. Read readiness from journal and /var/lib/enclave-maintenance/session-write-gate-watchdogs/<op>/watchdog.json before gating. Start the15minute observation budget at that persisted watchdog deadline; do not start a second15minutes after gate creation. The gate helper does not itself enforce watchdog readiness, so this is a required coordinator precondition.
+
+The watchdog saves original relay PID/startTicks and both pinned source hashes, root-only, before reportingready. Its absolute/monotonic deadlines are preserved across process restarts in the same boot; host reboot requires review. Dedicated instance.lock excludes duplicate watchdogs. It waits at most900seconds, then makes at mostONE CAS rollback attempt. Systemd restarts are bounded and do not reset the deadline or repeat an unknown mutation. RuntimeMaxSec1020 bounds a wedged watchdog process, not the relay.
+
+Before ANY relay source replacement or restart, coordinator MUST acquire the SAME exclusive activation.lock under that watchdog operation directory, create/fsync a root-owned0600 activation-started.json marker using the existing atomic save helper, and keep the lock through activation/health/journal reconciliation. This prevents a watchdog from reopening writes during activation. Check the deadline before starting; if it has expired, abort that activation attempt. Do not delete the marker simply to force automatic reopening.
+
+At expiry with original relay unchanged and no activation marker, watchdog reads current routes+ETag, removes only its exact unmodified owned gate, and preserves unrelated concurrent route edits. It writes recoveryAttempted before network I/O. Gateabsent or operationneverprepared is a read-only no-op. CASconflict, changed/duplicategate, timeout, changedrelay/source, activationmarker or heldactivationlock retains the gate and emits a nonzero manual-review outcome. It never rolls back relay source/config/journal, stops a process, signs or resends a financial request. Interruption after activation has started therefore fails closed; a coordinator must verify the new relay and reconcile transaction unknowns before manually removing the exact gate with fresh CAS.
+
+Chat/process interruption BEFORE activation: the independent service ends the maintenance gate by its deadline if safe conditions hold, without relying on this conversation resuming. Interruption DURING activation: marker/lock/source identity prevents unsafe reopening; next operator uses helper inspect/status plus watchdog.json to recover the exact operation. This is bounded automatic abort of the preactivation window, not a promise that arbitrary failed production activation can be auto-reverted safely.
+
+Drain evidence: actual upstream-zero observations should be recorded when they occur and combined with repeated journal hashes/statuses, canonical nonces/receipts, no eligible keeper candidate throughout the window and single-writer coordination. A nonzero aggregate may be unrelated long-lived traffic, but stable nonzero is not a substitute for a zero observation or proof of queue idle. If no defensible quiescence evidence is obtained by the deadline, abort this attempt rather than restarting solely because15minutes elapsed. Prehash/disconnected-work uncertainty remains explicitly recorded.

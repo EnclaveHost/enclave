@@ -1,0 +1,36 @@
+{
+  "ok": true,
+  "checks": [
+    "matching Caddy v2.11.4 actual Unix admin and loopback HTTP boot",
+    "actual helper CLI root-only backup + ETag PATCH gate accepted",
+    "all five exact control hosts: 60 mutation cases denied before mock upstream",
+    "GET/HEAD/OPTIONS owner visibility preserved on all five hosts",
+    "unrelated API/RPC/deployment and wildcard tenant routes preserved",
+    "dot-normalized paths, query and uppercase host-with-port gated",
+    "actual Caddy If-Match stale ETag refused without overwriting concurrent route",
+    "owned-route rollback preserves concurrent unrelated route and reopens writes",
+    "lost post-commit response: durable unknown, one PATCH, read reconcile and exact rollback",
+    "altered owned gate rollback refused on actual admin state",
+    "watchdog full main simulated deadline: exact CAS recovery against real Caddy",
+    "watchdog activation marker retains gate at deadline; manual exact restore works",
+    "watchdog lost restore response preserves unknown and restart never resends"
+  ],
+  "caddySha256": "b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9",
+  "caddyVersion": "2.11.4",
+  "sourceHashes": {
+    "session_gate.py": "1fa1385b6b8b295be40ceb398ac285c0aa2e88076f7067e90fe7ca9d39f73187",
+    "interruption_watchdog.py": "fe3e4ab1b8de00246ddd7414e33df8a3175728ac77e234f1b3ef77f53dcc749a"
+  },
+  "fixture": {
+    "network": "isolated user+network namespace, loopback only",
+    "admin": "private Unix socket",
+    "upstream": "in-process mock, no apps or RPC",
+    "root": "mapped namespace root, no host sudo"
+  },
+  "limitations": [
+    "Watchdog deadline fast-forwarded with fixture clock; relay identity is a fixture, not production process.",
+    "Actual systemd watchdog installation/restart not exercised; source unit template remains uninstalled.",
+    "Production TLS private keys/config were not loaded; actual route shapes/host matchers and matching Caddy binary used with loopback HTTP."
+  ],
+  "productionMutations": []
+}

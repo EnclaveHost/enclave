@@ -1,0 +1,78 @@
+[queue] NOT STARTED: small allocation held
+QUEUE_ATTEMPT 1
+[queue] NOT STARTED: small allocation held
+QUEUE_ATTEMPT 2
+[queue] NOT STARTED: small allocation held
+QUEUE_ATTEMPT 3
+[queue] NOT STARTED: small allocation held
+QUEUE_ATTEMPT 4
+[queue] NOT STARTED: small allocation held
+QUEUE_ATTEMPT 5
+[queue] NOT STARTED: small allocation held
+QUEUE_ATTEMPT 6
+[queue] NOT STARTED: small allocation held
+QUEUE_ATTEMPT 7
+[queue] NOT STARTED: small allocation held
+QUEUE_ATTEMPT 8
+[queue] START available=88993MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+PASS matching Caddy v2.11.4 actual Unix admin and loopback HTTP boot
+PASS actual helper CLI root-only backup + ETag PATCH gate accepted
+PASS all five exact control hosts: 60 mutation cases denied before mock upstream
+PASS GET/HEAD/OPTIONS owner visibility preserved on all five hosts
+PASS unrelated API/RPC/deployment and wildcard tenant routes preserved
+PASS dot-normalized paths, query and uppercase host-with-port gated
+PASS actual Caddy If-Match stale ETag refused without overwriting concurrent route
+PASS owned-route rollback preserves concurrent unrelated route and reopens writes
+PASS lost post-commit response: durable unknown, one PATCH, read reconcile and exact rollback
+PASS altered owned gate rollback refused on actual admin state
+PASS watchdog full main simulated deadline: exact CAS recovery against real Caddy
+PASS watchdog activation marker retains gate at deadline; manual exact restore works
+PASS watchdog lost restore response preserves unknown and restart never resends
+{"ok": true, "checks": 13}
+Traceback (most recent call last):
+  File "<recovery-workspace>/caddy-qualification/qualify.py", line 116, in <module>
+    shutil.copytree(work,ROOT/'fixture-final',dirs_exist_ok=True);shutil.rmtree(work)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/shutil.py", line 654, in copytree
+    return _copytree(entries=entries, src=src, dst=dst, symlinks=symlinks,
+                     ignore=ignore, copy_function=copy_function,
+                     ignore_dangling_symlinks=ignore_dangling_symlinks,
+                     dirs_exist_ok=dirs_exist_ok)
+  File "/usr/lib/python3.14/shutil.py", line 608, in _copytree
+    raise Error(errors)
+shutil.Error: [('/tmp/cg-nx_z2vnt/admin.sock', '<recovery-workspace>/caddy-qualification/fixture-final/admin.sock', "[Errno 6] No such device or address: '/tmp/cg-nx_z2vnt/admin.sock'")]
+Traceback (most recent call last):
+  File "<recovery-workspace>/caddy-qualification/job.py", line 4, in <module>
+    subprocess.run(['unshare','--user','--map-root-user','--net','--mount','sh','-c','mount -t tmpfs -o size=16M tmpfs /var/lib && exec python3 "$1"','fixture',str(root/'qualify.py')],check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['unshare', '--user', '--map-root-user', '--net', '--mount', 'sh', '-c', 'mount -t tmpfs -o size=16M tmpfs /var/lib && exec python3 "$1"', 'fixture', '<recovery-workspace>/caddy-qualification/qualify.py']' returned non-zero exit status 1.
+[memory-guard] exit=1 peakTreeRssMiB=87 minHostAvailableMiB=88902
+[memory-guard] at peak: caddy:44 python3:30 python3:12
+[memory-guard] exit=1 peakTreeRssMiB=136 minHostAvailableMiB=88902
+[memory-guard] at peak: node:50 caddy:43 python3:30 python3:12
+[queue] EXIT 1
+QUEUE_ATTEMPT 1
+[queue] START available=88848MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+PASS matching Caddy v2.11.4 actual Unix admin and loopback HTTP boot
+PASS actual helper CLI root-only backup + ETag PATCH gate accepted
+PASS all five exact control hosts: 60 mutation cases denied before mock upstream
+PASS GET/HEAD/OPTIONS owner visibility preserved on all five hosts
+PASS unrelated API/RPC/deployment and wildcard tenant routes preserved
+PASS dot-normalized paths, query and uppercase host-with-port gated
+PASS actual Caddy If-Match stale ETag refused without overwriting concurrent route
+PASS owned-route rollback preserves concurrent unrelated route and reopens writes
+PASS lost post-commit response: durable unknown, one PATCH, read reconcile and exact rollback
+PASS altered owned gate rollback refused on actual admin state
+PASS watchdog full main simulated deadline: exact CAS recovery against real Caddy
+PASS watchdog activation marker retains gate at deadline; manual exact restore works
+PASS watchdog lost restore response preserves unknown and restart never resends
+{"ok": true, "checks": 13}
+{"ok": true, "source": "us-west:/opt/enclave-site/bafybeifidlcmnobifev33hflaicusmzjpcqgwutobbzilaoc6tgylwlzcm/site", "destination": "<recovery-workspace>/live-site-preserved-bafybeifidl", "files": 1126, "bytes": 74403175, "inventorySha256": "9269fe1f19b3d4e32aa109717c8e187ddfd4300294ef1d52e52bfc65642fa372", "exactPathSizeShaMatch": true, "symlinksSpecialTraversalUnlistedRejected": true, "capturedAtUnix": 1793226572.5692542, "productionMutations": []}
+[memory-guard] exit=0 peakTreeRssMiB=88 minHostAvailableMiB=88725
+[memory-guard] at peak: caddy:45 python3:30 python3:12
+[memory-guard] exit=0 peakTreeRssMiB=137 minHostAvailableMiB=88726
+[memory-guard] at peak: node:50 caddy:43 python3:30 python3:12
+[queue] EXIT 0
