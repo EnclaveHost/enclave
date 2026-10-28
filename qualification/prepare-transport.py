@@ -33,7 +33,7 @@ def gh(args, data=None):
         raise RuntimeError('GitHub operation failed (details withheld to protect transport identity): '+args[0])
     return result.stdout
 def api(path, method='GET', data=None):
-    args=['api','--method',method,'repos/EnclaveHost/enclave/'+path]
+    args=['api','--method',method,'repos/EnclaveHost/enclave'+('/'+path if path else '')]
     if data is not None: args+=['--input','-']
     out=gh(args,json.dumps(data).encode() if data is not None else None)
     return json.loads(out) if out.strip() else {}
