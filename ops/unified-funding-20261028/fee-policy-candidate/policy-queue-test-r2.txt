@@ -1,0 +1,364 @@
+[queue] START available=30414MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: actual queue sends exact priced gas and capped fees
+ok 1 - actual queue sends exact priced gas and capped fees
+  ---
+  duration_ms: 14.606438
+  type: 'test'
+  ...
+# Subtest: actual queue enforces replacement count and caps
+ok 2 - actual queue enforces replacement count and caps
+  ---
+  duration_ms: 7.379963
+  type: 'test'
+  ...
+# Subtest: actual queue never replaces observed preconfirmation
+ok 3 - actual queue never replaces observed preconfirmation
+  ---
+  duration_ms: 4.635718
+  type: 'test'
+  ...
+# Subtest: actual queue rejects stale expiry before taking nonce
+ok 4 - actual queue rejects stale expiry before taking nonce
+  ---
+  duration_ms: 3.451759
+  type: 'test'
+  ...
+# Subtest: actual queue refuses increased gas estimate
+ok 5 - actual queue refuses increased gas estimate
+  ---
+  duration_ms: 3.427479
+  type: 'test'
+  ...
+# Subtest: actual queue rejects changed calldata before submission
+ok 6 - actual queue rejects changed calldata before submission
+  ---
+  duration_ms: 2.921573
+  type: 'test'
+  ...
+# Subtest: actual queue stops replacement when time crosses envelope deadline
+ok 7 - actual queue stops replacement when time crosses envelope deadline
+  ---
+  duration_ms: 3.714187
+  type: 'test'
+  ...
+# Subtest: canonical success: one send, the node's re-read receipt, nonce + 1, hash journaled before any receipt read
+ok 8 - canonical success: one send, the node's re-read receipt, nonce + 1, hash journaled before any receipt read
+  ---
+  duration_ms: 2.687496
+  type: 'test'
+  ...
+# Subtest: a canonical REVERTED receipt is returned as reverted (nonce consumed), never as success
+ok 9 - a canonical REVERTED receipt is returned as reverted (nonce consumed), never as success
+  ---
+  duration_ms: 0.276688
+  type: 'test'
+  ...
+# Subtest: a preconfirmation that becomes canonical: no completion meanwhile, no replacement, one send
+ok 10 - a preconfirmation that becomes canonical: no completion meanwhile, no replacement, one send
+  ---
+  duration_ms: 0.646534
+  type: 'test'
+  ...
+# Subtest: indefinitely preconfirmed: bounded, 503 tx_pending with the original hash, nonce unchanged, never replaced
+ok 11 - indefinitely preconfirmed: bounded, 503 tx_pending with the original hash, nonce unchanged, never replaced
+  ---
+  duration_ms: 0.756193
+  type: 'test'
+  ...
+# Subtest: no receipt at all: the original same-nonce replacement, same calldata/gas/nonce, fees +25% each, then tx_pending
+ok 12 - no receipt at all: the original same-nonce replacement, same calldata/gas/nonce, fees +25% each, then tx_pending
+  ---
+  duration_ms: 0.833853
+  type: 'test'
+  ...
+# Subtest: never completes on unknown status: no success, nonce unchanged, one send (unknown_status)
+ok 13 - never completes on unknown status: no success, nonce unchanged, one send (unknown_status)
+  ---
+  duration_ms: 0.556515
+  type: 'test'
+  ...
+# Subtest: never completes on zero block number: no success, nonce unchanged, one send (no_block_number)
+ok 14 - never completes on zero block number: no success, nonce unchanged, one send (no_block_number)
+  ---
+  duration_ms: 0.426726
+  type: 'test'
+  ...
+# Subtest: never completes on header at that height has another hash (reorged out): no success, nonce unchanged, one send (block_not_canonical)
+ok 15 - never completes on header at that height has another hash (reorged out): no success, nonce unchanged, one send (block_not_canonical)
+  ---
+  duration_ms: 0.918602
+  type: 'test'
+  ...
+# Subtest: never completes on re-read disagrees (load-balanced nodes on two forks): no success, nonce unchanged, one send (receipt_mismatch)
+ok 16 - never completes on re-read disagrees (load-balanced nodes on two forks): no success, nonce unchanged, one send (receipt_mismatch)
+  ---
+  duration_ms: 0.730074
+  type: 'test'
+  ...
+# Subtest: never completes on the header does not list the transaction: no success, nonce unchanged, one send (not_in_block)
+ok 17 - never completes on the header does not list the transaction: no success, nonce unchanged, one send (not_in_block)
+  ---
+  duration_ms: 0.644874
+  type: 'test'
+  ...
+# Subtest: never completes on a log from another block: no success, nonce unchanged, one send (log_mismatch)
+ok 18 - never completes on a log from another block: no success, nonce unchanged, one send (log_mismatch)
+  ---
+  duration_ms: 0.559345
+  type: 'test'
+  ...
+# Subtest: never completes on the header is not served: no success, nonce unchanged, one send (block_unavailable)
+ok 19 - never completes on the header is not served: no success, nonce unchanged, one send (block_unavailable)
+  ---
+  duration_ms: 0.549675
+  type: 'test'
+  ...
+# Subtest: a receipt for ANOTHER hash, or from another sender, is never ours: no completion, only our hashes reported
+ok 20 - a receipt for ANOTHER hash, or from another sender, is never ours: no completion, only our hashes reported
+  ---
+  duration_ms: 1.340808
+  type: 'test'
+  ...
+# Subtest: a canonical receipt that then reorgs before it reads back: the later canonical block is what completes
+ok 21 - a canonical receipt that then reorgs before it reads back: the later canonical block is what completes
+  ---
+  duration_ms: 0.325077
+  type: 'test'
+  ...
+# Subtest: nonce too low after a send: watch our own hash only, never send again, complete when it is canonical
+ok 22 - nonce too low after a send: watch our own hash only, never send again, complete when it is canonical
+  ---
+  duration_ms: 0.537175
+  type: 'test'
+  ...
+# Subtest: nonce too low with nothing of ours sent: the original nonce_lost (original error, nonce re-read next time)
+ok 23 - nonce too low with nothing of ours sent: the original nonce_lost (original error, nonce re-read next time)
+  ---
+  duration_ms: 0.604125
+  type: 'test'
+  ...
+# Subtest: another transaction holds the nonce (underpriced, nothing of ours sent): 503 nonce_busy, it is never replaced
+ok 24 - another transaction holds the nonce (underpriced, nothing of ours sent): 503 nonce_busy, it is never replaced
+  ---
+  duration_ms: 0.242588
+  type: 'test'
+  ...
+# Subtest: a failed REPLACEMENT keeps watching what was sent: tx_pending with that hash, not send_failed
+ok 25 - a failed REPLACEMENT keeps watching what was sent: tx_pending with that hash, not send_failed
+  ---
+  duration_ms: 0.415696
+  type: 'test'
+  ...
+# Subtest: a failed FIRST send is the original send_failed (original error rethrown)
+ok 26 - a failed FIRST send is the original send_failed (original error rethrown)
+  ---
+  duration_ms: 0.205488
+  type: 'test'
+  ...
+# Subtest: one serial lane: the next send starts only after a pending one gives up, at the provider's pending nonce
+ok 27 - one serial lane: the next send starts only after a pending one gives up, at the provider's pending nonce
+  ---
+  duration_ms: 0.454346
+  type: 'test'
+  ...
+# Subtest: reconcile: read-only journal recovery of a pending record, never a send
+ok 28 - reconcile: read-only journal recovery of a pending record, never a send
+  ---
+  duration_ms: 0.798512
+  type: 'test'
+  ...
+# Subtest: complete price includes bounded L2/L1/operator and one ceiling
+ok 29 - complete price includes bounded L2/L1/operator and one ceiling
+  ---
+  duration_ms: 16.829749
+  type: 'test'
+  ...
+# Subtest: chain mismatch refuses quote without fallback
+ok 30 - chain mismatch refuses quote without fallback
+  ---
+  duration_ms: 0.906671
+  type: 'test'
+  ...
+# Subtest: stale block refuses quote without fallback
+ok 31 - stale block refuses quote without fallback
+  ---
+  duration_ms: 0.439526
+  type: 'test'
+  ...
+# Subtest: zero header refuses quote without fallback
+ok 32 - zero header refuses quote without fallback
+  ---
+  duration_ms: 0.388726
+  type: 'test'
+  ...
+# Subtest: missing basefee refuses quote without fallback
+ok 33 - missing basefee refuses quote without fallback
+  ---
+  duration_ms: 0.492736
+  type: 'test'
+  ...
+# Subtest: missing code refuses quote without fallback
+ok 34 - missing code refuses quote without fallback
+  ---
+  duration_ms: 0.406487
+  type: 'test'
+  ...
+# Subtest: altered code refuses quote without fallback
+ok 35 - altered code refuses quote without fallback
+  ---
+  duration_ms: 1.099821
+  type: 'test'
+  ...
+# Subtest: changed implementation refuses quote without fallback
+ok 36 - changed implementation refuses quote without fallback
+  ---
+  duration_ms: 0.655524
+  type: 'test'
+  ...
+# Subtest: changed aggregator refuses quote without fallback
+ok 37 - changed aggregator refuses quote without fallback
+  ---
+  duration_ms: 1.05914
+  type: 'test'
+  ...
+# Subtest: stale price refuses quote without fallback
+ok 38 - stale price refuses quote without fallback
+  ---
+  duration_ms: 1.357397
+  type: 'test'
+  ...
+# Subtest: future price refuses quote without fallback
+ok 39 - future price refuses quote without fallback
+  ---
+  duration_ms: 1.025611
+  type: 'test'
+  ...
+# Subtest: negative price refuses quote without fallback
+ok 40 - negative price refuses quote without fallback
+  ---
+  duration_ms: 1.384168
+  type: 'test'
+  ...
+# Subtest: incomplete round refuses quote without fallback
+ok 41 - incomplete round refuses quote without fallback
+  ---
+  duration_ms: 0.925831
+  type: 'test'
+  ...
+# Subtest: wrong decimals refuses quote without fallback
+ok 42 - wrong decimals refuses quote without fallback
+  ---
+  duration_ms: 0.728184
+  type: 'test'
+  ...
+# Subtest: wrong description refuses quote without fallback
+ok 43 - wrong description refuses quote without fallback
+  ---
+  duration_ms: 0.770523
+  type: 'test'
+  ...
+# Subtest: no Fjord refuses quote without fallback
+ok 44 - no Fjord refuses quote without fallback
+  ---
+  duration_ms: 0.794783
+  type: 'test'
+  ...
+# Subtest: no Isthmus refuses quote without fallback
+ok 45 - no Isthmus refuses quote without fallback
+  ---
+  duration_ms: 0.492085
+  type: 'test'
+  ...
+# Subtest: no L1 answer refuses quote without fallback
+ok 46 - no L1 answer refuses quote without fallback
+  ---
+  duration_ms: 1.176569
+  type: 'test'
+  ...
+# Subtest: zero L1 answer refuses quote without fallback
+ok 47 - zero L1 answer refuses quote without fallback
+  ---
+  duration_ms: 1.445227
+  type: 'test'
+  ...
+# Subtest: no operator answer refuses quote without fallback
+ok 48 - no operator answer refuses quote without fallback
+  ---
+  duration_ms: 1.13099
+  type: 'test'
+  ...
+# Subtest: sequencer down refuses quote without fallback
+ok 49 - sequencer down refuses quote without fallback
+  ---
+  duration_ms: 0.954772
+  type: 'test'
+  ...
+# Subtest: sequencer grace refuses quote without fallback
+ok 50 - sequencer grace refuses quote without fallback
+  ---
+  duration_ms: 1.346948
+  type: 'test'
+  ...
+# Subtest: no envelope guard refuses price
+ok 51 - no envelope guard refuses price
+  ---
+  duration_ms: 0.354037
+  type: 'test'
+  ...
+# Subtest: fee cannot exceed grant cap
+ok 52 - fee cannot exceed grant cap
+  ---
+  duration_ms: 1.07995
+  type: 'test'
+  ...
+# Subtest: configuration requires size/gas and rejects insufficient size
+ok 53 - configuration requires size/gas and rejects insufficient size
+  ---
+  duration_ms: 0.367327
+  type: 'test'
+  ...
+# Subtest: changed accepted intent and excessive post-signature gas refuse envelope
+ok 54 - changed accepted intent and excessive post-signature gas refuse envelope
+  ---
+  duration_ms: 2.719576
+  type: 'test'
+  ...
+# Subtest: current cost increase refuses previously quoted fee
+ok 55 - current cost increase refuses previously quoted fee
+  ---
+  duration_ms: 2.157361
+  type: 'test'
+  ...
+# Subtest: every envelope dimension enforced; replacements stop at cap
+ok 56 - every envelope dimension enforced; replacements stop at cap
+  ---
+  duration_ms: 4.093163
+  type: 'test'
+  ...
+# Subtest: independent viem RLP serialization matches exact signed maximum at integer boundaries
+ok 57 - independent viem RLP serialization matches exact signed maximum at integer boundaries
+  ---
+  duration_ms: 2.545367
+  type: 'test'
+  ...
+# Subtest: L1 argument covers conservative compression length for every allowed size
+ok 58 - L1 argument covers conservative compression length for every allowed size
+  ---
+  duration_ms: 2.146701
+  type: 'test'
+  ...
+1..58
+# tests 58
+# suites 0
+# pass 58
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 702.189894
+[memory-guard] exit=0 peakTreeRssMiB=144 minHostAvailableMiB=30317
+[memory-guard] at peak: node:82 node:62
+[memory-guard] exit=0 peakTreeRssMiB=194 minHostAvailableMiB=30318
+[memory-guard] at peak: node:81 node:62 node:52
+[queue] EXIT 0

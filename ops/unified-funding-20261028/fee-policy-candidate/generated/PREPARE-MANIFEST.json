@@ -1,0 +1,77 @@
+{
+  "activation": "OFF: no hunk wires a quote policy into the host bootstrap",
+  "hunks": {
+    "funding-route.mjs: activation": {
+      "after": "d4db0b7d48b7aa286b4758f46218b7b786da1580d45c5bab3a7a7ae0eaa3968d",
+      "before": "0f2e17c7c9c4f5e2d676dc8b79773986934c8d16e786075e00dfe76a9caea45e"
+    },
+    "funding-route.mjs: execute envelope": {
+      "after": "78ea491ba1653124c714a33b3d233a05e13b11ce36175a65d197e5e145f85887",
+      "before": "590df0b7917b319b035b99e1d501d2ab13e985261c7e305ddf717adad1a3e72a"
+    },
+    "funding-route.mjs: import": {
+      "after": "d3e05bba87bea0b613b968b10f69d467090f146c5e5374db9f35e6008327b6fb",
+      "before": "b284ee1c09caba889496b8778d7c5ff1d774b2b05d98c5d1459387e7eeb0757f"
+    },
+    "funding-route.mjs: quote fee": {
+      "after": "bfb439c53dd97c9f66c61eb6fc629472bed4a2b3a0a233f6596004454767b22b",
+      "before": "6347e57465c78eacd048f1be4528bb7bc665d570e3a18c9845b96a7615cd2d15"
+    },
+    "funding-route.mjs: quote output": {
+      "after": "127a8fe2237159ce567d6a1ba6c20d8e999013ca3d04e5c95438332f939a1a71",
+      "before": "2de7d02c5d290c3a0c13f7a9bb9f9d772500bfc03d461e324a7c7c52cf9215ae"
+    },
+    "sessions.mjs: _send head": {
+      "after": "f45ccd8e3189738a0754be0ad71baf9922e73a453d1a8e290c5ed44316651c18",
+      "before": "d68afb92c0b4bb8fab3d20ee7524f69a3363de3b968df6d78b1ef9eac4adfab4"
+    },
+    "sessions.mjs: attempt loop": {
+      "after": "7e7f3624380bbc4de9e0802358d7007d1622e62e85937ea6928d8c31a77bc091",
+      "before": "14571d42c9f91cc0eceaa22aa1d812877917205fcc4ccda85a797b233aa36e35"
+    },
+    "sessions.mjs: funding wiring": {
+      "after": "d461616395b7d4d1faa18bce2f063f5aa1af7a9ca4011b1acf39e303a099e54c",
+      "before": "386d43e550bd3f154714c0d35deb99665467522b747f53d18ef310bf8c6d9ac1"
+    },
+    "sessions.mjs: import": {
+      "after": "d409fb226bf4bc5616521650a1c27001c1dcffb53d34a801e2a101f5164c1fe5",
+      "before": "1b2fc6924214caae54814dd8905062a7f2eca139ad5a3ab684b77af7430c23fd"
+    },
+    "sessions.mjs: queue helpers": {
+      "after": "4d96609ab150ef849d4611d299f6e30150850e5b2c4bf555920ab079e01f6671",
+      "before": "34fe969b6fb566d7d21d885e2c43e04dd568a8c048aede850c8b04c0f5a55989"
+    },
+    "sessions.mjs: replacement": {
+      "after": "3ef440e1a22f8abfdee5daf0cf01cf80a0fe2da42dc482ac757fe72dcbf2525c",
+      "before": "d53881113f977effa20fb59ecada17fab34fe769e9e732ad7597f059770c5a7f"
+    },
+    "sessions.mjs: simulateAndSend send": {
+      "after": "51c0a7d53b3af4c2c9aac7459fbcf9515cb924fe7d6bde53f8a43e54dc80e9dc",
+      "before": "0ffadcc7a97e5e62ebd9637d256c2bad03141ac562b73bd2018665e0792de948"
+    },
+    "sessions.mjs: simulateAndSend signature": {
+      "after": "cd37e1db213c4e1875a855cc59e1074d19aa070fdd1740360fb31051bcc9f1f1",
+      "before": "19d0e6f65ed20c82c777b3e6c62e52a28916658734fc426e283dfe6a2a1e5959"
+    }
+  },
+  "inputs": {
+    "fee-policy-r1/fee-policy.mjs": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+    "host-queue-r1/generated/PREPARE-MANIFEST.json": "9d188c42738161dbad9c7e630a9acf6434416616a3eed954606555c6ce9249da",
+    "host-queue-r1/patched/relay/funding-abi.mjs": "93a951752cbcbdbd01537965f3d540a43fc796665f1a77e87791c9b2e555198a",
+    "host-queue-r1/patched/relay/funding-route.mjs": "87e6df639df4569d6a5c44439d0448a4fe3ce4c2580c2b7e997baab61f5aa7bc",
+    "host-queue-r1/patched/relay/sessions.mjs": "eb0f5543f2d16bc846ab158b291d26379dc32a7e11461946b1c3537f1b9cd7ba"
+  },
+  "note": "source-only stage: these hashes are computed when the root runs prepare.py; nothing here was executed by its author",
+  "outputs": {
+    "generated/relay/fee-policy.mjs": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+    "generated/relay/funding-abi.mjs": "93a951752cbcbdbd01537965f3d540a43fc796665f1a77e87791c9b2e555198a",
+    "generated/relay/funding-route.mjs": "ddbd856c9c3a832cd252719df23c13ca08eb4c4ed747585e0daa38abf0c23966",
+    "generated/relay/sessions.mjs": "852ded20b389321f7344ad7dbd436c54242b5ee95e847073bb89406c5719c5d8"
+  },
+  "symlinks": {
+    "generated/node_modules": "../../../../node_modules",
+    "generated/relay/sessions-abi.mjs": "../../../../../relay/sessions-abi.mjs",
+    "generated/relay/snp-verify.mjs": "../../../../../relay/snp-verify.mjs"
+  },
+  "unpinned": {}
+}

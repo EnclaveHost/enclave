@@ -1,0 +1,14 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {TxQueue} from '../generated/relay/sessions.mjs';
+import {createGasFundQuotePolicy} from '../fee-policy.mjs';
+import {cfg,chain,quoteCtx,execCtx,envelopeCtx,executeData,NOW,VAULT} from './fixture.mjs';
+import {scripted,memJournal,fakeTime,makeCanonical,makePreconfirmed} from './fixture-rpc.mjs';
+async function mk(cmut){const s=chain();const p=createGasFundQuotePolicy({config:cfg(cmut),request:s.request,now:()=>NOW});const qt=await p.quote(quoteCtx());await p.accept(execCtx(qt.fee6));const e=await p.envelope(envelopeCtx(qt.fee6));const c=scripted();c.wc.chain={id:8453};const time=fakeTime();time.t.now=NOW*1000;const journal=memJournal();const q=new TxQueue({...c,journal,log:()=>{},receiptTimeoutMs:10,pollMs:5,maxAttempts:5,sleep:time.sleep,clock:time.clock});return {...c,q,time,journal,e,item:{to:VAULT,data:executeData(qt.fee6),label:'enveloped',envelope:e}};}
+test('actual queue sends exact priced gas and capped fees',async()=>{const x=await mk();x.s.afterSend=h=>makeCanonical(x.s,h);await x.q.send(x.item);assert.equal(x.s.sends.length,1);assert.equal(x.s.sends[0].gas,x.e.gasLimit);assert.ok(x.s.sends[0].maxFeePerGas<=x.e.maxFeePerGasCap);assert.equal(x.journal.data.txs[0].envelope.digest,x.e.digest);});
+test('actual queue enforces replacement count and caps',async()=>{const x=await mk();await assert.rejects(x.q.send(x.item),e=>e.code==='tx_pending');assert.equal(x.s.sends.length,3);for(const a of x.s.sends){assert.equal(a.nonce,7);assert.equal(a.gas,x.e.gasLimit);assert.ok(a.maxFeePerGas<=x.e.maxFeePerGasCap);assert.ok(a.maxPriorityFeePerGas<=x.e.maxPriorityFeePerGasCap);}});
+test('actual queue never replaces observed preconfirmation',async()=>{const x=await mk();x.s.afterSend=h=>makePreconfirmed(x.s,h);await assert.rejects(x.q.send(x.item),e=>e.code==='tx_pending');assert.equal(x.s.sends.length,1);});
+test('actual queue rejects stale expiry before taking nonce',async()=>{const x=await mk();x.time.t.now=(Number(x.e.notAfter)+1)*1000;await assert.rejects(x.q.send(x.item),e=>e.code==='envelope_expired');assert.equal(x.s.sends.length,0);assert.equal(x.journal.data.txs.length,0);});
+test('actual queue refuses increased gas estimate',async()=>{const x=await mk();x.pc.estimateGas=async()=>1000000n;await assert.rejects(x.q.send(x.item),e=>e.code==='envelope_gas');assert.equal(x.s.sends.length,0);});
+test('actual queue rejects changed calldata before submission',async()=>{const x=await mk();await assert.rejects(x.q.send({...x.item,data:'0xdeadbeef'}),e=>e.code==='envelope_data');assert.equal(x.s.sends.length,0);});
+test('actual queue stops replacement when time crosses envelope deadline',async()=>{const x=await mk();x.time.t.onSleep=()=>{x.time.t.now=(Number(x.e.notAfter)+1)*1000;};await assert.rejects(x.q.send(x.item),e=>e.code==='tx_pending');assert.equal(x.s.sends.length,1);});
