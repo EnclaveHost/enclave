@@ -173,3 +173,8 @@ export const MAX_WASM_MB     = 2048;                         // upload ceiling (
 export const MAX_WASM_BYTES  = MAX_WASM_MB * 1024 * 1024;
 export const MAX_IMAGE_MB    = 4;                            // thumbnail/banner ceiling (also enforced by the add-image gateway)
 export const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
+
+// ---- Successor funding (/funding). All null = nothing is offered. Set ONLY from deployment receipts and reviewed terms.
+export const FUNDING_RUNTIME = null;              // { schema: "enclave-funding-browser-runtime-r1", ... } (sdk/funding parseRuntimePins)
+export const FUNDING_MIGRATION_PROPOSAL = null;   // { schema: "enclave-funding-migration-proposal-r1", chainId, owner, oldSid, legacy6, gas: [...], deploymentIds: [...] }
+export const FUNDING_MIGRATION_APPROVAL = null;   // { schema: "enclave-funding-migration-approval-r1", rootReviewed: true, termsHash, owner, chainId, oldSid }

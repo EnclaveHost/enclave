@@ -1,0 +1,228 @@
+{
+  "at": "2026-10-28T21:27:47.453Z",
+  "readOnly": true,
+  "activation": false,
+  "providers": [
+    "https://base-rpc.publicnode.com",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "signature": false,
+  "block": "53216758",
+  "blockHash": "0xc22150f2ba206fc655fd7dbe27979e6e943fa93cf39ff880fc8b6ca66574f135",
+  "results": [
+    {
+      "config": {
+        "schema": "enclave-gasfund-fee-policy-r1",
+        "chainId": 8453,
+        "notAfter": 1793223481,
+        "maxBlockAgeSec": 120,
+        "quoteTtlSec": 300,
+        "oracle": {
+          "address": "0x420000000000000000000000000000000000000f",
+          "proxyCodehash": "0x1f958654ab06a152993e7a0ae7b6dbb0d4b19265cc9337b8789fe1353bd9dc35",
+          "implementation": "0x4f1db3c6abd250ba86e0928471a8f7db3afd88f1",
+          "implementationCodehash": "0xe9fc7c96c4db0d6078e3d359d7e8c982c350a513cb2c31121adf5e1e8a446614"
+        },
+        "feed": {
+          "address": "0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70",
+          "proxyCodehash": "0xbd6f524cdc4268b6bd1bb6f77a8821faeea9c52ee9e0afa0b6d948ce82c966c2",
+          "aggregator": "0x05c84a58fe042275b37db038baacd15f410c7bb0",
+          "aggregatorCodehash": "0xf6294d36c840bfea38edbdb99f1922a5abe223fa5684b3042a7e5d8885a68189",
+          "decimals": 8,
+          "description": "ETH / USD",
+          "maxAgeSec": 3600,
+          "minAnswer": "10000000000",
+          "maxAnswer": "10000000000000"
+        },
+        "sequencer": null,
+        "tx": {
+          "gasLimit": 600000,
+          "maxFeePerGas": "20000000",
+          "maxPriorityFeePerGas": "2000000",
+          "maxSignedBytes": 720,
+          "maxAttempts": 3,
+          "replacementBumpBps": 2500
+        },
+        "pricing": {
+          "marginBps": 2000,
+          "maxFee6": "1000000"
+        }
+      },
+      "quote": {
+        "fee6": "34009",
+        "detail": {
+          "kind": "conservative capped compensation (not a receipt cost; no refund when the actual cost is lower)",
+          "fee6": "34009",
+          "required6": "28341",
+          "marginBps": "2000",
+          "configHash": "0x71ab7c9122ed32efa15f4daa6807be09a90360972abe2fead2044dee2eac7826",
+          "chainId": "8453",
+          "block": "53216758",
+          "blockHash": "0xc22150f2ba206fc655fd7dbe27979e6e943fa93cf39ff880fc8b6ca66574f135",
+          "blockTimestamp": "1793222863",
+          "expiresAt": "1793223163",
+          "components": {
+            "l2": {
+              "gasLimit": "600000",
+              "maxFeePerGas": "20000000",
+              "wei": "12000000000000",
+              "usdc6Ceil": "28326"
+            },
+            "l1": {
+              "maxSignedBytes": 720,
+              "oracleArgument": 657,
+              "wei": "6528883162",
+              "usdc6Ceil": "16"
+            },
+            "operator": {
+              "gasLimit": "600000",
+              "wei": "0",
+              "usdc6Ceil": "0"
+            },
+            "totalWei": "12006528883162",
+            "note": "fee6 = ceil(totalWei x answer x (1 + margin) / 10^(18 + decimals) x 10^6), one rounding; per-component USDC is rounded up separately for display only"
+          },
+          "price": {
+            "feed": "0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70",
+            "aggregator": "0x05c84a58fe042275b37db038baacd15f410c7bb0",
+            "description": "ETH / USD",
+            "decimals": "8",
+            "roundId": "55340232221128665343",
+            "answer": "236045000000",
+            "startedAt": "1793222827",
+            "updatedAt": "1793222841",
+            "ageSec": "22"
+          },
+          "sequencer": null,
+          "baseFeePerGas": "5000000",
+          "envelope": {
+            "gasLimit": "600000",
+            "maxFeePerGas": "20000000",
+            "maxPriorityFeePerGas": "2000000",
+            "maxSignedBytes": 720,
+            "maxAttempts": 3,
+            "replacementBumpBps": "2500",
+            "largestSignedExecute": 702
+          },
+          "assumptions": [
+            "L2: gasLimit x maxFeePerGas bounds the execution fee of every broadcast the host queue may make for this call (replacements included); the queue refuses anything outside the envelope",
+            "L1: GasPriceOracle.getL1FeeUpperBound at the pinned block for the maximum signed size, its argument raised so the oracle's fastlz heuristic covers n + ceil(n/32); L1 base/blob fees and scalars at inclusion may differ (observation, not a guarantee; the relayer bears drift)",
+            "operator: GasPriceOracle.getOperatorFee(gasLimit) at the pinned block; Isthmus operator fee parameters may change before inclusion (relayer's risk)",
+            "price: Chainlink ETH/USD proxy 0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70 with aggregator 0x05c84a58fe042275b37db038baacd15f410c7bb0 pinned by address and code hash; the proxy owner can repoint it (that refuses until re-review); aggregator-internal min/max circuit breakers are not read, config bounds 10000000000..10000000000000 apply",
+            "oracle: GasPriceOracle predeploy proxy and its EIP-1967 implementation pinned by code hash; a hard-fork upgrade refuses until re-review",
+            "sequencer: NOT checked (config.sequencer is null)",
+            "budget: the route requires maxUsdcIn6 + fee6 <= session balance and period remainder and fee6 <= the grant's maxFeePerOp; the vault re-checks on chain; this policy never changes the intent, the grant or the fee after signing"
+          ]
+        }
+      }
+    },
+    {
+      "config": {
+        "schema": "enclave-gasfund-fee-policy-r1",
+        "chainId": 8453,
+        "notAfter": 1793223514,
+        "maxBlockAgeSec": 120,
+        "quoteTtlSec": 300,
+        "oracle": {
+          "address": "0x420000000000000000000000000000000000000f",
+          "proxyCodehash": "0x1f958654ab06a152993e7a0ae7b6dbb0d4b19265cc9337b8789fe1353bd9dc35",
+          "implementation": "0x4f1db3c6abd250ba86e0928471a8f7db3afd88f1",
+          "implementationCodehash": "0xe9fc7c96c4db0d6078e3d359d7e8c982c350a513cb2c31121adf5e1e8a446614"
+        },
+        "feed": {
+          "address": "0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70",
+          "proxyCodehash": "0xbd6f524cdc4268b6bd1bb6f77a8821faeea9c52ee9e0afa0b6d948ce82c966c2",
+          "aggregator": "0x05c84a58fe042275b37db038baacd15f410c7bb0",
+          "aggregatorCodehash": "0xf6294d36c840bfea38edbdb99f1922a5abe223fa5684b3042a7e5d8885a68189",
+          "decimals": 8,
+          "description": "ETH / USD",
+          "maxAgeSec": 3600,
+          "minAnswer": "10000000000",
+          "maxAnswer": "10000000000000"
+        },
+        "sequencer": null,
+        "tx": {
+          "gasLimit": 600000,
+          "maxFeePerGas": "20000000",
+          "maxPriorityFeePerGas": "2000000",
+          "maxSignedBytes": 720,
+          "maxAttempts": 3,
+          "replacementBumpBps": 2500
+        },
+        "pricing": {
+          "marginBps": 2000,
+          "maxFee6": "1000000"
+        }
+      },
+      "quote": {
+        "fee6": "34009",
+        "detail": {
+          "kind": "conservative capped compensation (not a receipt cost; no refund when the actual cost is lower)",
+          "fee6": "34009",
+          "required6": "28341",
+          "marginBps": "2000",
+          "configHash": "0xd39d5be855532603651a884683411fb162a74c8e1cec32653be18cb3d0d6fd19",
+          "chainId": "8453",
+          "block": "53216758",
+          "blockHash": "0xc22150f2ba206fc655fd7dbe27979e6e943fa93cf39ff880fc8b6ca66574f135",
+          "blockTimestamp": "1793222863",
+          "expiresAt": "1793223163",
+          "components": {
+            "l2": {
+              "gasLimit": "600000",
+              "maxFeePerGas": "20000000",
+              "wei": "12000000000000",
+              "usdc6Ceil": "28326"
+            },
+            "l1": {
+              "maxSignedBytes": 720,
+              "oracleArgument": 657,
+              "wei": "6528883162",
+              "usdc6Ceil": "16"
+            },
+            "operator": {
+              "gasLimit": "600000",
+              "wei": "0",
+              "usdc6Ceil": "0"
+            },
+            "totalWei": "12006528883162",
+            "note": "fee6 = ceil(totalWei x answer x (1 + margin) / 10^(18 + decimals) x 10^6), one rounding; per-component USDC is rounded up separately for display only"
+          },
+          "price": {
+            "feed": "0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70",
+            "aggregator": "0x05c84a58fe042275b37db038baacd15f410c7bb0",
+            "description": "ETH / USD",
+            "decimals": "8",
+            "roundId": "55340232221128665343",
+            "answer": "236045000000",
+            "startedAt": "1793222827",
+            "updatedAt": "1793222841",
+            "ageSec": "22"
+          },
+          "sequencer": null,
+          "baseFeePerGas": "5000000",
+          "envelope": {
+            "gasLimit": "600000",
+            "maxFeePerGas": "20000000",
+            "maxPriorityFeePerGas": "2000000",
+            "maxSignedBytes": 720,
+            "maxAttempts": 3,
+            "replacementBumpBps": "2500",
+            "largestSignedExecute": 702
+          },
+          "assumptions": [
+            "L2: gasLimit x maxFeePerGas bounds the execution fee of every broadcast the host queue may make for this call (replacements included); the queue refuses anything outside the envelope",
+            "L1: GasPriceOracle.getL1FeeUpperBound at the pinned block for the maximum signed size, its argument raised so the oracle's fastlz heuristic covers n + ceil(n/32); L1 base/blob fees and scalars at inclusion may differ (observation, not a guarantee; the relayer bears drift)",
+            "operator: GasPriceOracle.getOperatorFee(gasLimit) at the pinned block; Isthmus operator fee parameters may change before inclusion (relayer's risk)",
+            "price: Chainlink ETH/USD proxy 0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70 with aggregator 0x05c84a58fe042275b37db038baacd15f410c7bb0 pinned by address and code hash; the proxy owner can repoint it (that refuses until re-review); aggregator-internal min/max circuit breakers are not read, config bounds 10000000000..10000000000000 apply",
+            "oracle: GasPriceOracle predeploy proxy and its EIP-1967 implementation pinned by code hash; a hard-fork upgrade refuses until re-review",
+            "sequencer: NOT checked (config.sequencer is null)",
+            "budget: the route requires maxUsdcIn6 + fee6 <= session balance and period remainder and fee6 <= the grant's maxFeePerOp; the vault re-checks on chain; this policy never changes the intent, the grant or the fee after signing"
+          ]
+        }
+      }
+    }
+  ],
+  "agreed": true,
+  "limitations": "Read-only fee observations using placeholder intent identities and configured, unmeasured gas cap. No actual signature/envelope estimate/send. Sequencer feed not checked. Observed hashes are not approval."
+}

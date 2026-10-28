@@ -1,0 +1,78 @@
+{
+  "scripts/build-funding-vendor.mjs": {
+    "sha256": "62d1aa52587939a8f61d8848368838c27fc8c2d1105aa98b350280ab85fa6e3c",
+    "before": null
+  },
+  "scripts/build-site.mjs": {
+    "sha256": "63942a59c3483507d22ad49dcad847b47977653b72e4fb60a50bf5cfb84c1ccd",
+    "before": "ac12580edc94078a834e0d44830d687ea8d361a090e5b925c012c66854c3408c"
+  },
+  "scripts/build-vendor.mjs": {
+    "sha256": "b91be70387398ccbdb24a59786d7b9a8abfd795a26f0418e401722dc358b31d2",
+    "before": "0f66ed42552a662d7999692a2bc5262b3ef61d0b3b9edcb034ea1f970477cae7"
+  },
+  "sdk/funding/MANIFEST.json": {
+    "sha256": "6316bb23f0a1255a2151107ccf75f36c3c8b4945cc79d8c716793d6f9d2d31ac",
+    "before": null
+  },
+  "sdk/funding/browser-entry.mjs": {
+    "sha256": "9820589c2aab82d3ae22f2ba73011970d0754557f12da7871859f3d368bbf879",
+    "before": null
+  },
+  "sdk/funding/chain-proof.mjs": {
+    "sha256": "ca799d8f86db1dd3a7113703cba5fd929e770f02f5c63fa3f5589b05f5e074b3",
+    "before": null
+  },
+  "sdk/funding/funding-client.mjs": {
+    "sha256": "8d79be4d818556545c98a85025bc3d6bac2e508b2a06ef32ff22a3860f2c0ce0",
+    "before": null
+  },
+  "sdk/funding/funding-codec.mjs": {
+    "sha256": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7",
+    "before": null
+  },
+  "sdk/funding/migration.mjs": {
+    "sha256": "b168fcc1038c9c5c19c685cd9b336fa7ecbd3fb89d91d8cec92bdbea8d4dccf4",
+    "before": null
+  },
+  "sdk/funding/util.mjs": {
+    "sha256": "38b678a68ecf7fd897fb1ae905d27471a17d10f8061fa29d81f5870549e12e66",
+    "before": null
+  },
+  "sdk/funding/v2-store.mjs": {
+    "sha256": "b00d0742ee3d2b211b4cf811c48c8e7004dbf7e8a4cf30517db5ec199181733c",
+    "before": null
+  },
+  "site/_redirects": {
+    "sha256": "7674db1802d0e44c72bf11e8c6f089e06385aa60b26d8ab82c45b838167aa417",
+    "before": "47140c4afb46e00e0bc8da0a5bdd63d9aa42b37b9a7e28f9028916b28a9336d2"
+  },
+  "site/funding.html": {
+    "sha256": "2f46bebb4e74c2c5840dae57105c3a0c5e1f6c5c47ccdc9ac0c5013769527b66",
+    "before": null
+  },
+  "site/js/boot.js": {
+    "sha256": "fc7675f3f07c1fe63e2876e21e079c1934456522b42073ab1794c2986d690ba1",
+    "before": "cb1d6710682a25f2a190439fd0bfade4aa4230e3ea5170ccf8fb0f5ce2ae1ac6"
+  },
+  "site/js/core/config.js": {
+    "sha256": "3d687efdbedbc826529274866b993e2c60952df495807ae7d0c0099c2effccad",
+    "before": "abb7461757307b856b912f06623cf1c37df05f6ffd57c79a70b343000b8fb72e"
+  },
+  "site/js/funding/flows.js": {
+    "sha256": "137b4a1babb7ccb5d6f913488c519660c99d5b934c79a433a0255b35e8fa48d1",
+    "before": null
+  },
+  "site/js/funding/state.js": {
+    "sha256": "361bae2bc531a640cfb58d389e026d5677eb5da70063f2bdda07070b09397f54",
+    "before": null
+  },
+  "site/js/pages/funding.js": {
+    "sha256": "2730b091138529d08be82504a2121107a202125cf1f55f95b2cc8c715c69bd3c",
+    "before": null
+  },
+  "sdk/funding/gas-execution.mjs": {
+    "sha256": "1ccf75dbd8ac248c9a139ab692f1f144b8f0f16c8e2b0334c4047ceac9b3df5c",
+    "before": null
+  }
+}
