@@ -1,0 +1,16 @@
+{
+  "at": "2026-10-28T11:31:17.117Z",
+  "agreeing": [
+    "https://mainnet.base.org",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "transactionHash": "0x22b7866bbe08645a6ba33332619518bf17063fc08efc57dd2b9cd74cfe687059",
+  "blockNumber": "53198501",
+  "blockHash": "0xc79d8fb60446bc8cda44ba5cf0b8a2b901754e29ff6ae075253b1fe21280a4a4",
+  "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+  "to": "0x12a3f873041dec436daa0085b766a399a6fa3639",
+  "value": "20000000000000",
+  "input": "0xb214faa59eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "status": "success",
+  "gasUsed": "86332"
+}
