@@ -1,0 +1,14 @@
+{
+  "schema": "client-execution-site-r2-harness-inputs/v1",
+  "note": "Read by out/server.mjs as OWN_INPUTS (derived from the qualified client-site-browser-r1 server). ROOT FILLS the page shell and the built bundle after review; the server refuses to start on null or drift. vendor maps the two static routes to hash-gated files served byte for byte: the root-built SUCCESSOR bundle (prepared core, 356046 B) and the SDK bundle.",
+  "files": {
+    "client-execution-site-r2/page/index.html": null,
+    "client-execution-site-r2/page/dist/harness.js": null,
+    "client-execution-recovery-r1/prepared/site/vendor/funding.js": "5b0ee6c8b0f2c819c1d4de78553ec5226afa6502d385c26ebe2b3052e0d81c60",
+    "../source/sdk/sessions/dist/browser.mjs": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997"
+  },
+  "vendor": {
+    "/harness/vendor/funding.js": "client-execution-recovery-r1/prepared/site/vendor/funding.js",
+    "/harness/vendor/sessions.js": "../source/sdk/sessions/dist/browser.mjs"
+  }
+}

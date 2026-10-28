@@ -1,0 +1,18 @@
+{
+  "schema": "client-execution-site-r2-harness-gen-pins/v1",
+  "note": "ROOT FILLS / CONFIRMS every sha256. Paths relative to unified-funding-20261028/. harness/generate_harness.py refuses null or drift. Prefilled from root's own records: client-site-browser-r1/out/GENERATED.json (a918c882...) and client-site-browser-r1/generated/BUILD-PINS.json / HARNESS-INPUTS.json. The browser-r1 build driver and this stage's phase fragment are null.",
+  "inputs": {
+    "client-site-browser-r1/out/server.mjs": "a918c882903fe9f0963163d6accab454063b15236c563282e0de98be847d0fa4",
+    "client-site-browser-r1/shell/main.mjs": "862bb75f5f9257c90dccd17bb6165b0713676a37de2b11b2aa2f3186c6ac12b0",
+    "client-site-browser-r1/build/build-harness.mjs": "49480c248112596d28d08c19af0323c7112d8366e67bb97e97bb10114575abac",
+    "client-site-browser-r1/page/index.html": "fdec00bbc51e0c5899874bacedab5828c96713d853831aff2f6df460453602de",
+    "client-execution-site-r2/harness/exec-phases.fragment.js": "ed1677f163cb53cdd6e220fe64b942261b7faed92d65722de7b5743e8a52d675",
+    "client-site-browser-r1/shell/harness-state.js": "d59a7e1df17ac741c7cde126462cb031e1637b93c5cc48b3c33d8ea1e8d4cf1e",
+    "client-site-browser-r1/shell/facade/api.js": "a704f02e696c307e931d4ab85a3173f8d32e51d1db6be171731d8de1a9c73365",
+    "client-site-browser-r1/shell/facade/wallet.js": "be3b53264988e611f93084fc14c9ce3e63ac54383abd5dc5fa29725199712ff1",
+    "client-site-browser-r1/shell/facade/empty.js": "5dceb4c0198f225d3fe68e3558dd569e7645bddb165ef6656b2be14277d4e3fc",
+    "client-site-browser-r1/shell/facade/config.js": "7e66372bada181a5a2402925c5ea6d718638ae23b3d81f04e73d9debca0d4636",
+    "client-site-browser-r1/shell/facade/sessions.js": "6740608869692f092cbad180c3566f480a80d27f86e7c9a38675fb6564415a77",
+    "client-site-browser-r1/shell/facade/vendor-funding.js": "836f3a710a1a602f59351def81bc3c9e18e99bad21337f5a5b3c7f0e57ce6090"
+  }
+}
