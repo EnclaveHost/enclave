@@ -1,0 +1,20 @@
+{
+  "unified-funding-client-native-test-r1-20261028.out": "1ea4d99c811706242a35b48c95137cb6a8e7977b8701bd1b76c89fdffe1b1343",
+  "unified-funding-client-native-build-r1-20261028.out": "4015feaf1897c55e4e1cb4b5965102467279879dd283aef06b3c28489235740c",
+  "unified-funding-browser-bundle-r1-20261028.out": "a213b2c2817aaeb267ac26df890d1cedd3890ccef5021dcf246cb5e94b98921b",
+  "eyesoff-readonly-1829.json": "a08e029d44aec46a31e5a375a7400b891a368b423e261fbe7d59b8fee3fc27a4",
+  "ROOT-REVIEW.md": "66be1ddf7fcb2bf9e9bfe118947fbceb6e2bf84f35f28a1ba93e16e1741cc0a7",
+  "funding-storage-resume-20261028.txt": "66366232514528f5414069b624b31dd8d55c9c0b29df5e94cfdefbc3795f2e11",
+  "funding-storage-run-20261028.txt": "baa05af562d1f6aae4b2899e09f5688cf18d106592f933b1acf6dd22625f233f",
+  "generated/CLIENT-NATIVE-INPUTS.json": "66bd53e8fe6a5fedcbd96e97e675d611394c46fd1b118dd1678fa6b5fd754069",
+  "test/migration-native.test.mjs": "16ea89eaf89adda2838523777a4fe4713273ba42399b3877b453b830101e67a1",
+  "root-original/selftest.mjs": "a9486bc4817c996110fb12b5f9d0d46e9cf229ab89c620685a4662cfeb1e68fa",
+  "root-original/migration-native.test.mjs": "9cf4754884670fd7eb960d148b6d0176724a28e05652bfd0a6af0bf391493997",
+  "fixture/foundry.toml": "6d25375b435883f4dfbee6e46e562f9f533cd631bac15cbd9d142888c74e3c08",
+  "browser-selftest/index.html": "4dcb209b0236dc4130e12c6fec05c45edf7205f5d7b7da9501b788d0285db5a1",
+  "browser-selftest/child.html": "01faf94f705a389c5589e343219f9e0d337d84c47c5c00e3060c765899c3c6fb",
+  "browser-selftest/BUNDLE-SHA256.txt": "ffc0ae204370bc435e6d7ad54a62a62059c9c9cd268aeee2f26e97f2ec69e7ea",
+  "browser-selftest/selftest.mjs": "550d8a0fa49e71761449d2e6d5355083e00aa77c6d7f5cb2a4262eac919b1c62",
+  "browser-selftest/server.mjs": "ce335ca6e03f7e003738717fc624074ba4ad5f95bddbdb3220fc49dfa15f6dfb",
+  "fixture/src/MockUSDC3009Fiat.sol": "ea75c89ccb6b4f7d1c2a67eb25b41b43a7dd05632407a2f6fff234d19fb308c1"
+}

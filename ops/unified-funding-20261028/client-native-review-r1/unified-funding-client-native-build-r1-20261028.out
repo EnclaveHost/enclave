@@ -1,0 +1,33 @@
+[queue] START available=90370MiB required=17664MiB cap=768MiB floor=16384MiB concurrentSmall=256MiB
+Compiling 1 files with Solc 0.8.35
+Solc 0.8.35 finished in 62.96ms
+Compiler run successful!
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+   ╭▸ src/MockUSDC3009Fiat.sol:77:17
+   │
+77 │         require(block.timestamp <= deadline, "permit expired");
+   │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+   ╭▸ src/MockUSDC3009Fiat.sol:90:17
+   │
+90 │         require(block.timestamp > validAfter, "authorization is not yet valid");
+   │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+   ╭▸ src/MockUSDC3009Fiat.sol:91:17
+   │
+91 │         require(block.timestamp < validBefore, "authorization is expired");
+   │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: https://book.getfoundry.sh/reference/forge/forge-lint#block-timestamp
+
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

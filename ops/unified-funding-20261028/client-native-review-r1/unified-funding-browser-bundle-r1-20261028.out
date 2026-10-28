@@ -1,0 +1,8 @@
+[queue] START available=90049MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+
+  ...nding-20261028/client-native-r1/browser-selftest/dist/selftest.js  64.7kb
+
+⚡ Done in 29ms
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0
