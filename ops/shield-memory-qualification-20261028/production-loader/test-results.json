@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-28T08:44:37.574666+00:00",
+  "command": "python3 -m unittest -q test_compose_loader_release test_safe_manager_switch",
+  "workingDirectory": "ops/shield-memory-qualification-20261028/production-loader",
+  "tests": 73,
+  "failures": 0,
+  "skipped": 0,
+  "durationSeconds": 0.734,
+  "exit": 0,
+  "observedBy": "root unified exec output, session15167",
+  "warnings": "Existing release-manifest.py unclosed-file ResourceWarnings appeared; not suppressed."
+}

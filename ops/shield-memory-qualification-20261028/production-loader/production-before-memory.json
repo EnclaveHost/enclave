@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-28T08:02:25.007349+00:00",
+  "guest": "gdb55af9c1",
+  "pid": 44174,
+  "unit": "m2-gdb55af9c1-44144.service",
+  "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gdb55af9c1-44144.service",
+  "memory.current": "62894227456",
+  "memory.peak": "62894985216",
+  "memory.max": "68208820224",
+  "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0",
+  "guestMemMiB": 64281,
+  "reservationMiB": 65049,
+  "appBundleSha256": "5bac47ac3b99d9999314ac3f5ee7c2749defdde98b2a52212302d05da13d58eb"
+}

@@ -1,0 +1,1 @@
+{"newRelease": "af50d526be6deefcdd815968ff1dd2c04327f6c3b3f981c0aa90cc585b0effae", "pid": "204706", "priorEntriesPreserved": true, "health": {"ok": true, "enclaves": 0, "of": 2, "updatedAt": "2026-10-28T08:20:24.386Z"}, "backup": "/var/lib/enclave-relay/loader-rollout-20261028-admission-before.json"}
