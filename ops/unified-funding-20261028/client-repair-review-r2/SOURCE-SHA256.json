@@ -1,0 +1,18 @@
+{
+  "prepare.py": "70d4de1cb76a038e3293955658a067e2b412bc621fccd38854c1d203f4a9b38d",
+  "root-reorg-failures.txt": "d41bb21bf9482064062c64caa3e8018083a2abf91e5113bd9eba2bd484a438a1",
+  "prepare-expect.json": "91386e19f187553ec6f3a93b44c9431874ab01dafc43234daf20bec81eef8722",
+  "README.md": "1210420c07df76eaedcd43b0c8ef6d7354d1f9ede4b4212fa8ad3e562aa3a776",
+  "root-receipt.test.mjs": "cd864e0bfe5c89facbee495eb9dbaccceb370c171523c8d6fd25c28fb70135d8",
+  "offline31.txt": "b12071f0504c83ea68f6ae2a7b8b1cf2f429a5746c3ceb7ac6733a3523dd711f",
+  "test/offline.test.mjs": "b696cd65f65ce7fbaa066ce2ae051dc8e049001b9189b537f3272414fc1f9e36",
+  "test/root-reorg.test.mjs": "adc633993cdb1886b40d703cf39f3e633c7332bb6cf22589b63cfeb0b378492e",
+  "site-patch/PATCH.md": "001809d6a3909ba3cb6d2aa50628cc80d525865fad65c5ee8773bdb5afe846ae",
+  "lib/v2-store.mjs": "d86b86d40ea833f67d44ab2d8927f9aa55b53703461cd86be865ab62b82fe992",
+  "lib/migration.mjs": "eeadcc11fe3dad864677faf32fc47c62f23e5950739381b99ae904610ab23f21",
+  "lib/util.mjs": "f06901fffafba27cfc59476dbe1e1b367eec8a2eef6eb3d914711695bea8eb6e",
+  "lib/browser-entry.mjs": "29ad990d3397addf1a5891faeabf15ac4fab7b367c9180fc26132f68d440dd1e",
+  "lib/funding-client.mjs": "6a0166018a3273946aa4fbcacf1af195254bab9cfc01360fe437d191055791ce",
+  "lib/chain-proof.mjs": "35e315d79d2c9875deef72e2413b3cc7e6c8779565aa5708a30c300ca613a376",
+  "site-patch/js/pages/funding.js": "0348facfb7c5bfd6b7a821f3b8ce6a921cf8e9ed06b09ac7b96bdf8ff199f6f6"
+}

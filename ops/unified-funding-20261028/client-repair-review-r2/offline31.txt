@@ -1,0 +1,202 @@
+[queue] START available=30844MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+TAP version 13
+# Subtest: root: refuses a receipt for another transaction
+ok 1 - root: refuses a receipt for another transaction
+  ---
+  duration_ms: 1.869145
+  type: 'test'
+  ...
+# Subtest: root: zero block hash preconfirmation is pending even if endpoint echoes it
+ok 2 - root: zero block hash preconfirmation is pending even if endpoint echoes it
+  ---
+  duration_ms: 0.254668
+  type: 'test'
+  ...
+# Subtest: root: rejects canonical header number mismatch
+ok 3 - root: rejects canonical header number mismatch
+  ---
+  duration_ms: 0.257788
+  type: 'test'
+  ...
+# Subtest: root: rejects transaction absent from canonical block
+ok 4 - root: rejects transaction absent from canonical block
+  ---
+  duration_ms: 1.434959
+  type: 'test'
+  ...
+# Subtest: root: rejects log for different transaction
+ok 5 - root: rejects log for different transaction
+  ---
+  duration_ms: 0.585196
+  type: 'test'
+  ...
+# Subtest: root: canonical matching receipt passes
+ok 6 - root: canonical matching receipt passes
+  ---
+  duration_ms: 0.900573
+  type: 'test'
+  ...
+# Subtest: r2: absent receipt and null block hash/number are pending (null)
+ok 7 - r2: absent receipt and null block hash/number are pending (null)
+  ---
+  duration_ms: 0.356387
+  type: 'test'
+  ...
+# Subtest: r2: header with another hash at the receipt height = reorged out (null)
+ok 8 - r2: header with another hash at the receipt height = reorged out (null)
+  ---
+  duration_ms: 0.201169
+  type: 'test'
+  ...
+# Subtest: r2: header not yet visible at the node = pending (null)
+ok 9 - r2: header not yet visible at the node = pending (null)
+  ---
+  duration_ms: 0.452846
+  type: 'test'
+  ...
+# Subtest: r2: missing receipt metadata is malformed, not pending
+ok 10 - r2: missing receipt metadata is malformed, not pending
+  ---
+  duration_ms: 1.187331
+  type: 'test'
+  ...
+# Subtest: r2: missing log metadata is malformed
+ok 11 - r2: missing log metadata is malformed
+  ---
+  duration_ms: 2.247923
+  type: 'test'
+  ...
+# Subtest: r2: removed log is refused
+ok 12 - r2: removed log is refused
+  ---
+  duration_ms: 0.265338
+  type: 'test'
+  ...
+# Subtest: r2: log from another block / index, or repeated logIndex, is refused
+ok 13 - r2: log from another block / index, or repeated logIndex, is refused
+  ---
+  duration_ms: 0.508926
+  type: 'test'
+  ...
+# Subtest: r2: unknown or non-canonical status is refused; canonical revert throws tx_reverted
+ok 14 - r2: unknown or non-canonical status is refused; canonical revert throws tx_reverted
+  ---
+  duration_ms: 0.209778
+  type: 'test'
+  ...
+# Subtest: r2: transaction at another index of the canonical block is refused
+ok 15 - r2: transaction at another index of the canonical block is refused
+  ---
+  duration_ms: 0.131289
+  type: 'test'
+  ...
+# Subtest: r2: malformed identities are refused (zero block number, non-canonical quantity, bad hash)
+ok 16 - r2: malformed identities are refused (zero block number, non-canonical quantity, bad hash)
+  ---
+  duration_ms: 0.233868
+  type: 'test'
+  ...
+# Subtest: r2: canonical receipt with valid logs passes unchanged
+ok 17 - r2: canonical receipt with valid logs passes unchanged
+  ---
+  duration_ms: 0.207758
+  type: 'test'
+  ...
+# Subtest: r2: finality is separate from canonical-at-observation
+ok 18 - r2: finality is separate from canonical-at-observation
+  ---
+  duration_ms: 0.332307
+  type: 'test'
+  ...
+# Subtest: Node WebCrypto (NOT a browser): fresh gas key non-extractable; keyHash = codec = v1 SDK; P-256 over digest bytes
+ok 19 - Node WebCrypto (NOT a browser): fresh gas key non-extractable; keyHash = codec = v1 SDK; P-256 over digest bytes
+  ---
+  duration_ms: 9.269768
+  type: 'test'
+  ...
+# Subtest: gas grant: exact domain 2, action 10 only, staging+prod, 1 USDC, candidate caps; refusals
+ok 20 - gas grant: exact domain 2, action 10 only, staging+prod, 1 USDC, candidate caps; refusals
+  ---
+  duration_ms: 4.525054
+  type: 'test'
+  ...
+# Subtest: gas.fund quote: fee / price / budget caps are enforced, never raised; unreconciled execute blocks
+ok 21 - gas.fund quote: fee / price / budget caps are enforced, never raised; unreconciled execute blocks
+  ---
+  duration_ms: 6.559638
+  type: 'test'
+  ...
+# Subtest: legacy evidence: live mask; missing record, wrong key hash, expired/ended old, spent, maxRate mismatch all STOP
+ok 22 - legacy evidence: live mask; missing record, wrong key hash, expired/ended old, spent, maxRate mismatch all STOP
+  ---
+  duration_ms: 4.088118
+  type: 'test'
+  ...
+# Subtest: plan: explicit split; replacement changes only budget/grantNonce/signBefore; journal holds the exact unsigned review
+ok 23 - plan: explicit split; replacement changes only budget/grantNonce/signBefore; journal holds the exact unsigned review
+  ---
+  duration_ms: 7.62754
+  type: 'test'
+  ...
+# Subtest: sign: nothing without the root termsHash; original only with its replacement; 5 prompts in order
+ok 24 - sign: nothing without the root termsHash; original only with its replacement; 5 prompts in order
+  ---
+  duration_ms: 32.355657
+  type: 'test'
+  ...
+# Subtest: run (scripted): every step proven from canonical receipts; old record kept; pointer once; no resend; no signature journaled
+ok 25 - run (scripted): every step proven from canonical receipts; old record kept; pointer once; no resend; no signature journaled
+  ---
+  duration_ms: 40.390564
+  type: 'test'
+  ...
+# Subtest: pending receipt + reload: never resent; reconcile proves it, adopts record + pointer, then the NEXT step continues
+ok 26 - pending receipt + reload: never resent; reconcile proves it, adopts record + pointer, then the NEXT step continues
+  ---
+  duration_ms: 33.433819
+  type: 'test'
+  ...
+# Subtest: reply lost after mining: step stays admitted, reconcile discovers the step's own event and adopts the replacement
+ok 27 - reply lost after mining: step stays admitted, reconcile discovers the step's own event and adopts the replacement
+  ---
+  duration_ms: 19.252149
+  type: 'test'
+  ...
+# Subtest: refused before sending: void only after the window closes and the chain shows no effect; re-arm + re-sign, no duplicate budget
+ok 28 - refused before sending: void only after the window closes and the chain shows no effect; re-arm + re-sign, no duplicate budget
+  ---
+  duration_ms: 38.856296
+  type: 'test'
+  ...
+# Subtest: two tabs: compare-and-set admission lets exactly one submit the original's termination
+ok 29 - two tabs: compare-and-set admission lets exactly one submit the original's termination
+  ---
+  duration_ms: 17.995159
+  type: 'test'
+  ...
+# Subtest: termination is proven only by the exact refund event: wrong reason, wrong hash and expiry are never 'done'
+ok 30 - termination is proven only by the exact refund event: wrong reason, wrong hash and expiry are never 'done'
+  ---
+  duration_ms: 46.10865
+  type: 'test'
+  ...
+# Subtest: owner controls with intake OFF and no network config: pins/record only, exact relay wire shapes
+ok 31 - owner controls with intake OFF and no network config: pins/record only, exact relay wire shapes
+  ---
+  duration_ms: 8.398594
+  type: 'test'
+  ...
+1..31
+# tests 31
+# suites 0
+# pass 31
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 695.343165
+[memory-guard] exit=0 peakTreeRssMiB=140 minHostAvailableMiB=30779
+[memory-guard] at peak: node:78 node:62
+[memory-guard] exit=0 peakTreeRssMiB=190 minHostAvailableMiB=30780
+[memory-guard] at peak: node:76 node:62 node:52
+[queue] EXIT 0
