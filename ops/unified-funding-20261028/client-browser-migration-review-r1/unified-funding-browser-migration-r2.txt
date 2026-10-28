@@ -1,0 +1,13 @@
+[queue] START available=90256MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+harness: TEST ONLY http://127.0.0.1:37765/  (owned anvil http://127.0.0.1:42145; stops after 600s or Ctrl-C)
+harness: page TEST databases: client-browser-migration-r1-TEST-legacy-240952d98363638e, client-browser-migration-r1-TEST-v2-ed2581f9dcc52746
+harness: TEST owner signature #1 SessionGrant @ 0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5
+harness: TEST owner signature #2 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #3 Terminate @ 0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5
+harness: TEST owner signature #4 SessionGrant @ 0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5
+harness: TEST owner signature #5 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #6 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #7 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #8 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #9 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: stopping (SIGTERM)

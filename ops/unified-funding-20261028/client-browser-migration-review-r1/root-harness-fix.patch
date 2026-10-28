@@ -1,0 +1,34 @@
+--- author/harness/server.mjs
++++ root/harness/server.mjs
+@@ -467,8 +467,17 @@
+     counters.hits[k] = (counters.hits[k] ?? 0) + 1;
+     if (k === "POST /v1/sessions/funding/open" && dropFirstFundingOpen) {
+       dropFirstFundingOpen = false;      // REAL request, REAL processing; only this one reply is lost
++      // Root: drop AFTER response headers/body start. Chromium may transparently retry a socket
++      // closed before any response, which made the author's raw disconnect test non-deterministic.
++      const begin = res.writeHead.bind(res), part = res.write.bind(res);
+       res.writeHead = () => res; res.setHeader = () => res; res.write = () => true;
+-      res.end = () => { counters.dropped.push(k); req.socket.destroy(); return res; };
++      res.end = () => {
++        counters.dropped.push(k);
++        begin(200, { ...HEADERS, "content-type": "application/json", "content-length": "1024" });
++        res.flushHeaders(); part('{"interrupted":');
++        setTimeout(() => req.socket.destroy(), 100);
++        return res;
++      };
+     }
+     return svc.handle(req, res, u, {}).catch((e) => { try { res.writeHead(500, HEADERS); res.end(JSON.stringify({ error: String(e) })); } catch { /* dropped */ } });
+   }
+--- author/page/harness.mjs
++++ root/page/harness.mjs
+@@ -192,7 +192,9 @@
+   await stage("5. run: terminate + replacement proven and adopted; first gas reply LOST -> intent persisted, then stop", async () => {
+     let err = null;
+     try { await MIG.runMigration(migCtx(c), plan.id, signed); } catch (e) { err = e; }
+-    check(err?.code === "relay_unreachable", `the first gas open reply was lost (${err?.code ?? "no error"})`);
++    check(err && (err.code === "relay_unreachable" || err instanceof TypeError),
++      `the first gas response is unreadable (${err?.code ?? err?.name ?? "no error"})`);
++    // Exact one-send/one-interruption and persisted admitted-state assertions below must also pass.
+     const j = await c.gasStore.getJournal(plan.id);
+     check(j.steps.terminate.status === "proven" && j.steps.legacyOpen.status === "proven", "terminate + replacement proven on chain");
+     check(j.steps["gasOpen:nucbox"].status === "admitted" && !j.steps["gasOpen:nucbox"].txHash && j.steps["gasOpen:nucbox"].observed,

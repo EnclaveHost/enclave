@@ -1,0 +1,9 @@
+{
+  "schema": "client-browser-migration-r1-inputs/v1",
+  "note": "TEMPLATE. ROOT FILLS every sha256 (hex, no 0x) after reviewing page/ and after bundling page/harness.mjs to page/dist/harness.js; harness/server.mjs refuses to start on any null or mismatch. Paths are relative to unified-funding-20261028/. The server ALSO gates on client-repair-r4/generated/NATIVE-INPUTS.json (root-filled), native-host-r1/generated/FIXTURE-STAGING.json and activation-r1/generated/PREPARE-MANIFEST.json, unchanged. harness/server.mjs itself is reviewed, not self-hashed.",
+  "files": {
+    "client-browser-migration-r1/page/index.html": "c11ec0e4f98b40df88545778d497fd12c8849f815dfde3b2650bf38701712307",
+    "client-browser-migration-r1/page/harness.mjs": "c0ed04e4e2ffc3fccaec4a18df848734038f035c9cdfcd8c3c314c99c3d3ad7d",
+    "client-browser-migration-r1/page/dist/harness.js": "ffc1edee2aec0ce2a86e66f906a7612d9485142bd720c119c8374d4bd83403a3"
+  }
+}
