@@ -1,0 +1,30 @@
+RUN ['/home/steven/.foundry/bin/forge', 'build', '--offline']
+No files changed, compilation skipped
+RUN ['python3', 'prepare.py']
+prepare.py: wrote native-host-r1/generated/FIXTURE-STAGING.json sha256 2ee78aee4f02448150e4f74b05eb76d553ce6856f10c76dd1cde4518bbfa0ef3
+RUN ['node', '--test', '--test-concurrency=1', 'test/native-host.test.mjs']
+TAP version 13
+# Subtest: native P-256 gas.fund through the composed host's HTTP handle on an owned Anvil
+not ok 1 - native P-256 gas.fund through the composed host's HTTP handle on an owned Anvil
+  ---
+  duration_ms: 118.001159
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/native-host-r1/test/native-host.test.mjs:164:1'
+  failureType: 'testCodeFailure'
+  error: 'anvil could not start: spawn anvil ENOENT'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    startAnvil (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/native-host-r1/test/native-host.test.mjs:132:27)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/native-host-r1/test/native-host.test.mjs:165:25)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 362.615028
