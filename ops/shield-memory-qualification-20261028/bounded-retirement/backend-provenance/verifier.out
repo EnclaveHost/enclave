@@ -1,0 +1,39 @@
+[queue] START available=24903MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# [shielded] authenticated weight read failed: blk.0.ffn_gate.weight
+# [shielded] blk.0.ffn_gate.weight: source weight authentication failed; aborting model load
+# [shielded] blk.0.ffn_gate.weight: authenticated registration failed; aborting model load
+# [shielded] blk.0.ffn_gate.weight: source weight authentication failed; aborting model load
+# [shielded] blk.0.ffn_gate.weight: authenticated registration failed; aborting model load
+# [shielded] authenticated weight read failed: blk.0.ffn_gate.weight
+# [shielded] blk.0.ffn_gate.weight: source weight authentication failed; aborting model load
+# [shielded] blk.0.ffn_gate.weight: authenticated registration failed; aborting model load
+# [shielded] blk.0.ffn_gate.weight: source weight authentication failed; aborting model load
+# [shielded] blk.0.ffn_gate.weight: authenticated registration failed; aborting model load
+# [shielded] consumed source retirement failed; aborting model load
+# [shielded] blk.0.ffn_gate.weight: private compact weights 256 -> 340 bytes
+# [shielded] blk.0.ffn_up.weight: private compact weights 256 -> 340 bytes
+# [shielded] blk.0.ffn_gate.weight: private compact weights 128 -> 210 bytes
+# [shielded] blk.0.ffn_gate.weight: private compact weights 128 -> 210 bytes
+# [shielded] blk.0.ffn_up.weight: private compact weights 128 -> 210 bytes
+# [shielded] blk.0.ffn_up.weight: private compact weights 128 -> 210 bytes
+# Subtest: weight authentication binds the private encoded source and prevents fallback to revoked source pages
+ok 1 - weight authentication binds the private encoded source and prevents fallback to revoked source pages
+  ---
+  duration_ms: 16627.436273
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 16691.215455
+[memory-guard] exit=0 peakTreeRssMiB=611 minHostAvailableMiB=24438
+[memory-guard] at peak: cc1plus:487 node:61 node:59 c++:4
+[memory-guard] exit=0 peakTreeRssMiB=674 minHostAvailableMiB=24438
+[memory-guard] at peak: cc1plus:486 node:65 node:61 node:59 c++:4
+[queue] EXIT 0
