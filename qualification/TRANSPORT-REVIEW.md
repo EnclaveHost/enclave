@@ -33,7 +33,7 @@ during this run. Never merge this capsule into main.
 3. Stream exactly the four pinned input files into an uncompressed tar and then age
    encryption to the public recipient. Verify the plaintext pins before encryption;
    record the ciphertext SHA256. Do not save a local plaintext tar. Preserve originals.
-4. Create environment `reaper-artifact-20261028` with custom deployment branch
+4. Create environment `reaper-artifact-20261028-<same 12 random hex>` with custom deployment branch
    policies: one exact **branch** `build/lease-reaper-artifact-20261028`, no tags,
    no wildcard, no protected-branches bypass. Verify the returned policy via GET.
    It must be new; refuse to overwrite an existing environment. Install only
@@ -51,7 +51,7 @@ during this run. Never merge this capsule into main.
    coordinating chat retain the public state path for manual fallback. Artifacts also
    expire after one day. This is cleanup, not a production monitor.
 7. Dispatch the reviewed workflow. Pass only public inputs: immutable source SHA,
-   asset ID, ciphertext hash, public age recipient, and expiry <=24h. Record run ID
+   environment name, asset ID, ciphertext hash, public age recipient, and expiry <=24h. Record run ID
    immediately. Verify head SHA/branch/workflow/environment and GitHub-hosted runner.
 8. Retrieve ciphertext and nonsecret diagnostics. Verify ciphertext hash, decrypt
    through an identity file/FD, verify plaintext tar SHA and each candidate file hash.
@@ -61,6 +61,16 @@ during this run. Never merge this capsule into main.
    and verify remote resources/secret absent. Then disable/remove only this timer and
    service. If retrieval fails, preserve diagnostics and retry within the same bounded
    window; never keep the key past the fallback deadline to rescue an artifact.
+
+Expired cleanup removes the validated local transport directory **before any GitHub
+request**, so a timeout or cancellation retry cannot prolong the local key's lifetime.
+Environment and release creation have persisted write-ahead intent. Lost responses
+are reconciled only by the generated nonce-bearing name/tag, exact source/branch,
+creation-time window, policy/body and expected empty pre-upload/pre-secret state.
+Identity mismatches refuse remote deletion and retain nonsecret retry state. The
+actual remote main SHA, workflow blob hashes and event blocks are recorded before
+release creation; a changed main SHA or release/create/delete/workflow_run handler
+requires renewed review rather than proceeding.
 
 ## Resource and output contract
 

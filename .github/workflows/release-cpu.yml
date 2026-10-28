@@ -5,6 +5,9 @@ on:
       expected_sha:
         description: Exact reviewed source commit
         required: true
+      environment:
+        description: Exact task-owned temporary environment
+        required: true
       asset_id:
         description: Owned draft release encrypted input asset ID
         required: true
@@ -27,7 +30,7 @@ jobs:
     if: github.ref == 'refs/heads/build/lease-reaper-artifact-20261028'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    environment: reaper-artifact-20261028
+    environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
         with:
@@ -42,6 +45,7 @@ jobs:
           INPUT_SHA256: ${{ inputs.input_sha256 }}
           AGE_RECIPIENT: ${{ inputs.recipient }}
           TRANSPORT_EXPIRES: ${{ inputs.transport_expires }}
+          ENVIRONMENT_NAME: ${{ inputs.environment }}
         run: timeout --signal=TERM --kill-after=15s 1100s bash qualification/runner.sh
       - name: Preserve encrypted result and diagnostics
         if: always()

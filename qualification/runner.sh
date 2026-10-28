@@ -17,6 +17,7 @@ trap cleanup EXIT
 [[ $EXPECTED_SHA =~ ^[0-9a-f]{40}$ && $GITHUB_SHA == "$EXPECTED_SHA" ]]
 [[ $(git rev-parse HEAD) == "$EXPECTED_SHA" ]]
 [[ $ASSET_ID =~ ^[0-9]+$ && $INPUT_SHA256 =~ ^[0-9a-f]{64}$ ]]
+[[ $ENVIRONMENT_NAME =~ ^reaper-artifact-20261028-[0-9a-f]{12}$ ]]
 [[ $AGE_RECIPIENT =~ ^age1[0-9a-z]{58}$ ]]
 [[ $TRANSPORT_EXPIRES =~ ^[0-9]{10}$ ]]
 now=$(date +%s)

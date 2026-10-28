@@ -19,7 +19,7 @@ assert state_dir.is_dir() and not state_dir.is_symlink()
 tag='reaper-input-20261028-'+secrets.token_hex(6)
 local=state_dir/tag; local.mkdir(mode=0o700)
 now=int(time.time())
-s={'repository':'EnclaveHost/enclave','environment':'reaper-artifact-20261028',
+s={'repository':'EnclaveHost/enclave','environment':'reaper-artifact-20261028-'+tag.rsplit('-',1)[1],
    'branch':'build/lease-reaper-artifact-20261028','sourceSha':commit,'tag':tag,
    'createdAt':now,'expiresAt':now+23*3600,'localTransportDirectory':str(local),
    'environmentId':None,'releaseId':None,'runId':None}
@@ -43,6 +43,24 @@ environments=api('environments?per_page=100')['environments']
 assert len(environments)<100, 'manual pagination review needed'
 assert not any(e['name']==s['environment'] for e in environments)
 assert api('git/ref/heads/'+s['branch'])['object']['sha']==commit
+
+# Record the actual remote default-branch workflow events before any release creation.
+# Reject release/create/delete/workflow_run event handlers; no ad-hoc production hooks.
+import base64
+repo=api(''); assert repo['default_branch']=='main'
+main_sha=api('git/ref/heads/main')['object']['sha']
+workflow_review={'defaultBranch':'main','commit':main_sha,'reviewedAt':int(time.time()),'files':[]}
+for entry in api('contents/.github/workflows?ref='+main_sha):
+    if not entry['name'].endswith(('.yml','.yaml')): continue
+    source=api('contents/.github/workflows/'+entry['name']+'?ref='+main_sha)
+    body=base64.b64decode(source['content']).decode()
+    match=re.search(r'^on:\s*\n((?:[ \t].*\n|\s*\n)*)',body,re.M)
+    assert match, 'unrecognized workflow event syntax requires manual review'
+    events=match.group(1)
+    assert not re.search(r'^  (release|create|delete|workflow_run):',events,re.M), 'unexpected remote workflow hook'
+    workflow_review['files'].append({'path':entry['path'],'gitBlobSha':source['sha'],
+                                    'sha256':hashlib.sha256(body.encode()).hexdigest(),'eventBlock':events})
+s['defaultBranchWorkflowReview']=workflow_review; save()
 
 # Exact persistent fallback files are generated from this reviewed source.
 unit='enclave-'+tag+'-cleanup'
@@ -98,6 +116,9 @@ save()
 
 
 try:
+    s['environmentCreateIntent']={'at':int(time.time()),'name':s['environment'],'sourceSha':commit,
+        'policy':{'protected_branches':False,'custom_branch_policies':True}}
+    save()
     environment=api('environments/'+s['environment'],'PUT',{'deployment_branch_policy':{'protected_branches':False,'custom_branch_policies':True}})
     s['environmentId']=environment['id']; save()
     api('environments/'+s['environment']+'/deployment-branch-policies','POST',{'name':s['branch'],'type':'branch'})
@@ -106,8 +127,12 @@ try:
     policies=api('environments/'+s['environment']+'/deployment-branch-policies')['branch_policies']
     assert len(policies)==1 and policies[0]['name']==s['branch'] and policies[0]['type']=='branch'
     gh(['secret','set','REAPER_AGE_IDENTITY','--repo',s['repository'],'--env',s['environment']],identity.read_bytes())
+    assert api('git/ref/heads/main')['object']['sha']==main_sha, 'default branch changed since event review'
+    s['releaseCreateIntent']={'at':int(time.time()),'tag':tag,'sourceSha':commit,
+        'body':'Ciphertext-only reaper transport '+tag+' at '+commit+'. Expires within 24 hours. Not a CPU or application release.'}
+    save()
     release=api('releases','POST',{'tag_name':tag,'target_commitish':commit,'name':'Temporary encrypted reaper build input',
-       'body':'Ciphertext only. Artifact-only build transport; expires within 24 hours. Not a CPU or application release.',
+       'body':s['releaseCreateIntent']['body'],
        'draft':True,'prerelease':True,'generate_release_notes':False})
     s['releaseId']=release['id']; save()
     gh(['release','upload',tag,str(encrypted),'--repo',s['repository']])
