@@ -1,0 +1,134 @@
+TAP version 13
+# [relay] funding: intake off (funding is not configured on this relay (no activation manifest)); owner controls off (successor owner controls are not configured on this relay (no owner-controls manifest))
+# Subtest: agent staging-publish flow: publish, deploy to staging, re-point, sign out with refund
+ok 1 - agent staging-publish flow: publish, deploy to staging, re-point, sign out with refund
+  ---
+  duration_ms: 19301.663936
+  type: 'test'
+  ...
+# Subtest: browser flow: zero-budget sign-in, wallet top-up, spend, promote, revoke-all
+ok 2 - browser flow: zero-budget sign-in, wallet top-up, spend, promote, revoke-all
+  ---
+  duration_ms: 10754.830795
+  type: 'test'
+  ...
+# Subtest: the SDK's typed-data shapes hash to the vault's typehashes
+ok 3 - the SDK's typed-data shapes hash to the vault's typehashes
+  ---
+  duration_ms: 30.122237
+  type: 'test'
+  ...
+# Subtest: API request auth: valid, replayed, tampered, out of scope, signed out
+ok 4 - API request auth: valid, replayed, tampered, out of scope, signed out
+  ---
+  duration_ms: 41.875634
+  type: 'test'
+  ...
+# Subtest: API auth binds vault + sid, claims the replay slot first, and a revokeAll covers unindexed sessions
+ok 5 - API auth binds vault + sid, claims the replay slot first, and a revokeAll covers unindexed sessions
+  ---
+  duration_ms: 67.291183
+  type: 'test'
+  ...
+# Subtest: a lagging RPC node right after the open: the relay believes its own receipts and retries
+ok 6 - a lagging RPC node right after the open: the relay believes its own receipts and retries
+  ---
+  duration_ms: 4259.991303
+  type: 'test'
+  ...
+# Subtest: relay maps vault reverts to typed errors and refuses unknown vaults
+ok 7 - relay maps vault reverts to typed errors and refuses unknown vaults
+  ---
+  duration_ms: 3550.932331
+  type: 'test'
+  ...
+# Subtest: owner-only operations are unreachable for a session key, and the relay checks vault ownership
+ok 8 - owner-only operations are unreachable for a session key, and the relay checks vault ownership
+  ---
+  duration_ms: 3542.377957
+  type: 'test'
+  ...
+# [account] minted ES256 account-session key
+# [account] enabled - rpID enclave.host, origins https://enclave.host,https://www.enclave.host, 0 accounts
+# [sso] enabled - signer 0x17c5185167401eD00cF5F5b2fc97D9BBfDb7D025
+# Subtest: secret-release custody gate: staging releases, prod only once promoted, unadopted never, wallet rows untouched
+ok 9 - secret-release custody gate: staging releases, prod only once promoted, unadopted never, wallet rows untouched
+  ---
+  duration_ms: 163.87013
+  type: 'test'
+  ...
+# Subtest: session-derived account token: sign-in, short SSO tokens, dies with the session
+ok 10 - session-derived account token: sign-in, short SSO tokens, dies with the session
+  ---
+  duration_ms: 224.297212
+  type: 'test'
+  ...
+# Subtest: records the WALLET holds: a session acts on them only once the owner lets its vault (ledger rev 15d delegation)
+ok 11 - records the WALLET holds: a session acts on them only once the owner lets its vault (ledger rev 15d delegation)
+  ---
+  duration_ms: 27364.456758
+  type: 'test'
+  ...
+# [relay] closed expired session 0xc5e3f593 (refund to owner)
+# keeper refund 4991352580n 4994332580n 2980000n
+# gas open+deposit 522026
+# gas execute\#8 573465
+# gas execute\#0 696085
+# gas execute\#8 352346
+# gas execute\#2 196750
+# gas end 69131
+# gas open 280802
+# gas topUpWithAuthorizationF93a6 143717
+# gas execute\#0 677009
+# gas execute\#1 239377
+# gas execute\#4 196160
+# gas execute\#0 565511
+# gas promoteF93a6 231828
+# gas revokeAllF93a6 78282
+# gas open 172778
+# gas open 316289
+# gas end 54829
+# gas open 316251
+# gas open 316277
+# gas end 54817
+# gas open+deposit 414766
+# gas open 316287
+# gas open+deposit 345028
+# gas execute\#0 599707
+# gas execute\#0 565535
+# gas promoteF93a6 231862
+# gas execute\#0 565547
+# gas open 316299
+# gas open 280728
+# gas end 54817
+# gas open+deposit 345114
+# gas execute\#6 213858
+# gas execute\#6 179670
+# gas execute\#4 210277
+# gas execute\#5 212793
+# gas open+deposit 380600
+# gas end 73919
+# gas end 78731
+# gas open+deposit 380554
+# gas close 88963
+# Subtest: keeper closes expired sessions and refunds the owner
+ok 12 - keeper closes expired sessions and refunds the owner
+  ---
+  duration_ms: 1059.720528
+  type: 'test'
+  ...
+# Subtest: host-queue-r1: every relayed transaction completed canonically (anvil; canonical at observation, not finality)
+ok 13 - host-queue-r1: every relayed transaction completed canonically (anvil; canonical at observation, not finality)
+  ---
+  duration_ms: 0.375898
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 71039.635902
