@@ -8,3 +8,9 @@ Its release manifest enables compact weights, original-source reclaim, encrypted
 Candidate source is sdshield aa3b780ae. Current Qwen source appears associated with padgov4c716378a; exact binary reproducibility not established. A narrow patch port must retain its spare-CPU spill governor and qualify current Qwen behavior. Candidate source must not replace production wholesale.
 
 Historical reports of 52.57 GiB resident memory and earlier 4.5% decode regression describe old qualified releases, not this candidate. New savings and throughput remain unmeasured.
+
+## October 28 live manager reconciliation
+
+Authenticated read-only `/health` on the running manager advertises Qwen modelFloorsMiB=73728, while the installed source tree `iso-sdshield-1c3cdbb8/isolation/contract/inference.go` maps 51200. These describe different artifacts. The manager also advertises `shareBoundedMemory=true`; its source clamps model-sized RAM to CPU share when the release has admission support. Thus the earlier observed 64281 MiB request does not prove a compiled manager floor of51200. No production floor was changed. Reconcile the exact binary, source and release behavior before rollout; a standalone canary guest size is not a production admission change.
+
+The sanitized live snapshot in `loader-bench/evidence/live-resource-snapshot.json` records one held image guest,6912MiB reservation,1551MiB remaining host draw at that observation,18432MiB floor, and4327179550bytes committed per GPU card of33285996544bytes. Existing workers being idle does not release their production commitments. Fresh observations and owned-process guards remain mandatory before a full inference test.
