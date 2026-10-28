@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="deploy-token" content="__DEPLOY_TOKEN__">
+<title>Additive funding deployment: owner wallet handoff (local)</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header>
+  <h1>Additive funding deployment: owner wallet handoff</h1>
+  <p class="warn">Local review tool for four contract creations. It does not mean production activation is approved.
+    It creates no grant, migration, termination or USDC approval. The old session and every original
+    factory/book/custody contract stay unchanged.</p>
+</header>
+
+<section id="signing" aria-live="polite"></section>
+
+<section id="wallet">
+  <h2>Wallet</h2>
+  <p>Expected owner: <code id="owner">-</code></p>
+  <p>Required chain: Base 8453 (<code>0x2105</code>)</p>
+  <p>Connected: <code id="account">not connected</code> on chain <code id="chain">-</code> <span id="walletStatus"></span></p>
+  <button id="connect" type="button">Connect wallet</button>
+  <p class="note">Nothing is requested from the wallet until you click. Switch chain in the wallet yourself; this page never asks it to.
+    In the wallet, do not edit nonce, gas or fees. Keep the site-suggested values.</p>
+</section>
+
+<section id="cost"></section>
+
+<section id="txs"></section>
+
+<section>
+  <h2>Log</h2>
+  <ol id="log"></ol>
+</section>
+
+<script src="app.js" defer></script>
+</body>
+</html>
