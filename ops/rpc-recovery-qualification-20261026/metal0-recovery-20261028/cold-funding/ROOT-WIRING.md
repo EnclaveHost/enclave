@@ -6,4 +6,4 @@ Claude wrote the host gate and check-only CLI, then timed out before tests/repor
 
 The check-only cold-send CLI remains non-signing. execute-cold requires an explicit root record of the user's existing authorization and verified parent hold; it binds a fresh plan to that record. It never obtains administrator-wallet keys. Private authority records, configs, audit files and raw signed journals are not committed. Operator outcome is recorded in the parent directory's operator-funding-verified.json.
 
-Fixtures and pinned executor source are included; compile uses the vendored hash-pinned source. npm dependencies are pinned by the copied lock. The environment must provide Anvil for protocol tests.
+Fixtures and pinned executor source are included; compile uses the vendored hash-pinned source. Direct dependency versions are pinned in package.json. The environment must provide Anvil for protocol tests.
