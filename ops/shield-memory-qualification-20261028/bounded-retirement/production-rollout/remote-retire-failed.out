@@ -1,0 +1,4 @@
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+{"failedReleaseRemovedFromAllThreeLists": "1da344346ffe01df7695059bf4c27a5ef48ea6dc5cad11f6893683c71e5933f7", "allPriorEntriesRestored": true, "health": {"ok": true, "enclaves": 0, "of": 2, "updatedAt": "2026-10-28T10:01:02.304Z"}, "disabledDropin": "/etc/systemd/system/enclave-api-relay.service.d/zzzzzzzz-retire-budget-20261028.conf.disabled", "releaseFilesRetained": true}

@@ -1,0 +1,7 @@
+adopt-check current: rc=0 ['2026/10/28 02:43:10 ADOPT OK gdc03538eb']
+adopt-check candidate: rc=0 ['2026/10/28 02:43:11 ADOPT OK gdc03538eb']
+preserved into /home/steven/enclave-prod/retire-switch-preservation-20261028
+control QEMU 3967858 held (watchdog 60s)
+manager 177797 runs 1da34434, ADOPT OK gdc03538eb, guest QEMU 112924 unchanged
+control QEMU 3967858 resumed
+watchdog: released sigcont=sent

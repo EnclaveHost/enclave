@@ -1,0 +1,18 @@
+{
+  "observedAt": "2026-10-28T09:45:13.787274+00:00",
+  "release": "af50d526",
+  "guest": "gdc03538eb",
+  "prompt": "Production loader canary: reply with exactly LOADER_CANARY_OK. Do not use tools or web search.",
+  "reply": "LOADER_CANARY_OK",
+  "tokens": 19,
+  "decodeTokensPerSecond": 14.4,
+  "loadMs": 0,
+  "prefillMs": 959,
+  "decodeMs": 1316,
+  "limitations": [
+    "single short sample",
+    "warm prompt cache unlike cold candidate run",
+    "prior 150-word prompt ended network error while reasoning; no successful performance result",
+    "existing failed external tool discovery still shown"
+  ]
+}
