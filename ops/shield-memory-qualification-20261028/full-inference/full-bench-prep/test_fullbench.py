@@ -29,6 +29,12 @@ def client_500(error, verdict="attested"):
             + json.dumps(json.dumps({"error": error})) + "\nRESULT app_on_pinned_key=1\n").encode()
 
 
+CLIENT_502 = ("VERDICT attested reason=\"ok\"\nRESULT app_status=502\nRESULT app_body="
+              + json.dumps(json.dumps({"error": "bad gateway"})) + "\nRESULT app_on_pinned_key=1\n").encode()
+PING_OK = ("VERDICT attested reason=\"ok\"\nRESULT app_status=200\nRESULT app_body="
+           + json.dumps(json.dumps({"ok": True})) + "\nRESULT app_on_pinned_key=1\n").encode()
+PING_REJECT = CLIENT_REJECT + b"RESULT app_status=200\nRESULT app_on_pinned_key=1\n"   # status lines after a closed gate
+
 NOT_FOUND_ERRORS = ("load_by_name: ErrorCode::NotFound: graph not in registry",
                     'load_by_name: ErrorCode { code: 6, name: "not-found", message: "" }: x')
 DECLINE_LINE = b"DOM Shield model declined: host memory\n"
@@ -123,6 +129,10 @@ class FakeHost:
         self.fwd_out, self.client_exits, self.foreign_exec = b"FWD listening 127.0.0.1:40001 cid=200123\n", True, False
         self.serial, self.client_out = SERIAL_READY, CLIENT_OK   # what the guest unit writes to its -serial file
         self.client_err, self.fwd_err, self.popens = b"", b"", []
+        self.diag_out, self.diag_err, self.diag_exits, self.shas = PING_OK, b"", True, {}   # the /ping diagnostic client
+
+    def sha256(self, path):
+        return self.shas[path]
 
     def next_pid(self):
         self._pid += 1
@@ -178,12 +188,15 @@ class FakeHost:
         assert out_path not in self.files and err_path not in self.files and err_path != out_path
         self.popens.append((argv, out_path, err_path))
         fwd = argv[0] == self.p["fwd"]
+        diag = not fwd and "--path" in argv and argv[argv.index("--path") + 1] == F.DIAG_PATH
         if fwd:
             self.files[out_path], pr = self.fwd_out, FakeProc(self, argv, exits=False)
+        elif diag:
+            self.files[out_path], pr = self.diag_out, FakeProc(self, argv, exits=self.diag_exits)
         else:
             self.files[out_path], pr = self.client_out, FakeProc(self, argv, exits=self.client_exits)
         if err_path is not None:
-            self.files[err_path] = self.fwd_err if fwd else self.client_err
+            self.files[err_path] = self.fwd_err if fwd else self.diag_err if diag else self.client_err
         self.children.append(pr)
         return pr
 
@@ -883,6 +896,283 @@ class StderrCapture(RunArmBase):
             self.assertEqual(seen[-1][1], subprocess.DEVNULL)             # no err_path: unchanged behaviour
         finally:
             F.subprocess.Popen = real
+
+
+# ---------------------------------------------------------------- post-failure diagnostic (POSTFAIL.md)
+
+class PostFailureDiagnostic(RunArmBase):
+    """One attested GET /ping after the first application failure. It never changes the primary outcome or metrics."""
+
+    def setup_arm(self, primary=CLIENT_502, diag=True):
+        p, arm = plan_fixture(client_sha256="e" * 64)
+        if diag:
+            p["post_failure_diagnostic"] = F.diag_config(p)
+        host = FakeHost(p)
+        host.shas[p["client"]], host.client_out = "e" * 64, primary
+        return p, arm, host
+
+    def diag_children(self, host):
+        return [c for c in host.children if c.argv[1] == host.p["client"] and c.argv[c.argv.index("--path") + 1] == F.DIAG_PATH]
+
+    def primary_children(self, host):
+        return [c for c in host.children if c.argv[1] == host.p["client"] and c not in self.diag_children(host)]
+
+    def on_primary(self, host, fn):
+        """Mutate the host right after the primary client starts (no watchdog tick runs before the diagnostic's own)."""
+        real = host.popen
+
+        def popen(argv, out, **kw):
+            pr = real(argv, out, **kw)
+            if argv[1] == host.p["client"] and argv[argv.index("--path") + 1] != F.DIAG_PATH:
+                fn(host)
+            return pr
+        host.popen = popen
+
+    def test_guard_subprocess_uses_remaining_total_budget(self):
+        p, arm, host = self.setup_arm()
+        h = {"owned": {"guest": {"unit": "owned.service", "invocation": "abc"}},
+             "wall_deadline": 100, "samples": []}
+        observed = []
+        def slow_run(argv, timeout=60):
+            observed.append(timeout)
+            host.t += timeout
+            raise subprocess.TimeoutExpired(argv, timeout)
+        host.run = slow_run
+        fwd = FakeProc(host, ["fwd"], exits=False)
+        F.post_failure_diagnostic(host, p, arm, h, 40001, fwd, [], [{"verdict": "attested"}])
+        d = h["post_failure_diagnostic"]
+        self.assertEqual(observed, [15])
+        self.assertEqual(d["stop"], "diagnostic_timeout")
+        self.assertEqual(d["held_s"], 15)
+        self.assertFalse(d["ran"])
+        self.assertEqual(self.diag_children(host), [])
+
+    def test_initial_hash_time_counts_against_budget(self):
+        p, arm, host = self.setup_arm()
+        def slow_hash(path):
+            host.t += 15
+            return p["client_sha256"]
+        host.sha256 = slow_hash
+        h = {"owned": {}, "wall_deadline": 100, "samples": []}
+        F.post_failure_diagnostic(host, p, arm, h, 40001, FakeProc(host, ["fwd"], exits=False), [],
+                                  [{"verdict": "attested"}])
+        self.assertEqual(h["post_failure_diagnostic"]["stop"], "diagnostic_timeout")
+        self.assertEqual(self.diag_children(host), [])
+
+    def test_request_guard_timeout_kills_owned_child_immediately(self):
+        p, arm, host = self.setup_arm()
+        host.diag_exits = False
+        original = host.run
+        def slow_run(argv, timeout=60):
+            if any(c.alive for c in self.diag_children(host)) and "show" in argv:
+                host.t += timeout
+                raise subprocess.TimeoutExpired(argv, timeout)
+            return original(argv, timeout=timeout)
+        host.run = slow_run
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual(h["outcome"], "request_failed")
+        self.assertEqual(h["cleanup"], "clean")
+        self.assertEqual(h["post_failure_diagnostic"]["stop"], "diagnostic_timeout")
+        self.assertLessEqual(h["post_failure_diagnostic"]["held_s"], 15)
+        self.assertTrue(all(c.killed and not c.alive for c in self.diag_children(host)))
+
+    def test_ping_ok_keeps_primary_outcome_and_metrics(self):
+        bp, barm, bhost = self.setup_arm(diag=False)
+        hb = F.run_arm(bhost, bp, barm, 1e12)
+        self.assertNotIn("post_failure_diagnostic", hb)
+        self.assertEqual(self.diag_children(bhost), [])
+        p, arm, host = self.setup_arm()
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual((h["outcome"], h["cleanup"]), ("request_failed", "clean"))
+        for k in ("outcome", "requests", "failure_evidence", "samples", "host_peak_last_sample", "host_current_max"):
+            self.assertEqual(h[k], hb[k], k)
+        self.assertEqual(h["requests"][0]["results"][0]["status"], 502)       # the primary 502 stands
+        self.assertFalse(F.arm_ok(h))
+        d = h["post_failure_diagnostic"]
+        self.assertTrue(d["ran"])
+        self.assertIn("not a bench result", d["label"])
+        self.assertEqual(d["conclusion"], F.DIAG_OK_SCOPE)
+        self.assertIn("cannot rule out an earlier OOM, restart or native-child death", d["conclusion"])
+        r = d["result"]
+        self.assertEqual((r["verdict"], r["status"], r["pinned"], r["exit"], r["killed_by_harness"]),
+                         ("attested", 200, True, 0, False))
+        self.assertNotIn("body", r)
+        for snap in (d["before"], d["after"]):
+            self.assertTrue(snap["units"]["guest"]["same_invocation"] and snap["units"]["guest"]["same_main_pid"])
+            self.assertIn(STARTED_LINE.decode().strip(), snap["serial"]["markers"])
+        self.assertLessEqual(len(d["samples"]), F.DIAG_HOLD_MAX_SEC + 1)
+        self.assertNotIn("post_failure_diagnostic", json.dumps(F.summarize([dict(h, seq=0)])))
+        self.assertTrue(all(not c.alive for c in host.children))
+
+    def test_explicit_argv_same_pinned_client_and_trust(self):
+        p, arm, host = self.setup_arm()
+        F.run_arm(host, p, arm, 1e12)
+        (dc,) = self.diag_children(host)
+        self.assertEqual(dc.argv, F.client_argv(p, arm, 40001, F.DIAG_PATH))   # identical trust flags, built separately
+        self.assertEqual(dc.argv[1], p["post_failure_diagnostic"]["client"])
+        _, out, err = [x for x in host.popens if x[0] is dc.argv][0]
+        self.assertEqual((os.path.basename(out), err), ("diag-0.out", out + ".err"))
+
+    def test_config_or_identity_mismatch_skips(self):
+        for mutate, want in ((lambda p, h: p["post_failure_diagnostic"].update(client="/other/client.mjs"), "config:"),
+                             (lambda p, h: p["post_failure_diagnostic"].update(path="/"), "config:"),
+                             (lambda p, h: p["post_failure_diagnostic"].update(hold_sec=20), "config:"),
+                             (lambda p, h: p["post_failure_diagnostic"].update(request_sec=11), "config:"),
+                             (lambda p, h: h.shas.update({p["client"]: "f" * 64}), "config: diagnostic client identity")):
+            p, arm, host = self.setup_arm()
+            mutate(p, host)
+            h = F.run_arm(host, p, arm, 1e12)
+            self.assertEqual((h["outcome"], h["cleanup"]), ("request_failed", "clean"))
+            d = h["post_failure_diagnostic"]
+            self.assertFalse(d["ran"])
+            self.assertTrue(d["skipped"].startswith(want), d["skipped"])
+            self.assertEqual(self.diag_children(host), [])
+        p, _, _ = self.setup_arm()
+        p["post_failure_diagnostic"]["hold_sec"] = 16
+        self.assertTrue(F.diag_config_problems(p))
+        p["post_failure_diagnostic"] = F.diag_config(p)
+        self.assertEqual(F.diag_config_problems(p), [])
+
+    def test_attestation_rejection_trusts_no_status(self):
+        p, arm, host = self.setup_arm()
+        host.diag_out = PING_REJECT
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual(h["outcome"], "request_failed")
+        d = h["post_failure_diagnostic"]
+        r = d["result"]
+        self.assertEqual((r["verdict"], r["status"], r["pinned"], r["status_trusted"]), ("reject", None, False, False))
+        self.assertEqual((r["untrusted_status_ignored"], r["app_requests_sent"]), (200, "0"))
+        self.assertEqual(d["conclusion"], F.DIAG_INCONCLUSIVE)
+
+    def test_timeout_bounded_and_killed(self):
+        p, arm, host = self.setup_arm()
+        host.diag_exits, host.diag_err = False, b"still retrying 502\n"
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual((h["outcome"], h["cleanup"]), ("request_failed", "clean"))
+        d = h["post_failure_diagnostic"]
+        self.assertEqual(d["stop"], "diagnostic_timeout")
+        self.assertLessEqual(d["held_s"], F.DIAG_REQUEST_MAX_SEC)
+        self.assertTrue(d["result"]["killed_by_harness"] and d["result"]["stderr"]["diagnostic_only"])
+        self.assertIn("still retrying", d["result"]["stderr"]["head"])
+        self.assertEqual(d["conclusion"], F.DIAG_INCONCLUSIVE)
+        self.assertTrue(all(c.killed and not c.alive for c in self.diag_children(host)))
+
+    def test_wall_deadline_clips_window(self):
+        p, arm, host = self.setup_arm()
+        host.diag_exits = False
+        h = {"owned": {}, "wall_deadline": host.now() + 3, "samples": []}
+        fwd = FakeProc(host, ["fwd"], exits=False)
+        F.post_failure_diagnostic(host, p, arm, h, 40001, fwd, [], [{"verdict": "attested"}])
+        d = h["post_failure_diagnostic"]
+        self.assertTrue(d["ran"])
+        self.assertLessEqual(d["held_s"], 4)
+        self.assertIn(d["stop"], ("wall_deadline", "diagnostic_timeout"))
+
+    def test_resource_stop_during_diagnostic_yields(self):
+        p, arm, host = self.setup_arm()
+        host.diag_exits, started = False, {}
+        real = host.popen
+
+        def popen(argv, out, **kw):
+            if argv[1] == p["client"] and argv[argv.index("--path") + 1] == F.DIAG_PATH:
+                started["t"] = host.t
+            return real(argv, out, **kw)
+        host.popen = popen
+        host.on_tick = lambda hst: setattr(hst, "avail", 1 * GiB) if "t" in started and hst.t - started["t"] >= 3 else None
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual((h["outcome"], h["cleanup"]), ("request_failed", "clean"))
+        d = h["post_failure_diagnostic"]
+        self.assertEqual(d["stop"], "low_host_memory")
+        self.assertLess(d["held_s"], F.DIAG_REQUEST_MAX_SEC)
+        self.assertTrue(d["result"]["killed_by_harness"])
+        self.assertEqual(d["conclusion"], F.DIAG_INCONCLUSIVE)
+        self.assertTrue(all(not c.alive for c in host.children))
+        self.assertFalse(host.exists(p["ring_dir"]) or host.exists(arm["bank"]))
+
+    def test_unsafe_or_dead_or_changed_identity_skips(self):
+        def production_starts(hst):
+            hst.qemu = [{"pid": 777, "start": "1", "ram_bytes": 64281 * MiB, "cgroup": "0::/x"}]
+
+        def low_memory(hst):
+            hst.avail = 1 * GiB
+
+        def guest_dies(hst):
+            u = hst.units[[k for k in hst.units if k.endswith("-a0.service")][0]]
+            u["ActiveState"] = "failed"
+            hst.pids.pop(int(u["MainPID"]), None)
+            hst.procs_of[u["ControlGroup"]] = []
+
+        def guest_replaced(hst):
+            hst.units[[k for k in hst.units if k.endswith("-a0.service")][0]]["InvocationID"] = "inv-other"
+
+        for fn, want, cleanup in ((production_starts, "unsafe: production_guests_changed", "clean"),
+                                  (low_memory, "unsafe: low_host_memory", "clean"),
+                                  (guest_dies, "unsafe: guest_ended", "clean"),
+                                  (guest_replaced, "unsafe: owned_identity_changed:guest", "failed")):
+            p, arm, host = self.setup_arm()
+            self.on_primary(host, fn)
+            h = F.run_arm(host, p, arm, 1e12)
+            d = h["post_failure_diagnostic"]
+            self.assertFalse(d["ran"])
+            self.assertTrue(d["skipped"].startswith(want), d["skipped"])
+            self.assertEqual(self.diag_children(host), [])
+            self.assertEqual(h.get("workload_outcome", h["outcome"]), "request_failed")   # primary preserved
+            self.assertEqual(h["cleanup"], cleanup)                    # a replaced unit is never touched
+
+    def test_not_run_outside_first_attested_app_failure(self):
+        p, arm, host = self.setup_arm(primary=CLIENT_OK)                    # success
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual(h["outcome"], "success")
+        self.assertNotIn("post_failure_diagnostic", h)
+        p, arm, host = self.setup_arm(primary=CLIENT_REJECT)                # startup quote rejection: no second quote
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual((h["outcome"], h["post_failure_diagnostic"]["skipped"]), ("request_failed", "primary_not_attested"))
+        self.assertEqual((len(self.primary_children(host)), self.diag_children(host)), (1, []))
+        p, arm, host = self.setup_arm()
+        host.serial = SERIAL_BOOT + SECCOMP_LINE                            # never ready
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual(h["outcome"], "stopped:timeout:startup_readiness")
+        self.assertNotIn("post_failure_diagnostic", h)
+        p, arm, host = self.setup_arm()
+        host.client_exits = False                                           # harness kill of the primary is a stop
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual(h["outcome"], "stopped:request_timeout")
+        self.assertNotIn("post_failure_diagnostic", h)
+        F.preflight = lambda host, p, arm=None, live=False, h=None: ["refused"]
+        p, arm, host = self.setup_arm()
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual(h["outcome"], "preflight_refused")
+        self.assertNotIn("post_failure_diagnostic", h)
+        self.assertEqual(host.children, [])
+
+    def test_declined_and_graph_not_found_stay_failures(self):
+        for serial, out, want in ((SERIAL_READY + DECLINE_LINE, client_500(NOT_FOUND_ERRORS[0]), "model_declined"),
+                                  (SERIAL_READY, client_500(NOT_FOUND_ERRORS[0]), "graph_not_found")):
+            p, arm, host = self.setup_arm(primary=out)
+            host.serial = serial
+            h = F.run_arm(host, p, arm, 1e12)
+            self.assertEqual(h["outcome"], want)
+            self.assertEqual(h["post_failure_diagnostic"]["conclusion"], F.DIAG_OK_SCOPE)
+            self.assertFalse(F.arm_ok(h))
+
+    def test_exactly_once(self):
+        p, arm, host = self.setup_arm()
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual(len(self.diag_children(host)), 1)
+        first = copy.deepcopy(h["post_failure_diagnostic"])
+        h["wall_deadline"] = 1e12
+        F.post_failure_diagnostic(host, p, arm, h, 40001, FakeProc(host, ["fwd"], exits=False), [], [{"verdict": "attested"}])
+        self.assertEqual(len(self.diag_children(host)), 1)
+        self.assertEqual(h["post_failure_diagnostic"], first)
+
+    def test_diagnostic_error_recorded_cleanup_runs(self):
+        p, arm, host = self.setup_arm()
+        host.diag_out = None                                                # unreadable output
+        h = F.run_arm(host, p, arm, 1e12)
+        self.assertEqual((h["outcome"], h["cleanup"]), ("request_failed", "clean"))
+        self.assertIn("error", h["post_failure_diagnostic"])
+        self.assertNotIn("conclusion", h["post_failure_diagnostic"])
+        self.assertTrue(all(not c.alive for c in host.children))
 
 
 class Stage(unittest.TestCase):

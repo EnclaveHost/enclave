@@ -107,6 +107,19 @@ PROBE_TAIL_CAP = 1 << 16
 STARTUP_READY_SEC = 180          # after the fwd line: boot + model copy-verify + front + app start (smoke: ~37 s guest)
 SERIAL_HEAD_CAP = 8 << 20
 
+# post-failure diagnostic (POSTFAIL.md): opt-in at plan time; one fresh attested GET /ping after the arm's first
+# application failure, with the same pinned client and trust flags. A separate labelled record: it never changes the
+# primary outcome, results or samples, and is never a bench result.
+DIAG_PATH = "/ping"
+DIAG_HOLD_MAX_SEC = 15           # the owned canary is kept at most this long for the diagnostic
+DIAG_REQUEST_MAX_SEC = 10        # the diagnostic client's own kill window, inside the hold
+DIAG_SERIAL_LINES = 32
+DIAG_MEM_EVENTS = ("oom", "oom_kill", "max")
+DIAG_LABEL = "post-failure diagnostic only: not a bench result; never changes the primary outcome or its metrics"
+DIAG_OK_SCOPE = ("current runtime covered by a fresh attestation and the app answers /ping now; cannot rule out an "
+                 "earlier OOM, restart or native-child death behind the primary failure")
+DIAG_INCONCLUSIVE = "inconclusive: no fresh attested, pinned 200 for /ping inside the window; nothing is inferred"
+
 
 class Stop(Exception):
     """A watchdog or bounded-wait stop. Production always wins."""
@@ -516,6 +529,40 @@ def client_argv(p, arm, port, path):
     return a
 
 
+def diag_config(p):
+    """The plan record for the opt-in diagnostic: the plan's own pinned client, named explicitly."""
+    return {"client": p["client"], "client_sha256": p["client_sha256"], "path": DIAG_PATH,
+            "hold_sec": DIAG_HOLD_MAX_SEC, "request_sec": DIAG_REQUEST_MAX_SEC}
+
+
+def diag_config_problems(p):
+    d = p.get("post_failure_diagnostic")
+    if d is None:
+        return []
+    bad = []
+    if d.get("client") != p["client"] or d.get("client_sha256") != p["client_sha256"]:
+        bad.append("diagnostic client must be the plan's pinned client")
+    if d.get("path") != DIAG_PATH:
+        bad.append(f"diagnostic path must be {DIAG_PATH}")
+    hold, req = d.get("hold_sec"), d.get("request_sec")
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in (hold, req)) \
+            or not 0 < req <= min(hold, DIAG_REQUEST_MAX_SEC) or hold > DIAG_HOLD_MAX_SEC:
+        bad.append(f"diagnostic window must be request <= hold, request <= {DIAG_REQUEST_MAX_SEC} s, "
+                   f"hold <= {DIAG_HOLD_MAX_SEC} s")
+    return bad
+
+
+def diag_argv(p, arm, port):
+    """Built on its own, not through client_argv: same node, pinned client and every trust flag, path /ping."""
+    d, t = p["post_failure_diagnostic"], p["trust"]
+    a = [p["node"], d["client"], f"https://127.0.0.1:{port}", "--measurement", arm["measurement"],
+         "--app-sha", p["app_sha"], "--runtime", p["pins"]["runtime"], "--vcek", t["vcek"],
+         "--min-tcb", "@" + t["min_tcb"], "--no-kds", "--path", d["path"], "--answer-within", "600000"]
+    if t.get("amd_chain"):
+        a += ["--amd-chain", t["amd_chain"]]
+    return a
+
+
 def probe_argv(p, every=0):
     g = p["guestd"]
     a = [p["node"], g["probe"], "--client", g["client"], "--client-sha256", g["client_sha256"],
@@ -823,6 +870,7 @@ def preflight(host, p, arm=None, live=False, h=None):
             problems.append(f"snapshot guest must be {GUEST_FLOOR_MIB}-{GUEST_MAX_SNAPSHOT_MIB} MiB")
     check(lambda: p["required_available_bytes"] == plan_required(p), "resource formula")
     problems += graph_problems(p["workload"])
+    problems += diag_config_problems(p)
     if p.get("guestd"):
         g = p["guestd"]
         check(lambda: host.sha256(g["probe"]) == g["probe_sha256"], "guestd probe identity")
@@ -951,6 +999,7 @@ def make_plan(host, a):
         "experimental_firmware": fw,
         "arms": [],
     }
+    p["post_failure_diagnostic"] = diag_config(p) if getattr(a, "post_failure_diagnostic", False) else None
     p["trust_sha256"] = {k: host.sha256(v) for k, v in trust_files(p).items()}
     p["required_available_bytes"] = plan_required(p)
     for n, arm in enumerate(order):
@@ -1226,8 +1275,202 @@ def stderr_diag(host, path):
         raw = host.read_head(path, STDERR_HEAD_CAP)
     except OSError as e:
         return {"unreadable": e.__class__.__name__, "diagnostic_only": True}
-    text = "".join(c if c == "\n" or c.isprintable() else "?" for c in raw[:STDERR_HEAD_CAP].decode("utf-8", "replace"))
+    text = printable(raw[:STDERR_HEAD_CAP].decode("utf-8", "replace"))
     return {"head": text, "truncated": len(raw) > STDERR_HEAD_CAP, "diagnostic_only": True}
+
+
+def printable(text):
+    return "".join(c if c == "\n" or c.isprintable() else "?" for c in text)
+
+
+# ---------------------------------------------------------------- post-failure diagnostic (POSTFAIL.md)
+
+def parse_diag(stdout):
+    """Verdict, status, pin and the client's own sent-count. A status without VERDICT attested is not trusted: it is
+    dropped from status and kept only as an untrusted note. No body is recorded."""
+    r = {"verdict": None, "status": None, "pinned": False, "app_requests_sent": None}
+    for l in stdout.splitlines():
+        if l.startswith("VERDICT "):
+            r["verdict"] = l.split()[1] if len(l.split()) > 1 else ""
+        elif l.startswith("RESULT app_status="):
+            try:
+                r["status"] = int(l.split("=", 1)[1])
+            except ValueError:
+                r["status"] = None
+        elif l.startswith("RESULT app_on_pinned_key="):
+            r["pinned"] = l.endswith("=1")
+        elif l.startswith("RESULT app_requests_sent="):
+            r["app_requests_sent"] = l.split("=", 1)[1][:16]
+    r["status_trusted"] = r["verdict"] == "attested"
+    if not r["status_trusted"]:
+        r["untrusted_status_ignored"], r["status"], r["pinned"] = r["status"], None, False
+    return r
+
+
+def diag_serial(host, arm):
+    """Public serial marker lines only (DOM/MODEL), bounded and printable; the guest's own untrusted words."""
+    try:
+        if not host.exists(arm["serial_log"]):
+            return None
+        raw = host.read_head(arm["serial_log"], SERIAL_HEAD_CAP)
+    except OSError as e:
+        return {"unreadable": e.__class__.__name__}
+    lines = [printable(l.rstrip("\r"))[:200] for l in raw[:SERIAL_HEAD_CAP].decode("utf-8", "replace").split("\n")[:-1]
+             if l.startswith(("DOM ", "MODEL "))]
+    return {"bytes": len(raw[:SERIAL_HEAD_CAP]), "oversize": len(raw) > SERIAL_HEAD_CAP,
+            "marker_count": len(lines), "markers": lines[-DIAG_SERIAL_LINES:]}
+
+
+def diag_snapshot(host, arm, h):
+    """Owned units only (state, same InvocationID/MainPID, memory.events oom counters) plus the serial markers."""
+    s = {"t": host.wall(), "units": {}, "serial": diag_serial(host, arm)}
+    for key in ("guest", "w0", "w1"):
+        rec = h["owned"].get(key) or {}
+        if not rec.get("invocation"):
+            continue
+        props = show(host, rec["unit"])
+        u = {k: props.get(k) for k in ("ActiveState", "SubState", "Result", "ExecMainCode", "ExecMainStatus")}
+        u["same_invocation"] = props.get("InvocationID") == rec["invocation"]
+        u["same_main_pid"] = bool(rec.get("pid_start")) and host.pid_start(rec["main_pid"]) == rec["pid_start"]
+        try:
+            ev = {}
+            for l in host.read(f"/sys/fs/cgroup{rec['cgroup']}/memory.events").splitlines():
+                f = l.split()
+                if len(f) == 2 and f[0] in DIAG_MEM_EVENTS:
+                    ev[f[0]] = int(f[1])
+            u["memory_events"] = ev
+        except (OSError, ValueError):
+            u["memory_events"] = None
+        s["units"][key] = u
+    return s
+
+
+class DiagnosticDeadlineHost:
+    """Clamp diagnostic subprocesses and sleeps to a shared monotonic deadline.
+
+    Local filesystem reads and process scheduling are not hard real-time. Owned
+    cleanup may take its separate bounded wait after this diagnostic returns.
+    """
+    def __init__(self, host, deadline):
+        self.host, self.deadline = host, deadline
+
+    def remaining(self):
+        return max(0.0, self.deadline - self.host.now())
+
+    def check(self):
+        if self.remaining() <= 0:
+            raise Stop("diagnostic_timeout")
+
+    def __getattr__(self, name):
+        value = getattr(self.host, name)
+        if not callable(value) or name in ("now", "wall"):
+            return value
+        def checked(*args, **kwargs):
+            self.check()
+            result = value(*args, **kwargs)
+            self.check()
+            return result
+        return checked
+
+    def run(self, argv, timeout=60):
+        self.check()
+        try:
+            result = self.host.run(argv, timeout=min(timeout, self.remaining()))
+        except subprocess.TimeoutExpired as e:
+            raise Stop("diagnostic_timeout") from e
+        self.check()
+        return result
+
+    def popen(self, *args, **kwargs):
+        # Return the child even if launch crosses the deadline: the caller must
+        # register its ownership before checking time again.
+        self.check()
+        return self.host.popen(*args, **kwargs)
+
+    def sleep(self, seconds):
+        self.check()
+        self.host.sleep(min(seconds, self.remaining()))
+
+
+def post_failure_diagnostic(host, p, arm, h, port, fwd, procs, primary):
+    """At most once per arm, after the primary failure is classified. Runs only while the full watchdog and every owned
+    identity still hold; the watchdog keeps running during it. Writes only h["post_failure_diagnostic"]: never the
+    outcome, requests or samples."""
+    if not p.get("post_failure_diagnostic") or "post_failure_diagnostic" in h:
+        return
+    rec = h["post_failure_diagnostic"] = {"label": DIAG_LABEL, "ran": False}
+    real_host, t0, pr = host, host.now(), None
+    try:
+        d = p["post_failure_diagnostic"]
+        bad = diag_config_problems(p)
+        if not bad:
+            host = DiagnosticDeadlineHost(host, min(t0 + d["hold_sec"], h["wall_deadline"]))
+            if host.sha256(d["client"]) != p["client_sha256"]:
+                bad = ["diagnostic client identity changed since plan"]
+        if bad:
+            rec["skipped"] = "config: " + "; ".join(bad)
+            return
+        if not any(r["verdict"] == "attested" for r in primary):
+            rec["skipped"] = "primary_not_attested"   # a quote rejection is not followed by another attestation
+            return
+        if fwd.poll() is not None:
+            rec["skipped"] = "fwd_exited"
+            return
+        why = guard(host, p, h)
+        if why:
+            rec["skipped"] = "unsafe: " + why
+            return
+        rec["before"] = diag_snapshot(host, arm, h)
+        until = min(host.now() + d["request_sec"], host.deadline)
+        hold_host = host
+        host = DiagnosticDeadlineHost(real_host, until)
+        out = os.path.join(p["out"], f"diag-{arm['seq']}.out")
+        pr = host.popen(diag_argv(p, arm, port), out, err_path=out + ".err")
+        procs.append(pr)
+        rec["ran"], rec["samples"], stop = True, [], None
+        while pr.poll() is None:
+            if host.now() >= until:
+                stop = "diagnostic_timeout"
+                break
+            rec["samples"].append(sample(host, h))
+            stop = guard(host, p, h)
+            if stop:
+                break
+            if host.now() >= until:
+                stop = "diagnostic_timeout"
+                break
+            host.sleep(1)
+        killed = pr.poll() is None
+        if killed:
+            pr.kill()
+        try:
+            pr.wait(timeout=min(CHILD_WAIT, hold_host.remaining()))
+        except subprocess.TimeoutExpired:
+            rec["client_unkillable"] = True   # cleanup's reap tries again
+        raw = real_host.read_head(out, CLIENT_OUT_CAP)
+        r = parse_diag(raw[:CLIENT_OUT_CAP].decode("utf-8", "replace"))
+        r["output_oversize"] = len(raw) > CLIENT_OUT_CAP
+        r["exit"], r["killed_by_harness"] = pr.returncode, killed
+        r["stderr"] = stderr_diag(real_host, out + ".err")
+        rec["result"], rec["stop"], rec["held_s"] = r, stop, host.now() - t0
+        if hold_host.remaining() > 0:
+            rec["after"] = diag_snapshot(hold_host, arm, h)
+        ok = r["status_trusted"] and r["pinned"] and r["status"] == 200 and r["exit"] == 0 and not killed \
+            and not r["output_oversize"]
+        rec["conclusion"] = DIAG_OK_SCOPE if ok else DIAG_INCONCLUSIVE
+    except Stop as e:
+        rec["stop"] = e.reason
+    except Exception as e:  # noqa: BLE001 - a diagnostic that cannot finish is recorded; cleanup still runs
+        rec["error"] = repr(e)
+
+    finally:
+        if pr is not None and pr.poll() is None:
+            pr.kill()
+            try:
+                pr.wait(timeout=0)
+            except subprocess.TimeoutExpired:
+                rec["client_reap_pending"] = True  # owned cleanup handles this next
+        rec["held_s"] = real_host.now() - t0
 
 
 def run_step(host, p, arm, port, step, h, procs, tag):
@@ -1404,6 +1647,7 @@ def run_arm(host, p, arm, total_deadline):
                     h["first_probe_s"] = host.now() - t_boot
                 if not all(r["ok"] for r in res):
                     h["outcome"], h["failure_evidence"] = classify_failure(host, arm, step, res)
+                    post_failure_diagnostic(host, p, arm, h, box["port"], fwd, procs, res)
                     return h
         h["outcome"] = "success"
         return h
@@ -1522,6 +1766,8 @@ def main(argv=None, host=None):
     p.add_argument("--soak", action="store_true")
     p.add_argument("--experimental-firmware", help="opt-in NEW benchmark firmware path; needs the sha256 flag too")
     p.add_argument("--experimental-firmware-sha256", help="root-approved sha256 of --experimental-firmware")
+    p.add_argument("--post-failure-diagnostic", action="store_true",
+                   help="after an arm's first application failure, one attested GET /ping (POSTFAIL.md)")
     e = sub.add_parser("execute")
     e.add_argument("--plan", required=True)
     e.add_argument("--approve-plan-sha256", required=True)
