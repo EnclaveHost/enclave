@@ -39,10 +39,12 @@ during this run. Never merge this capsule into main.
    It must be new; refuse to overwrite an existing environment. Install only
    `REAPER_AGE_IDENTITY` via stdin, never argv. This workflow does not reference
    other repository/organization/environment secrets. Token permissions: contents read.
-5. Create one draft release tagged `reaper-input-20261028-<12 random hex>` targeting
+5. Create one published prerelease tagged `reaper-input-20261028-<12 random hex>` targeting
    the reviewed source SHA. Only asset: encrypted `input.tar.age`. No CPU release tag.
    Before creation, review default-branch workflow events for draft/release/tag hooks.
-   Record exact environment ID, release ID, asset ID, source SHA and tag before continuing.
+   Set draft:false, prerelease:true and make_latest:false. Record exact environment ID,
+   release ID, asset ID, source SHA and tag before continuing. Verify an independent
+   anonymous streaming download matches the ciphertext hash before any build dispatch.
 6. Install the owned-resource cleanup fallback before dispatch: a persistent user
    systemd OnCalendar timer at createdAt+23 hours, invoking `cleanup-transport.py STATE
    --expired`; its service retries failures every five minutes. No host/VM restart.
@@ -51,7 +53,7 @@ during this run. Never merge this capsule into main.
    coordinating chat retain the public state path for manual fallback. Artifacts also
    expire after one day. This is cleanup, not a production monitor.
 7. Dispatch the reviewed workflow. Pass only public inputs: immutable source SHA,
-   environment name, asset ID, ciphertext hash, public age recipient, and expiry <=24h. Record run ID
+   environment name, input tag, ciphertext hash, public age recipient, and expiry <=24h. Record run ID
    immediately. Verify head SHA/branch/workflow/environment and GitHub-hosted runner.
 8. Retrieve ciphertext and nonsecret diagnostics. Verify ciphertext hash, decrypt
    through an identity file/FD, verify plaintext tar SHA and each candidate file hash.

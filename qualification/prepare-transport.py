@@ -47,19 +47,23 @@ assert api('git/ref/heads/'+s['branch'])['object']['sha']==commit
 # Record the actual remote default-branch workflow events before any release creation.
 # Reject release/create/delete/workflow_run event handlers; no ad-hoc production hooks.
 import base64
-repo=api(''); assert repo['default_branch']=='main'
-main_sha=api('git/ref/heads/main')['object']['sha']
-workflow_review={'defaultBranch':'main','commit':main_sha,'reviewedAt':int(time.time()),'files':[]}
-for entry in api('contents/.github/workflows?ref='+main_sha):
-    if not entry['name'].endswith(('.yml','.yaml')): continue
-    source=api('contents/.github/workflows/'+entry['name']+'?ref='+main_sha)
-    body=base64.b64decode(source['content']).decode()
-    match=re.search(r'^on:\s*\n((?:[ \t].*\n|\s*\n)*)',body,re.M)
-    assert match, 'unrecognized workflow event syntax requires manual review'
-    events=match.group(1)
-    assert not re.search(r'^  (release|create|delete|workflow_run):',events,re.M), 'unexpected remote workflow hook'
-    workflow_review['files'].append({'path':entry['path'],'gitBlobSha':source['sha'],
-                                    'sha256':hashlib.sha256(body.encode()).hexdigest(),'eventBlock':events})
+def review_default_workflows():
+    repo=api(''); assert repo['default_branch']=='main'
+    main_sha=api('git/ref/heads/main')['object']['sha']
+    workflow_review={'defaultBranch':'main','commit':main_sha,'reviewedAt':int(time.time()),'files':[]}
+    for entry in api('contents/.github/workflows?ref='+main_sha):
+        if not entry['name'].endswith(('.yml','.yaml')): continue
+        source=api('contents/.github/workflows/'+entry['name']+'?ref='+main_sha)
+        body=base64.b64decode(source['content']).decode()
+        match=re.search(r'^on:\s*\n((?:[ \t].*\n|\s*\n)*)',body,re.M)
+        assert match, 'unrecognized workflow event syntax requires manual review'
+        events=match.group(1)
+        assert not re.search(r'^  (release|create|delete|workflow_run):',events,re.M), 'unexpected remote workflow hook'
+        workflow_review['files'].append({'path':entry['path'],'gitBlobSha':source['sha'],
+                                        'sha256':hashlib.sha256(body.encode()).hexdigest(),'eventBlock':events})
+    return workflow_review
+workflow_review=review_default_workflows()
+main_sha=workflow_review['commit']
 s['defaultBranchWorkflowReview']=workflow_review; save()
 
 # Exact persistent fallback files are generated from this reviewed source.
@@ -127,18 +131,36 @@ try:
     policies=api('environments/'+s['environment']+'/deployment-branch-policies')['branch_policies']
     assert len(policies)==1 and policies[0]['name']==s['branch'] and policies[0]['type']=='branch'
     gh(['secret','set','REAPER_AGE_IDENTITY','--repo',s['repository'],'--env',s['environment']],identity.read_bytes())
-    assert api('git/ref/heads/main')['object']['sha']==main_sha, 'default branch changed since event review'
+    s['prePublicationWorkflowReview']=review_default_workflows()
+    assert s['prePublicationWorkflowReview']['commit']==main_sha, 'default branch changed since event review'
+    save()
     s['releaseCreateIntent']={'at':int(time.time()),'tag':tag,'sourceSha':commit,
+        'name':'Temporary encrypted reaper build input','draft':False,'prerelease':True,
         'body':'Ciphertext-only reaper transport '+tag+' at '+commit+'. Expires within 24 hours. Not a CPU or application release.'}
     save()
-    release=api('releases','POST',{'tag_name':tag,'target_commitish':commit,'name':'Temporary encrypted reaper build input',
+    release=api('releases','POST',{'tag_name':tag,'target_commitish':commit,'name':s['releaseCreateIntent']['name'],
        'body':s['releaseCreateIntent']['body'],
-       'draft':True,'prerelease':True,'generate_release_notes':False})
+       'draft':False,'prerelease':True,'make_latest':'false','generate_release_notes':False})
     s['releaseId']=release['id']; save()
     gh(['release','upload',tag,str(encrypted),'--repo',s['repository']])
     assets=api('releases/'+str(s['releaseId'])+'/assets')
     assert len(assets)==1 and assets[0]['name']=='input.tar.age'
     s['assetId']=assets[0]['id']; save()
+    expected_url='https://github.com/EnclaveHost/enclave/releases/download/'+tag+'/input.tar.age'
+    assert assets[0]['browser_download_url']==expected_url
+    # Independent anonymous streaming read before any second build: no auth header,
+    # bounded buffers/bytes/time, and no local second copy of the ciphertext.
+    h=hashlib.sha256(); size=0; started=time.monotonic()
+    with urllib.request.urlopen(expected_url,timeout=30) as response:
+        while True:
+            chunk=response.read(1024*1024)
+            if not chunk: break
+            size+=len(chunk); assert size<=encrypted.stat().st_size
+            assert time.monotonic()-started<180, 'anonymous transfer verification timeout'
+            h.update(chunk)
+    assert size==encrypted.stat().st_size and h.hexdigest()==s['inputSha256']
+    s['anonymousRetrieval']={'url':expected_url,'bytes':size,'sha256':h.hexdigest(),'verifiedAt':int(time.time())}
+    save()
 except BaseException:
     # Preserve nonsecret state on any ambiguous failure; fallback identity-checks before deletion.
     subprocess.run([sys.executable,str(root/'qualification/cleanup-transport.py'),str(state)],check=False)

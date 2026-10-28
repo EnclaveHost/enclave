@@ -16,7 +16,7 @@ trap cleanup EXIT
 [[ $GITHUB_REF == refs/heads/build/lease-reaper-artifact-20261028 ]]
 [[ $EXPECTED_SHA =~ ^[0-9a-f]{40}$ && $GITHUB_SHA == "$EXPECTED_SHA" ]]
 [[ $(git rev-parse HEAD) == "$EXPECTED_SHA" ]]
-[[ $ASSET_ID =~ ^[0-9]+$ && $INPUT_SHA256 =~ ^[0-9a-f]{64}$ ]]
+[[ $INPUT_TAG =~ ^reaper-input-20261028-[0-9a-f]{12}$ && $INPUT_SHA256 =~ ^[0-9a-f]{64}$ ]]
 [[ $ENVIRONMENT_NAME =~ ^reaper-artifact-20261028-[0-9a-f]{12}$ ]]
 [[ $AGE_RECIPIENT =~ ^age1[0-9a-z]{58}$ ]]
 [[ $TRANSPORT_EXPIRES =~ ^[0-9]{10}$ ]]
@@ -34,9 +34,7 @@ printf '%s  %s\n' cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac
 tar -xzf "$scratch/age.tar.gz" -C "$scratch" age/age age/age-keygen
 [[ $("$scratch/age/age-keygen" -y /dev/fd/3 3<<<"$AGE_IDENTITY") == "$AGE_RECIPIENT" ]]
 curl --fail --silent --show-error --location --max-time 180 \
-  -H 'Accept: application/octet-stream' -H "Authorization: Bearer $GH_TOKEN" \
-  "https://api.github.com/repos/EnclaveHost/enclave/releases/assets/$ASSET_ID" -o "$scratch/input.age"
-unset GH_TOKEN
+  "https://github.com/EnclaveHost/enclave/releases/download/$INPUT_TAG/input.tar.age" -o "$scratch/input.age"
 printf '%s  %s\n' "$INPUT_SHA256" "$scratch/input.age" | sha256sum -c -
 "$scratch/age/age" -d -i /dev/fd/3 -o "$scratch/input.tar" "$scratch/input.age" 3<<<"$AGE_IDENTITY"
 unset AGE_IDENTITY

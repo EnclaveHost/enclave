@@ -8,8 +8,8 @@ on:
       environment:
         description: Exact task-owned temporary environment
         required: true
-      asset_id:
-        description: Owned draft release encrypted input asset ID
+      input_tag:
+        description: Owned prerelease tag for encrypted input
         required: true
       input_sha256:
         description: SHA256 of encrypted input
@@ -38,10 +38,9 @@ jobs:
           persist-credentials: false
       - name: Bounded offline overlay build with encrypted transport
         env:
-          GH_TOKEN: ${{ github.token }}
           AGE_IDENTITY: ${{ secrets.REAPER_AGE_IDENTITY }}
           EXPECTED_SHA: ${{ inputs.expected_sha }}
-          ASSET_ID: ${{ inputs.asset_id }}
+          INPUT_TAG: ${{ inputs.input_tag }}
           INPUT_SHA256: ${{ inputs.input_sha256 }}
           AGE_RECIPIENT: ${{ inputs.recipient }}
           TRANSPORT_EXPIRES: ${{ inputs.transport_expires }}

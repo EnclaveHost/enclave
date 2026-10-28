@@ -47,9 +47,11 @@ class CleanupLifetime(unittest.TestCase):
                    'localTransportDirectory':str(local),'environmentId':None,'releaseId':None,'runId':None,
                    'environmentCreateIntent':{'at':now-120,'name':env,'sourceSha':sha,
                          'policy':{'protected_branches':False,'custom_branch_policies':True}},
-                   'releaseCreateIntent':{'at':now-120,'tag':tag,'sourceSha':sha,'body':'exact owned intent'}}
+                   'releaseCreateIntent':{'at':now-120,'tag':tag,'sourceSha':sha,'body':'exact owned intent',
+                         'draft':False,'prerelease':True,'name':'Temporary encrypted reaper build input'}}
             environment={'id':7,'name':env,'created_at':stamp,'deployment_branch_policy':state['environmentCreateIntent']['policy']}
-            release={'id':9,'tag_name':tag,'draft':True,'target_commitish':sha,'body':'exact owned intent','created_at':stamp,'assets':[]}
+            release={'id':9,'tag_name':tag,'draft':False,'prerelease':True,'name':'Temporary encrypted reaper build input',
+                     'target_commitish':sha,'body':'exact owned intent','created_at':stamp,'assets':[]}
             routes={'GET releases?per_page=100&page=1':{'value':[]}}
             scenario(state,routes,environment,release)
             statefile=root/'state.json'; statefile.write_text(json.dumps(state))
@@ -96,6 +98,10 @@ print(json.dumps(r.get('value',{})))
         self.assertEqual(rc,0); self.assertFalse(exists); self.assertEqual(s['releaseId'],9); self.assertIn('DELETE releases/9',calls)
     def test_unrelated_release_refused(self):
         def setup(s,r,e,a): a['body']='another intent'; r['GET releases?per_page=100&page=1']={'value':[a]}
+        rc,exists,calls,s=self.run_case(setup)
+        self.assertNotEqual(rc,0); self.assertFalse(exists); self.assertNotIn('DELETE releases/',calls)
+    def test_regular_release_refused(self):
+        def setup(s,r,e,a): a['prerelease']=False; r['GET releases?per_page=100&page=1']={'value':[a]}
         rc,exists,calls,s=self.run_case(setup)
         self.assertNotEqual(rc,0); self.assertFalse(exists); self.assertNotIn('DELETE releases/',calls)
     def test_replaced_environment_refused(self):
