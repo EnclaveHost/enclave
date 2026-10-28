@@ -1,0 +1,21 @@
+RUN ['/home/steven/.foundry/bin/forge', 'build', '--offline']
+No files changed, compilation skipped
+RUN ['python3', 'prepare.py']
+prepare.py: wrote native-host-candidate/generated/FIXTURE-STAGING.json sha256 327b5abe5d7ef1d3b8a6f19ace15b1cda41343b3abe9555eb77afa4490f046b1
+RUN ['node', 'test/native-host.test.mjs']
+TAP version 13
+# Subtest: native P-256 gas.fund through the composed host's HTTP handle on an owned Anvil
+ok 1 - native P-256 gas.fund through the composed host's HTTP handle on an owned Anvil
+  ---
+  duration_ms: 1985.74449
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1990.238892

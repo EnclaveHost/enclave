@@ -1,0 +1,17 @@
+{
+  "observedAt": "2026-10-28T15:51Z",
+  "host": "controlVM 172.17.28.159 via minipc",
+  "service": "enclave-api-relay.service",
+  "active": true,
+  "pid": 228946,
+  "workingDirectory": "/opt/nan-relay",
+  "sha256": {
+    "sessions.mjs": "457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d",
+    "sessions-abi.mjs": "e9c2464c529d0665e4b2e38bdaa0bf8c703346f046b85521aba755bfc1b2a0a6",
+    "api-relay.js": "481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d",
+    "store.js": "12157d8ccf8b1ec4ffd4d0af9b5b846650ec20aac748bcc51ad087e119922dcd",
+    "snp-verify.mjs": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91"
+  },
+  "preserve": "all systemd/env/admin files; API and SNP sources differ from checkout and must not be replaced wholesale",
+  "mutation": false
+}
