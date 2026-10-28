@@ -1,0 +1,202 @@
+{
+  "endpoint": "tunnel://metal0",
+  "id": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+  "name": "metal0",
+  "repo": "EnclaveHost/enclave",
+  "lastSeen": 1793156115,
+  "tunnel": true,
+  "mode": "snp",
+  "publicUrl": "https://api.enclave.host/t/metal0",
+  "attach": "attestation",
+  "measurement": "ed918e4b393699b3f6251853d2d34317869d7d9e3150b41ffa917df3d392012c682f376a799494d01e6a6dd5bedd2ac2",
+  "payoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+  "caps": 0,
+  "region": null,
+  "availability": {
+    "gpu": true,
+    "type": "gpu",
+    "teeCpu": "amd-sev-snp",
+    "gpuShareFree": 1,
+    "cpuShareFree": 0.72,
+    "usedGpuShare": 0,
+    "usedCpuShare": 0.28,
+    "maxShare": 1,
+    "vcpusFree": 17.3,
+    "ramGbFree": 69.1,
+    "cpuGflopsFree": 389,
+    "nodeVcpus": 24,
+    "nodeRamGb": 96,
+    "nodeGflops": 540,
+    "smFree": 152,
+    "smTotal": 152,
+    "vramFreeGb": 62,
+    "gpuTflopsFree": 214.7,
+    "cardVramGb": 62,
+    "cardTflops": 214.7,
+    "cards": 1,
+    "gpuPool": "layers",
+    "physicalGpuCount": 2,
+    "cardVramSource": "shielded-probe",
+    "shielded": {
+      "pooled": true,
+      "mode": "layers",
+      "card": "GPU",
+      "cardCount": 2,
+      "vramGb": 62,
+      "vramBudgetGb": 62,
+      "vramFreeGb": 62,
+      "vramReservedGb": 0,
+      "cardTflops": 214.7,
+      "smCount": 152,
+      "pricePerSec6": 1667,
+      "pricing": {
+        "tflopUsdHr": 0,
+        "vramGiBUsdHr": 0.09679354838709678
+      },
+      "endpoint": "10.0.2.2:9501",
+      "available": true
+    },
+    "shieldedCards": [
+      {
+        "id": 0,
+        "deviceUuid": "",
+        "card": "Tesla PG500-216",
+        "vramGb": 31.73,
+        "vramFreeGb": 31,
+        "vramBudgetGb": 31,
+        "vramReservedGb": 0,
+        "gmacPerSec": 2763.6,
+        "cardTflops": 101.7,
+        "smCount": 72,
+        "computeShare": 1,
+        "capability": "7.0",
+        "roundTripMs": 0.253,
+        "verifiedAt": "2026-10-28T02:55:42.214Z",
+        "endpoint": "10.0.2.2:9501",
+        "vsockPort": 9501,
+        "pricePerSec6": 0,
+        "tenantEnv": {},
+        "gpuShareFree": 1
+      },
+      {
+        "id": 1,
+        "deviceUuid": "",
+        "card": "Tesla V100-PCIE-32GB",
+        "vramGb": 31.73,
+        "vramFreeGb": 31,
+        "vramBudgetGb": 31,
+        "vramReservedGb": 0,
+        "gmacPerSec": 2553.1,
+        "cardTflops": 113,
+        "smCount": 80,
+        "computeShare": 1,
+        "capability": "7.0",
+        "roundTripMs": 0.169,
+        "verifiedAt": "2026-10-28T02:55:42.215Z",
+        "endpoint": "10.0.2.2:9502",
+        "vsockPort": 9502,
+        "pricePerSec6": 0,
+        "tenantEnv": {},
+        "gpuShareFree": 1
+      }
+    ],
+    "askShieldedPricePerSec6": 1667,
+    "networkOptions": true,
+    "waf": false,
+    "configOverride": false,
+    "configEdit": false,
+    "shareResize": false,
+    "cpuFallback": true,
+    "gpuOptional": false,
+    "secrets": false,
+    "secretsInConfig": false,
+    "customDomains": false,
+    "devDeploy": false,
+    "rateCap": true,
+    "selfHostFree": true,
+    "payoutWallet": null,
+    "proofOfTime": false,
+    "askCpuPricePerSec6": 834,
+    "askGpuPricePerSec6": 1667,
+    "claimEnabled": false,
+    "isolation": "snp-guest-per-app",
+    "fullService": false,
+    "guestPool": {
+      "heard": true,
+      "budget": {
+        "memMiB": 98304,
+        "cpuPct": 2400
+      },
+      "allocated": {
+        "memMiB": 0,
+        "cpuPct": 0
+      },
+      "free": {
+        "memMiB": 98304,
+        "cpuPct": 2400
+      },
+      "guests": 0,
+      "overcommitted": false,
+      "perGuest": {
+        "floorMiB": 1024,
+        "runtimeMiB": 384,
+        "unitOverheadMiB": 768
+      },
+      "host": {
+        "floorMiB": 18432,
+        "admitsSmallestGuest": true
+      },
+      "basis": "allocated = the reservations of the guests guestd holds (each unit's MemoryMax and CPUQuota), not observed use",
+      "pricing": "CPU share bounds app RAM as a fraction of this pool; platform overhead is reserved separately"
+    },
+    "source": "vmmanager",
+    "updatedAt": "2026-10-28T02:56:20.832Z",
+    "set": true,
+    "mem64": true,
+    "configCid": true,
+    "configCidOverride": true,
+    "volumes": [
+      {
+        "backend": "ggml",
+        "bytes": 17559178144,
+        "minimumGpuMilli": 500,
+        "name": "qwen3.8-27b-mtp-q4-vl-gguf"
+      },
+      {
+        "backend": "sd",
+        "bytes": 7814118248,
+        "minimumGpuMilli": 200,
+        "name": "z-image-turbo-q4km-sd"
+      }
+    ],
+    "instanceSweep": {
+      "at": "2026-10-28T02:56:12.693Z",
+      "ok": true,
+      "reason": "per-app guest tier: no reaping before the claim loop's first pass",
+      "seen": 0,
+      "orphans": 0,
+      "reaped": 0
+    },
+    "ledgerSync": {
+      "at": null,
+      "mode": null,
+      "why": null,
+      "rows": 0,
+      "dirty": 0,
+      "logs": 0,
+      "error": null,
+      "cursor": null,
+      "lastFullAt": null
+    },
+    "tenantVouch": {
+      "at": "2026-10-28T02:56:12.690Z",
+      "ok": null,
+      "vouched": 0,
+      "reason": "withheld until the claim sweep has read this host's own leases"
+    }
+  },
+  "relay": false,
+  "checkedAt": "2026-10-28T02:56:22.155Z",
+  "serving": false,
+  "eligible": true
+}

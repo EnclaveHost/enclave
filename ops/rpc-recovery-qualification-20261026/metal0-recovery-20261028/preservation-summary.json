@@ -1,0 +1,22 @@
+{
+  "time": "2026-10-28T02:53:17.734758+00:00",
+  "verifiedFiles": 43,
+  "verifiedBytes": 845103625,
+  "padLinks": [
+    {
+      "source": "/vm/enclave-volumes/.shield-pads/gdf2432626.padbank",
+      "preserved": "/vm/enclave-volumes/metal0-recovery-20261028/gdf2432626.padbank",
+      "inode": 148242435,
+      "bytes": 549755813888,
+      "links": 2
+    },
+    {
+      "source": "/vm/enclave-volumes/.shield-pads/gd125fa739.padbank",
+      "preserved": "/vm/enclave-volumes/metal0-recovery-20261028/gd125fa739.padbank",
+      "inode": 148242434,
+      "bytes": 206158430208,
+      "links": 2
+    }
+  ],
+  "limitations": "Pad hardlinks protect unlink only; no old volatile keys recovered. Private settings are not public evidence."
+}

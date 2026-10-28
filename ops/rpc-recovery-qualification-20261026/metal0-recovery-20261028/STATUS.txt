@@ -1,0 +1,53 @@
+Metal0 recovery — October 28, 2026 UTC
+
+The user explicitly requested restoring Metal0 ASAP. The original controller,
+network agent and guestd are running. Both GPU selftests passed and the relay
+accepted fresh SNP attestation. The public listing contains metal0, but marks
+it serving=false: registration fails because the operator lacks ETH. No app
+has been claimed or cold-started yet. This is partial recovery.
+
+Preservation and storage
+43 files totaling 845,103,625 bytes were copied and hash-verified before guestd
+startup. Private originals and configuration backups are under:
+/home/steven/enclave-prod/metal0-recovery-20261028
+Both original pad inodes are preserved by same-filesystem hard links under:
+/vm/enclave-volumes/metal0-recovery-20261028
+Hard links protect against unlink only, not in-place writes or disk failure.
+No lost volatile encryption keys were recovered. Old pads must never be reused.
+
+Fresh pads use /home/steven/enclave-prod/shield-pads-metal0-recovery-20261028
+on encrypted cryptroot. The configured maximum is 512+192 GiB. Starting with
+approximately 1.014 TB free leaves about 257 GB after full growth, above the
+48 GiB root reserve. Existing model files and old T710 pads are unchanged.
+The new zzzzzzz-recovery-pad-location.conf overrides only SHIELDED_PAD_BANK_DIR.
+
+Configuration repairs
+The network agent referenced a Turin certificate in a deleted checkout.
+Only linux.certChainFile changed to the installed iso-sdshield-1c3cdbb8 copy.
+Its SHA256 is cc9a52fbed3fbc6e4a0a50149a541a75938f975658909c2a6084767829b36e85,
+matching the other installed copies. No verification check was bypassed.
+
+In guestd's zzzzzz-zimage.conf, host and preemptible admission floors and the
+preemption threshold are now 18432 MiB. This preserves the user's 16 GiB host
+reserve plus overhead margin. The first attempt set preemptible admission
+above the unchanged host floor and correctly refused to start; both were
+corrected before Metal0 startup. Runtime, release and admission pins are intact.
+
+Funding blocker
+Two RPCs agree on operator 0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB:
+balance 553327348199 wei, pending nonce 23772. Its EIP-7702 lease delegation
+rejects plain ETH transfers. The existing read-only maintenance observer finds
+the sponsor funded and pair fee bound 1068451117381 wei below the 2e12 cap,
+but both protected leases expired and its 1200-second lease guard fails.
+The October24 approval expired. No new funding, delegation or claim transaction
+was authorized or sent here. Do not reuse old journals or waive the old live-VM
+and lease requirements; a reviewed cold-recovery proposal is still needed.
+
+Rollback and coordination
+Keep the new pad location while any fresh guest uses it. Removing the override
+only affects later launches. Original settings are in the private backup above.
+Reverting the certificate path restores a known failure; leave the valid path.
+Do not restore the old 8 GiB preemptible floor against the user's 16 GiB reserve.
+Stop only the controller when necessary; preserve independent tenant guests.
+The 64 GiB RPC VM remains OFF. KVM and snapshot owners hold local/native tests
+while recovery takes priority; remote CI and source-only work may continue.

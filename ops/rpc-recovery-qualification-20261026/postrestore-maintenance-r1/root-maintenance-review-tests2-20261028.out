@@ -1,0 +1,54 @@
+[queue] START available=94743MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+Running as unit: enclave-rpc-maintenance-tests2-20261028.service
+test_chain_uuid_or_second_disk_refuses_before_changes (test_root_maintenance.Guest.test_chain_uuid_or_second_disk_refuses_before_changes) ... ok
+test_fragment_drift_refuses_without_moving_files (test_root_maintenance.Guest.test_fragment_drift_refuses_without_moving_files) ... ok
+test_full_mask_preserves_originals_and_removes_enablement (test_root_maintenance.Guest.test_full_mask_preserves_originals_and_removes_enablement) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1/guest_mask.py:136: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmprbiu9xpn/var/lib/enclave-rpc-maint/20261028T020000Z-abcdef/enclave-rpc-base-snapshot.service'>
+  hashlib.sha256(open(kept, 'rb').read()).hexdigest() == UNITS[u])
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1/guest_mask.py:136: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmprbiu9xpn/var/lib/enclave-rpc-maint/20261028T020000Z-abcdef/enclave-rpc-l1-snapshot.service'>
+  hashlib.sha256(open(kept, 'rb').read()).hexdigest() == UNITS[u])
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1/guest_mask.py:136: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmprbiu9xpn/var/lib/enclave-rpc-maint/20261028T020000Z-abcdef/enclave-base-retention.service'>
+  hashlib.sha256(open(kept, 'rb').read()).hexdigest() == UNITS[u])
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1/guest_mask.py:136: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmprbiu9xpn/var/lib/enclave-rpc-maint/20261028T020000Z-abcdef/enclave-base-holder.path'>
+  hashlib.sha256(open(kept, 'rb').read()).hexdigest() == UNITS[u])
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1/guest_mask.py:136: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmprbiu9xpn/var/lib/enclave-rpc-maint/20261028T020000Z-abcdef/enclave-base-holder.service'>
+  hashlib.sha256(open(kept, 'rb').read()).hexdigest() == UNITS[u])
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1/guest_mask.py:136: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmprbiu9xpn/var/lib/enclave-rpc-maint/20261028T020000Z-abcdef/enclave-l1-el.path'>
+  hashlib.sha256(open(kept, 'rb').read()).hexdigest() == UNITS[u])
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1/guest_mask.py:136: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmprbiu9xpn/var/lib/enclave-rpc-maint/20261028T020000Z-abcdef/enclave-l1-el.service'>
+  hashlib.sha256(open(kept, 'rb').read()).hexdigest() == UNITS[u])
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1/guest_mask.py:136: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/tmprbiu9xpn/var/lib/enclave-rpc-maint/20261028T020000Z-abcdef/enclave-l1-cl.service'>
+  hashlib.sha256(open(kept, 'rb').read()).hexdigest() == UNITS[u])
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_active_production_refused (test_root_maintenance.Host.test_active_production_refused) ... ok
+test_backup_failure_never_writes_prepared_or_launches (test_root_maintenance.Host.test_backup_failure_never_writes_prepared_or_launches) ... ok
+test_cleanup_cannot_stop_foreign_invocation (test_root_maintenance.Host.test_cleanup_cannot_stop_foreign_invocation) ... ok
+test_launcher_pin_drift_refused (test_root_maintenance.Host.test_launcher_pin_drift_refused) ... ok
+test_no_guest_shutdown_event_is_not_success (test_root_maintenance.Host.test_no_guest_shutdown_event_is_not_success) ... ok
+test_os_inode_drift_and_symlink_refused (test_root_maintenance.Host.test_os_inode_drift_and_symlink_refused) ... ok
+test_powerdown_requires_event_exit_and_inactive_unit (test_root_maintenance.Host.test_powerdown_requires_event_exit_and_inactive_unit) ... ok
+test_real_pinned_render_has_only_os_and_readonly_seed (test_root_maintenance.Host.test_real_pinned_render_has_only_os_and_readonly_seed) ... ok
+test_rejects_chain_disk_public_forward_extra_device_and_ram_drift (test_root_maintenance.Host.test_rejects_chain_disk_public_forward_extra_device_and_ram_drift) ... ok
+test_sparse_copy_hash_readback_and_timeout (test_root_maintenance.Host.test_sparse_copy_hash_readback_and_timeout) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.104s
+
+OK
+{"error": "Die: enclave-rpc-base-snapshot.service sha256 8be77b518cf3368d07bc98182a564c62ee86a35ae31423ba6bf9727a85562417 is not the inventoried f7a193f1f50ab147aa15d33cb7de9fbddc1ad0c01c244ffef852b417551950f4 (identity drift); nothing changed", "moved": [], "ok": false}
+{"keptIn": "/var/lib/enclave-rpc-maint/20261028T020000Z-abcdef", "moved": ["enclave-rpc-base-snapshot.service", "enclave-rpc-l1-snapshot.service", "enclave-base-retention.service", "enclave-base-holder.path", "enclave-base-holder.service", "enclave-l1-el.path", "enclave-l1-el.service", "enclave-l1-cl.service"], "ok": true, "plan": {"enclave-base-holder.path": "move", "enclave-base-holder.service": "move", "enclave-base-retention.service": "move", "enclave-l1-cl.service": "move", "enclave-l1-el.path": "move", "enclave-l1-el.service": "move", "enclave-rpc-base-snapshot.service": "move", "enclave-rpc-l1-snapshot.service": "move"}, "stoppedWatchers": [], "verified": {"enclave-base-holder.path": true, "enclave-base-holder.service": true, "enclave-base-retention.service": true, "enclave-l1-cl.service": true, "enclave-l1-el.path": true, "enclave-l1-el.service": true, "enclave-rpc-base-snapshot.service": true, "enclave-rpc-l1-snapshot.service": true}}
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 216ms
+             CPU time consumed: 198ms
+                   Memory peak: 33.1M (swap: 0B)
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[queue] EXIT 0
