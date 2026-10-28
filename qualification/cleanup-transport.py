@@ -93,7 +93,7 @@ if release:
     assert intent['draft'] is False and intent['prerelease'] is True
     assert release['name']==intent['name']=='Temporary encrypted reaper build input'
     assert release['target_commitish']==s['sourceSha'] and release['body']==intent['body']
-    created_during_intent(release['created_at'],intent)
+    created_during_intent(release['published_at'],intent)
     if s.get('releaseId') is None:
         # Upload cannot have begun before releaseId was saved.
         assert release['assets']==[]

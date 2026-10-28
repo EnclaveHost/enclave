@@ -51,7 +51,7 @@ class CleanupLifetime(unittest.TestCase):
                          'draft':False,'prerelease':True,'name':'Temporary encrypted reaper build input'}}
             environment={'id':7,'name':env,'created_at':stamp,'deployment_branch_policy':state['environmentCreateIntent']['policy']}
             release={'id':9,'tag_name':tag,'draft':False,'prerelease':True,'name':'Temporary encrypted reaper build input',
-                     'target_commitish':sha,'body':'exact owned intent','created_at':stamp,'assets':[]}
+                     'target_commitish':sha,'body':'exact owned intent','created_at':stamp,'published_at':stamp,'assets':[]}
             routes={'GET releases?per_page=100&page=1':{'value':[]}}
             scenario(state,routes,environment,release)
             statefile=root/'state.json'; statefile.write_text(json.dumps(state))
@@ -102,6 +102,17 @@ print(json.dumps(r.get('value',{})))
         self.assertNotEqual(rc,0); self.assertFalse(exists); self.assertNotIn('DELETE releases/',calls)
     def test_regular_release_refused(self):
         def setup(s,r,e,a): a['prerelease']=False; r['GET releases?per_page=100&page=1']={'value':[a]}
+        rc,exists,calls,s=self.run_case(setup)
+        self.assertNotEqual(rc,0); self.assertFalse(exists); self.assertNotIn('DELETE releases/',calls)
+    def test_release_commit_date_can_precede_publication_intent(self):
+        def setup(s,r,e,a):
+            a['created_at']='2020-01-01T00:00:00Z'
+            r['GET releases?per_page=100&page=1']={'value':[a]}; r['DELETE releases/9']={'value':{}}
+        rc,exists,calls,s=self.run_case(setup)
+        self.assertEqual(rc,0); self.assertFalse(exists); self.assertIn('DELETE releases/9',calls)
+    def test_release_published_outside_intent_refused(self):
+        def setup(s,r,e,a):
+            a['published_at']='2020-01-01T00:00:00Z'; r['GET releases?per_page=100&page=1']={'value':[a]}
         rc,exists,calls,s=self.run_case(setup)
         self.assertNotEqual(rc,0); self.assertFalse(exists); self.assertNotIn('DELETE releases/',calls)
     def test_replaced_environment_refused(self):

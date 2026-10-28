@@ -47,15 +47,33 @@ node_image=node:22-bookworm@sha256:94c973596a8581a87ba42746ceb0b0e0b5246d098de45
 python_image=python:3.12-bookworm@sha256:034c3e9d991f148d14c32ff8350286b91420baca7757d37819c7a9cc771317a0
 docker pull "$node_image"
 docker pull "$python_image"
-limits=(--cpus=1 --memory=512m --memory-swap=512m --pids-limit=128 --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs /tmp:rw,nosuid,nodev,size=32m)
+limits=(--user="$(id -u):$(id -g)" -e HOME=/tmp --cpus=1 --memory=512m --memory-swap=512m --pids-limit=128 --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs /tmp:rw,nosuid,nodev,size=32m)
 docker run --rm --name reaper-deps "${limits[@]}" \
-  -v "$scratch/deps:/deps" -w /deps "$node_image" \
-  npm ci --omit=dev --ignore-scripts --no-audit --no-fund --cache /tmp/npm
+  -e REAPER_EXPECTED_UID="$(id -u)" -v "$scratch/deps:/deps" -w /deps "$node_image" \
+  node --input-type=module -e '
+    import fs from "node:fs";
+    import assert from "node:assert/strict";
+    import {spawnSync} from "node:child_process";
+    assert.equal(process.getuid(),Number(process.env.REAPER_EXPECTED_UID),"container UID mismatch");
+    const files=["package.json","package-lock.json"].map(name=>{
+      fs.accessSync(name,fs.constants.R_OK);
+      const stat=fs.statSync(name), data=JSON.parse(fs.readFileSync(name,"utf8"));
+      assert.equal(stat.uid,process.getuid(),"input owner mismatch");
+      if(name==="package-lock.json") assert.ok(data.lockfileVersion>=1,"missing lockfile version");
+      return {name,uid:stat.uid,mode:(stat.mode&511).toString(8),lockfileVersion:data.lockfileVersion};
+    });
+    fs.writeFileSync(".permission-probe","public permission probe",{flag:"wx",mode:384});
+    fs.unlinkSync(".permission-probe");
+    console.log(JSON.stringify({preflight:"passed",uid:process.getuid(),files,writeDeps:true}));
+    const result=spawnSync("npm",["ci","--omit=dev","--ignore-scripts","--no-audit","--no-fund","--cache","/tmp/npm"],{stdio:"inherit"});
+    if(result.error) throw result.error;
+    process.exit(result.status ?? 1);
+  ' > "$out/dependencies.log" 2>&1
 docker run --rm --name reaper-test "${limits[@]}" --network=none \
   -v "$repo_root:/src:ro" -v "$scratch/deps/node_modules:/src/node_modules:ro" -w /src "$node_image" \
   node --test --test-timeout=120000 test/lease-expiry-reconcile.test.mjs > "$out/tests.tap" 2>&1
 docker run --rm --name reaper-build "${limits[@]}" --network=none \
-  -e HOME=/tmp -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
+  -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
   -v "$repo_root:/src:ro" -v "$scratch:/scratch" -w /src "$python_image" \
   python3 metal/overlay-control-image.py /scratch/base /scratch/candidate "$EXPECTED_SHA" > "$out/build.log" 2>&1
 docker run --rm --name reaper-verify "${limits[@]}" --network=none \
