@@ -1,0 +1,17 @@
+{
+  "ROOT-REVIEW.md": "a7d733c3625b2d49c07ce6353bfc629cf9d48c7fe86e2d8bba5da64f5aa506ad",
+  "REPORT.md": "7814a216836f07813db801bcfa131a54b3a0dc5e1d69489d46e9a7b6efa365e1",
+  "package.json": "c1119d6b8044911fa335daab774911b03619daf6410a2a58484b8958a0665a95",
+  "root-tests-failed.txt": "4fcda378510e8af7443c28a43506585264f47596e0127ceebf03808b18f6776c",
+  "TASK.txt": "43669fac19ac06a45004265b17c9e09993f06fa6b05dffe2a44182811466f301",
+  "generated/SOURCE-PINS.json": "244a3e53122d90eac0b096232c03e634390dba8eece1b415bf094446fb20b828",
+  "generator/generate.py": "1e8306454791a9792eb4a3de133ba7c842e7bba8731ec164c9a5c13dd344b165",
+  "test/state.test.mjs": "54fa0ea6fb2c23344d469372d9ed2e270c4dc446005166214bff07cb7f1af872",
+  "test/page-source.test.mjs": "85c61a5d891c00522e813b3299fea3930fbef26892c2d87ac71dfdd56e7e59e7",
+  "root-review/generator-failure.txt": "d4aca7518f229446a78f8ccd848e5641ea2e3c50fa72996ad462243e5cd2ab3b",
+  "root-review/generator-regression.py": "aea8d87360b4a5dba8fdb6708b23bdf6b8572211e404754843037aa19d6d9e2a",
+  "root-review/regressions.mjs": "a7eb3e632d6cc8c4ef0394d82123440243f2e8732d12197b2261527acbef3fd1",
+  "authored/scripts/build-funding-vendor.mjs": "b089e521b3d57ca5e5fa9b235cf8dc9caaf9778f592c5a26ac622353b5aaabf3",
+  "authored/site/js/funding/state.js": "eb0f7b13a8a587135f805493d997cefcc62e671bfbac40118561f8bf760c3860",
+  "authored/site/js/pages/funding.js": "e47b2a64544734298e49953702818742f0f97b1661d96a49e6fef6eba9d855d8"
+}
