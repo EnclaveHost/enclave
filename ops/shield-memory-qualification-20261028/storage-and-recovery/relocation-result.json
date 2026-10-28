@@ -1,0 +1,9 @@
+{
+  "source": "/home/steven/enclave-prod/retire-switch-preservation-20261028/pad.target",
+  "destination": "/vm/enclave-volumes/rpc-retired-pad-preservation-20261028/pad.target",
+  "sha256": "872c523d2cc3842e30cf700b8000b74aa466d1f4550cc352caaecfdcc1c104cb",
+  "bytes": 549755813888,
+  "purpose": "retired one-time pad archive; NEVER reuse in a guest",
+  "verified": true,
+  "originalPathRetainedAsSymlink": true
+}

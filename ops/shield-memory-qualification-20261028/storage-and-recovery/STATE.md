@@ -1,0 +1,15 @@
+# Storage and EyesOff recovery, October 28, 2026
+
+The host root filesystem ran out of space during a separate phone-scan write. Its process subsequently ended; this task did not stop it. Rebuildable compiler objects were removed and completed benchmark images/templates relocated to encrypted NVMe with verified copies. Template file paths now include symlinks: materialize their targets before any future image build; do not archive symlink placeholders as image contents.
+
+A retired 512 GiB logical pad archive was copied to encrypted /vm, fsynced and fully SHA-256 compared. Stable source identity and no-open-user checks passed, and the original path was atomically replaced with a symlink. The historical helper is evidence, not a reusable recovery command. Root free space rose to 439 GiB. This archive was never reusable for inference.
+
+The human then explicitly authorized the KVM/storage owner to delete non-reusable pads. That owner verified identities and file users, removed the retired archive and old hardlinks, and retained recovery metadata. The attached cleanup receipt supersedes the earlier requirement to preserve those pad bytes. Current root free space subsequently measured 953 GiB and /vm 647 GiB. Do not attempt to restore these retired pad references or reuse burned pads. The KVM owner is implementing lifecycle quotas/cleanup; no competing manager edits here.
+
+EyesOff last passed trusted attestation and GPU inference at 10:17 UTC on proven loader af50d526. Public and local TLS failed later. Root disk exhaustion could have paused the guest, but that cause remains unproven: its QMP socket pathname was absent, and no bypass/debugger recovery was attempted. Guest metadata was privately preserved. One normal dashboard Restart was requested after storage verification. The normal controller independently tore down the guest after its lease expired at 11:00:29 UTC; no new guest was started.
+
+At agreed Base block 53198071, two providers confirmed zero compute credit, 722765032358 wei gas reserve, claim quote 2284957552721 wei, renew quote 1384090112174 wei. Per-operation and epoch caps exceed those quotes. The operator also lacks checkpoint gas. No funding transaction was sent; never repeat the old completed Metal0/C9 funding pair.
+
+The existing dashboard is prepared for a $5 compute top-up from the authorized $30 session. A separate local review page proposes 0.000020 ETH to the existing EyesOff lease reserve on Base, plus wallet fees. It pins both contract bytecodes, deployment owner and identity, requires two-provider agreement and a current block, and simulates/estimates the exact call. Actual preflight passed with 87257 estimated gas; one prior transient RPC error failed closed. JavaScript syntax checks passed. Browser transaction confirmation remains with the human. Funding alone will not establish successful recovery: require canonical receipts/balances, normal lease recovery, fresh trusted SNP attestation, TLS and GPU inference.
+
+The failed bounded-retirement candidate remains unadmitted. No sustained production RAM saving has been qualified. RPC remains off and unfinished.

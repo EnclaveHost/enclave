@@ -1,0 +1,62 @@
+{
+  "authorizedByUser": "If pads are not reusable, delete them",
+  "scope": "Only confirmed retired or burned pad bytes; recovery metadata retained",
+  "timeUTC": "2026-10-28T11:05:20Z",
+  "files": [
+    {
+      "path": "/home/steven/enclave-prod/loader-rollback-20261028/gdb55af9c1.padbank",
+      "device": 64768,
+      "inode": 199101091,
+      "linksBefore": 3,
+      "allocatedBytes": 445786603520,
+      "logicalBytes": 549755813888,
+      "mtimeNs": 1793176418377567057
+    },
+    {
+      "path": "/home/steven/enclave-prod/loader-switch-preservation-r2-20261028/pad.target",
+      "device": 64768,
+      "inode": 199101091,
+      "linksBefore": 3,
+      "allocatedBytes": 445786603520,
+      "logicalBytes": 549755813888,
+      "mtimeNs": 1793176418377567057
+    },
+    {
+      "path": "/home/steven/enclave-prod/loader-switch-preservation-r3-20261028/pad.target",
+      "device": 64768,
+      "inode": 199101091,
+      "linksBefore": 3,
+      "allocatedBytes": 445786603520,
+      "logicalBytes": 549755813888,
+      "mtimeNs": 1793176418377567057
+    },
+    {
+      "path": "/vm/enclave-volumes/rpc-retired-pad-preservation-20261028/pad.target",
+      "device": 64769,
+      "inode": 148392208,
+      "linksBefore": 1,
+      "allocatedBytes": 437586558976,
+      "logicalBytes": 549755813888,
+      "mtimeNs": 1793180691915311686
+    },
+    {
+      "path": "/home/steven/enclave-prod/retire-rollback-preservation-20261028/pad.target",
+      "device": 64768,
+      "inode": 199101095,
+      "linksBefore": 1,
+      "allocatedBytes": 0,
+      "logicalBytes": 549755813888,
+      "mtimeNs": 1793181353140870221
+    }
+  ],
+  "uniqueAllocatedBytes": 883373162496,
+  "removed": [
+    "/home/steven/enclave-prod/loader-rollback-20261028/gdb55af9c1.padbank",
+    "/home/steven/enclave-prod/loader-switch-preservation-r2-20261028/pad.target",
+    "/home/steven/enclave-prod/loader-switch-preservation-r3-20261028/pad.target",
+    "/vm/enclave-volumes/rpc-retired-pad-preservation-20261028/pad.target",
+    "/home/steven/enclave-prod/retire-rollback-preservation-20261028/pad.target",
+    "/home/steven/enclave-prod/retire-switch-preservation-20261028/pad.target"
+  ],
+  "complete": true
+}
