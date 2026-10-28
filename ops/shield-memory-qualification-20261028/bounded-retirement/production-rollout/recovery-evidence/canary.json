@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-28T10:17:30.346519+00:00",
+  "guest": "gdf387ea45",
+  "release": "af50d526be6deefcdd815968ff1dd2c04327f6c3b3f981c0aa90cc585b0effae",
+  "tlsPing": {
+    "eyesoff.ai": 200,
+    "9eb4e600.app.enclave.host": 200
+  },
+  "prompt": "Production loader canary: reply with exactly LOADER_CANARY_OK. Do not use tools or web search.",
+  "response": "LOADER_CANARY_OK",
+  "reportedBackend": "gpu",
+  "reportedTokens": 37,
+  "reportedTokensPerSecond": 3.3,
+  "reportedLoadMs": 0,
+  "reportedPrefillMs": 41248,
+  "reportedDecodeMs": 11310,
+  "controlledPerformanceComparison": false,
+  "sustainedRamReductionQualified": false,
+  "screenshot": "outputs/rpc-production-final-20261025/eyesoff-loader-recovery-20261028.png"
+}
