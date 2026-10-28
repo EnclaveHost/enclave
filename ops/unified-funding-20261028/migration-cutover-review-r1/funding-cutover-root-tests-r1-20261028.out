@@ -1,0 +1,40 @@
+[queue] START available=93033MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: root: wrong refund never marks the termination proven or admits a replacement
+ok 1 - root: wrong refund never marks the termination proven or admits a replacement
+  ---
+  duration_ms: 21.500258
+  type: 'test'
+  ...
+# Subtest: root: nonfinal termination cannot release a cutover pause
+ok 2 - root: nonfinal termination cannot release a cutover pause
+  ---
+  duration_ms: 9.007531
+  type: 'test'
+  ...
+# Subtest: root: a missing durable marker stays blocked even with apparently valid activation
+ok 3 - root: a missing durable marker stays blocked even with apparently valid activation
+  ---
+  duration_ms: 7.145183
+  type: 'test'
+  ...
+# Subtest: root: loss of termination proof after resume still blocks replacement submission
+ok 4 - root: loss of termination proof after resume still blocks replacement submission
+  ---
+  duration_ms: 7.48152
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 229.487849
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=92958
+[memory-guard] at peak:
+[memory-guard] exit=0 peakTreeRssMiB=187 minHostAvailableMiB=92953
+[memory-guard] at peak: node:76 node:61 node:50
+[queue] EXIT 0
