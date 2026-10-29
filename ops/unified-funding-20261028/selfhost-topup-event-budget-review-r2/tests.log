@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: zero remains zero; absent rate is never selfhost proof
+ok 1 - zero remains zero; absent rate is never selfhost proof
+  ---
+  duration_ms: 1.008102
+  type: 'test'
+  ...
+# Subtest: opening quotes but never pays; one exact quote cannot be paid twice
+ok 2 - opening quotes but never pays; one exact quote cannot be paid twice
+  ---
+  duration_ms: 3.394063
+  type: 'test'
+  ...
+# Subtest: missing grant never offers payment
+ok 3 - missing grant never offers payment
+  ---
+  duration_ms: 0.328897
+  type: 'test'
+  ...
+# Subtest: user maximum is a gate not a requested debit
+ok 4 - user maximum is a gate not a requested debit
+  ---
+  duration_ms: 0.430237
+  type: 'test'
+  ...
+# Subtest: expiry disables payment without silently requoting
+ok 5 - expiry disables payment without silently requoting
+  ---
+  duration_ms: 0.357887
+  type: 'test'
+  ...
+# Subtest: provider changes invalidate the shown quote even with same address
+ok 6 - provider changes invalidate the shown quote even with same address
+  ---
+  duration_ms: 0.312088
+  type: 'test'
+  ...
+# Subtest: owner changes across verification never create a usable quote
+ok 7 - owner changes across verification never create a usable quote
+  ---
+  duration_ms: 0.294798
+  type: 'test'
+  ...
+# Subtest: rate changed before dispatch refuses
+ok 8 - rate changed before dispatch refuses
+  ---
+  duration_ms: 0.305267
+  type: 'test'
+  ...
+# Subtest: unknown outcome blocks refresh and never resends
+ok 9 - unknown outcome blocks refresh and never resends
+  ---
+  duration_ms: 0.677825
+  type: 'test'
+  ...
+# Subtest: closing or input changes makes shown quote unusable
+ok 10 - closing or input changes makes shown quote unusable
+  ---
+  duration_ms: 2.086024
+  type: 'test'
+  ...
+# Subtest: actual component routing: zero uses gas, paid retains runtime, credit zero refuses
+ok 11 - actual component routing: zero uses gas, paid retains runtime, credit zero refuses
+  ---
+  duration_ms: 2.970887
+  type: 'test'
+  ...
+# Subtest: transaction-gas quote does not invoke the rejected renewal estimator or promise coverage hours
+ok 12 - transaction-gas quote does not invoke the rejected renewal estimator or promise coverage hours
+  ---
+  duration_ms: 0.295077
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 80.880482

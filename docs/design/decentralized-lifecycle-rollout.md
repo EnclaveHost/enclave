@@ -65,3 +65,7 @@ Paid-service checkpoints are separate from lifecycle renewals and are not requir
 ## Durable host ownership authority
 
 Two [restart regressions](../../ops/unified-funding-20261028/lifecycle-owner-restart-regressions-r1/ROOT-REVIEW.md) confirm that the staged dispatch rejects stale or contradictory host-owner revisions in memory but accepts them after reopening its actual journal. Both fail at the intended restart check after passing positive controls. Persist accepted host/ownership-contract/revision/policy evidence before effects, preserve monotonic refusal across restarts, and keep reconciliation/offline available. The active composition implementation is tasked with this repair; it is not fixed or deployed by these tests.
+
+## Self-hosted Top up presentation
+
+The staged [transaction-gas Top up repair](../../ops/unified-funding-20261028/selfhost-topup-event-budget-review-r2/ROOT-REVIEW.md) removes the rejected renewal-hours estimator. It displays the fixed ETH purchase and maximum USDC debit under the existing finite gas grant. Its 12 focused checks and reconstructed graph build pass. This is not deployed, does not implement background refill, and does not repurpose the existing legacy gas grant for the new lifecycle controller. The positive-rate runtime and restricted-credit paths remain distinct.
