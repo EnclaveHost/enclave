@@ -1,0 +1,7 @@
+{
+  "status": "REVIEW_SNAPSHOT_AUTHOR_JOB_STILL_ACTIVE",
+  "files": {
+    "generator/generate_site.py": "786170c5c8d6990240ad2164ac744fcce4260bf730a7cbc8e976a2624626f1f4",
+    "test/site-cutover.test.mjs": "9533b321f27aacffc48cc68cf47287c6e401e8873fd5a0bbb8a9230c83e01219"
+  }
+}

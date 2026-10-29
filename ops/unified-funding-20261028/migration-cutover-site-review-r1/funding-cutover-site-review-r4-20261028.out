@@ -1,0 +1,94 @@
+[queue] START available=92813MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: default (no opt-in): the exact production 404 still throws not_found, unchanged
+ok 1 - default (no opt-in): the exact production 404 still throws not_found, unchanged
+  ---
+  duration_ms: 5.012499
+  type: 'test'
+  ...
+# Subtest: opt-in + the exact 404: chain pins verified, intake ABSENT (null, original code/status/text), never on
+ok 2 - opt-in + the exact 404: chain pins verified, intake ABSENT (null, original code/status/text), never on
+  ---
+  duration_ms: 2.571004
+  type: 'test'
+  ...
+# Subtest: opt-in: every other answer keeps its old handling (no general override)
+ok 3 - opt-in: every other answer keeps its old handling (no general override)
+  ---
+  duration_ms: 8.145537
+  type: 'test'
+  ...
+# Subtest: opt-in never weakens the chain: a codehash mismatch still refuses before the relay is asked; unknown mode refuses
+ok 4 - opt-in never weakens the chain: a codehash mismatch still refuses before the relay is asked; unknown mode refuses
+  ---
+  duration_ms: 0.372267
+  type: 'test'
+  ...
+# Subtest: live successor config: same result with or without opt-in; default runtime shape unchanged
+ok 5 - live successor config: same result with or without opt-in; default runtime shape unchanged
+  ---
+  duration_ms: 2.882851
+  type: 'test'
+  ...
+# Subtest: validateCutover: null = normal; only THIS owner / chain / session with exact reviewed terms
+ok 6 - validateCutover: null = normal; only THIS owner / chain / session with exact reviewed terms
+  ---
+  duration_ms: 0.442296
+  type: 'test'
+  ...
+# Subtest: planMode: a plan is never moved between modes (no silent inheritance of an unpaused plan)
+ok 7 - planMode: a plan is never moved between modes (no silent inheritance of an unpaused plan)
+  ---
+  duration_ms: 0.494945
+  type: 'test'
+  ...
+# Subtest: signable: whole plan first in cutover mode; nothing while paused; never across an admitted/unknown step
+ok 8 - signable: whole plan first in cutover mode; nothing while paused; never across an admitted/unknown step
+  ---
+  duration_ms: 0.610293
+  type: 'test'
+  ...
+# Subtest: cutoverView mirrors the journal: before / paused / marker_missing / resumed / none
+ok 9 - cutoverView mirrors the journal: before / paused / marker_missing / resumed / none
+  ---
+  duration_ms: 0.348707
+  type: 'test'
+  ...
+# Subtest: signFlow (cutover): ONE whole-plan bundle before anything is sent; refused for a plan of the other mode
+ok 10 - signFlow (cutover): ONE whole-plan bundle before anything is sent; refused for a plan of the other mode
+  ---
+  duration_ms: 1.96893
+  type: 'test'
+  ...
+# Subtest: runFlow passes the core's paused result through and drops the bundle (single use)
+ok 11 - runFlow passes the core's paused result through and drops the bundle (single use)
+  ---
+  duration_ms: 0.536645
+  type: 'test'
+  ...
+# Subtest: resumeFlow: refuses without record, on another context, when not paused, or after a switch; else one core call
+ok 12 - resumeFlow: refuses without record, on another context, when not paused, or after a switch; else one core call
+  ---
+  duration_ms: 1.411525
+  type: 'test'
+  ...
+# Subtest: guarded store after a switch: recording activation is refused; the termination outcome + pause is still recorded
+ok 13 - guarded store after a switch: recording activation is refused; the termination outcome + pause is still recorded
+  ---
+  duration_ms: 0.723812
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 166.347733
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

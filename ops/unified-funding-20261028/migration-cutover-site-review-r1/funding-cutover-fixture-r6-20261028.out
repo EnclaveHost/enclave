@@ -1,0 +1,84 @@
+[queue] START available=92835MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{
+  "schema": "migration-cutover-site-review-r1-fixture-generated/v1",
+  "testOnly": true,
+  "inputs": {
+    "production-grant-terms-r1/out/server.mjs": "94f15845fb4988b6de0a8bc5afa004432f679e9e1ac405dda67b0879091ce950",
+    "production-grant-terms-r1/shell/main.mjs": "4b1ff89fd881feaec7717b3c492c9d9e9fa1aa16c4244e72aeb448eb84157218",
+    "production-grant-terms-r1/shell/harness-state.js": "d59a7e1df17ac741c7cde126462cb031e1637b93c5cc48b3c33d8ea1e8d4cf1e",
+    "production-grant-terms-r1/shell/facade/config.js": "568ff01f77955a634def8d6425a3c5cb5df734ccd896094e5f8c048e52b694f6",
+    "production-grant-terms-r1/build/build-harness.mjs": "523bb19cb46db6571286814dfff1b914c90b34f2e0f69c671f9d7a6ef04861f7",
+    "production-grant-terms-r1/page/index.html": "18338b36a1e27bc0e8ba5ded645675efa2e806413f25850249942c483b6cdcf7",
+    "production-grant-terms-r1/shell/facade/api.js": "a704f02e696c307e931d4ab85a3173f8d32e51d1db6be171731d8de1a9c73365",
+    "production-grant-terms-r1/shell/facade/wallet.js": "be3b53264988e611f93084fc14c9ce3e63ac54383abd5dc5fa29725199712ff1",
+    "production-grant-terms-r1/shell/facade/empty.js": "5dceb4c0198f225d3fe68e3558dd569e7645bddb165ef6656b2be14277d4e3fc",
+    "production-grant-terms-r1/shell/facade/sessions.js": "6740608869692f092cbad180c3566f480a80d27f86e7c9a38675fb6564415a77",
+    "production-grant-terms-r1/shell/facade/vendor-funding.js": "836f3a710a1a602f59351def81bc3c9e18e99bad21337f5a5b3c7f0e57ce6090"
+  },
+  "outputs": {
+    "build/build-harness.mjs": "24f7ed1abf5b5dcef36417c17c710f5b2dfff5b5c2eb0e31d0cb3489dd630ad9",
+    "out/server.mjs": "973229d54e5fa15551cfcf45f6214fad45c37d0218494339315f2236bc4079f8",
+    "page/index.html": "52d346c01ccf237ce829192d1aaedbad025c4b85466d582c15600680ef95a073",
+    "shell/facade/api.js": "a704f02e696c307e931d4ab85a3173f8d32e51d1db6be171731d8de1a9c73365",
+    "shell/facade/config.js": "204f1922e17f9e96907ac31eae8a3a70471e1a4b16a1e2c9f2a24a8e963c2930",
+    "shell/facade/empty.js": "5dceb4c0198f225d3fe68e3558dd569e7645bddb165ef6656b2be14277d4e3fc",
+    "shell/facade/sessions.js": "6740608869692f092cbad180c3566f480a80d27f86e7c9a38675fb6564415a77",
+    "shell/facade/vendor-funding.js": "836f3a710a1a602f59351def81bc3c9e18e99bad21337f5a5b3c7f0e57ce6090",
+    "shell/facade/wallet.js": "be3b53264988e611f93084fc14c9ce3e63ac54383abd5dc5fa29725199712ff1",
+    "shell/harness-state.js": "9d9f547b0f7c95526dd26081899fa74e37149175b805744624dd43a1f80c39b8",
+    "shell/main.mjs": "2517ddbe3c3d4f08ebd4f47fe1781554c573ef0466839569d4bccbc57d98372f"
+  },
+  "phases": {
+    "new": [
+      "cMode",
+      "cPrepare",
+      "cApprove",
+      "cTerminate",
+      "cReload",
+      "cPausedCheck",
+      "cBadAct",
+      "cNoApi",
+      "cActivate",
+      "cResign"
+    ],
+    "kept": [
+      "pStart",
+      "pReload",
+      "pRecover",
+      "pSwitch2",
+      "pComplete",
+      "pQuote",
+      "pFund",
+      "pExecFinal",
+      "pExecLost",
+      "pExecReload",
+      "pExec502",
+      "pExecSwitch",
+      "pControls",
+      "pNull",
+      "pNullCheck",
+      "pCleanup"
+    ],
+    "disabled": [
+      "pPrepare (and so pApprove, pSwitch1, pSignSend)"
+    ]
+  },
+  "edits": {
+    "server": 6,
+    "shell": 6,
+    "harness-state": 1,
+    "config": 1,
+    "build": 4,
+    "page": 1
+  },
+  "rootMustStill": [
+    "build candidate/site/vendor/funding.js from candidate/sdk/funding/browser-entry.mjs",
+    "fill generated/BUILD-PINS.json and run build/build-harness.mjs",
+    "fill generated/HARNESS-INPUTS.json"
+  ]
+}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

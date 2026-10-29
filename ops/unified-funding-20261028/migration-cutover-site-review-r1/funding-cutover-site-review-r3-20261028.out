@@ -1,0 +1,213 @@
+[queue] START available=92790MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{
+  "schema": "migration-cutover-site-r1-generated/v1",
+  "status": "UNREVIEWED_NOT_APPROVED_NOT_SIGNABLE",
+  "inputs": {
+    "migration-cutover-prep-r1/candidate/sdk/funding/browser-entry.mjs": "9820589c2aab82d3ae22f2ba73011970d0754557f12da7871859f3d368bbf879",
+    "migration-cutover-prep-r1/candidate/sdk/funding/chain-proof.mjs": "ca799d8f86db1dd3a7113703cba5fd929e770f02f5c63fa3f5589b05f5e074b3",
+    "migration-cutover-prep-r1/candidate/sdk/funding/funding-client.mjs": "4a17b36549b5eb115863b0d08ac76e6e9dbd966934b93875bbc34fd0ea897fa7",
+    "migration-cutover-prep-r1/candidate/sdk/funding/funding-codec.mjs": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7",
+    "migration-cutover-prep-r1/candidate/sdk/funding/gas-execution.mjs": "1ccf75dbd8ac248c9a139ab692f1f144b8f0f16c8e2b0334c4047ceac9b3df5c",
+    "migration-cutover-prep-r1/candidate/sdk/funding/migration.mjs": "740e0f859da31ce55139e3f893ac2e344214a41257491a8fd3708c3ba0f57ced",
+    "migration-cutover-prep-r1/candidate/sdk/funding/util.mjs": "38b678a68ecf7fd897fb1ae905d27471a17d10f8061fa29d81f5870549e12e66",
+    "migration-cutover-prep-r1/candidate/sdk/funding/v2-store.mjs": "b00d0742ee3d2b211b4cf811c48c8e7004dbf7e8a4cf30517db5ec199181733c",
+    "source/site/js/pages/funding.js": "2730b091138529d08be82504a2121107a202125cf1f55f95b2cc8c715c69bd3c",
+    "source/site/js/funding/state.js": "361bae2bc531a640cfb58d389e026d5677eb5da70063f2bdda07070b09397f54",
+    "source/site/js/funding/flows.js": "137b4a1babb7ccb5d6f913488c519660c99d5b934c79a433a0255b35e8fa48d1"
+  },
+  "outputs": {
+    "candidate/sdk/funding/browser-entry.mjs": "9820589c2aab82d3ae22f2ba73011970d0754557f12da7871859f3d368bbf879",
+    "candidate/sdk/funding/chain-proof.mjs": "ca799d8f86db1dd3a7113703cba5fd929e770f02f5c63fa3f5589b05f5e074b3",
+    "candidate/sdk/funding/funding-client.mjs": "4361e517f157143042957cf1fc8884190e1c48cb09c9dd50be2242b3e8053761",
+    "candidate/sdk/funding/funding-codec.mjs": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7",
+    "candidate/sdk/funding/gas-execution.mjs": "1ccf75dbd8ac248c9a139ab692f1f144b8f0f16c8e2b0334c4047ceac9b3df5c",
+    "candidate/sdk/funding/migration.mjs": "740e0f859da31ce55139e3f893ac2e344214a41257491a8fd3708c3ba0f57ced",
+    "candidate/sdk/funding/util.mjs": "38b678a68ecf7fd897fb1ae905d27471a17d10f8061fa29d81f5870549e12e66",
+    "candidate/sdk/funding/v2-store.mjs": "b00d0742ee3d2b211b4cf811c48c8e7004dbf7e8a4cf30517db5ec199181733c",
+    "candidate/site/js/funding/flows.js": "88d2e23a8990858546c306d3249483822d9ea14f77846d8007c721fbd6b70ab2",
+    "candidate/site/js/funding/state.js": "010d864fc4947c2a46961a6011ff8cba2fce29d6097fa8f64e65d2c8ab5e2825",
+    "candidate/site/js/pages/funding.js": "68c6f1fe3610f715269894661b2142cbaf3e5d81dd7f2cb38a0a4cdfb94f0c53"
+  },
+  "byteIdentical": [
+    "sdk/funding/browser-entry.mjs",
+    "sdk/funding/chain-proof.mjs",
+    "sdk/funding/funding-codec.mjs",
+    "sdk/funding/gas-execution.mjs",
+    "sdk/funding/migration.mjs",
+    "sdk/funding/util.mjs",
+    "sdk/funding/v2-store.mjs"
+  ],
+  "edits": {
+    "funding-client.mjs": 4,
+    "state.js": 2,
+    "flows.js": 10,
+    "pages/funding.js": 17
+  },
+  "defaults": {
+    "FUNDING_RUNTIME": null,
+    "FUNDING_MIGRATION_PROPOSAL": null,
+    "FUNDING_MIGRATION_APPROVAL": null,
+    "FUNDING_MIGRATION_CUTOVER": null,
+    "FUNDING_CUTOVER_ACTIVATION": null
+  },
+  "viem": {
+    "symlink": "candidate/node_modules/viem",
+    "target": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem",
+    "version": "2.53.1"
+  }
+}
+TAP version 13
+# Subtest: default (no opt-in): the exact production 404 still throws not_found, unchanged
+not ok 1 - default (no opt-in): the exact production 404 still throws not_found, unchanged
+  ---
+  duration_ms: 3.436744
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/test/site-cutover.test.mjs:65:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + "uncoded:Cannot read properties of undefined (reading '0')"
+    - 'not_found'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'not_found'
+  actual: "uncoded:Cannot read properties of undefined (reading '0')"
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/test/site-cutover.test.mjs:67:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: opt-in + the exact 404: chain pins verified, intake ABSENT (null, original code/status/text), never on
+not ok 2 - opt-in + the exact 404: chain pins verified, intake ABSENT (null, original code/status/text), never on
+  ---
+  duration_ms: 0.511935
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/test/site-cutover.test.mjs:70:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading '0')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/test/site-cutover.test.mjs:43:82)
+    ethCall (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/candidate/sdk/funding/funding-client.mjs:115:21)
+    eq (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/candidate/sdk/funding/funding-client.mjs:206:23)
+    Module.verifyRuntime (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/candidate/sdk/funding/funding-client.mjs:209:9)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/test/site-cutover.test.mjs:73:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: opt-in: every other answer keeps its old handling (no general override)
+not ok 3 - opt-in: every other answer keeps its old handling (no general override)
+  ---
+  duration_ms: 0.674563
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/test/site-cutover.test.mjs:84:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    404 {"error":"no such sessions endpoint","code":"not_found","x":1}
+    + actual - expected
+    
+    + "uncoded:Cannot read properties of undefined (reading '0')"
+    - 'not_found'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'not_found'
+  actual: "uncoded:Cannot read properties of undefined (reading '0')"
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/test/site-cutover.test.mjs:97:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: opt-in never weakens the chain: a codehash mismatch still refuses before the relay is asked; unknown mode refuses
+ok 4 - opt-in never weakens the chain: a codehash mismatch still refuses before the relay is asked; unknown mode refuses
+  ---
+  duration_ms: 0.789872
+  type: 'test'
+  ...
+# Subtest: live successor config: same result with or without opt-in; default runtime shape unchanged
+not ok 5 - live successor config: same result with or without opt-in; default runtime shape unchanged
+  ---
+  duration_ms: 0.449445
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/test/site-cutover.test.mjs:111:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading '0')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/test/site-cutover.test.mjs:43:82)
+    ethCall (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/candidate/sdk/funding/funding-client.mjs:115:21)
+    eq (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/candidate/sdk/funding/funding-client.mjs:206:23)
+    Module.verifyRuntime (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/candidate/sdk/funding/funding-client.mjs:209:9)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-site-review-r1/test/site-cutover.test.mjs:112:17)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: validateCutover: null = normal; only THIS owner / chain / session with exact reviewed terms
+ok 6 - validateCutover: null = normal; only THIS owner / chain / session with exact reviewed terms
+  ---
+  duration_ms: 0.482635
+  type: 'test'
+  ...
+# Subtest: planMode: a plan is never moved between modes (no silent inheritance of an unpaused plan)
+ok 7 - planMode: a plan is never moved between modes (no silent inheritance of an unpaused plan)
+  ---
+  duration_ms: 0.454485
+  type: 'test'
+  ...
+# Subtest: signable: whole plan first in cutover mode; nothing while paused; never across an admitted/unknown step
+ok 8 - signable: whole plan first in cutover mode; nothing while paused; never across an admitted/unknown step
+  ---
+  duration_ms: 0.727932
+  type: 'test'
+  ...
+# Subtest: cutoverView mirrors the journal: before / paused / marker_missing / resumed / none
+ok 9 - cutoverView mirrors the journal: before / paused / marker_missing / resumed / none
+  ---
+  duration_ms: 0.348936
+  type: 'test'
+  ...
+# Subtest: signFlow (cutover): ONE whole-plan bundle before anything is sent; refused for a plan of the other mode
+ok 10 - signFlow (cutover): ONE whole-plan bundle before anything is sent; refused for a plan of the other mode
+  ---
+  duration_ms: 2.013769
+  type: 'test'
+  ...
+# Subtest: runFlow passes the core's paused result through and drops the bundle (single use)
+ok 11 - runFlow passes the core's paused result through and drops the bundle (single use)
+  ---
+  duration_ms: 0.581874
+  type: 'test'
+  ...
+# Subtest: resumeFlow: refuses without record, on another context, when not paused, or after a switch; else one core call
+ok 12 - resumeFlow: refuses without record, on another context, when not paused, or after a switch; else one core call
+  ---
+  duration_ms: 1.578083
+  type: 'test'
+  ...
+# Subtest: guarded store after a switch: recording activation is refused; the termination outcome + pause is still recorded
+ok 13 - guarded store after a switch: recording activation is refused; the termination outcome + pause is still recorded
+  ---
+  duration_ms: 0.737393
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 9
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 156.066451
+[memory-guard] exit=1 peakTreeRssMiB=13 minHostAvailableMiB=92747
+[memory-guard] at peak: python3:13
+[memory-guard] exit=1 peakTreeRssMiB=63 minHostAvailableMiB=92750
+[memory-guard] at peak: node:50 python3:13
+[queue] EXIT 1

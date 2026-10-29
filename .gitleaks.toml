@@ -295,3 +295,13 @@ targetRules = ["generic-api-key"]
 paths = ['''^ops/rpc-durability-review-20261026/journal-r1/root-test\.sh$''']
 regexTarget = "secret"
 regexes = ['''^missing/unexpected$''']
+
+# Public preparation-mode selector, not an API credential. Exact five archived
+# files and exact matched literal only; every other secret rule remains active.
+[[allowlists]]
+description = "Public funding preparation mode literal in reviewed cutover package"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['^ops/unified-funding-20261028/migration-cutover-site-review-r1/(generator/generate_site(\.author)?\.py|author-final/generator/generate_site\.py|candidate/sdk/funding/funding-client\.mjs|candidate/site/vendor/funding\.js)$']
+regexTarget = "secret"
+regexes = ['^pre-funding-api-404-r1$']
