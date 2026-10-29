@@ -1,0 +1,254 @@
+TAP version 13
+# Subtest: manager process death: the independent guard removes exactly the protected VM; the legacy neighbor is untouched
+ok 1 - manager process death: the independent guard removes exactly the protected VM; the legacy neighbor is untouched
+  ---
+  duration_ms: 477.788331
+  type: 'test'
+  ...
+# Subtest: guard death while serving: access is withdrawn at once, capability goes false, the manager removes compute itself
+ok 2 - guard death while serving: access is withdrawn at once, capability goes false, the manager removes compute itself
+  ---
+  duration_ms: 516.052875
+  type: 'test'
+  ...
+# Subtest: guard restart over its own journal: no lifetime is continued, the armed VM is removed, the neighbor stays
+ok 3 - guard restart over its own journal: no lifetime is continued, the armed VM is removed, the neighbor stays
+  ---
+  duration_ms: 158.360738
+  type: 'test'
+  ...
+# Subtest: the guard refuses a manager whose pid + creation time do not match, and a bad key
+ok 4 - the guard refuses a manager whose pid + creation time do not match, and a bad key
+  ---
+  duration_ms: 54.869086
+  type: 'test'
+  ...
+# Subtest: Manager: current manager reports readiness capabilities, never claims continuing lifecycle deadline enforcement
+ok 5 - Manager: current manager reports readiness capabilities, never claims continuing lifecycle deadline enforcement
+  ---
+  duration_ms: 6.133119
+  type: 'test'
+  ...
+# Subtest: Manager: legacy start/read/explicit stop still works through exact-source HTTP without treating readiness as a permit
+ok 6 - Manager: legacy start/read/explicit stop still works through exact-source HTTP without treating readiness as a permit
+  ---
+  duration_ms: 14.318961
+  type: 'test'
+  ...
+# Subtest: Manager: unimplemented deadline endpoint refuses; HTTP success on legacy VM is not an enforcement acknowledgment
+ok 7 - Manager: unimplemented deadline endpoint refuses; HTTP success on legacy VM is not an enforcement acknowledgment
+  ---
+  duration_ms: 6.282158
+  type: 'test'
+  ...
+# Subtest: ProtectedManager: current manager reports readiness capabilities, never claims continuing lifecycle deadline enforcement
+ok 8 - ProtectedManager: current manager reports readiness capabilities, never claims continuing lifecycle deadline enforcement
+  ---
+  duration_ms: 2.981585
+  type: 'test'
+  ...
+# Subtest: ProtectedManager: legacy start/read/explicit stop still works through exact-source HTTP without treating readiness as a permit
+ok 9 - ProtectedManager: legacy start/read/explicit stop still works through exact-source HTTP without treating readiness as a permit
+  ---
+  duration_ms: 16.789491
+  type: 'test'
+  ...
+# Subtest: ProtectedManager: unimplemented deadline endpoint refuses; HTTP success on legacy VM is not an enforcement acknowledgment
+ok 10 - ProtectedManager: unimplemented deadline endpoint refuses; HTTP success on legacy VM is not an enforcement acknowledgment
+  ---
+  duration_ms: 6.723154
+  type: 'test'
+  ...
+# Subtest: missing guard or missing authority reader: capability false with the exact reason, stage refused, legacy unaffected
+ok 11 - missing guard or missing authority reader: capability false with the exact reason, stage refused, legacy unaffected
+  ---
+  duration_ms: 9.943467
+  type: 'test'
+  ...
+# Subtest: capability is TEST-qualified and complete; legacy spawn can neither opt in nor imitate a protected id
+ok 12 - capability is TEST-qualified and complete; legacy spawn can neither opt in nor imitate a protected id
+  ---
+  duration_ms: 84.423341
+  type: 'test'
+  ...
+# Subtest: authorized opt-in: staged ownership before serving, then an owner-selected quorum serves under Enclave-witness refusal
+ok 13 - authorized opt-in: staged ownership before serving, then an owner-selected quorum serves under Enclave-witness refusal
+  ---
+  duration_ms: 734.855553
+  type: 'test'
+  ...
+# Subtest: forged/replayed/wrong-manager control requests are refused before side effects
+ok 14 - forged/replayed/wrong-manager control requests are refused before side effects
+  ---
+  duration_ms: 65.093261
+  type: 'test'
+  ...
+# Subtest: attachment must name exactly this instance: wrong GUID/epochs/app/runtime/image/generation/digest refuse
+ok 15 - attachment must name exactly this instance: wrong GUID/epochs/app/runtime/image/generation/digest refuse
+  ---
+  duration_ms: 486.609949
+  type: 'test'
+  ...
+# Subtest: signatures: below threshold and an unauthorized witness refuse; the staged instance is never served and stays owned
+ok 16 - signatures: below threshold and an unauthorized witness refuse; the staged instance is never served and stays owned
+  ---
+  duration_ms: 421.754387
+  type: 'test'
+  ...
+# Subtest: Offline host authority withdraws a serving instance and refuses its renewal
+ok 17 - Offline host authority withdraws a serving instance and refuses its renewal
+  ---
+  duration_ms: 397.343769
+  type: 'test'
+  ...
+# Subtest: the same envelope cannot extend; expiry closes existing streams, refuses new ones and removes exact compute
+not ok 18 - the same envelope cannot extend; expiry closes existing streams, refuses new ones and removes exact compute
+  ---
+  duration_ms: 1931.483995
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/test/windows-permit/permit-enforcement.test.mjs:107:1'
+  failureType: 'uncaughtException'
+  error: "Cannot read properties of null (reading 'appId')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    Socket.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/test/windows-permit/helpers/world.mjs:187:74)
+    Socket.emit (node:events:531:35)
+    TCPConnectWrap.afterConnect [as oncomplete] (node:net:1623:10)
+  ...
+# Subtest: a genuinely newer permit renews while allowed; an older sequence afterwards is refused and withdraws
+ok 19 - a genuinely newer permit renews while allowed; an older sequence afterwards is refused and withdraws
+  ---
+  duration_ms: 128.04671
+  type: 'test'
+  ...
+# Subtest: wall-clock discontinuity (forward jump) closes the gate: no access, compute removed, capability off
+ok 20 - wall-clock discontinuity (forward jump) closes the gate: no access, compute removed, capability off
+  ---
+  duration_ms: 410.71501
+  type: 'test'
+  ...
+# Subtest: staging is bounded: no permit before the staging deadline means removal
+ok 21 - staging is bounded: no permit before the staging deadline means removal
+  ---
+  duration_ms: 1591.339076
+  type: 'test'
+  ...
+# Subtest: a launch that completes after its withdrawal is still removed (late startup completion)
+ok 22 - a launch that completes after its withdrawal is still removed (late startup completion)
+  ---
+  duration_ms: 99.855723
+  type: 'test'
+  ...
+# Subtest: stop that hangs then fails: streams close at once, compute removal is retried and confirmed later
+ok 23 - stop that hangs then fails: streams close at once, compute removal is retried and confirmed later
+  ---
+  duration_ms: 2125.545957
+  type: 'test'
+  ...
+# Subtest: a verifier-delayed install that completes after a hold regains nothing
+not ok 24 - a verifier-delayed install that completes after a hold regains nothing
+  ---
+  duration_ms: 696.00567
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/test/windows-permit/permit-enforcement.test.mjs:182:1'
+  failureType: 'uncaughtException'
+  error: "Cannot read properties of null (reading 'appId')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    Socket.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/test/windows-permit/helpers/world.mjs:187:74)
+    Socket.emit (node:events:531:35)
+    TCPConnectWrap.afterConnect [as oncomplete] (node:net:1623:10)
+  ...
+# Subtest: restart: nothing protected is continued; recovery removes it and the floor survives the new owner
+ok 25 - restart: nothing protected is continued; recovery removes it and the floor survives the new owner
+  ---
+  duration_ms: 169.551807
+  type: 'test'
+  ...
+# Subtest: route parsing is exact for protected and control routes
+ok 26 - route parsing is exact for protected and control routes
+  ---
+  duration_ms: 0.673624
+  type: 'test'
+  ...
+# Subtest: composite handle: unauthenticated protected routes never reach a manager; authenticated ones are forwarded byte-exact
+not ok 27 - composite handle: unauthenticated protected routes never reach a manager; authenticated ones are forwarded byte-exact
+  ---
+  duration_ms: 0.767544
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/test/windows-permit/router-protected.test.mjs:30:1'
+  failureType: 'testCodeFailure'
+  error: 'launch journal unavailable; reconciliation required'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    error (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/control/windows/vbslike/router/control.mjs:32:54)
+    LaunchJournal.read (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/control/windows/vbslike/router/control.mjs:83:18)
+    new LaunchJournal (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/control/windows/vbslike/router/control.mjs:71:42)
+    journalIn (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/test/windows-permit/router-protected.test.mjs:17:108)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/test/windows-permit/router-protected.test.mjs:33:54)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+  ...
+# Subtest: guestd-control/1 survives the real router hop; the router refuses a stage before side effects when inventory is unknown
+not ok 28 - guestd-control/1 survives the real router hop; the router refuses a stage before side effects when inventory is unknown
+  ---
+  duration_ms: 70.797235
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/test/windows-permit/router-protected.test.mjs:45:1'
+  failureType: 'testCodeFailure'
+  error: 'launch journal unavailable; reconciliation required'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    error (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/control/windows/vbslike/router/control.mjs:32:54)
+    LaunchJournal.read (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/control/windows/vbslike/router/control.mjs:83:18)
+    new LaunchJournal (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/control/windows/vbslike/router/control.mjs:71:42)
+    journalIn (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/test/windows-permit/router-protected.test.mjs:17:108)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/candidate/test/windows-permit/router-protected.test.mjs:48:19)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: exclusive open first; a second owner is refused; the Windows exclusion refuses off Windows
+ok 29 - exclusive open first; a second owner is refused; the Windows exclusion refuses off Windows
+  ---
+  duration_ms: 0.874623
+  type: 'test'
+  ...
+# Subtest: missing, foreign, corrupt or link-reached journals refuse; nothing defaults to empty
+ok 30 - missing, foreign, corrupt or link-reached journals refuse; nothing defaults to empty
+  ---
+  duration_ms: 2.098622
+  type: 'test'
+  ...
+# Subtest: a torn tail is ambiguous: no write until an explicit owner quarantine, which is recorded and never truncates
+ok 31 - a torn tail is ambiguous: no write until an explicit owner quarantine, which is recorded and never truncates
+  ---
+  duration_ms: 1.792515
+  type: 'test'
+  ...
+# Subtest: a flush failure latches the handle: outcome unknown, no further writes
+ok 32 - a flush failure latches the handle: outcome unknown, no further writes
+  ---
+  duration_ms: 0.822933
+  type: 'test'
+  ...
+# Subtest: permit journal: floors survive a new owner; terminal instances never revive; identity is immutable
+ok 33 - permit journal: floors survive a new owner; terminal instances never revive; identity is immutable
+  ---
+  duration_ms: 0.914052
+  type: 'test'
+  ...
+1..33
+# tests 33
+# suites 0
+# pass 29
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11039.894108

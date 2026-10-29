@@ -1,0 +1,42 @@
+{
+  "admission": {
+    "unit": "enclave-windows-manager-permit-r1-20261029.service",
+    "invocation": "1eda15df8bc44b5dabdb13c593d52ec0",
+    "mainPid": 1453547,
+    "runnerPid": 1453562,
+    "claudePid": 1453573,
+    "launchedBy": "coordinator; this chat did not launch",
+    "scope": "terminal collection and readonly review only"
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 124,
+    "finishedAt": 1793279923.001143,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "session": "35d82614-b17f-4f03-9c2a-aaebb60937df",
+  "duration_ms": null,
+  "num_turns": null,
+  "is_error": true,
+  "outputParseFailed": true,
+  "files": 140,
+  "changedFiles": 24,
+  "removedFiles": [],
+  "manifestSha256": "315c67609014b620aa028889456d728663e3995a6ef39ce0b312cea814045fed",
+  "firstWrites": 24,
+  "firstWriteManifestSha256": "c00af725e40bf53b46338dac4b8b0fb38a304861ca74eec74de7a60329228502",
+  "currentInvocationTools": {
+    "Read": 26,
+    "Grep": 10,
+    "Write": 27
+  },
+  "outsideCandidateWrites": [],
+  "innerGuard": "[memory-guard] exit=124 peakTreeRssMiB=279 minHostAvailableMiB=33935\n",
+  "outerGuard": "[memory-guard] exit=124 peakTreeRssMiB=353 minHostAvailableMiB=33935\n"
+}
