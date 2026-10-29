@@ -1,18 +1,20 @@
 # Decentralized lifecycle, admission and gas funding
 
-## Current rollout status — October 29, r7 review
+## Current rollout status — October 29, r8 review
 
 This feature is not activated on the new lifecycle protocol. The sections below retain the evidence history; a later passing review supersedes only the exact failures it covers.
 
 | Area | Established evidence | Remaining before production |
 | --- | --- | --- |
 | Event-driven lifecycle and host Offline | Linked local-chain contract/adapter tests, canonical registry fixtures and owned host recovery checks | Live independently authenticated authority, actual runtime composition, funded independent Offline submitter and fenced migration |
-| Windows permit enforcement | Deadline/storage repairs and authenticated hold behavior pass local real-module tests; actual permit expiry closes TCP and removes TEST compute | Owner loss across permit responses and unknown-stage cleanup, production authority composition, native protected wiring, Windows exclusion and supported-workload qualification |
+| Windows permit enforcement | Deadline/storage repairs and authenticated hold behavior pass local real-module tests; actual permit expiry closes TCP and removes TEST compute | Real production authority composition and release closure, native protected wiring, Windows exclusion and supported-workload qualification |
 | Capacity and joining-host gas | Required attestation/test-before-listing rules documented; protected-budget contract fixtures | Zero-gas bootstrap test producer, fresh measured capacity consumers, sponsor selection and liability-safe provisioner fallback |
 | Automatic gas funding / self-host Top up | Existing finite grants produced two confirmed recovery payments under the legacy reserve | New-protocol authorization and ordinary-reserve refill, protected Offline separation and app-card integration |
 | Censorship resistance | Independent-owner policy and local recovery cases pass for pinned candidates | End-to-end cold recovery, new-user deployment, storage endpoint failure and continued hosting under Enclave refusal |
 
-The current [Windows r7 review](../../ops/unified-funding-20261028/windows-manager-review-r7/ROOT-REVIEW.md) passes the previous Stop, late-launch and accepted-stage ownership regressions. Its actual two-manager control and router TCP test passes after correcting the test's split sequence journals, with real router capacity checks and labeled TEST authority/hardware. New tests still fail for owner loss during a processed permit response and cleanup after a lost processed-stage response. Production authority wiring, native protected workloads, remaining workload boundaries and Windows ownership qualification are unfinished. No candidate was installed and no additional app recovery or payment is claimed.
+The current [Windows r8 review](../../ops/unified-funding-20261028/windows-manager-review-r8/ROOT-REVIEW.md) passes the prior owner-loss regressions: a processed permit response cannot restore released ownership, and a lost processed-stage reply is reconciled to exact removal. The actual two-manager control and router TCP composite passes. Initial focused tests were49/53, followed by7/7 in the two corrected fixture files; original failed evidence remains and product source is unchanged. These runs overlap and are not additive unique coverage. Platform and chain interfaces remain explicitly TEST.
+
+A new node startup factory is present, but the real owned lifecycle constructor requires explicit routes which the factory does not supply. Module-doubled tests do not qualify that integration. Runtime dependencies and their transitive closure are not fully packaged; native protected workloads, remaining workload boundaries and Windows ownership qualification remain unfinished. The host launch path still depends on legacy lease admission. No candidate was installed and no additional app recovery or payment is claimed.
 
 ## Qualified ownership baseline
 

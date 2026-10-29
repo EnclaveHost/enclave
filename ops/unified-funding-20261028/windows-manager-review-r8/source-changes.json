@@ -1,0 +1,65 @@
+{
+  "changes": {
+    "RELEASE-CLOSURE-R8.json": {
+      "seedSha256": null,
+      "finalSha256": "e8c97908eedb3eef84796b67db90694af6dd1edf48aac0a03a11c3a30d62f653",
+      "kind": "new"
+    },
+    "REPORT-WINDOWS-PERMIT-R7.md": {
+      "seedSha256": "368bac6c86bedad08e87bf8af40d9f20623fd181532e9c1743ef6f483729689d",
+      "finalSha256": "28a0f91fabe0c8007056b7aff8861adcabda271fb76106e3ac499313cf1346aa",
+      "kind": "modified"
+    },
+    "REPORT-WINDOWS-PERMIT-R8.md": {
+      "seedSha256": null,
+      "finalSha256": "bfb480332ba3d4c80a7cd2da4e4f00117739f3f268fc56cd4534009e04745582",
+      "kind": "new"
+    },
+    "control/windows/node/agent.mjs": {
+      "seedSha256": "a41ca4cd59252d6a00648fda88232e97fe92049c8142dc1bf7910ae38ecae1a4",
+      "finalSha256": "dee3026c37e600e9ab9d281672967ca267198ac1d5dac2e4ab83cfcd58588f23",
+      "kind": "modified"
+    },
+    "control/windows/node/protected-authority-factory.mjs": {
+      "seedSha256": null,
+      "finalSha256": "27df2438fedda32729ae6cd05d2c21f7eb8b236aee96cfabc6fc147419aa91e9",
+      "kind": "new"
+    },
+    "control/windows/node/protected-isolation.mjs": {
+      "seedSha256": "e835894722272f533acd789ece194daad02ad833ec8ee79430fc79db1786c459",
+      "finalSha256": "5172d47f8803c4303970a1e350bcbc398213dcdaebd26fd8db2828c58fd5ec41",
+      "kind": "modified"
+    },
+    "control/windows/node/protected-supervisor.mjs": {
+      "seedSha256": "2b3bff00ba5768033361eca308ed182fff50f721dab4888e658a74abcf9146f7",
+      "finalSha256": "fc29c1453ebd61740d22f0e32a2a1e88c433cab6136c04e29ae5950afabac82b",
+      "kind": "modified"
+    },
+    "package-lock.json": {
+      "seedSha256": null,
+      "finalSha256": "34f98dfa4fd8720ace4951d49538e2f200ecdda4bf34f37406407e699ef79b1d",
+      "kind": "new"
+    },
+    "test/windows-permit/r7-composite.test.mjs": {
+      "seedSha256": "6be395f877221d4ddb5dcc83874a895f546478b7ffc935fc46f23866a5a2a5da",
+      "finalSha256": "176db4b4c83b36525f61b68fc5bb966ab5adf602e92fd91141605e336eb10330",
+      "kind": "modified"
+    },
+    "test/windows-permit/r8-authority-factory.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "f3629f13b0bf748516e5c42a1fddf193d34286054216d2b45a7d21a08954e206",
+      "kind": "new"
+    },
+    "test/windows-permit/r8-permit-owner-loss.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "8676b42a46e93c7f4941fac66ae128f0eba69ec4874531891fa608a2b4adeef7",
+      "kind": "new"
+    },
+    "test/windows-permit/r8-unknown-owner-loss.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "e36b049bb24bdcd098854df20adffad729cbe799a9e7f6d5d45fed0646a6d4c5",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}
