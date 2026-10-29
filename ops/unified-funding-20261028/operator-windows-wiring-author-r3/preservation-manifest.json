@@ -22,5 +22,6 @@
   "materialization.json": "2c702649fa84fe9632c1357acd9a6c5686e25e39f0dd81a6d2652a923ea7e06c",
   "run.py": "d4445ffb1b0fc646f2bcae2ea37993b5f644e4e9d3215181c7c47bf24b929f8c",
   "preflight-outer.guard.log": "d5e46fb7e83fe2444856e64795343fec9e475cd822c1fe250d1861d84e468e78",
-  "admission-record.json": "bc82087991f28ace3cf01db6bb82d0a70eb1a5f4e59078b93aa71db9c7192f29"
+  "admission-record.json": "bc82087991f28ace3cf01db6bb82d0a70eb1a5f4e59078b93aa71db9c7192f29",
+  "HANDOFF-21-23.md": "6a4ed01d98050cd18e0fe2ae63b5e5fcfc8ddee59c494903b9b10f3bc1b69963"
 }
