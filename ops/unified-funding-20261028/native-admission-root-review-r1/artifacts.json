@@ -1,0 +1,23 @@
+{
+  "admission-envelope.exe": {
+    "sha256": "b29498541c71965a2b56f2ae4df072369590f93dad78383d58a6cecf0ee89713",
+    "bytes": 14848,
+    "executed": false,
+    "nativeQualified": false,
+    "reused": false
+  },
+  "job-probe.exe": {
+    "sha256": "6c8d02e90b5596122095021d9a51f6b77d11487f1610e2f32eca84010a0f660b",
+    "bytes": 9216,
+    "executed": false,
+    "nativeQualified": false,
+    "reused": true
+  },
+  "owned-job.exe": {
+    "sha256": "ad464c95a3c5faffa75b1e11e7b17dd79ea1e8f565eaf388e4287f36f441f8b1",
+    "bytes": 5632,
+    "executed": false,
+    "nativeQualified": false,
+    "reused": false
+  }
+}

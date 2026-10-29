@@ -1,0 +1,48 @@
+{
+  "schema": "enclave-native-admission-build-request/1",
+  "status": "REVIEW_ONLY_NOT_BUILT",
+  "buildExecuted": false,
+  "toolchainPin": "Reviewer must pin the exact llvm-mingw/clang x86_64-w64-windows-gnu toolchain hash used for the historical launcher/probe; not known in this lane. Header availability of BCryptHash and BCRYPT_SHA256_ALG_HANDLE with _WIN32_WINNT=0x0A00 must be confirmed in that pinned SDK.",
+  "historicalSubsystemCheck": "Reviewer must read the PE subsystem of the pinned 5632-byte launcher and 9216-byte probe and use the same here; a console conhost appearing inside Job T would break probe baseline ActiveProcesses==3 and envelope ready accounting(3,3), which refuse rather than pass.",
+  "commonFlags": ["--target=x86_64-w64-windows-gnu", "-O2", "-ffreestanding", "-fno-builtin", "-fno-stack-protector", "-fno-asynchronous-unwind-tables", "-mno-stack-arg-probe", "-D_WIN32_WINNT=0x0A00", "-DUNICODE", "-D_UNICODE", "-Wall", "-Wextra", "-Werror"],
+  "commonLinkFlags": ["-nostdlib", "-nostartfiles", "-Wl,--entry=entry", "-Wl,--subsystem,console", "-Wl,--dynamicbase", "-Wl,--nxcompat", "-Wl,--high-entropy-va"],
+  "order": [
+    {
+      "step": 1,
+      "output": "owned-job.exe",
+      "sources": ["owned-job.c", "no-crt.c"],
+      "libraries": ["-lkernel32"],
+      "expectedImports": {"KERNEL32.dll": ["CloseHandle", "CreateProcessW", "CreateThread", "DeleteProcThreadAttributeList", "DuplicateHandle", "ExitProcess", "GetCommandLineW", "GetCurrentProcess", "GetExitCodeProcess", "GetStdHandle", "GetSystemDirectoryW", "GetTickCount64", "GlobalMemoryStatusEx", "InitializeProcThreadAttributeList", "IsProcessInJob", "QueryInformationJobObject", "ResumeThread", "Sleep", "TerminateProcess", "UpdateProcThreadAttribute", "WaitForSingleObject"]},
+      "forbiddenImports": ["CreateJobObjectW", "SetInformationJobObject", "AssignProcessToJobObject", "TerminateJobObject", "any non-KERNEL32 DLL"],
+      "note": "R1 interface change: no Job creation, self-assignment or Job termination in the launcher. Historical sha256 94a8483e... no longer applies."
+    },
+    {
+      "step": 2,
+      "output": "job-probe.exe",
+      "sources": ["job-probe.c", "no-crt.c"],
+      "libraries": ["-lkernel32"],
+      "sourceUnchanged": true,
+      "note": "Exact historical source; byte equality with historical 6c8d02e9... binary only if the historical toolchain/flags are reproduced, otherwise a new pin."
+    },
+    {
+      "step": 3,
+      "output": "admission-envelope.exe",
+      "sources": ["admission-envelope.c", "no-crt.c"],
+      "defines": ["-DEXPECT_LAUNCHER_SHA256=\"<lowercase sha256 of step-1 output>\"", "-DEXPECT_PROBE_SHA256=\"<lowercase sha256 of step-2 output>\""],
+      "libraries": ["-lkernel32", "-lbcrypt"],
+      "expectedImports": {
+        "KERNEL32.dll": ["AssignProcessToJobObject", "CloseHandle", "CreateFileW", "CreateIoCompletionPort", "CreateJobObjectW", "CreateProcessW", "DeleteProcThreadAttributeList", "DuplicateHandle", "ExitProcess", "GetCommandLineW", "GetCurrentProcess", "GetCurrentProcessId", "GetExitCodeProcess", "GetFileAttributesW", "GetFileInformationByHandle", "GetLastError", "GetModuleFileNameW", "GetProcessId", "GetProcessTimes", "GetQueuedCompletionStatus", "GetStdHandle", "GetSystemTimeAsFileTime", "GetTickCount64", "GlobalMemoryStatusEx", "InitializeProcThreadAttributeList", "IsProcessInJob", "OpenProcess", "QueryInformationJobObject", "ReadFile", "ResumeThread", "SetInformationJobObject", "Sleep", "TerminateJobObject", "TerminateProcess", "UpdateProcThreadAttribute", "VirtualAlloc", "VirtualFree", "WaitForMultipleObjects", "WaitForSingleObject", "WriteFile"],
+        "bcrypt.dll": ["BCryptHash"]
+      },
+      "forbiddenImports": ["ws2_32", "winhttp", "advapi32 registry/service APIs", "shell32", "GetEnvironmentStrings*", "CreateJobObject with a name (source passes NULL)", "OpenJobObject"],
+      "note": "If unset, EXPECT_* default to empty and the envelope refuses ImagePinRefused at run time."
+    }
+  ],
+  "postBuildReviewChecks": [
+    "Import table equals expectedImports exactly (no memcpy/__chkstk/CRT DLL); only memset from no-crt.c is defined locally.",
+    "Record sha256/bytes of all three outputs; run-contract.json pins are filled only by the reviewer from those bytes.",
+    "No build output is evidence of native behaviour."
+  ],
+  "networkUsed": false,
+  "executionPerformed": false
+}

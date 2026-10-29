@@ -1,0 +1,118 @@
+{
+  "schema": "enclave-native-envelope-readonly-review/1",
+  "reviewedAt": "2026-10-29T22:29:31.859430+00:00",
+  "sourceRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/author-delivery",
+  "manifestSha256": "ee373193d616bff0eaf7cc58f5c789742fab88af1c26929c65dc78928031ee04",
+  "sourceUnchanged": true,
+  "testsBuildsNativeExecution": false,
+  "findings": [
+    {
+      "priority": "P1",
+      "title": "Observer mode bypasses TEST authorization and capacity gate",
+      "file": "admission-envelope.c",
+      "lines": [
+        195,
+        199,
+        200,
+        205,
+        220,
+        221,
+        225,
+        230
+      ],
+      "reachability": "Reachable in current source, independent of capacity_hold absence and EXPECT_* image pins.",
+      "detail": "entry branches to observer at221 before creator/domain/image/capacity gates. Observer only checks a caller-arrangeable immediate Job O and caller-supplied PID/creation/handles, then TerminateProcess(w.h) at205. It never proves wrapper image/domain/creator ownership, membership in this invocation E/T or descent. Three supplied descendant handles need not be distinct or related; even duplicate handles to the victim can satisfy the identity/alive checks. This is a scope enforcement defect, not a privilege escalation: caller must already supply a terminate-capable process handle. Internal naming and a fresh nonce do not authorize the target.",
+      "required": "Keep observe disabled until the real creator/envelope binds an exact one-shot permitted TEST invocation and target/descendant provenance; do not treat known process identity alone as authorization. Add actual negative consumer cases for direct observe, unrelated matching handles and duplicates."
+    },
+    {
+      "priority": "P2",
+      "title": "Envelope E64 is not an independently enforced memory cap",
+      "file": "admission-envelope.c",
+      "lines": [
+        7,
+        19,
+        29,
+        96,
+        102,
+        180
+      ],
+      "reachability": "Claim is present now; resource behavior only prospective.",
+      "detail": "Only Job E aggregate384, T256 and O64 are configured. E_FLAGS has no PROCESS_MEMORY limit; no envelope-only64 Job/cap exists. Before children the envelope can consume the aggregate384; later it can consume unused T/O headroom. Aggregate nested384 accounting can be a valid overall charged-commit bound, but does not establish independently enforced E64 plus O64/T256 partitions. Do not add inherited PROCESS_MEMORY64 casually because it would also constrain probe descendants and alter tests. Creator footprint and non-job-charged physical overhead remain outside proof.",
+      "required": "Either accurately specify one shared aggregate384 budget and its bootstrap implications, or implement a separately verified envelope-process cap without changing the intended test semantics."
+    },
+    {
+      "priority": "P1-latent",
+      "title": "Hold incarnation/sequence are unused and capacity is never refreshed",
+      "file": "admission-envelope.c",
+      "lines": [
+        123,
+        124,
+        126,
+        133,
+        166,
+        230
+      ],
+      "reachability": "Main launch currently unreachable because capacity_hold always refuses; blocker before wiring a real hold.",
+      "detail": "capacity_hold is called once. admit excludes incarnation/sequence from validation, and the second admission before resume refreshes only OS memory. pressure uses cached P/floor/expiry without a fresh handle/query/renewal or revocation/owner continuity check. Unknown incarnation/sequence can pass if other fields are populated in a future implementation. An old P/floor could survive sequence changes until expiry.",
+      "required": "Define and validate an actual live hold identity/continuity contract. Either its immutable bounds are guaranteed for the entire interval, with revocation handled, or revalidate sequence/incarnation/current bounds at resume and throughout each phase. No current API provides that guarantee."
+    },
+    {
+      "priority": "P2-latent",
+      "title": "Ready wait suspends the advertised 50ms envelope pressure checks",
+      "file": "admission-envelope.c",
+      "lines": [
+        169,
+        171,
+        177
+      ],
+      "reachability": "Main death path currently blocked at capacity gate.",
+      "detail": "ready blocks in GetQueuedCompletionStatus for up to READY_MS10000 with no creator/expiry/pressure checks inside the wait. Only after all three messages does it call pressure. The launcher secondary watchdog uses fixed18432 and cannot enforce a higher live floor or P/hold expiry.",
+      "required": "Use bounded polling slices that recheck creator, hold and pressure; retain readiness uncertainty on missing notifications."
+    },
+    {
+      "priority": "P2",
+      "title": "Exact expected import table conflicts with constant refusal and optimizer",
+      "file": "build-request.json",
+      "detail": "Contract requires import table equals the full prospective launch/death list at O2. capacity_hold is static and always returns nonzero; entry230 always receipts/exits before launch_test/ready/spawn_observer/watch. Optimizer may remove their entire code/import set (CreateProcessW, AssignProcessToJobObject, CreateJobObjectW, completion-port APIs etc), while direct observer path retains TerminateProcess and other observer imports. Empty EXPECT_* defaults can additionally remove hashing. The declared toolchain is llvm-mingw GNU rather than historical clang-cl/lld-link/Wine headers.",
+      "required": "Treat any cross-compile as refusal-path/build compatibility evidence only. Inspect actual PE imports, distinguish allowed vs required reachable imports, pin actual toolchain and do not claim this build includes usable normal test phases. No build performed in review."
+    },
+    {
+      "priority": "P2",
+      "title": "Current job shape does not prove pre-entry timing or creator provenance",
+      "file": "admission-envelope.c",
+      "lines": [
+        95,
+        99,
+        225,
+        227
+      ],
+      "reachability": "Current normal entry gate.",
+      "detail": "Immediate job limits plus active=total=1 prove a present configuration, not when it was assigned. A parent could assign/configure a sole running process before its check. An arbitrary earlier alive process handle matching supplied PID/creation also passes creator check; no parent/known creator binding is established. Contracts acknowledge an absent reviewed creator, but some case expectations imply unrelated creator handles or late assignment are already detected.",
+      "required": "Retain explicit external creator obligations and correct tests/claims; never convert this local shape check into a native pre-entry qualification."
+    }
+  ],
+  "positiveSourceObservations": [
+    "Prospective legitimate main path creates T and attaches completion port before the suspended launcher, assigns T and checks membership before resume. Nested T/O under E is structurally consistent with Windows nesting semantics if actual operations succeed.",
+    "T/E/O handles are created non-inheritable; exact lists to launcher/observer omit T. Observer receives only owner terminate/query/sync plus tree query/sync handles and stdout. Legitimate creator retaining E while owner dies permits O to survive T owner death. This is source intent, not evidence that no external duplicate handle exists.",
+    "Readiness checks job membership, retained process handles and total/active counts; absence/exit becomes refusal. NEW_PROCESS notifications indicate job association, not completion of the child entrypoint. Windows does not guarantee these notification deliveries; timeout is uncertainty, not proof of absent children.",
+    "Frozen10 still matches delivery manifest exactly. No source/input changes, tests, builds, author launch, remote/native execution or finance."
+  ],
+  "documentation": [
+    {
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information",
+      "supports": "JobMemoryLimit is job aggregate; independent per-process limit requires PROCESS_MEMORY and ProcessMemoryLimit."
+    },
+    {
+      "url": "https://learn.microsoft.com/windows/win32/api/jobapi2/nf-jobapi2-queryinformationjobobject",
+      "supports": "NULL queries immediate job in nested hierarchy."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/windows/win32/procthread/nested-jobs",
+      "supports": "Children inherit the job chain; nested resources aggregate and parent termination covers children."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_associate_completion_port",
+      "supports": "NEW_PROCESS reflects job association; delivery not generally guaranteed and bare notification PIDs can be recycled."
+    }
+  ]
+}

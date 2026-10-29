@@ -1,0 +1,116 @@
+{
+  "owned-job.exe": {
+    "subsystem": "IMAGE_SUBSYSTEM_WINDOWS_CUI (0x3)",
+    "imports": {
+      "kernel32.dll": [
+        "CloseHandle",
+        "CreateProcessW",
+        "CreateThread",
+        "DeleteProcThreadAttributeList",
+        "DuplicateHandle",
+        "ExitProcess",
+        "GetCommandLineW",
+        "GetCurrentProcess",
+        "GetExitCodeProcess",
+        "GetStdHandle",
+        "GetSystemDirectoryW",
+        "GetTickCount64",
+        "GlobalMemoryStatusEx",
+        "InitializeProcThreadAttributeList",
+        "IsProcessInJob",
+        "QueryInformationJobObject",
+        "ResumeThread",
+        "Sleep",
+        "TerminateProcess",
+        "UpdateProcThreadAttribute",
+        "WaitForSingleObject"
+      ]
+    },
+    "expectedMissing": [],
+    "unexpected": []
+  },
+  "job-probe.exe": {
+    "subsystem": "IMAGE_SUBSYSTEM_WINDOWS_CUI (0x3)",
+    "imports": {
+      "kernel32.dll": [
+        "CloseHandle",
+        "CreateProcessW",
+        "ExitProcess",
+        "GetCommandLineW",
+        "GetCurrentProcess",
+        "GetCurrentProcessId",
+        "GetExitCodeProcess",
+        "GetLastError",
+        "GetModuleFileNameW",
+        "GetProcessTimes",
+        "GetStdHandle",
+        "GetTickCount64",
+        "GlobalMemoryStatusEx",
+        "IsProcessInJob",
+        "QueryInformationJobObject",
+        "ResumeThread",
+        "Sleep",
+        "TerminateProcess",
+        "VirtualAlloc",
+        "VirtualFree",
+        "WaitForSingleObject",
+        "WriteFile"
+      ]
+    },
+    "expectedMissing": null,
+    "unexpected": null
+  },
+  "admission-envelope.exe": {
+    "subsystem": "IMAGE_SUBSYSTEM_WINDOWS_CUI (0x3)",
+    "imports": {
+      "bcrypt.dll": [
+        "BCryptHash"
+      ],
+      "kernel32.dll": [
+        "CreateFileW",
+        "ExitProcess",
+        "GetCommandLineW",
+        "GetCurrentProcess",
+        "GetCurrentProcessId",
+        "GetExitCodeProcess",
+        "GetFileAttributesW",
+        "GetFileInformationByHandle",
+        "GetLastError",
+        "GetModuleFileNameW",
+        "GetProcessId",
+        "GetProcessTimes",
+        "GetStdHandle",
+        "GetSystemTimeAsFileTime",
+        "GlobalMemoryStatusEx",
+        "IsProcessInJob",
+        "QueryInformationJobObject",
+        "ReadFile",
+        "TerminateProcess",
+        "VirtualAlloc",
+        "VirtualFree",
+        "WaitForMultipleObjects",
+        "WaitForSingleObject",
+        "WriteFile"
+      ]
+    },
+    "expectedMissing": [
+      "AssignProcessToJobObject",
+      "CloseHandle",
+      "CreateIoCompletionPort",
+      "CreateJobObjectW",
+      "CreateProcessW",
+      "DeleteProcThreadAttributeList",
+      "DuplicateHandle",
+      "GetQueuedCompletionStatus",
+      "GetTickCount64",
+      "InitializeProcThreadAttributeList",
+      "OpenProcess",
+      "ResumeThread",
+      "SetInformationJobObject",
+      "Sleep",
+      "TerminateJobObject",
+      "UpdateProcThreadAttribute"
+    ],
+    "unexpected": []
+  }
+}
