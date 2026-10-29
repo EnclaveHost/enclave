@@ -89,6 +89,12 @@ operator, authority revision, target Offline, evidence digest, deadline, payee
 and maximum charge. Validate exclusively from local stored state and signatures.
 No registry/ownership/identity/token/oracle/recipient call and no current admission
 approval. Record Offline and fence generation before reimbursement accounting.
+Reimbursement accounting must be zero-balance safe: clamp charges and reserved
+fee liabilities to actually available funds, use bounded checked arithmetic, and
+retain the valid offline transition even when reimbursement is zero. No payee
+transfer occurs here. Merely putting the state writes before a potentially
+reverting payment calculation is NOT sufficient: a later EVM revert would undo
+them. Invalid authority/intents still fail authentication before any state change.
 Exact retries return without changing state or charging again. Wrong epoch,
 old owner revision, duplicate signers, wrong domain and replay are refused.
 
@@ -111,7 +117,13 @@ right. A foreign sponsor may not reclaim protected live-host funds on demand.
 execution reimbursement may be measured/bounded; Base L1 fees need an explicitly
 reserved cap and a separately qualified receipt/fee mechanism. Do not label an
 unpriced/unreserved residual as fully funded. Oracle/recipient failures cannot
-undo Offline. Do not promise protection against unbounded future fee spikes.
+undo Offline. Do not promise protection against unbounded future fee spikes. Distinguish a
+finite funded inclusion budget from unconditional chain availability: independent
+submitters need recoverable gas funds without the failed host key, durable pending
+intents/nonces, and canonical receipt reconciliation. Chain/RPC unavailability or
+fees above the funded bound leave a durable pending report and local serving
+fenced; neither condition authorizes a false claim that the on-chain transition
+has landed.
 
 ## Qualification authority and listing-gas release
 
@@ -143,6 +155,11 @@ resource totals less committed allocations, pending assignments and headroom,
 optionally reduced by separately fresh bound spare evidence. CPU, RAM, GPU and
 per-device VRAM evidence stay distinct. Stale/failed qualification removes that
 resource's availability. Do not substitute raw cpuShareFree/gpuShareFree values.
+The qualification digest/expiry recorded at listing is historical evidence of
+that acceptance, not a new periodically renewed on-chain lease. Fresh ongoing
+capacity/attestation/heartbeats are verified off chain; expiry fences local
+availability, and actual failure/recovery transitions update chain. Do not create
+mandatory periodic chain writes merely to refresh qualification timestamps.
 
 Actual source split to bridge: `availability/observation.mjs` only validates
 receipts after active-row resolution; `site/components/fleet-list/fleet-list.js`
