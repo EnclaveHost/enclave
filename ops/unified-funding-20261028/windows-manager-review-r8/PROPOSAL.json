@@ -1,0 +1,47 @@
+{
+  "status": "PREPARED_SOURCE_ONLY_NOT_EXECUTED",
+  "fixture": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r8-20261029/factory-proposal/real-owned-factory.test.mjs",
+  "fixtureSha256": "d2693af266030c83c2686e5d0bad1f3a831a86eda816f7b4af458a9f874a7f52",
+  "sourceImportManifestSha256": "a6241d6c03eccf519f705ef41cc54d4e7cc40cef3eba748d2da10016ed7c4483",
+  "candidateManifest": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r8-20261029/author-delivery-manifest.json",
+  "candidateManifestSha256": "338af30b0488bddfe1c84ab0f9a9d7e653df410c30b0329c31c7973315822978",
+  "expectedCurrentResult": "One failing positive constructor regression with missing explicit lifecycle routes; setup/import failures are not this reproduction.",
+  "realConsumers": [
+    "r8 composeProtectedAuthority",
+    "R18 openOwnedHostRegistryLifecycle",
+    "real parent and two sidecar journals/Linux flock",
+    "actual gate/runtime/composeIndependentLifecycle/createLifecycleDispatch/route validation"
+  ],
+  "testDoubles": [
+    "canonical adapter stand-in identical profile/identity construction to reviewed R18 O8; no chain read",
+    "finality/collector/accounts inert constructors",
+    "inert manager/readiness/boundaries"
+  ],
+  "claimsExcluded": [
+    "actual chain proof",
+    "Windows qualification",
+    "VM operation",
+    "RPC or financial transaction",
+    "positive production factory operation"
+  ],
+  "requiredEnv": {
+    "ENCLAVE_R8_FACTORY_CANDIDATE": "absolute root-reviewed r8 candidate tree with dependency resolution",
+    "ENCLAVE_R18_NETWORK_ROOT": "absolute byte-exact R18 network tree with dependency resolution",
+    "TEST_TMPDIR": "absolute private persistent root-owned test temporary directory"
+  },
+  "boundedExecutionProposal": {
+    "onlyExecutor": "coordinator after review",
+    "tests": 1,
+    "testConcurrency": 1,
+    "testTimeoutMs": 15000,
+    "outerWallSec": 60,
+    "hardMemoryMiB": 512,
+    "rssMiB": 450,
+    "floorAvailableMiB": 27648,
+    "cpus": 1,
+    "swapMiB": 0,
+    "note": "No execution from this chat. Root queue and memory guard mandatory; no network, Anvil, service, production or financial action. Missing imports must be materialized/reviewed first; no dummy routes or bypassed validation."
+  },
+  "inspectionOnly": true,
+  "testsRun": false
+}
