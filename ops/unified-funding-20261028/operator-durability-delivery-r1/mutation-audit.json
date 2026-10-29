@@ -1,0 +1,189 @@
+{
+  "events": [
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/operator-effects.mjs",
+      "rel": "control/windows/node/operator-effects.mjs",
+      "id": "toolu_016zGi28EdCMiY6j9zJDYEuA",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/chain.mjs",
+      "rel": "control/windows/node/chain.mjs",
+      "id": "toolu_0185sMewTurWJBYqsLuLXMLM",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/chain.mjs",
+      "rel": "control/windows/node/chain.mjs",
+      "id": "toolu_01GpFRzPatzRQaHQorZxFbhs",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/chain.mjs",
+      "rel": "control/windows/node/chain.mjs",
+      "id": "toolu_01HKmFmZbpGVckCutgKET58A",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/chain.mjs",
+      "rel": "control/windows/node/chain.mjs",
+      "id": "toolu_01KEfct1jFPj4qHcza231eHK",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/chain.mjs",
+      "rel": "control/windows/node/chain.mjs",
+      "id": "toolu_01KNE9sWEBcBxS6GdtUp5XJd",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/chain.mjs",
+      "rel": "control/windows/node/chain.mjs",
+      "id": "toolu_01UT9YzHhwaDWDEPVyxQYKRr",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/chain.mjs",
+      "rel": "control/windows/node/chain.mjs",
+      "id": "toolu_01W1e1BQb6EtqsHXTMyAE7pf",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/chain.mjs",
+      "rel": "control/windows/node/chain.mjs",
+      "id": "toolu_017gY27cSy7F8vfhCqXVamDq",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/chain.mjs",
+      "rel": "control/windows/node/chain.mjs",
+      "id": "toolu_01XdfhnENaKW86xS5tPw94yQ",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_01TVkrga1bbdj9JWNRCWZqdA",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_01GUmcYTdeAHoTfqP8HZET2P",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/host.mjs",
+      "rel": "control/windows/node/host.mjs",
+      "id": "toolu_01Bkp5AvtJMXaCza2fuf5JTB",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/initialize-operator-effects.mjs",
+      "rel": "control/windows/node/initialize-operator-effects.mjs",
+      "id": "toolu_01DJLWujSSRD7gauVaxKLh5J",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/test/windows-permit/helpers/od-r1-owner-child.mjs",
+      "rel": "test/windows-permit/helpers/od-r1-owner-child.mjs",
+      "id": "toolu_014oHi8RUohYhUsNJ7qYKtqm",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/test/windows-permit/od-r1-operator-effects-store.test.mjs",
+      "rel": "test/windows-permit/od-r1-operator-effects-store.test.mjs",
+      "id": "toolu_01NyG9WsHNfXmvNd5WDhuv7z",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/test/windows-permit/od-r1-operator-effects-store.test.mjs",
+      "rel": "test/windows-permit/od-r1-operator-effects-store.test.mjs",
+      "id": "toolu_01YFupkUnSkuLSTzZajP7THf",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/test/windows-permit/od-r1-operator-effects-store.test.mjs",
+      "rel": "test/windows-permit/od-r1-operator-effects-store.test.mjs",
+      "id": "toolu_013RcGKWgytaTCgk2pv1oDEX",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/test/windows-permit/od-r1-direct-sender.test.mjs",
+      "rel": "test/windows-permit/od-r1-direct-sender.test.mjs",
+      "id": "toolu_01SihY2cUkJdZd4yi2rVPx6i",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/test/windows-permit/od-r1-direct-sender.test.mjs",
+      "rel": "test/windows-permit/od-r1-direct-sender.test.mjs",
+      "id": "toolu_01F9k6Mzhiitt7zVN2xok3Kp",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/test/windows-permit/od-r1-sponsored.test.mjs",
+      "rel": "test/windows-permit/od-r1-sponsored.test.mjs",
+      "id": "toolu_01M1rXGgtCoZh4vsSGhLnmk8",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/chain.mjs",
+      "rel": "control/windows/node/chain.mjs",
+      "id": "toolu_01XdNYZHXfKYWtDFJsHmRsc7",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/control/windows/node/operator-effects.mjs",
+      "rel": "control/windows/node/operator-effects.mjs",
+      "id": "toolu_014hvGcZNgoSDkCM38UoXzNR",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/test/windows-permit/od-r1-operator-effects-store.test.mjs",
+      "rel": "test/windows-permit/od-r1-operator-effects-store.test.mjs",
+      "id": "toolu_01ExdV1MywKy1VULksvL7q44",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/REPORT-OPERATOR-DURABILITY-R1.md",
+      "rel": "REPORT-OPERATOR-DURABILITY-R1.md",
+      "id": "toolu_01VCMSRRucc1RRmUnPo65UaY",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/candidate/RELEASE-CLOSURE-OPERATOR-DURABILITY-R1.json",
+      "rel": "RELEASE-CLOSURE-OPERATOR-DURABILITY-R1.json",
+      "id": "toolu_01VHMsqDRuMcxKYBP8hpDoLL",
+      "outcome": "reported-success"
+    }
+  ],
+  "replayIssues": [],
+  "outsideCandidateAttempts": [],
+  "note": "first successful mutation snapshots reconstructed from immutable seed and successful tool results; any mismatch requires manual audit, never assumed clean"
+}

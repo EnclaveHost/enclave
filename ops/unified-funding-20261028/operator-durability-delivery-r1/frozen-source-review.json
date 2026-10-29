@@ -1,0 +1,52 @@
+{
+  "scope": "Read-only source review of frozen author delivery. No modules evaluated, tests/builds/actions run, or candidate changes made. Findings require root execution.",
+  "manifestSha256": "2ab1b702572dff77bc96d3ace4982ebced581371b31687022607e9c65196f24c",
+  "rootRepairsPreserved": {
+    "control/isolation/m4/guestd/control-client.mjs": true,
+    "control/windows/node/protected-isolation.mjs": true,
+    "control/windows/node/protected-supervisor.mjs": true
+  },
+  "findings": [
+    {
+      "priority": 1,
+      "file": "control/windows/node/operator-effects.mjs",
+      "line": 235,
+      "issue": "Linux live wrapper calls h.assertLive and h.failed, but not the durable-state check that detects lost/replaced state file or missing marker. The primitive invokes that continuity check through h.state/check, while assertLive only checks owner lifetime/lock. Cached records/get/final assertLive can therefore miss state loss while lock remains.",
+      "suggestedRegression": "External final gate removes established state or marker after sending intent was persisted. Require zero wallet calls and latched reads; also check records/get after removal."
+    },
+    {
+      "priority": 1,
+      "file": "control/windows/node/chain.mjs",
+      "line": 504,
+      "issue": "Sponsored final gate precedes durableStep for authorization, lease signature and POST. No permission+owner recheck after persistence at actual side-effect call. Returned typed signature likewise persists after permission check and returns without another boundary check.",
+      "relatedLines": [
+        460,
+        464,
+        466,
+        474,
+        480,
+        482,
+        488,
+        496,
+        497,
+        504,
+        506,
+        509
+      ],
+      "suggestedRegression": "Revoke gate during externally injected persistence, using real shipped client with inert signer/HTTP. Require no next signature/POST, truthful retained classification and restart hold."
+    },
+    {
+      "priority": 1,
+      "file": "control/windows/node/chain.mjs",
+      "line": 541,
+      "issue": "Shared physical store does not itself coordinate cross-kind unknown nonce obligations: sponsored admission filters only sponsored records for this deployment; direct durableBlock filters only write records. Author explicitly leaves EIP7702 authorization/direct nonce interaction unhandled.",
+      "suggestedRegression": "Unknown direct write then sponsored authorization, and unknown sponsored POST/auth then direct send, across restart. Require exact operator-domain nonce fencing; do not treat serial in-process queue as durable reconciliation."
+    }
+  ],
+  "deploymentGates": [
+    "agent.mjs lacks Windows operatorEffects storage context and installer integration",
+    "Pinned deployed runtime EXLOCK unavailable per author report; real Windows storage/crash qualification outstanding",
+    "Sponsored tests use client emulator, not shipped-client qualification",
+    "Explicit recovery/maintenance and full/native workload gates remain unfinished"
+  ]
+}

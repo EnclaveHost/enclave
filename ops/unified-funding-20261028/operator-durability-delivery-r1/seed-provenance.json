@@ -1,0 +1,24 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r12/repaired",
+  "sourceManifest": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r12/repaired-manifest.json",
+  "sourceManifestSha256": "9e379ac483e8cca931b4cc8e8c856ca497ea5c6d470c891cee5d1375d34b6398",
+  "seedFiles": 230,
+  "seedManifestSha256": "9e379ac483e8cca931b4cc8e8c856ca497ea5c6d470c891cee5d1375d34b6398",
+  "preAuthorProductEdits": [],
+  "rootProductChangesSinceAuthorR12": {
+    "control/isolation/m4/guestd/control-client.mjs": {
+      "author": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+      "root": "df77d6dbbcab2d57729e6cb6b70e5f8fab006c8c1ac5be9eb7baf1440df934b4"
+    },
+    "control/windows/node/protected-isolation.mjs": {
+      "author": "559a77511c8c357995c9009038340716458fade24a964b0877946fca2b92ad55",
+      "root": "bfbab051a4784bb45d1510596b7d8a337d80b0bccf45447149c6181ecb65f160"
+    },
+    "control/windows/node/protected-supervisor.mjs": {
+      "author": "c9996bb1fe9b09e95b5f65c390140e114d469593195fbbf0cae3cdef65196ee8",
+      "root": "1cd9be0545bd0284ffb26c12131c4233b340d1e6773872fecdff8f8f540e8408"
+    }
+  },
+  "noCandidateCodeExecuted": true,
+  "externalFixtureCorrections": "Full actual consumer and handshake tests, corrected broad fixture suites and actual two durable gaps remain readonly evidence. Never revert repaired projection/transport/client to old author bytes."
+}
