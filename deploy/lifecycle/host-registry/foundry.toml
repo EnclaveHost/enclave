@@ -1,0 +1,15 @@
+[profile.default]
+src = "candidate/contracts"
+test = "candidate/test"
+out = "out"
+cache_path = "cache"
+libs = []
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 1
+via_ir = true
+evm_version = "prague"
+offline = true
+ffi = false
+extra_output = ["storageLayout"]
+remappings = ["forge-std/=../../../contracts/foundry/lib/forge-std/src/"]

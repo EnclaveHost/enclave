@@ -1,0 +1,12 @@
+{
+  "qualification": "exact tested source bytes; portable root config not recompiled",
+  "sha256": {
+    "candidate/REPORT.md": "b047dfcd63cb893883ae50f0c628cbe352fb672b37fd70c5634d8f0949081ca2",
+    "candidate/REVIEW-REPAIRS.md": "76bac38a3fba683dd4bf70ebab4368f3ae19082ea851bb9b4c42c255c4cf9bca",
+    "candidate/contracts/EnclaveHostLifecycleRegistry.sol": "68310acc3bda76be0c7bf06ad5149ac1b354e3687f8268223bc8589457c071a8",
+    "candidate/foundry.toml": "04bb2a171438a365fcf61089fb0099f9e6083aba0b4b62a048935ee52a3c9596",
+    "candidate/test/HostLifecycleRegistry.t.sol": "14e589607dc71d9d314f9261b66076f0975f4aba87702b2702f512ca7c0e18b5",
+    "candidate/test/HostLifecycleReview.t.sol": "3ccfd39b9cd9dc9dfcefb820ebe32e80d2c05cce0202c29bb895220a48e1ee87",
+    "candidate/test/HostLifecycleSponsorBudget.t.sol": "4371fb364a07145f9a6ade9b9ea47da6387ad7888630c54f4ce2109d0dfe13c5"
+  }
+}
