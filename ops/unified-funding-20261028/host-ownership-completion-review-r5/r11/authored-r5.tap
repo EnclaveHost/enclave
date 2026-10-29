@@ -1,0 +1,187 @@
+TAP version 13
+# Subtest: A1 delayed async withdrawal: the real flock stays held (new owner EXCLUDED while cleanup is incomplete), then released after success
+ok 1 - A1 delayed async withdrawal: the real flock stays held (new owner EXCLUDED while cleanup is incomplete), then released after success
+  ---
+  duration_ms: 53.549814
+  type: 'test'
+  ...
+# Subtest: A2 rejected or synchronously failing withdrawal stays FENCED: lock held, completion never rejects, no unhandled rejection
+ok 2 - A2 rejected or synchronously failing withdrawal stays FENCED: lock held, completion never rejects, no unhandled rejection
+  ---
+  duration_ms: 30.164667
+  type: 'test'
+  ...
+# Subtest: A3 bounded withdrawal deadline FENCES (never releases by timeout)
+ok 3 - A3 bounded withdrawal deadline FENCES (never releases by timeout)
+  ---
+  duration_ms: 49.458252
+  type: 'test'
+  ...
+# Subtest: A4 lock loss starts the withdrawal on the next use (assertLive) and the old handle refuses
+ok 4 - A4 lock loss starts the withdrawal on the next use (assertLive) and the old handle refuses
+  ---
+  duration_ms: 5.100658
+  type: 'test'
+  ...
+# Subtest: D1 positive: clean store keeps intent + matching acknowledgement; a fresh open is clean and writes forward
+ok 5 - D1 positive: clean store keeps intent + matching acknowledgement; a fresh open is clean and writes forward
+  ---
+  duration_ms: 2.637039
+  type: 'test'
+  ...
+# Subtest: D2 store FINAL acknowledgement directory-sync fault (3rd dir fsync) survives a fresh open; owned explicit recovery verifies + keeps history
+ok 6 - D2 store FINAL acknowledgement directory-sync fault (3rd dir fsync) survives a fresh open; owned explicit recovery verifies + keeps history
+  ---
+  duration_ms: 9.667707
+  type: 'test'
+  ...
+# Subtest: D3 recovery FINAL acknowledgement fault also survives a fresh open; a later successful recovery clears it
+ok 7 - D3 recovery FINAL acknowledgement fault also survives a fresh open; a later successful recovery clears it
+  ---
+  duration_ms: 6.517741
+  type: 'test'
+  ...
+# Subtest: D4 established sidecar + marker loss refuses with established coupling; no recovery into empty state
+ok 8 - D4 established sidecar + marker loss refuses with established coupling; no recovery into empty state
+  ---
+  duration_ms: 3.995092
+  type: 'test'
+  ...
+# Subtest: G1 owner release waits for the ACTUAL runtime revokeInstance (delayed manager removal); next owner excluded until it completes; then acquires
+ok 9 - G1 owner release waits for the ACTUAL runtime revokeInstance (delayed manager removal); next owner excluded until it completes; then acquires
+  ---
+  duration_ms: 185.344532
+  type: 'test'
+  ...
+# Subtest: G2 rejected manager removal keeps the owner FENCED (lock held), completion reports the failure
+ok 10 - G2 rejected manager removal keeps the owner FENCED (lock held), completion reports the failure
+  ---
+  duration_ms: 138.627668
+  type: 'test'
+  ...
+# Subtest: G3 close while the INITIAL manager lookup awaits: no spawn is ever initiated; release completes; retained runtime refuses new work
+ok 11 - G3 close while the INITIAL manager lookup awaits: no spawn is ever initiated; release completes; retained runtime refuses new work
+  ---
+  duration_ms: 55.740724
+  type: 'test'
+  ...
+# Subtest: G4 spawn initiated BEFORE close: release cannot finish until the resulting instance is removed and absence confirmed
+ok 12 - G4 spawn initiated BEFORE close: release cannot finish until the resulting instance is removed and absence confirmed
+  ---
+  duration_ms: 26.168405
+  type: 'test'
+  ...
+# Subtest: G5 pre-close spawn whose removal FAILS keeps the owner fenced
+ok 13 - G5 pre-close spawn whose removal FAILS keeps the owner fenced
+  ---
+  duration_ms: 26.723152
+  type: 'test'
+  ...
+# Subtest: G6 positive control: an unchanged live owner stages and serves normally (no spurious r4 refusal)
+ok 14 - G6 positive control: an unchanged live owner stages and serves normally (no spurious r4 refusal)
+  ---
+  duration_ms: 125.725474
+  type: 'test'
+  ...
+# Subtest: G7 lock loss: the OLD gate assert refuses on use (not only on a later journal write) and withdraws the tracked resource
+ok 15 - G7 lock loss: the OLD gate assert refuses on use (not only on a later journal write) and withdraws the tracked resource
+  ---
+  duration_ms: 92.622231
+  type: 'test'
+  ...
+# Subtest: G8 witness lock loss while signing awaits readiness: the request is cancelled, no signature released
+ok 16 - G8 witness lock loss while signing awaits readiness: the request is cancelled, no signature released
+  ---
+  duration_ms: 41.135759
+  type: 'test'
+  ...
+ROOT settled failure {"result":{"released":false,"fenced":true,"errors":[{}]},"instances":1}
+# Subtest: ROOT settled withdrawal failure must remain fenced at later owner close
+ok 17 - ROOT settled withdrawal failure must remain fenced at later owner close
+  ---
+  duration_ms: 121.640093
+  type: 'test'
+  ...
+ROOT staged release {"close":{"released":true,"fenced":false,"errors":[]},"instances":0}
+# Subtest: ROOT completed staging remains owned until compute is actually withdrawn
+ok 18 - ROOT completed staging remains owned until compute is actually withdrawn
+  ---
+  duration_ms: 16.077969
+  type: 'test'
+  ...
+ROOT delayed allow {"state":"pending","excluded":true,"outcome":{"ok":false,"error":"no current serving permit"}}
+# Subtest: ROOT delayed allow must settle before an owner releases exclusion
+ok 19 - ROOT delayed allow must settle before an owner releases exclusion
+  ---
+  duration_ms: 121.052615
+  type: 'test'
+  ...
+# Subtest: R1 store double fault (final ACK sync AND retraction) never reopens clean; recovery needs THIS file's actual lock; owned recovery then reopen
+ok 20 - R1 store double fault (final ACK sync AND retraction) never reopens clean; recovery needs THIS file's actual lock; owned recovery then reopen
+  ---
+  duration_ms: 9.0817
+  type: 'test'
+  ...
+# Subtest: R2 recovery double fault (recovery ACK sync AND retraction) never reopens clean; a second owned recovery succeeds
+ok 21 - R2 recovery double fault (recovery ACK sync AND retraction) never reopens clean; a second owned recovery succeeds
+  ---
+  duration_ms: 8.950591
+  type: 'test'
+  ...
+# Subtest: R3 missing or malformed intent REFUSES owned recovery: nothing synthesized from current bytes
+ok 22 - R3 missing or malformed intent REFUSES owned recovery: nothing synthesized from current bytes
+  ---
+  duration_ms: 6.115523
+  type: 'test'
+  ...
+# Subtest: R4 owned BOOT verification: a freshly acquired owner syncs + records provenance before use; a failing verification stays uncertain
+ok 23 - R4 owned BOOT verification: a freshly acquired owner syncs + records provenance before use; a failing verification stays uncertain
+  ---
+  duration_ms: 7.500557
+  type: 'test'
+  ...
+# Subtest: R5 a settled failure is cleared ONLY by explicit proof (authenticated Stop: confirmed absence + acknowledged hold); then release succeeds
+ok 24 - R5 a settled failure is cleared ONLY by explicit proof (authenticated Stop: confirmed absence + acknowledged hold); then release succeeds
+  ---
+  duration_ms: 109.709396
+  type: 'test'
+  ...
+# Subtest: R6 late allow after close with a FAILING boundary hold: compute removal still starts, the owner stays fenced (no silent late effect)
+ok 25 - R6 late allow after close with a FAILING boundary hold: compute removal still starts, the owner stays fenced (no silent late effect)
+  ---
+  duration_ms: 76.135344
+  type: 'test'
+  ...
+# Subtest: R7 HUNG allow: the bounded boundary call times out, the late effect is withdrawn by an acknowledged fence, then (only then) the owner releases
+ok 26 - R7 HUNG allow: the bounded boundary call times out, the late effect is withdrawn by an acknowledged fence, then (only then) the owner releases
+  ---
+  duration_ms: 3063.489775
+  type: 'test'
+  ...
+# Subtest: R8 witness owner release waits for the in-flight signing request to SETTLE (aborted is not proof of more than "no signature returned")
+ok 27 - R8 witness owner release waits for the in-flight signing request to SETTLE (aborted is not proof of more than "no signature returned")
+  ---
+  duration_ms: 69.453282
+  type: 'test'
+  ...
+# Subtest: C1 composition FENCED by a failed staged-compute withdrawal keeps BOTH sidecar locks and the parent lock; scoped reconciliation still reads; writes refuse
+ok 28 - C1 composition FENCED by a failed staged-compute withdrawal keeps BOTH sidecar locks and the parent lock; scoped reconciliation still reads; writes refuse
+  ---
+  duration_ms: 19.314515
+  type: 'test'
+  ...
+# Subtest: C2 cold restart: an unacknowledged sidecar write refuses composition; explicit owned recovery under the parent + both locks; composition serves again
+ok 29 - C2 cold restart: an unacknowledged sidecar write refuses composition; explicit owned recovery under the parent + both locks; composition serves again
+  ---
+  duration_ms: 26.031935
+  type: 'test'
+  ...
+1..29
+# tests 29
+# suites 0
+# pass 29
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4845.334007

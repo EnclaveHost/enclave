@@ -1,0 +1,464 @@
+{
+ "deployment-serving-permit.mjs": {
+  "sha256": "bdd316a1be52668c2716b6453dfd77135685285a0668eb899d5d2d8d6518cd1d",
+  "baselineSha256": "82494ed819f91f65565391dc3f61a16341fc3465df0bf47a3ec823a8b8de0e61",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 9,
+    "candidateOffset": 656,
+    "length": 242
+   },
+   {
+    "name": "typed-v2",
+    "baselineLine": 22,
+    "candidateOffset": 1480,
+    "length": 137
+   },
+   {
+    "name": "validate-params",
+    "baselineLine": 62,
+    "candidateOffset": 4313,
+    "length": 77
+   },
+   {
+    "name": "validate-v2",
+    "baselineLine": 89,
+    "candidateOffset": 6683,
+    "length": 180
+   },
+   {
+    "name": "verify-return",
+    "baselineLine": 109,
+    "candidateOffset": 8135,
+    "length": 118
+   }
+  ]
+ },
+ "deployment-permit-gate.mjs": {
+  "sha256": "2ee846d462354874eb704ef0a4cf6492536428497fa8f2fa93f654d411ad235a",
+  "baselineSha256": "e198fe2160cf9ab31f1c473856c44d58e51c995ce0fe0f0907c94c2d39c8661b",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 8,
+    "candidateOffset": 539,
+    "length": 229
+   },
+   {
+    "name": "ctor-param",
+    "baselineLine": 10,
+    "candidateOffset": 888,
+    "length": 22
+   },
+   {
+    "name": "ctor-assign",
+    "baselineLine": 12,
+    "candidateOffset": 1062,
+    "length": 15
+   },
+   {
+    "name": "ctor-require",
+    "baselineLine": 14,
+    "candidateOffset": 1165,
+    "length": 646
+   },
+   {
+    "name": "observe-evidence",
+    "baselineLine": 30,
+    "candidateOffset": 2510,
+    "length": 177
+   },
+   {
+    "name": "verify-floor",
+    "baselineLine": 33,
+    "candidateOffset": 2970,
+    "length": 131
+   },
+   {
+    "name": "accept-before-resources",
+    "baselineLine": 44,
+    "candidateOffset": 3580,
+    "length": 167
+   },
+   {
+    "name": "drop-on-change",
+    "baselineLine": 55,
+    "candidateOffset": 4680,
+    "length": 168
+   },
+   {
+    "name": "entry-field",
+    "baselineLine": 55,
+    "candidateOffset": 4936,
+    "length": 53
+   },
+   {
+    "name": "install-return",
+    "baselineLine": 69,
+    "candidateOffset": 5757,
+    "length": 72
+   },
+   {
+    "name": "assert-param",
+    "baselineLine": 71,
+    "candidateOffset": 5868,
+    "length": 22
+   },
+   {
+    "name": "assert-check",
+    "baselineLine": 73,
+    "candidateOffset": 6029,
+    "length": 68
+   },
+   {
+    "name": "methods",
+    "baselineLine": 78,
+    "candidateOffset": 6276,
+    "length": 6644
+   },
+   {
+    "name": "track-withdrawal",
+    "baselineLine": 82,
+    "candidateOffset": 13162,
+    "length": 131
+   },
+   {
+    "name": "close-publish",
+    "baselineLine": 104,
+    "candidateOffset": 14216,
+    "length": 383
+   },
+   {
+    "name": "close-completion",
+    "baselineLine": 105,
+    "candidateOffset": 14704,
+    "length": 75
+   }
+  ]
+ },
+ "deployment-lifecycle-witness.mjs": {
+  "sha256": "dce432df758b12b9dd8c83e2627febe88a36444ad74ce5dc1911e26edb7149c6",
+  "baselineSha256": "9859a1307a83ff4f60ae6088c6533b0666ae12497c49794b9ef9ee32569551c0",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 9,
+    "candidateOffset": 751,
+    "length": 224
+   },
+   {
+    "name": "ctor-param",
+    "baselineLine": 11,
+    "candidateOffset": 1117,
+    "length": 29
+   },
+   {
+    "name": "ctor-assign",
+    "baselineLine": 15,
+    "candidateOffset": 1600,
+    "length": 22
+   },
+   {
+    "name": "ctor-require",
+    "baselineLine": 16,
+    "candidateOffset": 1627,
+    "length": 432
+   },
+   {
+    "name": "bounded-track",
+    "baselineLine": 21,
+    "candidateOffset": 2302,
+    "length": 109
+   },
+   {
+    "name": "bounded-work",
+    "baselineLine": 26,
+    "candidateOffset": 2678,
+    "length": 160
+   },
+   {
+    "name": "bounded-untrack",
+    "baselineLine": 27,
+    "candidateOffset": 2950,
+    "length": 35
+   },
+   {
+    "name": "observe-offline",
+    "baselineLine": 38,
+    "candidateOffset": 3499,
+    "length": 177
+   },
+   {
+    "name": "floor",
+    "baselineLine": 39,
+    "candidateOffset": 3792,
+    "length": 372
+   },
+   {
+    "name": "validate-1",
+    "baselineLine": 40,
+    "candidateOffset": 4306,
+    "length": 12
+   },
+   {
+    "name": "reread-after-readiness",
+    "baselineLine": 52,
+    "candidateOffset": 5378,
+    "length": 133
+   },
+   {
+    "name": "validate-2",
+    "baselineLine": 52,
+    "candidateOffset": 5598,
+    "length": 12
+   },
+   {
+    "name": "durable-floor",
+    "baselineLine": 55,
+    "candidateOffset": 5700,
+    "length": 167
+   },
+   {
+    "name": "after-signing",
+    "baselineLine": 63,
+    "candidateOffset": 6531,
+    "length": 1140
+   },
+   {
+    "name": "method",
+    "baselineLine": 143,
+    "candidateOffset": 13595,
+    "length": 945
+   },
+   {
+    "name": "close-abort",
+    "baselineLine": 143,
+    "candidateOffset": 14571,
+    "length": 260
+   }
+  ]
+ },
+ "deployment-isolation-runtime.mjs": {
+  "sha256": "b0c71e5b85313206328c26576a18b9fe7c71be9f61845669e15c3b6fd5ae3f57",
+  "baselineSha256": "40333d5bc08796f2881650331022746abc0b93051b48351c89f84d62a4462fd9",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 5,
+    "candidateOffset": 299,
+    "length": 256
+   },
+   {
+    "name": "v2",
+    "baselineLine": 12,
+    "candidateOffset": 1205,
+    "length": 2489
+   },
+   {
+    "name": "stop-proven",
+    "baselineLine": 49,
+    "candidateOffset": 5500,
+    "length": 151
+   },
+   {
+    "name": "expose",
+    "baselineLine": 65,
+    "candidateOffset": 6691,
+    "length": 137
+   },
+   {
+    "name": "r4-staged-open",
+    "baselineLine": 75,
+    "candidateOffset": 7237,
+    "length": 100
+   },
+   {
+    "name": "r4-after-plan",
+    "baselineLine": 77,
+    "candidateOffset": 7411,
+    "length": 103
+   },
+   {
+    "name": "fresh-handoff",
+    "baselineLine": 79,
+    "candidateOffset": 7723,
+    "length": 469
+   },
+   {
+    "name": "r4-after-lookup",
+    "baselineLine": 80,
+    "candidateOffset": 8238,
+    "length": 104
+   },
+   {
+    "name": "r4-spawn-open",
+    "baselineLine": 82,
+    "candidateOffset": 8439,
+    "length": 9
+   },
+   {
+    "name": "r4-spawn-close",
+    "baselineLine": 82,
+    "candidateOffset": 8471,
+    "length": 1
+   },
+   {
+    "name": "r4-spawn-catch",
+    "baselineLine": 84,
+    "candidateOffset": 8502,
+    "length": 125
+   },
+   {
+    "name": "r4-after-ready",
+    "baselineLine": 91,
+    "candidateOffset": 9079,
+    "length": 294
+   },
+   {
+    "name": "r4-staged-end",
+    "baselineLine": 98,
+    "candidateOffset": 9817,
+    "length": 44
+   },
+   {
+    "name": "adopt",
+    "baselineLine": 99,
+    "candidateOffset": 9868,
+    "length": 1565
+   },
+   {
+    "name": "serve-guard",
+    "baselineLine": 100,
+    "candidateOffset": 11465,
+    "length": 296
+   },
+   {
+    "name": "record",
+    "baselineLine": 107,
+    "candidateOffset": 12354,
+    "length": 133
+   },
+   {
+    "name": "context",
+    "baselineLine": 109,
+    "candidateOffset": 12619,
+    "length": 41
+   },
+   {
+    "name": "track",
+    "baselineLine": 113,
+    "candidateOffset": 12953,
+    "length": 55
+   },
+   {
+    "name": "track-transfer",
+    "baselineLine": 114,
+    "candidateOffset": 13059,
+    "length": 137
+   },
+   {
+    "name": "assert",
+    "baselineLine": 117,
+    "candidateOffset": 13480,
+    "length": 55
+   },
+   {
+    "name": "ack",
+    "baselineLine": 120,
+    "candidateOffset": 13754,
+    "length": 163
+   },
+   {
+    "name": "r5-serve-fencing",
+    "baselineLine": 121,
+    "candidateOffset": 13962,
+    "length": 19
+   },
+   {
+    "name": "r5-serve-fenced",
+    "baselineLine": 121,
+    "candidateOffset": 13997,
+    "length": 20
+   },
+   {
+    "name": "r5-serve-end",
+    "baselineLine": 122,
+    "candidateOffset": 14029,
+    "length": 150
+   }
+  ]
+ },
+ "deployment-chain-adapter.mjs": {
+  "sha256": "805cad12078d9cca7a24ce3a64f2debab4051d156bd59c0849158b00e42ff328",
+  "baselineSha256": "b648a3edf805252e239f548a4816b90b8281999b848d2ecece453cee7b8c226d",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 51,
+    "candidateOffset": 5689,
+    "length": 253
+   },
+   {
+    "name": "helpers",
+    "baselineLine": 347,
+    "candidateOffset": 33774,
+    "length": 3583
+   },
+   {
+    "name": "parse-canonical",
+    "baselineLine": 357,
+    "candidateOffset": 38377,
+    "length": 25
+   },
+   {
+    "name": "parse-check",
+    "baselineLine": 358,
+    "candidateOffset": 38502,
+    "length": 327
+   },
+   {
+    "name": "canonical-param",
+    "baselineLine": 360,
+    "candidateOffset": 38911,
+    "length": 22
+   },
+   {
+    "name": "canonical-body",
+    "baselineLine": 362,
+    "candidateOffset": 39249,
+    "length": 45
+   },
+   {
+    "name": "snapshot-evidence",
+    "baselineLine": 522,
+    "candidateOffset": 54310,
+    "length": 364
+   },
+   {
+    "name": "prepare-context",
+    "baselineLine": 558,
+    "candidateOffset": 58512,
+    "length": 167
+   },
+   {
+    "name": "prepare-payload",
+    "baselineLine": 558,
+    "candidateOffset": 58777,
+    "length": 15
+   },
+   {
+    "name": "submit-require",
+    "baselineLine": 562,
+    "candidateOffset": 58896,
+    "length": 198
+   },
+   {
+    "name": "final-guard",
+    "baselineLine": 583,
+    "candidateOffset": 61376,
+    "length": 153
+   }
+  ]
+ }
+}
