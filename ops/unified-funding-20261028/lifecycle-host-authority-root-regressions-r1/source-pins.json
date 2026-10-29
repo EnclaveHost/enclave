@@ -1,0 +1,11 @@
+{
+  "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-r2-20261029",
+  "qualification": "Partial author snapshot, frozen only for independent reviewer regressions; NOT final author delivery or deployable.",
+  "sha256": {
+    "src/network/lifecycle-host-dispatch.mjs": "3e39df7451893a987c05fb4725627d61fe9c9e93c51bb418c254aaf5cfda6cef",
+    "src/network/lifecycle-host-authority.mjs": "434219168149fd3a7d5af404c27217b7426832d94e3d03e6d1cc81ef608a8582",
+    "src/tools/generate-lifecycle-host-candidate.mjs": "845fd5833295aab9715665800e31af90460e72d740b069fc6f0cb9a55607eabf",
+    "test/helpers/baseline.mjs": "2f7dd94694a9614ba29578465bed30ed6277852512ae85dd7c22300d933dca6e",
+    "test/helpers/lifecycle-fixture.mjs": "a19641a23fded8e226167a5dfbde458f925432f3043e05f74e4dcd4832a9d01b"
+  }
+}
