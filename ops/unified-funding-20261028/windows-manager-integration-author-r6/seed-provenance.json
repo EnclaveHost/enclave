@@ -1,0 +1,33 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate",
+  "sourceManifest": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/source-pins.json",
+  "sourceManifestSha256": "3651a2f61ab499abe6a1c8c34c94cbd8bd6eaf4b914efe5504ed5d998b9d3a39",
+  "seedFiles": 161,
+  "seedManifestSha256": "b20f34c263ec895028f5c40380580e8c79f58f1a7a8930379698866a10cbc343",
+  "preAuthorProductEdits": [],
+  "rootMaterialization": {
+    "frozenFiles": 160,
+    "addedByteExact": [
+      {
+        "target": "control/network/deployment-isolation-runtime.mjs",
+        "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-isolation-runtime.mjs",
+        "sha256": "6309c386deefaec230045f0dadad30a1fb86b384be7693f68ce7bbc0a1e8e8f7",
+        "rule": "byte-exact copy; refuse if the sha256 differs. Its only import is ./deployment-host-authority.mjs (already in candidate/control/network, exports isHostAuthorityPermit/permitHostAuthorityOf/servingContextOf). The author did not retype it, to avoid byte drift.",
+        "consumers": [
+          "test/windows-permit/r4-supervisor-chain.test.mjs",
+          "test/windows-permit/r5-ownership-chain.test.mjs",
+          "node entry composition (openRuntime) when composed"
+        ]
+      }
+    ],
+    "lockfileGenerated": false,
+    "dependency": "existing viem2.53.1; this test is not portable release"
+  },
+  "rootAuthorityFix": {
+    "file": "work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/vbslike/manager/permit-enforcement.mjs",
+    "beforeSha256": "696a3de6210386ee2e58f945cd002f04fa334d8169684bf165bb0b38f8f3dfbd",
+    "afterSha256": "b9736bec104fffbe96a68e826bf2c17495199576b8d6dfa2ba6974fe80d239ff",
+    "reason": "serving entry stores verified authority under binding.hostAuthority; strengthened actual chain assertion exposed null MAC view"
+  },
+  "noCandidateCodeExecuted": true
+}
