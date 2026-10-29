@@ -43,5 +43,6 @@
   "observation/probe.template.ps1": "667b34dff53ea4fa93e3658e1ce770577595098818c876b1a8a6149a4acdc138",
   "observation/run.py": "2260fa93433f4b9993b202209b903173665d5c3af496cd4c02f7f1f4f48a0f55",
   "observation/validate.cjs": "7e972e4f7b63b4c4c67c3960448db287e3e335464503cae98d99bce3337aafce",
-  "source-pins.json": "6fa4abe975268fac3af3aa8382bf6af7585a1e6fe04cc010423f6b077020641c"
+  "source-pins.json": "6fa4abe975268fac3af3aa8382bf6af7585a1e6fe04cc010423f6b077020641c",
+  "HANDOFF-entry.md": "081644c5496d65d96b416adefe951d54f646c08e6ef39b96920bf27a3ab576c1"
 }
