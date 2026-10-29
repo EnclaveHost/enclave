@@ -1,0 +1,44 @@
+ROOT awaited handoff reached, changed owner 0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a revision 2 persisted binding undefined
+ROOT final inventory {"change":"owner","revoked":true,"failure":"adoption aborted after the runtime handoff: canonical host/owner authority changed during the runtime handoff"}
+ROOT final inventory {"change":"offline","revoked":true,"failure":"adoption aborted after the runtime handoff: host owner policy: canonical host registry is offline (generation 1): no new start or serving"}
+ROOT final inventory {"change":"generation","revoked":true,"failure":"adoption aborted after the runtime handoff: canonical host/owner authority changed during the runtime handoff"}
+TAP version 13
+# Subtest: unchanged canonical authority after runtime handoff can bind
+ok 1 - unchanged canonical authority after runtime handoff can bind
+  ---
+  duration_ms: 7.467928
+  type: 'test'
+  ...
+# Subtest: canonical owner change during awaited runtime handoff must abort durable adoption
+ok 2 - canonical owner change during awaited runtime handoff must abort durable adoption
+  ---
+  duration_ms: 3.322477
+  type: 'test'
+  ...
+# Subtest: authority changes inside final inventory await: owner
+ok 3 - authority changes inside final inventory await: owner
+  ---
+  duration_ms: 2.108375
+  type: 'test'
+  ...
+# Subtest: authority changes inside final inventory await: offline
+ok 4 - authority changes inside final inventory await: offline
+  ---
+  duration_ms: 2.318074
+  type: 'test'
+  ...
+# Subtest: authority changes inside final inventory await: generation
+ok 5 - authority changes inside final inventory await: generation
+  ---
+  duration_ms: 1.821818
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 217.234295
