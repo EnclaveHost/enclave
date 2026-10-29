@@ -1,5 +1,21 @@
 # Decentralized lifecycle, admission and gas funding
 
+## Current rollout status — October 29, 14:40 UTC
+
+This feature is not activated on the new lifecycle protocol. The sections below retain the evidence history; a later passing review supersedes only the exact failures it covers.
+
+| Area | Established evidence | Remaining before production |
+| --- | --- | --- |
+| Event-driven lifecycle and host Offline | Linked local-chain contract/adapter tests, canonical registry fixtures and owned host recovery checks | Live independently authenticated authority, actual runtime composition, funded independent Offline submitter and fenced migration |
+| Windows permit enforcement | Deadline/storage repairs and authenticated hold behavior pass local real-module tests; actual permit expiry closes TCP and removes TEST compute | Four client/Stop regressions, real supervisor/direct/composite/native wiring, Windows exclusion and supported-workload qualification |
+| Capacity and joining-host gas | Required attestation/test-before-listing rules documented; protected-budget contract fixtures | Zero-gas bootstrap test producer, fresh measured capacity consumers, sponsor selection and liability-safe provisioner fallback |
+| Automatic gas funding / self-host Top up | Existing finite grants produced two confirmed recovery payments under the legacy reserve | New-protocol authorization and ordinary-reserve refill, protected Offline separation and app-card integration |
+| Censorship resistance | Independent-owner policy and local recovery cases pass for pinned candidates | End-to-end cold recovery, new-user deployment, storage endpoint failure and continued hosting under Enclave refusal |
+
+The current [Windows review](../../ops/unified-funding-20261028/windows-manager-review-r3/ROOT-REVIEW.md) distinguishes scripted client faults from the actual authenticated Stop-path failure. The [next reviewed source pass](../../ops/unified-funding-20261028/windows-manager-supervisor-author-r4/ROOT-REVIEW.md) prioritizes real supervisor and manager consumption. Its dispatch is not an implementation or deployment result. Existing serving apps, grants and payment records remain unchanged; successful payments must not be repeated.
+
+## Qualified ownership baseline
+
 The current host-ownership candidate passes 53 distinct relevant fixture checks plus two actual local-chain integration checks. It is **not deployed**. Installed Windows enforcement, independently authenticated live authority, capacity qualification and sponsorship, protected Offline gas, automatic replenishment and fenced production migration remain unfinished.
 
 The [ownership completion review](../../ops/unified-funding-20261028/host-ownership-completion-review-r5/ROOT-REVIEW.md) fixes four independently reproduced shutdown and stale-writer failures: it tracks real remote work beyond request timeouts, withdraws compute even when readiness rejects, validates held lock capabilities, and opens the actual parent journal only after acquiring ownership. The [parent cold-recovery review](../../ops/unified-funding-20261028/host-parent-cold-recovery-r6/ROOT-REVIEW.md) adds fresh-process persistence checks, established-file loss detection, cached-state overwrite protection and exact-hash adoption of an existing parent without changing its bytes. The combined final product has 53 passing cases across the recorded runs. Original failures and corrected test assumptions remain in the evidence packages.
