@@ -1,0 +1,9 @@
+# Root review findings added after author admission
+
+This file is review input, NOT evidence the running author read it.
+
+Current EnclaveHostOwnership.proposeOwner requires an active registry entry and operator for first nomination, then acceptOwner is a separate wallet transaction. A joining host cannot claim established ownership from payoutWallet. A naive sponsored register -> propose -> accept -> offline policy sequence exposes an online window with no independent offline authority, violating the human requirement. Atomic verified listing + protected offline reserve + owner/witness enrollment, or an explicitly authenticated pre-enrollment that can be consumed atomically, is required. Use operator nomination and actual owner acceptance binding host/hardware/operator/chain/registry/epoch/nonces; never infer ownership from payment destinations. No production adapter is currently qualified for this.
+
+Host capacity producer and availability observation loader require existing registration; createCpuWorkload requires a paid lease and a deployed attested workload. Their existing entry points cannot run the mandated zero-ETH pre-registration qualification without a new explicit bootstrap composition. Signed capacity documents deliberately say selfReported; signature identity is not measured capacity. CPU/RAM work alone cannot qualify GPU/free capacity. Live display and admission must share the verified evidence and subtract allocations/pending/headroom.
+
+Root provisioner public balance observation at05:22:33UTC failed mainnet.base.org HTTP403 before any provider balance. Do not claim sufficient float, chain identity, nonce quiescence or signer identity. No extra deposit requested and no financial action. Persisted orders at05:05 alone were zero nonterminal quoted liabilities, not in-memory completeness.

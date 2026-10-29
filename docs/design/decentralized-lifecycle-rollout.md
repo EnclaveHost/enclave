@@ -27,3 +27,11 @@ Before this feature can count as activated, verify the exact deployed contracts 
 The overarching goal also requires demonstrated cold recovery, new-user deployment, storage endpoint failure and continued independent hosting under Enclave refusal. Extra Enclave-operated replicas or moving services elsewhere do not satisfy it.
 
 Update architecture, protocol, API/SDK, operator, deployment/migration/rollback, billing/capacity and UI documentation as each implementation lands. Every operational claim must distinguish source-only, fixture-tested and actually deployed behavior. Existing production runbooks must not be rewritten to imply this candidate is already live.
+
+## Admission bootstrap dependencies confirmed by source review
+
+The existing ownership contract enrolls an initial owner only after the operator has an active registry entry, and acceptance is a separate wallet transaction. Registering first and enrolling emergency authority later leaves a window in which a listed host cannot be independently marked offline. New admission must atomically establish the verified listing, protected offline budget and authenticated owner/witness policy, or consume valid pre-enrollment proofs atomically. A payout recipient is not host ownership authority.
+
+Existing host-capacity records authenticate the reporting operator but expressly label resource quantities as self-reported. The producer and capacity observation loader require registration, and the current CPU/RAM workload requires a paid lease. They do not yet implement qualification of an unregistered, zero-gas candidate. Listing-gas release must bind completed test evidence and fresh attestation; CPU/RAM evidence must not qualify untested GPU capacity. Display and scheduling must consume that same evidence with current commitments deducted.
+
+The [bootstrap source review](../../ops/unified-funding-20261028/host-admission-bootstrap-review-r1/ROOT-REVIEW.md) pins the inspected files and records these gaps. A read-only provisioner balance attempt returned HTTP403 before any balance observation; it establishes neither available sponsorship funds nor authorization to spend. No wallet/key or production configuration changed.
