@@ -6,6 +6,8 @@ Migrate all vault-owned apps to their verified controlling wallets first. A sess
 
 The existing app-card **Top up** must offer **Add runtime (USDC)** for self-hosted apps as well as paid hosting. Users add a USDC budget; low ordinary gas triggers automatic conversion within the actual authorized contract/session scopes, spending and fee caps. One funded dollar cannot be counted separately as both runtime backing and gas credit. Preserve protected Offline gas and transaction reconciliation. A zero runtime rate stays zero; show no finite runtime-hours estimate for gas and do not require a separate manual gas purchase for each refill.
 
+Completion includes deployment to the production site and verification of the assets actually served on all current edges. A source commit or local build alone is not completion. Preserve the current live site graph and newer assets when assembling a release.
+
 This is required behavior, not deployed behavior. The live self-host Top up currently purchases a quoted ETH amount with a separate explicit payment action. Automatic budget conversion remains unfinished. Changing only its label would not implement the requirement. Existing immutable grants and escrow cannot be assumed to authorize conversion from a different pool or after an ownership change.
 
 The deployed ledger's transfer guard and reserve ownership require per-app migration review. Transfer changes the deployment owner but does not carry old gas reserve keys to the new owner. Refund-first can deactivate a deployment and leave live-lease escrow; do not treat it as a transparent migration or stop serving apps globally. Inventory exact deployed capabilities and reconcile old/new owner balances before submitting any transfer.

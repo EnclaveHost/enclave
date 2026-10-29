@@ -1,0 +1,7 @@
+
+
+## Production site deployment remains part of the authorized deliverable
+
+User explicitly reiterated: the site must be deployed to production. The new universal Add runtime (USDC)/automatic conversion flow is NOT live; previous manual gas Top up remains the released implementation. Do not end at source/commit/local build or rename manual gas purchase as automatic funding. Complete backend budget/scopes/refill recovery and wallet migration compatibility, qualify the resulting UI, assemble against freshly captured current live site preserving all newer assets, deploy and verify actual HTTPS assets on all current edges. No new general deployment approval required. No new release or financial transaction made in this record.
+
+Peer pinned read-only ownership migration review preserved under ops/unified-funding-20261028/wallet-ownership-migration-review-r1. Seven content hashes verified before copy. Exact historical ledger/session/catalog source matches prior verification evidence, not fresh chain. Key blockers: transfer escrow guard; reserve keys do not migrate; generic refund deactivates; beneficial-owner secret policy should remain, do not claimPolicy destructively; wallet-held PROD session access needs explicit scoped delegation; catalog transfer is separate admin action. Read REVIEW.md and inventory-fields.json. Root owns all live inventory/simulation/submission. Peer PREPARE ONLY smallest source-grounded universal USDC funding path; no edits/jobs/tests/live/finance delegated. Capacity remains deferred.
