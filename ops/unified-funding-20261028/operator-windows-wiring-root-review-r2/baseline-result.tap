@@ -1,0 +1,598 @@
+TAP version 13
+# Subtest: od-r1: no configured store -> no write (fail closed)
+ok 1 - od-r1: no configured store -> no write (fail closed)
+  ---
+  duration_ms: 6.43977
+  type: 'test'
+  ...
+# Subtest: od-r1: a configured but never-initialized store is NOT first use: refused, nothing created, no write
+ok 2 - od-r1: a configured but never-initialized store is NOT first use: refused, nothing created, no write
+  ---
+  duration_ms: 15.457609
+  type: 'test'
+  ...
+# Subtest: od-r1: uncertain write -> same module refuses; a SECOND owner is refused; fresh process after restart refuses; mined fence -> new nonce
+ok 3 - od-r1: uncertain write -> same module refuses; a SECOND owner is refused; fresh process after restart refuses; mined fence -> new nonce
+  ---
+  duration_ms: 82.946091
+  type: 'test'
+  ...
+# Subtest: od-r1 ROOT gap 1: an established store DELETED after an uncertain write -> a fresh process refuses; no second write
+ok 4 - od-r1 ROOT gap 1: an established store DELETED after an uncertain write -> a fresh process refuses; no second write
+  ---
+  duration_ms: 45.817912
+  type: 'test'
+  ...
+# Subtest: od-r1 ROOT gap 2: final post-persist refusal -> 0 writes, exact discharge (durable), later unchanged-permission positive at the SAME nonce
+ok 5 - od-r1 ROOT gap 2: final post-persist refusal -> 0 writes, exact discharge (durable), later unchanged-permission positive at the SAME nonce
+  ---
+  duration_ms: 64.286946
+  type: 'test'
+  ...
+# Subtest: od-r1: a later refused attempt never discharges an earlier unresolved write (discharge is exact to its own attempt)
+ok 6 - od-r1: a later refused attempt never discharges an earlier unresolved write (discharge is exact to its own attempt)
+  ---
+  duration_ms: 45.071177
+  type: 'test'
+  ...
+# Subtest: od-r1: owner loss (lock file replaced) latches refusal; the recorded obligation stays on disk
+ok 7 - od-r1: owner loss (lock file replaced) latches refusal; the recorded obligation stays on disk
+  ---
+  duration_ms: 33.22962
+  type: 'test'
+  ...
+# Subtest: od-r1: a foreign-domain store and a storage failure before the effect leave no unauthorized write
+ok 8 - od-r1: a foreign-domain store and a storage failure before the effect leave no unauthorized write
+  ---
+  duration_ms: 67.094545
+  type: 'test'
+  ...
+# Subtest: win-log: explicit init, one owner, put/remove survive reopen; status never claims production for the TEST exclusion
+ok 9 - win-log: explicit init, one owner, put/remove survive reopen; status never claims production for the TEST exclusion
+  ---
+  duration_ms: 20.920576
+  type: 'test'
+  ...
+# Subtest: win-log: foreign domain, foreign record, torn tail and legacy records all refuse
+ok 10 - win-log: foreign domain, foreign record, torn tail and legacy records all refuse
+  ---
+  duration_ms: 21.559831
+  type: 'test'
+  ...
+# Subtest: win-log: a short write latches the store (outcome unknown); every later read/change refuses
+ok 11 - win-log: a short write latches the store (outcome unknown); every later read/change refuses
+  ---
+  duration_ms: 8.594782
+  type: 'test'
+  ...
+# Subtest: win-log: bounded - a full store refuses NEW records, settlement stays possible; an oversized request is refused, never truncated
+ok 12 - win-log: bounded - a full store refuses NEW records, settlement stays possible; an oversized request is refused, never truncated
+  ---
+  duration_ms: 84.720966
+  type: 'test'
+  ...
+# Subtest: linux: genuine flock - a second in-process owner AND a separate process are refused while held; after release the child owns it
+ok 13 - linux: genuine flock - a second in-process owner AND a separate process are refused while held; after release the child owns it
+  ---
+  duration_ms: 111.414537
+  type: 'test'
+  ...
+# Subtest: linux: deletion of an established store, a foreign domain and an fsync failure all refuse; never re-created as empty
+ok 14 - linux: deletion of an established store, a foreign domain and an fsync failure all refuse; never re-created as empty
+  ---
+  duration_ms: 37.228268
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored (root r12 fixtureclosure FAIL, intended behaviour): release signature-time refusal -> pending from the OWNED record; legacy entry kept, not settled unsent; deadline fence settles both
+ok 15 - od-r1 sponsored (root r12 fixtureclosure FAIL, intended behaviour): release signature-time refusal -> pending from the OWNED record; legacy entry kept, not settled unsent; deadline fence settles both
+  ---
+  duration_ms: 89.720597
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored: supersession is LATCHED - a restored Boolean permission does not revive the operation
+ok 16 - od-r1 sponsored: supersession is LATCHED - a restored Boolean permission does not revive the operation
+  ---
+  duration_ms: 64.858872
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored: refusal after an earlier POST is an unknown outcome; the posted record survives restart and holds the id
+ok 17 - od-r1 sponsored: refusal after an earlier POST is an unknown outcome; the posted record survives restart and holds the id
+  ---
+  duration_ms: 93.772096
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored: queue-entry refusal signs nothing; positive renew settles its record; an uninitialized store refuses before signing
+ok 18 - od-r1 sponsored: queue-entry refusal signs nothing; positive renew settles its record; an uninitialized store refuses before signing
+  ---
+  duration_ms: 92.806833
+  type: 'test'
+  ...
+# Subtest: od-r2 ROOT boundary-v2: the final gate sees the established state removed after the intent persisted -> 0 inert writes, latched, retained; restart refuses
+ok 19 - od-r2 ROOT boundary-v2: the final gate sees the established state removed after the intent persisted -> 0 inert writes, latched, retained; restart refuses
+  ---
+  duration_ms: 42.509277
+  type: 'test'
+  ...
+# Subtest: od-r2 ROOT boundary-v2: the final gate sees the established .established removed after the intent persisted -> 0 inert writes, latched, retained; restart refuses
+ok 20 - od-r2 ROOT boundary-v2: the final gate sees the established .established removed after the intent persisted -> 0 inert writes, latched, retained; restart refuses
+  ---
+  duration_ms: 34.819907
+  type: 'test'
+  ...
+# Subtest: od-r2 continuity: a REPLACED state file (same bytes, new inode) after persistence -> 0 writes; the cached records refuse
+ok 21 - od-r2 continuity: a REPLACED state file (same bytes, new inode) after persistence -> 0 writes; the cached records refuse
+  ---
+  duration_ms: 25.198042
+  type: 'test'
+  ...
+# Subtest: od-r2 continuity: store-level cached reads (records/get/assertLive) refuse after the marker or state is lost while the lock is held
+ok 22 - od-r2 continuity: store-level cached reads (records/get/assertLive) refuse after the marker or state is lost while the lock is held
+  ---
+  duration_ms: 47.114511
+  type: 'test'
+  ...
+# Subtest: od-r2 continuity: exact known-unsent discharge stays available with intact storage; unchanged positive at the SAME nonce
+ok 23 - od-r2 continuity: exact known-unsent discharge stays available with intact storage; unchanged positive at the SAME nonce
+  ---
+  duration_ms: 59.321325
+  type: 'test'
+  ...
+# Subtest: od-r2 ROOT boundary-v2 case 3: an established unresolved authorization (account nonce 70) fences the direct sender after owner release + fresh process; pending is not a fence; exact mined fence -> unchanged positive
+ok 24 - od-r2 ROOT boundary-v2 case 3: an established unresolved authorization (account nonce 70) fences the direct sender after owner release + fresh process; pending is not a fence; exact mined fence -> unchanged positive
+  ---
+  duration_ms: 69.054929
+  type: 'test'
+  ...
+# Subtest: od-r2 account nonce: an authorization naming another chain or another signer is UNKNOWN -> held even past its nonce; a sign-threw/unsent one is no exposure
+ok 25 - od-r2 account nonce: an authorization naming another chain or another signer is UNKNOWN -> held even past its nonce; a sign-threw/unsent one is no exposure
+  ---
+  duration_ms: 173.117124
+  type: 'test'
+  ...
+# Subtest: A1 positive: the exact pinned config bytes become exactly these Host options (TEST: production false)
+ok 26 - A1 positive: the exact pinned config bytes become exactly these Host options (TEST: production false)
+  ---
+  duration_ms: 8.282935
+  type: 'test'
+  ...
+# Subtest: A2 refused: no config named -> REFUSING options, no probe, no file access at open
+ok 27 - A2 refused: no config named -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 3.661141
+  type: 'test'
+  ...
+# Subtest: A2 refused: no pin -> REFUSING options, no probe, no file access at open
+ok 28 - A2 refused: no pin -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.123271
+  type: 'test'
+  ...
+# Subtest: A2 refused: tampered config byte -> REFUSING options, no probe, no file access at open
+ok 29 - A2 refused: tampered config byte -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.211901
+  type: 'test'
+  ...
+# Subtest: A2 refused: malformed config (re-pinned) -> REFUSING options, no probe, no file access at open
+ok 30 - A2 refused: malformed config (re-pinned) -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.32371
+  type: 'test'
+  ...
+# Subtest: A2 refused: unknown config field -> REFUSING options, no probe, no file access at open
+ok 31 - A2 refused: unknown config field -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.23652
+  type: 'test'
+  ...
+# Subtest: A2 refused: missing config field -> REFUSING options, no probe, no file access at open
+ok 32 - A2 refused: missing config field -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.3308
+  type: 'test'
+  ...
+# Subtest: A2 refused: config widens the runtime pin -> REFUSING options, no probe, no file access at open
+ok 33 - A2 refused: config widens the runtime pin -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.776636
+  type: 'test'
+  ...
+# Subtest: A2 refused: actual executable differs -> REFUSING options, no probe, no file access at open
+ok 34 - A2 refused: actual executable differs -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.616578
+  type: 'test'
+  ...
+# Subtest: A2 refused: actual Node version differs -> REFUSING options, no probe, no file access at open
+ok 35 - A2 refused: actual Node version differs -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.796846
+  type: 'test'
+  ...
+# Subtest: A2 refused: named constant with another value -> REFUSING options, no probe, no file access at open
+ok 36 - A2 refused: named constant with another value -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.730016
+  type: 'test'
+  ...
+# Subtest: A2 refused: named-constant kind selected -> REFUSING options, no probe, no file access at open
+ok 37 - A2 refused: named-constant kind selected -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.023202
+  type: 'test'
+  ...
+# Subtest: A2 refused: unqualified numeric flag -> REFUSING options, no probe, no file access at open
+ok 38 - A2 refused: unqualified numeric flag -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.011672
+  type: 'test'
+  ...
+# Subtest: A2 refused: tampered qualification bytes -> REFUSING options, no probe, no file access at open
+ok 39 - A2 refused: tampered qualification bytes -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.342929
+  type: 'test'
+  ...
+# Subtest: A2 refused: qualification with a false observation -> REFUSING options, no probe, no file access at open
+ok 40 - A2 refused: qualification with a false observation -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.362799
+  type: 'test'
+  ...
+# Subtest: A2 refused: qualification names other evidence -> REFUSING options, no probe, no file access at open
+ok 41 - A2 refused: qualification names other evidence -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.588867
+  type: 'test'
+  ...
+# Subtest: A2 refused: named evidence absent -> REFUSING options, no probe, no file access at open
+ok 42 - A2 refused: named evidence absent -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.145021
+  type: 'test'
+  ...
+# Subtest: A2 refused: cross-build probe artifact as qualification -> REFUSING options, no probe, no file access at open
+ok 43 - A2 refused: cross-build probe artifact as qualification -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.211431
+  type: 'test'
+  ...
+# Subtest: A2 refused: missing SDDL -> REFUSING options, no probe, no file access at open
+ok 44 - A2 refused: missing SDDL -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.30019
+  type: 'test'
+  ...
+# Subtest: A2 refused: unprotected directory DACL -> REFUSING options, no probe, no file access at open
+ok 45 - A2 refused: unprotected directory DACL -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 0.999242
+  type: 'test'
+  ...
+# Subtest: A2 refused: Everyone in the journal ACL -> REFUSING options, no probe, no file access at open
+ok 46 - A2 refused: Everyone in the journal ACL -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 3.209135
+  type: 'test'
+  ...
+# Subtest: A2 refused: another store name -> REFUSING options, no probe, no file access at open
+ok 47 - A2 refused: another store name -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.513018
+  type: 'test'
+  ...
+# Subtest: A2 refused: relative / dotted store path -> REFUSING options, no probe, no file access at open
+ok 48 - A2 refused: relative / dotted store path -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 2.839047
+  type: 'test'
+  ...
+# Subtest: A2 refused: config inside the writable state directory -> REFUSING options, no probe, no file access at open
+ok 49 - A2 refused: config inside the writable state directory -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.003542
+  type: 'test'
+  ...
+# Subtest: A2 refused: config through a symbolic link -> REFUSING options, no probe, no file access at open
+ok 50 - A2 refused: config through a symbolic link -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 0.767844
+  type: 'test'
+  ...
+# Subtest: A2 refused: hard-linked config (link ambiguity) -> REFUSING options, no probe, no file access at open
+ok 51 - A2 refused: hard-linked config (link ambiguity) -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 0.867133
+  type: 'test'
+  ...
+# Subtest: A2 refused: non-canonical (uppercase) account -> REFUSING options, no probe, no file access at open
+ok 52 - A2 refused: non-canonical (uppercase) account -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.985564
+  type: 'test'
+  ...
+# Subtest: A2 refused: string chain id -> REFUSING options, no probe, no file access at open
+ok 53 - A2 refused: string chain id -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.674737
+  type: 'test'
+  ...
+# Subtest: A2 refused: unsupported platform with a config named -> REFUSING options, no probe, no file access at open
+ok 54 - A2 refused: unsupported platform with a config named -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 0.713205
+  type: 'test'
+  ...
+# Subtest: A2 refused: unlabelled TEST injection -> REFUSING options, no probe, no file access at open
+ok 55 - A2 refused: unlabelled TEST injection -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 0.666164
+  type: 'test'
+  ...
+# Subtest: A3 Windows path rules: UNC, device, relative, stream, dot, short-name, reserved and separator forms refused
+ok 56 - A3 Windows path rules: UNC, device, relative, stream, dot, short-name, reserved and separator forms refused
+  ---
+  duration_ms: 0.494456
+  type: 'test'
+  ...
+# Subtest: A4 identity: the loaded key's ACTUAL account/chain must equal the config domain before any probe; configuration never selects the signer
+ok 57 - A4 identity: the loaded key's ACTUAL account/chain must equal the config domain before any probe; configuration never selects the signer
+  ---
+  duration_ms: 1.719477
+  type: 'test'
+  ...
+# Subtest: A5 Linux honesty: the real numeric exclusion refuses (flag ignored -> second open succeeded); no unlocked fallback, store bytes unchanged
+ok 58 - A5 Linux honesty: the real numeric exclusion refuses (flag ignored -> second open succeeded); no unlocked fallback, store bytes unchanged
+  ---
+  duration_ms: 8.231945
+  type: 'test'
+  ...
+# Subtest: A6 missing established journal: refused, never created
+ok 59 - A6 missing established journal: refused, never created
+  ---
+  duration_ms: 1.561158
+  type: 'test'
+  ...
+# Subtest: B0 agent.mjs builds Host with exactly the seam's option (static source check; agent is never imported)
+ok 60 - B0 agent.mjs builds Host with exactly the seam's option (static source check; agent is never imported)
+  ---
+  duration_ms: 0.618746
+  type: 'test'
+  ...
+# Subtest: B1 configured seam through the actual Host/chain: storage probe of EXACTLY the pinned store first, then the platform refuses; no write
+not ok 61 - B1 configured seam through the actual Host/chain: storage probe of EXACTLY the pinned store first, then the platform refuses; no write
+  ---
+  duration_ms: 74.687685
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/candidate/test/windows-permit/ow-r1-operator-windows-wiring.test.mjs:216:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot find package 'viem' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/candidate/control/windows/node/protected-isolation.mjs"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)
+    packageResolve (node:internal/modules/esm/resolve:772:81)
+    moduleResolve (node:internal/modules/esm/resolve:859:18)
+    defaultResolve (node:internal/modules/esm/resolve:989:11)
+    #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:783:38)
+    nextStep (node:internal/modules/customization_hooks:189:26)
+    resolve (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/candidate/test/windows-permit/ow-r1-operator-windows-wiring.test.mjs:190:10)
+    nextStep (node:internal/modules/customization_hooks:189:26)
+    resolveWithHooks (node:internal/modules/customization_hooks:417:10)
+  ...
+# Subtest: B2 refused seam through the actual Host/chain: zero initialization/writes/signatures/probes; readiness says why; read-only paths stay
+not ok 62 - B2 refused seam through the actual Host/chain: zero initialization/writes/signatures/probes; readiness says why; read-only paths stay
+  ---
+  duration_ms: 6.28391
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/candidate/test/windows-permit/ow-r1-operator-windows-wiring.test.mjs:229:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot find package 'viem' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/candidate/control/windows/node/protected-isolation.mjs"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)
+    packageResolve (node:internal/modules/esm/resolve:772:81)
+    moduleResolve (node:internal/modules/esm/resolve:859:18)
+    defaultResolve (node:internal/modules/esm/resolve:989:11)
+    #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:783:38)
+    nextStep (node:internal/modules/customization_hooks:189:26)
+    resolve (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/candidate/test/windows-permit/ow-r1-operator-windows-wiring.test.mjs:190:10)
+    nextStep (node:internal/modules/customization_hooks:189:26)
+    resolveWithHooks (node:internal/modules/customization_hooks:417:10)
+  ...
+# Subtest: C1 plan (default) is read-only: every preflight check, sanitized plan, nothing created
+ok 63 - C1 plan (default) is read-only: every preflight check, sanitized plan, nothing created
+  ---
+  duration_ms: 13.447665
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: legacy r12 records; nothing created
+ok 64 - C2 plan refuses: legacy r12 records; nothing created
+  ---
+  duration_ms: 14.978983
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: store evidence at the legacy default; nothing created
+ok 65 - C2 plan refuses: store evidence at the legacy default; nothing created
+  ---
+  duration_ms: 32.502065
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: release manifest omits a chain file; nothing created
+ok 66 - C2 plan refuses: release manifest omits a chain file; nothing created
+  ---
+  duration_ms: 4.782732
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: release file differs from its pin; nothing created
+ok 67 - C2 plan refuses: release file differs from its pin; nothing created
+  ---
+  duration_ms: 4.245387
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: runtime drift; nothing created
+ok 68 - C2 plan refuses: runtime drift; nothing created
+  ---
+  duration_ms: 8.578932
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: missing qualification; nothing created
+ok 69 - C2 plan refuses: missing qualification; nothing created
+  ---
+  duration_ms: 8.026987
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: cross-build launcher as qualification; nothing created
+ok 70 - C2 plan refuses: cross-build launcher as qualification; nothing created
+  ---
+  duration_ms: 1.992054
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: config inside the state directory; nothing created
+ok 71 - C2 plan refuses: config inside the state directory; nothing created
+  ---
+  duration_ms: 2.159313
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: a group as the service account; nothing created
+ok 72 - C2 plan refuses: a group as the service account; nothing created
+  ---
+  duration_ms: 5.311468
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: a key-shaped account; nothing created
+ok 73 - C2 plan refuses: a key-shaped account; nothing created
+  ---
+  duration_ms: 2.916007
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: unknown input (e.g. a key); nothing created
+ok 74 - C2 plan refuses: unknown input (e.g. a key); nothing created
+  ---
+  duration_ms: 1.631327
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: non-Windows runtime; nothing created
+ok 75 - C2 plan refuses: non-Windows runtime; nothing created
+  ---
+  duration_ms: 1.740896
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: broad config directory ACL; nothing created
+ok 76 - C2 plan refuses: broad config directory ACL; nothing created
+  ---
+  duration_ms: 8.226026
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: storage probe timeout; nothing created
+ok 77 - C2 plan refuses: storage probe timeout; nothing created
+  ---
+  duration_ms: 8.217255
+  type: 'test'
+  ...
+# Subtest: C3 apply needs the explicit confirmation; without it nothing is created
+ok 78 - C3 apply needs the explicit confirmation; without it nothing is created
+  ---
+  duration_ms: 1.778646
+  type: 'test'
+  ...
+# Subtest: C4 TEST apply in disposable storage: exact config bytes the runtime loader accepts, established domain, one owner; rerun is non-destructive
+ok 79 - C4 TEST apply in disposable storage: exact config bytes the runtime loader accepts, established domain, one owner; rerun is non-destructive
+  ---
+  duration_ms: 28.877724
+  type: 'test'
+  ...
+# Subtest: C5 partial install: a failed journal probe stops apply, PRESERVES the created state, and every rerun refuses as incomplete
+ok 80 - C5 partial install: a failed journal probe stops apply, PRESERVES the created state, and every rerun refuses as incomplete
+  ---
+  duration_ms: 14.377768
+  type: 'test'
+  ...
+# Subtest: C6 CLI parsing: plan by default; unknown, repeated or valueless arguments refuse
+ok 81 - C6 CLI parsing: plan by default; unknown, repeated or valueless arguments refuse
+  ---
+  duration_ms: 0.252888
+  type: 'test'
+  ...
+# Subtest: ROOT final gate removes established state: no inert write
+ok 82 - ROOT final gate removes established state: no inert write
+  ---
+  duration_ms: 34.329461
+  type: 'test'
+  ...
+# Subtest: ROOT final gate removes established.established: no inert write
+ok 83 - ROOT final gate removes established.established: no inert write
+  ---
+  duration_ms: 28.790185
+  type: 'test'
+  ...
+# Subtest: ROOT pending sponsored authorization fences the actual direct sender on the same account/chain
+ok 84 - ROOT pending sponsored authorization fences the actual direct sender on the same account/chain
+  ---
+  duration_ms: 29.842986
+  type: 'test'
+  ...
+# node:internal/test_runner/harness:99
+#       throw err;
+#       ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'viem' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/candidate/test/windows-permit/helpers/od-r2-inert-chain.mjs
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)
+#     at packageResolve (node:internal/modules/esm/resolve:772:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:859:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:989:11)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.23.3
+# Subtest: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/retained-root-quarantine.test.mjs
+not ok 7 - /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/retained-root-quarantine.test.mjs
+  ---
+  duration_ms: 61.858086
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/retained-root-quarantine.test.mjs:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 7
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/test_runner/harness:99
+#       throw err;
+#       ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'viem' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/candidate/test/windows-permit/helpers/od-r2-inert-chain.mjs
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)
+#     at packageResolve (node:internal/modules/esm/resolve:772:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:859:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:989:11)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.23.3
+# Subtest: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/retained-shipped-client.test.mjs
+not ok 8 - /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/retained-shipped-client.test.mjs
+  ---
+  duration_ms: 72.471442
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/retained-shipped-client.test.mjs:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 7
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..86
+# tests 86
+# suites 0
+# pass 82
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2493.260611

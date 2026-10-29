@@ -1,0 +1,6 @@
+{
+  "reason": "Initial test copy omitted the established r1 review node_modules symlink; four module-resolution failures are retained, not product failures.",
+  "nodeModules": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules",
+  "packageVersion": "2.53.1",
+  "candidateModified": false
+}

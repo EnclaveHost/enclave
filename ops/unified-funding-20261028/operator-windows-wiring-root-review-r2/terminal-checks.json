@@ -1,0 +1,7 @@
+{
+  "baseline": "ActiveState=failed\nInvocationID=9225665b7b2347f3ba6b31312bcc2e0e\nMainPID=0\nExecMainStatus=1\n",
+  "boundary": "ActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "corrected": "ActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "trust": "ActiveState=failed\nInvocationID=3e9131cdfd8942a5b298377cec2750eb\nMainPID=0\nExecMainStatus=1\n",
+  "repaired": "ActiveState=inactive\nInvocationID=\nMainPID=0\nExecMainStatus=0\n"
+}
