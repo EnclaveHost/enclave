@@ -1,0 +1,12 @@
+{
+  "status": "PREPARATION_ONLY",
+  "preparedSha256": "a9e699a69955633fb5e0a15d61efbafa84decb3289dff8184f446a17c2874e00",
+  "seedFiles": 112,
+  "extraFiles": 0,
+  "productEdits": 0,
+  "readonlyPins": 253,
+  "drift": [],
+  "helperASTOnly": true,
+  "authorLaunched": false,
+  "testsBuildsNetworkFinanceAuth": false
+}

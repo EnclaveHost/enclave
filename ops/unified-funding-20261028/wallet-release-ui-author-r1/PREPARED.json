@@ -1,0 +1,47 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "seedEntries": 112,
+  "readonlyInputPins": 253,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "mutationPolicy": "Candidate subtree only; terminal Write/Edit result audit and successful-mutation replay; missing/mismatched/outside outcomes never called clean",
+  "turnLimit": 30,
+  "turnMetric": "CLI max-agentic/API-turns; success result num_turns is separate user-message counter; preserve both",
+  "childTimeoutSec": 900,
+  "outerTimeoutSec": 1200,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-ui-r1-20261029/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "hashes": {
+    "TASK.txt": "7002264006bd4572eb6b8061c2e83eea42319f28283d82285c8c1d01bec72470",
+    "SDK-SEAMS.md": "60a623c98abfaac6c6b0641dc58a21e5516f89ed636ef806d6522fc66b2ed179",
+    "run.py": "1fd164fa4780719e79ed397a6f33c92eadb8a06c4d0db1f6babb11d55ce70fe1",
+    "collect-terminal.py": "72c8572a7412d4be5b515fa63fc2bbcea9fa381466eabdd5e57eda66dc89c9c6",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8",
+    "input-pins.json": "abd1eab1f1667b9d29a28e08d60c290caf29baadbc643333619c3775d2aeb913",
+    "seed-pins.json": "1dd533519a6df25ad0909c71ade8bb6d8b957f59b9e6abce8a773daf085bb132",
+    "seed-provenance.json": "4b07d98eb2d9e61214ab9c8b03573224a3401471c86530afeb1944d2a63f9564",
+    "launch-command.txt": "30ab08a9382d3128b28b2626cfc26625d81d1fe83c8ec21cefc630a261af2bc1",
+    "REVIEW-STATUS.txt": "446cac439a9b7725d004f088f4b4a4b706068adbab28f9dcb80b31a3e27ee384",
+    "preparation-closure.json": "02bab74df07c50d9899591b49f464d7f5fe7812863daf092309ccf109226a0b2"
+  },
+  "originalSeedEntries": 112,
+  "addedPinnedDependencies": 0,
+  "priority": "ROOT_REVIEW_PENDING_NO_LAUNCH",
+  "cpuIndex": 1,
+  "cpuAffinity": "taskset -c1 and AllowedCPUs=1; runner requires exact{1}"
+}

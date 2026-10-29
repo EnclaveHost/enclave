@@ -1,0 +1,8 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-ui-r1-20261029/seed",
+  "sourceRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/selfhost-topup-production-r1/source",
+  "sourcePinsSha256": "e290ee7cb7c39c6fb9afc52941daa6ca970a6bb31502cd5939da4e6d0d127b31",
+  "seedEntries": 112,
+  "preAuthorProductEdits": [],
+  "scope": "Exact reconstructed current production graph; includes Host Copy and self-host Top up. No vendor rebuild/downgrade."
+}
