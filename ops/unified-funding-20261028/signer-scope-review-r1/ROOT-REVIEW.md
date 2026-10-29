@@ -1,0 +1,5 @@
+# Actual signer configuration scope
+
+Nine local tests passed. One bounded read-only check on the actual relay PID228946/startTicks43738495 verified executable/api/sessions pins and identity before/after. Both session and sponsor configured values were valid secp256k1 scalars; comparison returned samePrivateKey=false. Values were compared locally in process memory only, never output, saved, or sent to an RPC. Only presence/validity/equality booleans and public process identity were returned. The script made no process/config/state changes.
+
+Together with the separately observed public provisioner/vault address, this closes the identified configured same-session-signer question within the trusted-administrator/source model. It does not prove absence of an unrelated authorized external process holding the session key; coordination and live writer checks still apply. This is not checkpoint acceptance, transaction reconciliation, or permission to resume writes. The script pins this historical process and must not be blindly rerun after restart.
