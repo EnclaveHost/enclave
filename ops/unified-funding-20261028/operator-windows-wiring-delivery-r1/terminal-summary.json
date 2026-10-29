@@ -1,0 +1,77 @@
+{
+  "admission": {
+    "unit": "enclave-operator-windows-wiring-r1-20261029.service",
+    "mainPid": 1863718,
+    "runnerPid": 1863734,
+    "claudePid": 1863744,
+    "invocation": "bae7715b7cc4405fb9adad4aea36d4e5",
+    "mainStartTicks": "160960464",
+    "runnerStartTicks": "160960475",
+    "claudeStartTicks": "160960545",
+    "processes": [
+      {
+        "pid": 1863718,
+        "ppid": 1899,
+        "start": "160960464",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven"
+      },
+      {
+        "pid": 1863734,
+        "ppid": 1863727,
+        "start": "160960475",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven"
+      },
+      {
+        "pid": 1863744,
+        "ppid": 1863734,
+        "start": "160960545",
+        "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+        "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029"
+      }
+    ],
+    "rawUnit": "ActiveState=active\nInvocationID=bae7715b7cc4405fb9adad4aea36d4e5\nMainPID=1863718\n",
+    "account": {
+      "loggedIn": true,
+      "email": "steven.r.batchelor@gmail.com",
+      "subscriptionType": "max"
+    },
+    "rootAuthorizedOneLaunch": true,
+    "recordedAt": 1793304512.5675428
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 0,
+    "finishedAt": 1793305595.131942,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "4360f5d6-cd8d-407b-b4d1-be58199d6e80",
+  "duration_ms": 1102940,
+  "num_turns": 52,
+  "configuredMaxAgenticTurns": 55,
+  "distinctAssistantMessageIds": 27,
+  "transcriptUserRows": 52,
+  "turnMetricNote": "Raw success-result num_turns is a different user-message counter from max-agentic/API-turn limit; retain without conflating. See pinned turn-metric-investigation.json.",
+  "is_error": false,
+  "outputParseFailed": false,
+  "files": 248,
+  "changedFiles": 8,
+  "removedFiles": [],
+  "manifestSha256": "3d07b8960f71a212745630bb68efa90fc2390a93bc29a00fff55a261ed582840",
+  "firstMutations": 8,
+  "firstMutationManifestSha256": "79df24f1617ebb95cdda6f050007024693ac9483c6534f8b8e56604b642535dd",
+  "currentInvocationTools": {
+    "Grep": 10,
+    "Read": 22,
+    "Write": 6,
+    "Edit": 13
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [],
+  "mutationAuditSha256": "e0661011f82802a20f07e2ffa724dd91791000fd1b79d23ddb3cdd3563cf0e4d",
+  "innerGuard": "[memory-guard] exit=0 peakTreeRssMiB=296 minHostAvailableMiB=31973\n",
+  "outerGuard": "[memory-guard] exit=0 peakTreeRssMiB=362 minHostAvailableMiB=31973\n"
+}

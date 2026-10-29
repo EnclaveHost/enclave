@@ -1,0 +1,466 @@
+{
+  "schema": "enclave-native-sidecar-source/1",
+  "files": {
+    "availability/host-acceptor.mjs": {
+      "sha256": "63436160d00ecae43d5eff7046b13e16e2fad04a423d32102afaa7645bbfb85d",
+      "bytes": 3565
+    },
+    "isolation/contract/runtime.mjs": {
+      "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+      "bytes": 6224
+    },
+    "isolation/m2/judge.mjs": {
+      "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+      "bytes": 39168
+    },
+    "isolation/m4/guestd/supervisor-guestcert.mjs": {
+      "sha256": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597",
+      "bytes": 18619
+    },
+    "isolation/m4/guestd/supervisor-splice.mjs": {
+      "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+      "bytes": 17220
+    },
+    "network/canonical.mjs": {
+      "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+      "bytes": 698
+    },
+    "network/desktop-expectation.mjs": {
+      "sha256": "4ae7a378c4db7993a61b090c312cb40ef04fc4c4fed99013ba2aa57599cfa690",
+      "bytes": 3293
+    },
+    "network/host-capacity-producer.mjs": {
+      "sha256": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0",
+      "bytes": 7579
+    },
+    "network/host-capacity-record.mjs": {
+      "sha256": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+      "bytes": 9093
+    },
+    "network/host-service-names.mjs": {
+      "sha256": "a46123cbb70ab666f9dfb23b5b545fe76d87658c6bf82c7f7574579d0c65b32c",
+      "bytes": 3636
+    },
+    "network/host-service-transport.mjs": {
+      "sha256": "de5bb98a2e77ffd90ccf65211f564d9515f667b4cd6d17cbb3644fb2ca454e06",
+      "bytes": 12119
+    },
+    "network/owner-names.mjs": {
+      "sha256": "66dfc694094979bd69456992b0343dbd6a1879791a92e054bcf7e0883a8d78b3",
+      "bytes": 8410
+    },
+    "network/registry-reconcile.mjs": {
+      "sha256": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e",
+      "bytes": 2865
+    },
+    "network/rpc-identity.mjs": {
+      "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+      "bytes": 5636
+    },
+    "network/shield-expectation.mjs": {
+      "sha256": "420528c28cc6f4f99ed705147ae55530e82db4292720d78d2b687a73520f27f9",
+      "bytes": 4320
+    },
+    "network/wallet-admission.mjs": {
+      "sha256": "0fa7678f7586388b4725f1432683fa4ab172fd1d57c163d9a63195fbb2f445ee",
+      "bytes": 8664
+    },
+    "relay/avf-verify.mjs": {
+      "sha256": "081d826f674d8579f3636c28b4dbd6b62955bd0ff0b8f2710157980ecd9764fd",
+      "bytes": 18884
+    },
+    "relay/shield-derive.mjs": {
+      "sha256": "a475447301686a3be0e1dcaae9f5682db45e5066402cbf103e0009016e79c878",
+      "bytes": 10257
+    },
+    "relay/shield-desktop-derive.mjs": {
+      "sha256": "52c99e557ac4f119e3e1cba1b69c0909d4bc06068cc784d0298f62261c09c6e4",
+      "bytes": 5426
+    },
+    "relay/shield-desktop-release.mjs": {
+      "sha256": "a84635db7e33d5fe4f68796f29945597dd4b341fc1996c0394f804331a49f38d",
+      "bytes": 8977
+    },
+    "relay/shield-image-candidates.mjs": {
+      "sha256": "585e2ff3b225464488b747c508d1d7c9445bfbc92b4005f6a4645090d0918743",
+      "bytes": 1798
+    },
+    "relay/snp-verify.mjs": {
+      "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+      "bytes": 25976
+    },
+    "relay/vbs-image-identity.mjs": {
+      "sha256": "5ffd3ba2eb21f312dd0a21bd0a6277ae290e8bd42b9ec05c53436d3a3bd36090",
+      "bytes": 1637
+    },
+    "relay/vbs-policy.mjs": {
+      "sha256": "0e915d95b6771db87e00cee5ef97b82459da0b43653629a2e03264c78a3901cc",
+      "bytes": 2717
+    },
+    "relay/vbs-tcglog-core.mjs": {
+      "sha256": "936fc2ccc116154b6936d16a05fa89774a8f68a6dcb36b2733b064d4f2425912",
+      "bytes": 13766
+    },
+    "relay/vbs-tcglog.mjs": {
+      "sha256": "b7c6b2e43c4fde1fbc6730b2ce53d257a83003673b3b56257b60983083a7036d",
+      "bytes": 3116
+    },
+    "relay/vbs-tpm.mjs": {
+      "sha256": "993c69a8e9931d67fb741ff93c52dc10503f11b42aedb125a42cffb71922b4f6",
+      "bytes": 10151
+    },
+    "relay/vbs-verify.mjs": {
+      "sha256": "1b26c6b328d463b6597bc26ea4f8220403638e84655da1ddddea5152cd57b868",
+      "bytes": 35595
+    },
+    "sdk/bootstrap/package.mjs": {
+      "sha256": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a",
+      "bytes": 17866
+    },
+    "sdk/storage/model-volumes.mjs": {
+      "sha256": "152ed24ce1ab6d2ca87a4d81d46fbab48d471559d59c2e35d76faf076a57501a",
+      "bytes": 15967
+    },
+    "sdk/storage/replicas.mjs": {
+      "sha256": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25",
+      "bytes": 2853
+    },
+    "windows/node/agent.mjs": {
+      "sha256": "a41ca4cd59252d6a00648fda88232e97fe92049c8142dc1bf7910ae38ecae1a4",
+      "bytes": 93212
+    },
+    "windows/node/appframe.mjs": {
+      "sha256": "fd02f5b9f221291357ca0491a81e3330013f6bcec8149b48d3a1463b4ce05681",
+      "bytes": 6435
+    },
+    "windows/node/apprun.mjs": {
+      "sha256": "09c60eb7fbe7e6a63cd0696bac6c53b9dfa826e103cc1f0f64ce359abab361ce",
+      "bytes": 20795
+    },
+    "windows/node/apptls.mjs": {
+      "sha256": "2fb25b001874488104175523dc8409b515b55c5d7922678737e463fe9ed44414",
+      "bytes": 15478
+    },
+    "windows/node/appzone.mjs": {
+      "sha256": "65cbb69a898a12902367bb673dde085139c643c4b3ddbb08c7cfdf95e81d3a68",
+      "bytes": 19657
+    },
+    "windows/node/audit-jobs.mjs": {
+      "sha256": "6a6fe3ae786a0a8ffdbf1cbf2dc1e2335035c6adb13058623932f209d97ec4c5",
+      "bytes": 8234
+    },
+    "windows/node/blob-cache.mjs": {
+      "sha256": "6f34642f9d84706cc26f3f5dd69a70c88b24e73d3c3ab2c6c8b3cc9a82905c38",
+      "bytes": 10590
+    },
+    "windows/node/chain.mjs": {
+      "sha256": "b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225",
+      "bytes": 60398
+    },
+    "windows/node/compute-measure.mjs": {
+      "sha256": "6e98c52b45ed9a1f4cbdfa91a8bdc2f43aca8102fdfb1cb22ab4e29b0462af3b",
+      "bytes": 4550
+    },
+    "windows/node/desktop-inputs.mjs": {
+      "sha256": "d587173dbbdb2753a91bce1e063165222d5fc2e74ed961473247560b0af4f5b3",
+      "bytes": 1809
+    },
+    "windows/node/desktop-release.mjs": {
+      "sha256": "b3cc2817ddaaacd0b62d2614da26ae6c4030b2c32203497089274eea6b2c65b6",
+      "bytes": 3910
+    },
+    "windows/node/domains.mjs": {
+      "sha256": "a10085de2437ca664f8e8c2d71e2560d095296f55d3ddd53f4b11c8b9634bf41",
+      "bytes": 10158
+    },
+    "windows/node/gas-runway.mjs": {
+      "sha256": "1c89eb294039236c738384d9bcd5bf57a3b274d5bfef0ff3284dd956f5f5a537",
+      "bytes": 1637
+    },
+    "windows/node/host-admission.bundle.mjs": {
+      "sha256": "6bef372d00a27567e94a11d00f165312f9d715a795519e7a7ad77b4718623b18",
+      "bytes": 348897
+    },
+    "windows/node/host-delegation.mjs": {
+      "sha256": "153f9aa731014a7aabdf9c221970b085577de80bdae738bc782d35deb777888c",
+      "bytes": 7699
+    },
+    "windows/node/host-identity.mjs": {
+      "sha256": "ff9e46d9bcec08ff50ab04f0f4581845050b70e5c68debb64ec3cdf255822668",
+      "bytes": 23920
+    },
+    "windows/node/host.mjs": {
+      "sha256": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24",
+      "bytes": 319366
+    },
+    "windows/node/hosting.mjs": {
+      "sha256": "f2f3f46cd2fcc5433d988379546cd8c142ec878907457ffe1a01d4a1c89f17b7",
+      "bytes": 29158
+    },
+    "windows/node/hvcert.mjs": {
+      "sha256": "25fdc5eaae5ce4197583d213b41542d7eaef79429be89bd377bdd5ef0f7aa5be",
+      "bytes": 13604
+    },
+    "windows/node/hvnode-attach.mjs": {
+      "sha256": "bcd715675c2e0bea32c417a820ec4620e3bad9bad07d7d4c81ef2b47daaaa21d",
+      "bytes": 5289
+    },
+    "windows/node/hvnode-evidence.mjs": {
+      "sha256": "5e0f11a03b07a585a79a0ec14b23f47ddc5f5af9ce8edc10dccea2400aba06c5",
+      "bytes": 9148
+    },
+    "windows/node/hyperv-events.mjs": {
+      "sha256": "c91242a456a4c0944ba3bf12bb0db6aa4010db2f4b50960bf4127290fe9933b4",
+      "bytes": 5413
+    },
+    "windows/node/isolation-client.mjs": {
+      "sha256": "0b9808c7ab2d39a6e39df79efb98bb946d41d288d83d06861796c58e1d2c8ff5",
+      "bytes": 18440
+    },
+    "windows/node/isolation-lifecycle.mjs": {
+      "sha256": "5ae5f457f35fd4debb0b77f8b16ec00325d003470551354377e51c791734b033",
+      "bytes": 10944
+    },
+    "windows/node/lease-gas-runtime.bundle.mjs": {
+      "sha256": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d",
+      "bytes": 342304
+    },
+    "windows/node/network-enroll.mjs": {
+      "sha256": "5c01acb17aa538f9407d7c09176930222284ea6296bb8f0aedeb576e5ae4e0da",
+      "bytes": 16963
+    },
+    "windows/node/payout.mjs": {
+      "sha256": "c59f855efb487650acffb93fea6d22d44c2867a31e37eff39651008634db785d",
+      "bytes": 7514
+    },
+    "windows/node/price-guide.mjs": {
+      "sha256": "e9869b25b28896cef1691a8a0c26b7ee9b57c117ff668ae264dee745b89cd3ee",
+      "bytes": 5541
+    },
+    "windows/node/release-channel.mjs": {
+      "sha256": "f690c29b606879468db94b7b78f283e7de09f94a262803e13ee4dc61b447f942",
+      "bytes": 37426
+    },
+    "windows/node/secrets.mjs": {
+      "sha256": "d034d871c98090c663cee59458063e85368d4eb83f1cdcf9fa816673ddfadc95",
+      "bytes": 23840
+    },
+    "windows/node/session-api-auth.mjs": {
+      "sha256": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb",
+      "bytes": 23907
+    },
+    "windows/node/session.mjs": {
+      "sha256": "cb14d370a09655bb05884a6a1f5bcd4dd0b28ebe0180ae881c9c00c6222be438",
+      "bytes": 8183
+    },
+    "windows/node/shield-custody.mjs": {
+      "sha256": "5f70528f54cbd092b93f2b0dc7dcffcb2a91e5d1ff64c626f6297e890cf363a2",
+      "bytes": 8853
+    },
+    "windows/node/shield-secrets.mjs": {
+      "sha256": "2a5f6496d98bb9170fe265c0ac0a01ef709111e1045f19790fd5912cff89c97f",
+      "bytes": 4442
+    },
+    "windows/node/shield-sessions.mjs": {
+      "sha256": "dbd160f1da0ccfa0d33a20386611cddd70fc2645fe6e20f2daf7fc8792e81266",
+      "bytes": 8050
+    },
+    "windows/node/shield-startup.mjs": {
+      "sha256": "8dea4d59f2ee296fc7908e25a013240034f0da48d67bf9524a29b191becda2ca",
+      "bytes": 25939
+    },
+    "windows/node/shield-verdict.mjs": {
+      "sha256": "e8910fa0daee97e9da8aaceccbb11ea9b9aebf7e3e24738c69089cc3398de231",
+      "bytes": 16114
+    },
+    "windows/node/shield-witness.mjs": {
+      "sha256": "a316361afb19f4bdd05f5e001b916b684669ce9ac03f9788830ed61f06c2b91e",
+      "bytes": 3143
+    },
+    "windows/node/shieldedcard.mjs": {
+      "sha256": "287f86d53617455f390fb65e39d99cb4f996edc1f4050351bd7ee710bc69f047",
+      "bytes": 6829
+    },
+    "windows/node/siwe.mjs": {
+      "sha256": "2446021db3b97dc06b0af964c44ccdb1890aa4004a41f5d0fb3db553668af82e",
+      "bytes": 6660
+    },
+    "windows/node/sponsor.mjs": {
+      "sha256": "896fb8d99b498c2b7fa8f925fabc58835d049031bb7148b9b419158bb8cc4bb3",
+      "bytes": 7071
+    },
+    "windows/node/startup-egress.mjs": {
+      "sha256": "3ea69d330990d4a2e20ba873f4d6d61b94ab050f17b2894a32c8aba3b627be6f",
+      "bytes": 1504
+    },
+    "windows/node/tunnel-handover.mjs": {
+      "sha256": "b551e68336ac68c7f26ce6965f5586f75f2bd6536890f9b6ac1fdef4e037f54f",
+      "bytes": 2891
+    },
+    "windows/node/update-watch.mjs": {
+      "sha256": "9104b137b884ae5d46dfa94f2ec8529d36ee2cd51c89f204eec9335cd1af46a7",
+      "bytes": 2675
+    },
+    "windows/node/verification-checkpoints.mjs": {
+      "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+      "bytes": 2642
+    },
+    "windows/node/waf.mjs": {
+      "sha256": "d44da8feb6b55073e1f18264d028e3f854c85215ae3a97208ef329638c1ee94a",
+      "bytes": 12082
+    },
+    "windows/vbslike/datapath/datapath.mjs": {
+      "sha256": "1149dfb2099a8ea3963c570d61d40e7b304d060b73c62694a31e8346bd258771",
+      "bytes": 9779
+    },
+    "windows/vbslike/datapath/desktop-plan.mjs": {
+      "sha256": "038236f0207c1532477fff1127f64267a802f8a3acf6427f921d88ec1387144f",
+      "bytes": 3546
+    },
+    "windows/vbslike/datapath/node-bridge.mjs": {
+      "sha256": "0b6e57087e1ae920f5255e6aeed36a8a610770af7dc0f8f50e84c382138d302e",
+      "bytes": 23368
+    },
+    "windows/vbslike/datapath/partition-offers.mjs": {
+      "sha256": "553742bf70546465f834cdf266b5a0ae4b7cb6552ec15f692498fb1ee3ce3562",
+      "bytes": 1809
+    },
+    "windows/vbslike/manager/backend.mjs": {
+      "sha256": "d90b596a81a4f76752ba87c7905bb521f1f1674a6bbba3d8f3db210d657af9e2",
+      "bytes": 5557
+    },
+    "windows/vbslike/manager/bridge-auth.mjs": {
+      "sha256": "259b4e879e91ab97b7776ee661a7aeda84c8a47c521a1e0d71e65df479693860",
+      "bytes": 4935
+    },
+    "windows/vbslike/manager/console-log.mjs": {
+      "sha256": "ab6e7ec9c648d00920652ce9e67f7d194f1a86468f7c4fb88484c450e1521635",
+      "bytes": 11615
+    },
+    "windows/vbslike/manager/cpu-share.mjs": {
+      "sha256": "ad792116e5c3939fcd287f76b9131eacf738cb7060f7ff19f94039a3e340e48f",
+      "bytes": 3268
+    },
+    "windows/vbslike/manager/custody-key-file.mjs": {
+      "sha256": "4eb7f3a73ee6857c8191a006e510b6072e431f9f9a42cd4fca9fa157797bd8cc",
+      "bytes": 5778
+    },
+    "windows/vbslike/manager/custody-transport.mjs": {
+      "sha256": "a77a922ade374993540b8c0027234a5dd184c71fe3cbe4d44b04a506ed49652c",
+      "bytes": 14258
+    },
+    "windows/vbslike/manager/derive.mjs": {
+      "sha256": "b6f1e97574812230f251ad1626379804ec16d5c0607aa28e40e7b145a4ac7aaf",
+      "bytes": 10219
+    },
+    "windows/vbslike/manager/desktop-admission.mjs": {
+      "sha256": "a59c5f3693c396a4018e3332f3b3885e7fe64dafe7b48a16462f02bff0993980",
+      "bytes": 6243
+    },
+    "windows/vbslike/manager/desktop-config.mjs": {
+      "sha256": "d51822a41945f82ce71f326252757347b1eecebfcd6c86c4240b7c641296cd8a",
+      "bytes": 2871
+    },
+    "windows/vbslike/manager/desktop-derive.mjs": {
+      "sha256": "3365d34388329b5432685efe55271c4e40245051c4fb4b038a4c4c461d06eb0a",
+      "bytes": 5419
+    },
+    "windows/vbslike/manager/desktop-media.mjs": {
+      "sha256": "846e0c022f3a457b8926dc3d892f0848d3ea0473f258093646379fa0aae901c8",
+      "bytes": 21569
+    },
+    "windows/vbslike/manager/desktop-memory.mjs": {
+      "sha256": "57787b8591a3f6545b94185d927c8c7c08088663985ec43c108aea1c69af67bb",
+      "bytes": 831
+    },
+    "windows/vbslike/manager/desktop-platform.mjs": {
+      "sha256": "ee7f2eab2b5943c5b0037ae360ed8639de290b4a882ca8c8a81b0f1f3114c355",
+      "bytes": 13568
+    },
+    "windows/vbslike/manager/desktop-router.mjs": {
+      "sha256": "16b3ad77d10d8e82a5b90bea15ae9185af0ade0f51509156451b3ab8ea62635f",
+      "bytes": 1507
+    },
+    "windows/vbslike/manager/desktop-worker-transport.mjs": {
+      "sha256": "37131b79ce658edf99e2d6d0974ee9df89996af03e6121f5133223e860787805",
+      "bytes": 10871
+    },
+    "windows/vbslike/manager/egress.mjs": {
+      "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05",
+      "bytes": 10148
+    },
+    "windows/vbslike/manager/fetchcid.mjs": {
+      "sha256": "5f3443c431d36812554202303c4b5596a181727f88c74d95a52a6440cc46cafd",
+      "bytes": 4603
+    },
+    "windows/vbslike/manager/main.mjs": {
+      "sha256": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b",
+      "bytes": 24175
+    },
+    "windows/vbslike/manager/memory-share.mjs": {
+      "sha256": "a9d8200b8ccd8c89e64aebadced10068e6ed952ca74dd857f0f99a1a637bfc52",
+      "bytes": 786
+    },
+    "windows/vbslike/manager/model-volumes.mjs": {
+      "sha256": "15304eabf58e201c2e60c66b380b045e8bce3706f36aeef5479bf4900cef6954",
+      "bytes": 3190
+    },
+    "windows/vbslike/manager/psrun.mjs": {
+      "sha256": "39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6",
+      "bytes": 2341
+    },
+    "windows/vbslike/manager/ready.mjs": {
+      "sha256": "9b2fe8bc5df5ad3f9b203c94d12121c22fcf99558718b5181c58ddab256737a7",
+      "bytes": 13943
+    },
+    "windows/vbslike/manager/server.mjs": {
+      "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+      "bytes": 64364
+    },
+    "windows/vbslike/manager/shield-profile.mjs": {
+      "sha256": "87e8935a192c49fb1c3de69e058256aacd883641989ca0618222e9466af2139c",
+      "bytes": 4188
+    },
+    "windows/vbslike/manager/wmi-launcher.mjs": {
+      "sha256": "bba4c309f5a837e17bf44be54cd8e4c4432ad74174a7d09eda559f11f5ef250e",
+      "bytes": 99854
+    },
+    "windows/vbslike/manager/wmiserve-run.mjs": {
+      "sha256": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
+      "bytes": 13831
+    },
+    "windows/vbslike/router/control.mjs": {
+      "sha256": "ae43a93780e4f8651af6e365720ed5f0cc91557aef0f062979732eb867bc17c8",
+      "bytes": 21221
+    },
+    "windows/vbslike/router/cpu-share.mjs": {
+      "sha256": "ad792116e5c3939fcd287f76b9131eacf738cb7060f7ff19f94039a3e340e48f",
+      "bytes": 3268
+    },
+    "windows/vbslike/router/io.mjs": {
+      "sha256": "3a81d403c8f9a4d20d2f7651b31ca5d5a8eb8acae9c2b817082ec1bae74083e2",
+      "bytes": 5446
+    },
+    "windows/vbslike/router/main.mjs": {
+      "sha256": "d021c31460f8b4313ab15a50a1e9792360df4b00de2f64d727e21b79d04fb9a7",
+      "bytes": 2268
+    },
+    "windows/vbslike/router/platform.mjs": {
+      "sha256": "cc0d52c6ebec92b27e0eebc772c970975d0c51ae5275782bd6641be385da7807",
+      "bytes": 3038
+    },
+    "windows/vbslike/verify/boot-statements.mjs": {
+      "sha256": "f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3",
+      "bytes": 1712
+    },
+    "windows/vbslike/verify/judge-hv.mjs": {
+      "sha256": "bae3916e4a9ee1c3f4d67503f76b52d93febfbf356375a3321c7fe1fb9781f7f",
+      "bytes": 16382
+    }
+  },
+  "baselineManifestSha256": "fb1325f7fdff1595ce661d07d8a98c0c2d660d60b881be6d97e814cee3ca21d1",
+  "diffSha256": "4fc7c95a0d7b7d415c1748d37d081657c2247659405ba841454129c7940f9096",
+  "productionActivated": false,
+  "memoryPolicy": "exact 24576-MiB app maps to qualified32768-MiB partition; other allowances unchanged",
+  "memoryQualificationSha256": "2683548b937420d875f2793589dc495206dea11dceb12039cb2c00b310f47d7e"
+}

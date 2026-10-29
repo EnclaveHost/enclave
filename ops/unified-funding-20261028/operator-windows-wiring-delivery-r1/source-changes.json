@@ -1,0 +1,45 @@
+{
+  "changes": {
+    "RELEASE-CLOSURE-OPERATOR-WINDOWS-WIRING-R1.json": {
+      "seedSha256": null,
+      "finalSha256": "e53e0f9775784692e9d22ecda91de37c43e2178ca6d0b5f36eae13bc296d9ee0",
+      "kind": "new"
+    },
+    "REPORT-OPERATOR-WINDOWS-WIRING-R1.md": {
+      "seedSha256": null,
+      "finalSha256": "152f0120ab5a55dc84da2b0f71c2cfd7ecd572729c306f2f8949ed705fd2101c",
+      "kind": "new"
+    },
+    "control/windows/node/agent.mjs": {
+      "seedSha256": "4105b28e33751a1191f936578fdff600b5e124c5dc695b9d5eeb345d8304d0b5",
+      "finalSha256": "c78fc15c11260006cb835c9a0d219a9d0397e793ea32df3215e206edf9c51345",
+      "kind": "modified"
+    },
+    "control/windows/node/host.mjs": {
+      "seedSha256": "c632b1df0b054f0974a93959260f4cd2828b7dc400e697a30374dce22b9b660d",
+      "finalSha256": "1b8f94139be7117090105aa1662b188d9fa18abd03c9d6927031d2ac96c2a48a",
+      "kind": "modified"
+    },
+    "control/windows/node/initialize-operator-effects.mjs": {
+      "seedSha256": "e4d0165280581eb24efa72ff05d296b7c898bbda7fd90b45bedb8b5d057519ae",
+      "finalSha256": "6854e062c23362b255f170a859714e38e5dd26a19025adc555875e6bf1ea63d5",
+      "kind": "modified"
+    },
+    "control/windows/node/install-operator-effects.mjs": {
+      "seedSha256": null,
+      "finalSha256": "8e0311890cb9303ad3a5d9306afe35b59b69ff7155419efba0b701b6bbb71521",
+      "kind": "new"
+    },
+    "control/windows/node/operator-effects-config.mjs": {
+      "seedSha256": null,
+      "finalSha256": "f53568438572f60c41faba42ea4ae47301ba824668d6b666a3365bfc9e9ec02f",
+      "kind": "new"
+    },
+    "test/windows-permit/ow-r1-operator-windows-wiring.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "ca546af7642a618fce3fde0ca91c96e93340819af389117de618059d3fa155dd",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}
