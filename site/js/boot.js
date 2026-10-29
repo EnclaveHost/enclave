@@ -1,5 +1,6 @@
 import "../components/cinematic-scene/cinematic-scene.js";
 import "./hex-background.js";
+import "./core/deployment-search-clear.js";
 /* ============================================================
    Soft-navigation router. Full-document navigations can't be
    made seamless when an extension injects content scripts

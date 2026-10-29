@@ -20,6 +20,12 @@ c-deployments{display:contents;}
 /* with the count gone, the search fills the gap between the seg and refresh/CTA */
 .enc-search{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:.78rem;padding:.55em .8em;flex:1 1 auto;min-width:210px;}
 .enc-search:focus{border-color:var(--jade);box-shadow:0 0 0 3px rgba(47,230,168,.12);}
+.enc-search-field{position:relative;display:flex;flex:1 1 auto;min-width:210px;}
+.enc-search-field .enc-search{width:100%;min-width:0;padding-right:2.5rem;}
+.enc-search-clear{position:absolute;right:.35rem;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--text-muted);font-size:1.2rem;line-height:1;cursor:pointer;}
+.enc-search-clear[hidden]{display:none;}
+.enc-search-clear:hover{color:var(--jade);background:var(--surface-2);}
+.enc-search-clear:focus-visible{outline:2px solid var(--jade);outline-offset:1px;}
 
 /* pager: 5 deployments per page */
 .enc-pager{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:14px;}
