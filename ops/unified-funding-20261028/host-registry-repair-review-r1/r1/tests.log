@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: default new-profile imported runtime with no saved incarnation stays fenced
+not ok 1 - default new-profile imported runtime with no saved incarnation stays fenced
+  ---
+  duration_ms: 28.333106
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-registry-repair-root-review-r1/test/root-incarnation-acceptance.test.mjs:29:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    unknown imported runtime must not get an automatic first-generation handoff
+
+    1 !== 0
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-registry-repair-root-review-r1/test/root-incarnation-acceptance.test.mjs:31:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: fresh queued app binds its incarnation before a new start
+ok 2 - fresh queued app binds its incarnation before a new start
+  ---
+  duration_ms: 3.958426
+  type: 'test'
+  ...
+# Subtest: explicit adoption rereads current host state rather than trusting a cached Online decision
+ok 3 - explicit adoption rereads current host state rather than trusting a cached Online decision
+  ---
+  duration_ms: 2.548758
+  type: 'test'
+  ...
+# Subtest: explicit adoption must not rebind while an old app transition is pending
+not ok 4 - explicit adoption must not rebind while an old app transition is pending
+  ---
+  duration_ms: 2.665527
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-registry-repair-root-review-r1/test/root-incarnation-acceptance.test.mjs:45:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-registry-repair-root-review-r1/test/root-incarnation-acceptance.test.mjs:50:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: adoption refuses when old runtime quiescence cannot be confirmed
+not ok 5 - adoption refuses when old runtime quiescence cannot be confirmed
+  ---
+  duration_ms: 3.659509
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-registry-repair-root-review-r1/test/root-incarnation-acceptance.test.mjs:53:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-registry-repair-root-review-r1/test/root-incarnation-acceptance.test.mjs:58:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 2
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 319.697457

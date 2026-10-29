@@ -1,0 +1,218 @@
+{
+ "lifecycle-host-profile.mjs": {
+  "sha256": "ae53da9f520e7f66e5a88c850226f96a7294708e2f5dad27c178138096f4bc94",
+  "baselineSha256": "98e33cfeb1b7612d49e8a30260d8272b8863808f558971f0c68a798c965d9176",
+  "manifest": [
+   {
+    "name": "constants",
+    "baselineLine": 5,
+    "candidateOffset": 342,
+    "length": 6134
+   },
+   {
+    "name": "host-profile",
+    "baselineLine": 8,
+    "candidateOffset": 6751,
+    "length": 212
+   },
+   {
+    "name": "binding",
+    "baselineLine": 16,
+    "candidateOffset": 7304,
+    "length": 360
+   }
+  ]
+ },
+ "lifecycle-host-authority.mjs": {
+  "sha256": "4b4621263e2a0fc7515cf933c5cf0ec17da987305935baff96b175d5a507f8f8",
+  "baselineSha256": "6baf5b55210c5e4273dc0e797fcadb3f691d6eafae201dd46b4ab59a1919ea92",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 17,
+    "candidateOffset": 1539,
+    "length": 67
+   },
+   {
+    "name": "admission-signature",
+    "baselineLine": 107,
+    "candidateOffset": 8038,
+    "length": 21
+   },
+   {
+    "name": "admission",
+    "baselineLine": 122,
+    "candidateOffset": 9195,
+    "length": 1107
+   },
+   {
+    "name": "admission-return",
+    "baselineLine": 122,
+    "candidateOffset": 10445,
+    "length": 49
+   },
+   {
+    "name": "compose-signature",
+    "baselineLine": 141,
+    "candidateOffset": 11790,
+    "length": 39
+   },
+   {
+    "name": "hr-pins",
+    "baselineLine": 147,
+    "candidateOffset": 12311,
+    "length": 184
+   },
+   {
+    "name": "s3",
+    "baselineLine": 150,
+    "candidateOffset": 12708,
+    "length": 47
+   },
+   {
+    "name": "adapter-identity",
+    "baselineLine": 157,
+    "candidateOffset": 13349,
+    "length": 314
+   },
+   {
+    "name": "binding",
+    "baselineLine": 160,
+    "candidateOffset": 14078,
+    "length": 161
+   },
+   {
+    "name": "read",
+    "baselineLine": 169,
+    "candidateOffset": 14733,
+    "length": 329
+   },
+   {
+    "name": "authority-registry",
+    "baselineLine": 174,
+    "candidateOffset": 15389,
+    "length": 104
+   },
+   {
+    "name": "forward",
+    "baselineLine": 177,
+    "candidateOffset": 15829,
+    "length": 24
+   }
+  ]
+ },
+ "lifecycle-host-dispatch.mjs": {
+  "sha256": "951e9da29e5223941663ab282abc650dbad9df947588c0efe194546b66731603",
+  "baselineSha256": "3e826b743e3a0a6db91908a8db54159764902746b6133fd1987357bd73d8b57b",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 38,
+    "candidateOffset": 3261,
+    "length": 65
+   },
+   {
+    "name": "binding-keys",
+    "baselineLine": 87,
+    "candidateOffset": 7146,
+    "length": 24
+   },
+   {
+    "name": "route-keys",
+    "baselineLine": 112,
+    "candidateOffset": 8844,
+    "length": 30
+   },
+   {
+    "name": "route-identity",
+    "baselineLine": 115,
+    "candidateOffset": 9073,
+    "length": 173
+   },
+   {
+    "name": "signature",
+    "baselineLine": 154,
+    "candidateOffset": 12558,
+    "length": 39
+   },
+   {
+    "name": "missing",
+    "baselineLine": 166,
+    "candidateOffset": 13544,
+    "length": 481
+   },
+   {
+    "name": "incarnation",
+    "baselineLine": 277,
+    "candidateOffset": 22389,
+    "length": 4090
+   },
+   {
+    "name": "decision-keys",
+    "baselineLine": 278,
+    "candidateOffset": 26543,
+    "length": 38
+   },
+   {
+    "name": "decision-accept",
+    "baselineLine": 291,
+    "candidateOffset": 27841,
+    "length": 56
+   },
+   {
+    "name": "serve-incarnation",
+    "baselineLine": 308,
+    "candidateOffset": 28832,
+    "length": 136
+   },
+   {
+    "name": "start-bind",
+    "baselineLine": 321,
+    "candidateOffset": 29811,
+    "length": 128
+   },
+   {
+    "name": "read-invalidate",
+    "baselineLine": 336,
+    "candidateOffset": 30716,
+    "length": 139
+   },
+   {
+    "name": "read-gate",
+    "baselineLine": 340,
+    "candidateOffset": 31308,
+    "length": 57
+   },
+   {
+    "name": "submit-boundary",
+    "baselineLine": 359,
+    "candidateOffset": 32659,
+    "length": 88
+   },
+   {
+    "name": "serve-context",
+    "baselineLine": 371,
+    "candidateOffset": 33551,
+    "length": 96
+   },
+   {
+    "name": "adopt",
+    "baselineLine": 524,
+    "candidateOffset": 42680,
+    "length": 1887
+   },
+   {
+    "name": "ingress",
+    "baselineLine": 544,
+    "candidateOffset": 45892,
+    "length": 111
+   },
+   {
+    "name": "state",
+    "baselineLine": 561,
+    "candidateOffset": 47194,
+    "length": 94
+   }
+  ]
+ }
+}

@@ -1,0 +1,98 @@
+--- author/host-generator.mjs
++++ root/host-generator.mjs
+@@ -122,14 +122,14 @@
+     after: '    if (!ID.test(r.deployment))',
+     text: '    if (hostRegistryKeys(binding).some(k => r[k] !== binding[k])) throw Error(`${what}: host registry identity differs from the exact chain binding`);   // host-registry r2\n' },
+   { name: 'signature', before: "  verifyQuiescence, now = Date.now, random = Math.random, intervalMs = 5000, onMissing = 'throw'", after: ' } = {}) {',
+-    text: ", hostIncarnationGenesis = 'activation'" },
++    text: ", hostIncarnationGenesis = 'explicit'" },
+   { name: 'missing',
+     before: "  if (typeof verifyQuiescence !== 'function') missing.push('verifyQuiescence');\n",
+     after: '  // Without the binding no route ledger can be checked',
+     text: '  // host-registry r2: the exact profile requires the DURABLE host incarnation section of the owned journal (no in-memory substitute)\n' +
+       '  const HR = hostRegistryKeys(chain?.binding).length > 0;\n' +
+       '  if (HR) for (const f of HOST_INCARNATION_FNS) if (typeof journal?.[f] !== \'function\') missing.push(`journal.${f} (durable host incarnation)`);\n' +
+-      "  if (HR && !['activation', 'explicit'].includes(hostIncarnationGenesis)) throw Error('hostIncarnationGenesis must be activation or explicit');\n" },
++      "  if (HR && hostIncarnationGenesis !== 'explicit') throw Error('hostIncarnationGenesis must be explicit; unknown imported runtimes require safe adoption');\n" },
+   { name: 'incarnation',
+     before: '    return r?.floor ? { revision: BigInt(r.floor.revision), owner: r.floor.owner, policyHash: r.floor.policyHash } : null;\n  }\n',
+     after: '  function checkDecision(id, d) {',
+@@ -155,7 +155,6 @@
+       if (b && b.digest === x.digest) return null;
+       if (!oldWork(id)) return null;   // nothing of an older context can exist: a NEW start binds the current incarnation
+       if (b) return \`app context bound to host generation \${b.generation}, canonical host is now generation \${x.generation}: fenced until stopped or explicitly adopted\`;
+-      if (hostIncarnationGenesis === 'activation' && st.genesis === x.digest) return null;   // first incarnation this journal ever accepted
+       return 'running app context has no recorded host incarnation: unknown until explicitly adopted';
+     } catch (e) { return \`host incarnation journal unknown: \${msg(e)}\`; }
+   }
+@@ -167,7 +166,6 @@
+   function incarnationGate(id, d) {   // read time: a mismatch is UNKNOWN (fences serve/start, the runner keeps reconciling and revoking)
+     const why = incarnationRefusal(id, d);
+     if (why) return why;
+-    if (oldWork(id) && !incarnation().bound[id]) bindIncarnation(id, d, 'genesis activation handoff');
+     return null;
+   }
+   // A FRESH authenticated read + decision of this route (adapter: code/schema/closure at its block); cached decisions never count.
+@@ -226,18 +224,43 @@
+       id = String(id || '').toLowerCase();
+       if (!HR) throw Error('host incarnation adoption exists only in the host-registry profile');
+       if (!host || !runner || !table.has(id) || !activated.has(id)) throw Error('lifecycle route not activated');
+-      if (localHolds.get(id)) throw Error('a local owner hold is released only by an owner control change, not by adoption');
++      if (inflight.has(id)) throw Error('host adoption cannot overlap reconciliation or another adoption');
++      const startingEpoch = epoch(id);
++      const stableLocal = () => {
++        if (epoch(id) !== startingEpoch || localHolds.get(id)) throw Error('owner controls changed or hold remains during adoption');
++        const row = journal.read(id);
++        if (row.pending || (row.minedTransitions || []).length) throw Error('pending or nonfinal app transition must be reconciled before adoption');
++      };
+       const named = () => Error('adoption must name the exact current Online host incarnation (decimal generation and digest)');
+       if (typeof generation !== 'string' || !/^0x[0-9a-f]{64}$/.test(digest || '')) throw named();
+-      const d = await freshDecision(id, 'adoption refused'), x = d.hostIncarnation, why = denial(id, d);
+-      if (why) throw Error(\`adoption refused: \${why}\`);
+-      if (x.status !== 'online' || generation !== x.generation || digest !== x.digest) throw named();
+-      const st = incarnation();
+-      if (!st.floor || st.floor.digest !== x.digest) throw Error('the named incarnation is not the durable accepted floor');
+-      await runtime.fence(id);
+-      bindIncarnation(id, d, 'explicit owner adoption');
+-      say(\`\${id.slice(0, 10)} adopted into host generation \${x.generation}\`);
+-      return Object.freeze({ adopted: true, generation: x.generation, digest: x.digest });
++      let p;
++      p = (async () => {
++        stableLocal();
++        const d = await freshDecision(id, 'adoption refused'), x = d.hostIncarnation, why = denial(id, d);
++        if (why) throw Error(\`adoption refused: \${why}\`);
++        if (x.status !== 'online' || generation !== x.generation || digest !== x.digest) throw named();
++        stableLocal();
++        await runtime.fence(id);
++        if (await runtime.stop(id) !== true) throw Error('adoption refused: old runtime stop not confirmed');
++        if (await inventory.findByName(id)) throw Error('adoption refused: old runtime still present');
++        // A confirmed manager absence releases physical allocation, never a pending financial commitment.
++        retired(id);
++        stableLocal();
++        const current = await freshDecision(id, 'adoption final read refused'), y = current.hostIncarnation;
++        stableLocal();
++        const finalWhy = denial(id, current);
++        if (finalWhy) throw Error(\`adoption refused: \${finalWhy}\`);
++        if (y.status !== 'online' || y.generation !== generation || y.digest !== digest ||
++            current.owner !== d.owner || current.revision !== d.revision || current.policyHash !== d.policyHash)
++          throw Error('host incarnation or accepted owner authority changed during adoption');
++        const st = incarnation();
++        if (!st.floor || st.floor.digest !== digest) throw Error('named incarnation is not the durable current floor');
++        bindIncarnation(id, current, 'explicit owner adoption after confirmed runtime quiescence');
++        say(\`\${id.slice(0, 10)} adopted into host generation \${generation} after confirmed stop\`);
++        return Object.freeze({ adopted: true, generation, digest });
++      })().finally(() => { if (inflight.get(id) === p) inflight.delete(id); });
++      inflight.set(id, p);
++      return p;
+     },
+ ` },
+   { name: 'ingress', before: "      if (!d || d.validUntil <= now()) return 'host admission not fresh';\n", after: '      return denial(id, d);\n    },\n    start(',
+@@ -269,7 +292,7 @@
+ ` },
+   { name: 'admission-return', before: 'refusal, validUntil: now() + DECISION_MS', after: ' };\n    },\n  };\n}', text: ', ...(hostIncarnation ? { hostIncarnation } : {})' },
+   { name: 'compose-signature', before: "  capacityHeadroom, verifyQuiescence, now = Date.now, intervalMs, onMissing = 'throw'", after: ' } = {}) {',
+-    text: ", hostIncarnationGenesis = 'activation'" },
++    text: ", hostIncarnationGenesis = 'explicit'" },
+   { name: 'hr-pins',
+     before: "  if (!ID.test(adapterPins?.host || '')) missing.push('adapterPins.host');\n",
+     after: '  let selected;',

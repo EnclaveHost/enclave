@@ -1,5 +1,7 @@
 # Decentralized lifecycle, admission and gas funding
 
+The [host-incarnation repair review](../../ops/unified-funding-20261028/host-registry-repair-review-r1/ROOT-REVIEW.md) now passes8 focused handoff checks and93 existing host-composition checks. Root removed automatic adoption of unknown imported runtimes, serialized explicit handoff, blocked rebinding over pending transactions, and required confirmed shutdown plus a fresh authority check. These fixture results do not qualify production: signed serving-permit context, final post-signature send checks, durable failure handling and real runtime wiring remain unfinished. Original failed evidence and the next concrete source task are retained.
+
 Status at 2026-10-29: implementation and migration in progress. This is the highest-priority feature toward completely decentralizing Enclave's architecture for censorship resistance. It is not a separate funding project, and passing a component test does not demonstrate an independent deployed network.
 
 The [publication repair qualification](../../ops/unified-funding-20261028/host-lifecycle-registry-root-review-r2/ROOT-REVIEW.md) repeats all50 registry tests after changing only the visibility of a public mathematical constant. ABI, storage and executable runtime remain identical; source/artifact metadata have new explicit pins. This resolves a precommit false positive without bypassing the scanner. Canonical registry integration is the next source task; no live host behavior changed.
