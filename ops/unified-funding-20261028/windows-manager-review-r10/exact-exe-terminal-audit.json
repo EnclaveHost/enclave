@@ -1,0 +1,23 @@
+{
+  "at": 1793295291.0047352,
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "expectedInvocation": "9e68c9e57cdb4247aeea1e772bfa20ee",
+  "knownProcesses": {
+    "mainPid": {
+      "pid": 1718892,
+      "exists": false
+    },
+    "runnerPid": {
+      "pid": 1718919,
+      "exists": false
+    },
+    "claudePid": {
+      "pid": 1718938,
+      "exists": false
+    }
+  },
+  "reviewedExecutable": "/home/steven/.local/share/claude/versions/2.1.281",
+  "sameExecutableInPreparationTree": [],
+  "unreadableMatchingExecutableCwds": [],
+  "terminalVerified": true
+}

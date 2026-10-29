@@ -1,6 +1,6 @@
 # Decentralized lifecycle, admission and gas funding
 
-## Current rollout status — October 29, r9 review
+## Current rollout status — October 29, r10 review
 
 This feature is not activated on the new lifecycle protocol. The sections below retain the evidence history; a later passing review supersedes only the exact failures it covers.
 
@@ -12,9 +12,11 @@ This feature is not activated on the new lifecycle protocol. The sections below 
 | Automatic gas funding / self-host Top up | Existing finite grants produced two confirmed recovery payments under the legacy reserve | New-protocol authorization and ordinary-reserve refill, protected Offline separation and app-card integration |
 | Censorship resistance | Independent-owner policy and local recovery cases pass for pinned candidates | End-to-end cold recovery, new-user deployment, storage endpoint failure and continued hosting under Enclave refusal |
 
-The [Windows r9 review](../../ops/unified-funding-20261028/windows-manager-review-r9/ROOT-REVIEW.md) repairs the real owned factory's missing routes: constructor, route activation and three Linux lock releases pass with labeled TEST chain/quiescence/host-view components. The actual two-manager/router TCP composite still passes. Focused tests were38/44; the six older fixture failures pass in17 overlapping checks using the prior root corrections and explicit TEST preactivated handoff. Product source is unchanged; original failures remain.
+The [Windows r10 review](../../ops/unified-funding-20261028/windows-manager-review-r10/ROOT-REVIEW.md) repairs actual Host dependence on the retired book/catalog and includes pending lifecycle allocations in capacity accounting. Its eight new tests pass with explicitly labeled external-service/runtime fixtures; real factory/dispatch recovery and earlier two-manager/router TCP checks remain passing. Focused results are51/52; the remaining carried transport fixture passes after an external argument-forwarding correction. Product source is unchanged by root review.
 
-Actual Host consumer tests pass the positive reachability control but reproduce three blockers: publisher delisting prevents protected reconciliation, retired address-book failure prevents the enrolled-route pass, and pending lifecycle allocations are omitted from host capacity usage. These tests execute the real Host class with labeled external service doubles; they do not qualify authenticated chain operation or actual workload serving. Invalid-policy legacy send exclusion also remains a source-review concern. The new factory still needs a production quiescence verifier, authenticated configuration independent of the old ledger/catalog, and real allocation recovery before staging. Native protected workload routing, Windows ownership and full release closure remain unfinished. No candidate was installed, no additional app recovered, and no new payment was sent.
+New independent tests expose two cached-policy failures, three serialized-send permission failures, and one actual Host scheduling failure: a held startup plan for one app delays another app's authenticated Stop pass. Source review also identifies stale deployment snapshots at stage admission and missing reservation discharge for confirmed ended startup. Original failures are retained; passing initial-policy and constructor tests do not cover these boundaries.
+
+The positive real Host + factory/runtime/client/manager queued-to-serving-to-Stop path remains unqualified. Native protected workload routing, independently authenticated live authority, production quiescence verification, Windows ownership and full release closure are unfinished. No candidate was installed, no additional app recovery was established, and no new payment was sent. A source-only repair successor is being prepared with the reproduced failures and required positive consumer test.
 
 ## Qualified ownership baseline
 
