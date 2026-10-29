@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../source/enclave/site/components/section-head/section-head.js"],
+  "sourcesContent": ["/* ============================================================\n   <c-section-head eyebrow=\"\u2026\" heading=\"\u2026\" [flush]>\n     <p>rich description\u2026</p>   \u2190 slotted\n   </c-section-head>\n   The eyebrow + h2 + description pattern that opens every\n   section on the site. `flush` drops the bottom margin (the API\n   reference header sits in a flex row).\n   ============================================================ */\nimport { EnclaveElement, register } from \"../../js/lib/enclave-element.js\";\n\nclass SectionHead extends EnclaveElement {\n  static properties = { eyebrow: \"\", heading: \"\" };\n  static _tpl = \"<div class=\\\"sec-head\\\">\\n  <span class=\\\"eyebrow\\\">{eyebrow}</span>\\n  <h2>{heading}</h2>\\n  <slot></slot>\\n</div>\\n\";\n}\nregister(\"c-section-head\", SectionHead);\n"],
+  "mappings": "+CAUA,IAAMA,EAAN,cAA0BC,CAAe,CACvC,OAAO,WAAa,CAAE,QAAS,GAAI,QAAS,EAAG,EAC/C,OAAO,KAAO;AAAA;AAAA;AAAA;AAAA;AAAA,CAChB,EACAC,EAAS,iBAAkBF,CAAW",
+  "names": ["SectionHead", "EnclaveElement", "register"]
+}

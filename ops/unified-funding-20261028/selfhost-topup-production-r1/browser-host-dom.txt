@@ -1,0 +1,191 @@
+- banner:
+  - link "Skip to main content":
+    - /url: "#main"
+  - link "Enclave home":
+    - /url: ./
+  - navigation "Primary":
+    - link "Overview":
+      - /url: ./
+    - link "Apps":
+      - /url: apps
+    - link "Develop":
+      - /url: develop
+    - link "Host":
+      - /url: host
+  - button "Sign in →":
+    - text: Sign in
+    - generic: →
+- main:
+  - heading "Host an enclave" [level=1]
+  - region "Host an enclave":
+    - generic: Host an enclave
+    - heading "Your hardware belongs on this list." [level=2]
+    - paragraph: A market for compute where buyers check what they get. Your machine is listed at the protection level it proves, at the price you set, and the ledger pays you for every lease it serves. Nobody holds your earnings on your behalf.
+    - link "Download for Windows":
+      - /url: https://get.enclave.host/windows/EnclaveSetup.exe
+      - text: Download for Windows
+      - generic: ↓
+    - link "Linux server setup":
+      - /url: "#setup"
+    - paragraph:
+      - text: For a Windows 11 PC with an AMD processor.
+      - link "What it needs →":
+        - /url: "#windows"
+    - paragraph:
+      - text: Have a Pixel phone?
+      - link "Get the Android app":
+        - /url: https://get.enclave.host/android/Enclave.apk
+      - text: (early preview).
+    - heading "On a Windows PC" [level=2]
+    - paragraph: "Each app runs in its own Enclave Shield partition, a Hyper-V virtual machine on a PC that has proven to the network, through its TPM, that it booted securely. Setup checks the PC, turns on Hyper-V and asks you to name your host. Joining costs nothing: once the PC proves its hardware, its first registration is paid for you."
+    - paragraph: "Setup can also be run from PowerShell:"
+    - generic: PowerShell
+    - button "✓ copied"
+    - code: irm https://get.enclave.host/host.ps1 | iex
+    - generic: Needs
+    - paragraph: Windows 11 Pro, Enterprise or Education (24H2 or later), an AMD processor with its firmware TPM on, Secure Boot on, virtualization on in the firmware, and 16 GB of RAM.
+    - generic: What tenants get
+    - paragraph: Enclave Shield keeps each app apart from the others and from the rest of the PC, and the network checks the PC's TPM evidence before it sends any work. It does not encrypt memory against the PC's owner the way a confidential server does; buyers who need that choose confidential hosts.
+    - heading "On an Android phone" [level=2]
+    - paragraph: "Each app runs in its own protected virtual machine, which Android itself cannot reach into, and the phone proves to the network which build of the app it runs before it is sent any work. Install the app and open it: it asks for the virtual-machine permission once, through the phone's Wireless debugging, makes its key and starts hosting. Its screen is the same hosting panel as the Windows app: hosting on or off, how much of the phone to share, your price, earnings and payout."
+    - generic: Early preview
+    - paragraph: Tested on a Pixel 10 Pro XL. Other Pixels from the Pixel 8 on have the same protected virtual machines but are untested so far. Keep the phone on its charger and on Wi-Fi. Install the download from your browser (Android asks you to allow that once); a new version is a new download for now.
+    - generic: What tenants get
+    - paragraph: "The phone's protected virtual machines keep each app's memory out of reach of Android and of every other app on the phone. Phones host on their processor only: no GPU is offered."
+    - heading "The fleet you would be joining" [level=2]
+    - paragraph: Marketplace hosts show their available capacity and protection badges. Connect your wallet to also see owner-only hosts you’re authorized to use.
+    - alert: "⚠ Couldn’t load the app hosts: the Enclave API did not answer. This is a failed read, not an empty fleet. Retrying."
+    - button "↻ refresh"
+    - link "contract":
+      - /url: https://basescan.org/address/0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac
+      - text: contract
+    - paragraph:
+      - text: Your hardware belongs on this list. Run an enclave on a box you own, claim paid work from the open queue, and the ledger pays your wallet for every lease you serve.
+      - link "Host an enclave →":
+        - /url: host
+    - heading "What can be listed" [level=2]
+    - list:
+      - listitem: "A confidential server: a CPU with a hardware TEE, optionally a GPU in confidential-computing mode. Tenants' memory is encrypted against your operating system and their TLS terminates inside the VM. It is listed with a jade tee cpu badge and sells the full service; the rest of this page describes it."
+      - listitem: "An Enclave Shield host: hardware-enforced CPU isolation keeps the host OS out, even without a confidential-computing processor. It must pass the same acceptance tests before taking tenant work."
+      - listitem: "Any other GPU, including a card beside a confidential processor: it serves through Shield's masked offload, whatever the CPU or operating system. A card in a supported confidential-computing mode runs inside the boundary instead. Admission reads proof of the card's own mode, and a card is neither advertised nor routed until Shield's checks pass."
+    - paragraph:
+      - text: Eligibility comes from proof checked at attach, never from what a machine says about itself or which operating system it runs. A machine takes general tenant work only after marketplace admission, which for a new confidential box means a published allowlist of measurements. Owner-authorized hosting is listed separately when it has active deployments and does not grant admission.
+      - link "What each level guarantees, exactly →":
+        - /url: develop#contract
+    - heading "What a confidential server needs" [level=2]
+    - list:
+      - listitem: A CPU with a hardware TEE and virtualisation available to the OS. Confidential VMs are what make the guarantee real; a box without one cannot sell this tier.
+      - listitem: Linux with KVM and a few gigabytes of RAM to give the guest. The build runs unprivileged; only the one-time device permission needs root.
+      - listitem: A little gas. Your box registers itself and claims work with its own key, which costs a few cents of Base ETH. The CLI funds it from your wallet in one transfer.
+      - listitem: No public IP. The enclave dials out and holds the connection, so a home machine behind carrier NAT works.
+      - listitem: A GPU is optional. CPU-only boxes serve CPU work; a GPU in confidential-computing mode sells GPU shares too.
+    - heading "Setting it up" [level=2]
+    - paragraph: Everything is one command line tool. Each step below is also a plain script in the repository if you would rather drive it yourself.
+    - generic: terminal
+    - button "✓ copied"
+    - code: "curl -fsSL https://get.enclave.host | sh enclave host init # mint this box's key, write its config enclave host build # build the measured guest image enclave host run # boot it, ctrl-c to stop enclave host check # is it answering, is the quote real hardware enclave host install # run it under systemd instead, enabled at boot"
+    - paragraph:
+      - code: enclave host build
+      - text: assembles the guest from a tagged release, and folds the kernel, the initramfs and the boot arguments into the launch measurement.
+    - generic: Reproducible
+    - paragraph: That measurement is computed from the tagged release and the kernel your box boots the guest with, so anyone with the same kernel can rebuild it and check the number your box reports.
+    - heading "Getting paid" [level=2]
+    - paragraph: Once the box has gas, it registers itself and claims funded deployments from the queue. The ledger escrows the runner share of each payment, credits your operator key for the time you actually hold the lease, and sweeps the balance to the wallet you named once it clears the payout threshold.
+    - generic: terminal
+    - button "✓ copied"
+    - code: "enclave host fund --eth 0.002 # gas the box, one signed transfer enclave host status # gas left, serving or not, earnings accrued"
+    - paragraph: You set your own price. A box can name what it charges per hour for a full node and, if it has one, a full card. It then refuses work paying less than that, and the number is published alongside its capacity so buyers can see it.
+    - generic: terminal
+    - button "✓ copied" [active]
+    - code: "enclave host init --price-cpu 2.50 # USD per hour for a full node"
+    - heading "What tenants get, and what you can see" [level=2]
+    - paragraph: Apps that land on a confidential server each run in their own confidential VM, and the memory of each VM is encrypted by the processor against your operating system and every process on it, root included. You host the work without being able to read it. Their TLS terminates inside the enclave too, so traffic passes through your machine as ciphertext.
+    - paragraph: "That cuts both ways, and it is the point: buyers do not have to trust you, so they do not have to know who you are. What they check is the attestation your box produces, against the measurement of a published release."
+    - paragraph:
+      - text: "One limit is told to buyers, not hidden: the processor defends memory against software, not against physical attacks with lab equipment, and you have physical access to your own machine. Buyers who need to rule that out see who runs each host and choose accordingly."
+      - link "The limit, in the architecture notes →":
+        - /url: develop#contract
+    - heading "Read the details" [level=2]
+    - paragraph: "The full protocol, the trust argument and the operator notes live with the code:"
+    - list:
+      - link "Enclave Metal":
+        - /url: https://github.com/EnclaveHost/enclave/blob/main/metal/README.md
+      - text: ", how the self-hosted server is built and why its attestation is stronger than a managed one."
+      - link "The hosting protocol":
+        - /url: https://github.com/EnclaveHost/enclave/blob/main/metal/PROTOCOL.md
+      - text: ", how an anonymous box proves itself, claims work and is paid."
+      - link "The Architecture tab under Develop":
+        - /url: develop#architecture
+      - text: ", every protection level with its mechanism, its evidence and its status."
+- contentinfo "Footer":
+  - link "Enclave home":
+    - /url: ./
+  - paragraph: Compute that cannot see your data. Paid per second, for anything that holds a key.
+  - generic: built + operated by Enclave Host, Inc.
+  - text: "front-end: static, pinned to IPFS ·"
+  - code: enclave.host
+  - navigation "Product":
+    - heading "Product" [level=2]
+    - list:
+      - link "What you get":
+        - /url: ./#why
+      - link "How it works":
+        - /url: ./#how
+      - link "App store":
+        - /url: apps
+      - link "Pricing":
+        - /url: ./#pricing
+      - link "Architecture":
+        - /url: develop#architecture
+      - link "Engineering evidence":
+        - /url: develop#progress
+      - link "About the company":
+        - /url: ./#about
+  - navigation "Developers":
+    - heading "Developers" [level=2]
+    - list:
+      - link "App development guide":
+        - /url: develop#docs
+      - link "API reference":
+        - /url: develop#api
+      - link "OpenAPI spec":
+        - /url: openapi.json
+      - link "Attestation guide":
+        - /url: ./#attest
+      - link "Error codes":
+        - /url: develop#api
+  - navigation "Trust":
+    - heading "Trust" [level=2]
+    - list:
+      - link "The isolation contract":
+        - /url: develop#contract
+      - link "Enclave Shield":
+        - /url: develop#shield
+      - link "Verify an enclave":
+        - /url: ./#attest
+      - link "What is measured":
+        - /url: develop#verify
+      - link "What runs on our servers":
+        - /url: develop#independent
+      - link "Source on GitHub":
+        - /url: https://github.com/EnclaveHost/enclave
+  - navigation "Contact and legal":
+    - heading "Contact" [level=2]
+    - list:
+      - link "Support support@enclave.host":
+        - /url: mailto:support@enclave.host
+        - text: Support
+        - code: support@enclave.host
+      - link "Security disclosures security@enclave.host":
+        - /url: mailto:security@enclave.host
+        - text: Security disclosures
+        - code: security@enclave.host
+      - link "security.txt":
+        - /url: .well-known/security.txt
+      - link "Terms of Service":
+        - /url: terms
+      - link "Privacy Policy":
+        - /url: privacy
+  - generic: © 2026 Enclave Host, Inc. · content-addressed on IPFS · build d8365dd9* · 2026-10-26
+  - generic: designed to outlive any one operator
+- status: copied to clipboard
