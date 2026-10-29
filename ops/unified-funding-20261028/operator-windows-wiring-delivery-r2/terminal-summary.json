@@ -1,0 +1,80 @@
+{
+  "admission": {
+    "unit": "enclave-operator-windows-wiring-r2-20261029.service",
+    "ActiveState": "active",
+    "InvocationID": "0ea10fe59de846dc8c4086e9b2aa413c",
+    "MainPID": "1878242",
+    "processes": [
+      {
+        "pid": 1878242,
+        "start": "161126472",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven"
+      },
+      {
+        "pid": 1878258,
+        "start": "161126484",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven"
+      },
+      {
+        "pid": 1878272,
+        "start": "161126559",
+        "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+        "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r2-20261029",
+        "affinity": "pid 1878272's current affinity list: 1"
+      }
+    ],
+    "account": {
+      "loggedIn": true,
+      "email": "steven.r.batchelor@gmail.com",
+      "subscriptionType": "max"
+    },
+    "verifiedAt": 1793306169.6550364,
+    "sourceOnly": true,
+    "remoteOrFinancialActions": false,
+    "mainPid": 1878242,
+    "mainPidStartTicks": "161126472",
+    "runnerPid": 1878258,
+    "runnerPidStartTicks": "161126484",
+    "claudePid": 1878272,
+    "claudePidStartTicks": "161126559",
+    "invocationId": "0ea10fe59de846dc8c4086e9b2aa413c",
+    "normalizedFromSha256": "df51192bdec946c872487cd96b5c1f341a8c6a761259a90f3c0f86c56fbd6c58",
+    "normalizationReason": "Collector requires lower camel PID fields. Original admission unchanged in admission-record-original.json; no input or source edits."
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 124,
+    "finishedAt": 1793307951.9002945,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "ef2c8d35-a629-4ed4-9425-e2fba81c4aaa",
+  "duration_ms": null,
+  "num_turns": null,
+  "configuredMaxAgenticTurns": 55,
+  "distinctAssistantMessageIds": 32,
+  "transcriptUserRows": 58,
+  "turnMetricNote": "Raw success-result num_turns is a different user-message counter from max-agentic/API-turn limit; retain without conflating. See pinned turn-metric-investigation.json.",
+  "is_error": true,
+  "outputParseFailed": true,
+  "files": 249,
+  "changedFiles": 5,
+  "removedFiles": [],
+  "manifestSha256": "eb447c0b83c66a5aed2f082ebe063cc86bf3f4708fbf3080a62272695af263a9",
+  "firstMutations": 5,
+  "firstMutationManifestSha256": "7e9d561f70238d5da3d716d5572f1a7d1d72b24a6e1ef9b4ca5a2976c61389c6",
+  "currentInvocationTools": {
+    "Grep": 15,
+    "Read": 25,
+    "Write": 4,
+    "Edit": 13
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [],
+  "mutationAuditSha256": "e44e1cfe85d0e34faef18532fde852255ebebfab479ca91b659c76bea87a2784",
+  "innerGuard": "[memory-guard] exit=124 peakTreeRssMiB=305 minHostAvailableMiB=32181\n",
+  "outerGuard": "[memory-guard] exit=124 peakTreeRssMiB=370 minHostAvailableMiB=32186\n"
+}
