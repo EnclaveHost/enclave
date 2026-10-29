@@ -1,0 +1,71 @@
+{
+  "capturedAt": "2026-10-29T19:42:08.661Z",
+  "readOnly": true,
+  "sourceIdentity": [
+    {
+      "file": "C:/Program Files/Enclave/control/windows/node/agent.mjs",
+      "bytes": 93212,
+      "sha256": "a41ca4cd59252d6a00648fda88232e97fe92049c8142dc1bf7910ae38ecae1a4"
+    },
+    {
+      "file": "C:/Program Files/Enclave/control/windows/node/host.mjs",
+      "bytes": 319366,
+      "sha256": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24"
+    }
+  ],
+  "ports": [
+    {
+      "source": "C:/ProgramData/Enclave/node-config.cmd",
+      "port": 9600
+    }
+  ],
+  "host": [
+    {
+      "port": 9600,
+      "httpStatus": 200,
+      "records": [
+        {
+          "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+          "status": "running",
+          "leaseUntil": 1793304421,
+          "reason": "",
+          "updatedAt": "2026-10-29T19:40:38.600Z"
+        }
+      ],
+      "leaseReadiness": {
+        "sequence": 1218,
+        "startedAt": 1793302827765,
+        "completedAt": 0,
+        "inFlight": true,
+        "deployments": [
+          {
+            "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+            "status": "ready",
+            "leaseUntil": 1793304421
+          }
+        ]
+      }
+    }
+  ],
+  "managers": [
+    {
+      "port": 8091,
+      "httpStatus": 200,
+      "managerEpoch": "6ba9af9a243b9f4754d8091d3de2f415",
+      "matching": [
+        {
+          "id": "hve7772b4deaefe02da1766d7cd275a96b",
+          "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+          "status": "running",
+          "physicalMemoryMiB": 8504
+        }
+      ]
+    },
+    {
+      "port": 8095,
+      "httpStatus": 200,
+      "managerEpoch": "eb81408d8b99f58cd715d5c56017258c",
+      "matching": []
+    }
+  ]
+}

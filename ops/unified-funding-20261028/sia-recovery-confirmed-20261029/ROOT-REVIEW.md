@@ -1,0 +1,9 @@
+# Sia-s3 recovery confirmed — no duplicate funding
+
+At19:43 UTC, two RPC providers agreed on the successful200000000000000wei deposit to original deployment ef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238. Transaction9d58496d32380bcefa54082e079ad01c9e342e86b740106d297c95a47a982dfa at Base53256630 has matching transaction/receipt/block identity. Net USDC debit533994microUSDC =466777swap +67217relay fee;4611unused input refunded. This is canonical observation, not finalized proof. Never repeat this payment. Session attribution is a separate follow-up observation; no browser/frontend-origin assumption.
+
+At snapshot53256835, lease is live on NucBox, reserve198639817012726wei. Fresh host state19:42 shows running and lease readiness, manager8091 exact domain running. Public app endpoint subsequently returns200 over normal valid TLS, server sia-s3; API19:44 returns running. This establishes third historical original-app recovery alongside d979 and EyesOff, not complete storage/customer functionality or the whole goal.
+
+Prior failures are retained: original RPC-log quorum failure, next public-provider failures, DNS failures and both pinned-edge TLS EOF before later readiness. No TLS bypass, extra funds, claim hint, restart or production mutation. Agent read dashboard, refreshed status and selected Running; no Pay/sign/quote action. Old expired unsent quote cannot identify who submitted the confirmed transaction.
+
+Observers were bounded small shared-lane read-only jobs(256MiB hard/220RSS/floor27648/oneCPU/noSwap) and curated SSH host metadata. Source hashes describe on-disk files, not in-memory attestation. No keys, private configuration or full app logs included. No repeated endpoint/provider retries after successful observation requested. Automatic refill/new lifecycle backend remains unfinished.

@@ -1,0 +1,33 @@
+{
+  "capturedAt": "2026-10-29T19:44:05.600745+00:00",
+  "url": "https://api.enclave.host/v1/deployments/0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+  "readOnly": true,
+  "httpStatus": 200,
+  "rootKeys": [
+    "id",
+    "owner",
+    "status",
+    "public",
+    "hostedFree",
+    "enclave",
+    "network",
+    "image",
+    "resources",
+    "createdAt",
+    "ratePerSecondUsdc",
+    "spentUsdc",
+    "paidUsdc",
+    "timeRemainingSec",
+    "onchain",
+    "ledger"
+  ],
+  "deployment": {
+    "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+    "status": "running",
+    "onchain": {
+      "contract": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "leaseUntil": "2026-10-29T20:07:01.000Z"
+    }
+  }
+}
