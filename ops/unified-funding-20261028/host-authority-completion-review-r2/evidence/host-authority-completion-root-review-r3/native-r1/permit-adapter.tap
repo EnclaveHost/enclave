@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: 5a prepare persists the exact versioned host authority IN the durable canonical payload
+ok 1 - 5a prepare persists the exact versioned host authority IN the durable canonical payload
+  ---
+  duration_ms: 1335.243597
+  type: 'test'
+  ...
+# Subtest: 5b Offline during the delayed actorSigner: refused before relay.send; durable intent unchanged
+ok 2 - 5b Offline during the delayed actorSigner: refused before relay.send; durable intent unchanged
+  ---
+  duration_ms: 1282.448508
+  type: 'test'
+  ...
+# Subtest: 5c owner policy/revision change during delayed approvals: refused before relay.send
+ok 3 - 5c owner policy/revision change during delayed approvals: refused before relay.send
+  ---
+  duration_ms: 1114.891314
+  type: 'test'
+  ...
+# Subtest: 5d unqualified authority after signatures refuses; stable authority sends exactly once
+ok 4 - 5d unqualified authority after signatures refuses; stable authority sends exactly once
+  ---
+  duration_ms: 1376.391667
+  type: 'test'
+  ...
+# Subtest: 6 mined lost reply, then missed Offline + recovery + restart: exact pending resolves once from the receipt, no resend
+ok 5 - 6 mined lost reply, then missed Offline + recovery + restart: exact pending resolves once from the receipt, no resend
+  ---
+  duration_ms: 1293.33183
+  type: 'test'
+  ...
+# Subtest: 6b current Offline with expired historical qualification: Running refused, owner stop still prepared/sent
+ok 6 - 6b current Offline with expired historical qualification: Running refused, owner stop still prepared/sent
+  ---
+  duration_ms: 980.552465
+  type: 'test'
+  ...
+# Subtest: 6c a Running payload without host authority (legacy/lost context) is resolvable but never sent
+ok 7 - 6c a Running payload without host authority (legacy/lost context) is resolvable but never sent
+  ---
+  duration_ms: 849.022433
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8479.895202

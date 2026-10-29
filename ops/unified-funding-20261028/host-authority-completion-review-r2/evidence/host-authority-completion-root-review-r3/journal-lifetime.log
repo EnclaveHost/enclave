@@ -1,0 +1,112 @@
+TAP version 13
+# Subtest: permit authority: released handle cannot read while the new writer owns the lock
+not ok 1 - permit authority: released handle cannot read while the new writer owns the lock
+  ---
+  duration_ms: 35.142087
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/protocol-tree/journal-lifetime.test.mjs:26:44'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception: released handles must be permanently unusable'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/protocol-tree/journal-lifetime.test.mjs:31:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: permit authority: released handle cannot write while the new writer owns the lock
+not ok 2 - permit authority: released handle cannot write while the new writer owns the lock
+  ---
+  duration_ms: 12.445389
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/protocol-tree/journal-lifetime.test.mjs:26:44'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception: released handles must be permanently unusable'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/protocol-tree/journal-lifetime.test.mjs:31:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: permit authority: reopening does not erase uncertainty after rename and failed directory fsync
+not ok 3 - permit authority: reopening does not erase uncertainty after rename and failed directory fsync
+  ---
+  duration_ms: 8.560783
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/protocol-tree/journal-lifetime.test.mjs:34:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception: fresh process/handle alone is not explicit verified persistence recovery'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/protocol-tree/journal-lifetime.test.mjs:41:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: dispatch incarnation: released handle cannot read while the new writer owns the lock
+not ok 4 - dispatch incarnation: released handle cannot read while the new writer owns the lock
+  ---
+  duration_ms: 5.304122
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/protocol-tree/journal-lifetime.test.mjs:26:44'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception: released handles must be permanently unusable'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/protocol-tree/journal-lifetime.test.mjs:31:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: dispatch incarnation: released handle cannot write while the new writer owns the lock
+not ok 5 - dispatch incarnation: released handle cannot write while the new writer owns the lock
+  ---
+  duration_ms: 4.915856
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/protocol-tree/journal-lifetime.test.mjs:26:44'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception: released handles must be permanently unusable'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/protocol-tree/journal-lifetime.test.mjs:31:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: dispatch incarnation: reopening does not erase uncertainty after rename and failed directory fsync
+not ok 6 - dispatch incarnation: reopening does not erase uncertainty after rename and failed directory fsync
+  ---
+  duration_ms: 3.732987
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/protocol-tree/journal-lifetime.test.mjs:34:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception: fresh process/handle alone is not explicit verified persistence recovery'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-completion-root-review-r3/protocol-tree/journal-lifetime.test.mjs:41:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 0
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 269.448251

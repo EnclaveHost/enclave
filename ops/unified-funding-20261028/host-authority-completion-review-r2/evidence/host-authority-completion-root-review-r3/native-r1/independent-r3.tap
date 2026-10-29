@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: actual independent adapter removes publisher/catalog veto but retains immutable content admission
+ok 1 - actual independent adapter removes publisher/catalog veto but retains immutable content admission
+  ---
+  duration_ms: 946.850772
+  type: 'test'
+  ...
+# Subtest: actual independent adapter retains owner-elected moderation and same-block resource/owner fields
+ok 2 - actual independent adapter retains owner-elected moderation and same-block resource/owner fields
+  ---
+  duration_ms: 479.244529
+  type: 'test'
+  ...
+# Subtest: actual independent adapter ignores changed discovery book but rejects wrong recursive code
+ok 3 - actual independent adapter ignores changed discovery book but rejects wrong recursive code
+  ---
+  duration_ms: 408.125405
+  type: 'test'
+  ...
+# Subtest: actual schema2 retirement remains a disclosed contract blocker, never synthesized away
+ok 4 - actual schema2 retirement remains a disclosed contract blocker, never synthesized away
+  ---
+  duration_ms: 398.162775
+  type: 'test'
+  ...
+# Subtest: independent profile rejects mixed discovery authority and unknown profile
+ok 5 - independent profile rejects mixed discovery authority and unknown profile
+  ---
+  duration_ms: 299.561085
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2744.632466

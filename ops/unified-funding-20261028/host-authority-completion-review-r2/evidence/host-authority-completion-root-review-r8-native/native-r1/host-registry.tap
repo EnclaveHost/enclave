@@ -1,0 +1,107 @@
+TAP version 13
+# Subtest: artifact: exact reviewed runtime/creation/ABI/settings/source provenance; any byte or source drift refuses
+ok 1 - artifact: exact reviewed runtime/creation/ABI/settings/source provenance; any byte or source drift refuses
+  ---
+  duration_ms: 112.551285
+  type: 'test'
+  ...
+# Subtest: generators: BOTH layers reproduce the final adapter and dispatch byte for byte; inputs pinned, markers present, no double application
+ok 2 - generators: BOTH layers reproduce the final adapter and dispatch byte for byte; inputs pinned, markers present, no double application
+  ---
+  duration_ms: 5.492995
+  type: 'test'
+  ...
+# Subtest: Host profile helper: existing profiles unchanged; exact new profile and exact uint64 host generation
+ok 3 - Host profile helper: existing profiles unchanged; exact new profile and exact uint64 host generation
+  ---
+  duration_ms: 2.153933
+  type: 'test'
+  ...
+# Subtest: actual enrollment at 0 wei for operator and owner; one canonical registry is registry AND hostOwnership at ONE block
+ok 4 - actual enrollment at 0 wei for operator and owner; one canonical registry is registry AND hostOwnership at ONE block
+  ---
+  duration_ms: 574.933139
+  type: 'test'
+  ...
+# Subtest: composer start through the REAL v2 runtime: signed permit grant from the actual adapter snapshot; owner stop persists across reopen
+ok 5 - composer start through the REAL v2 runtime: signed permit grant from the actual adapter snapshot; owner stop persists across reopen
+  ---
+  duration_ms: 3773.969919
+  type: 'test'
+  ...
+# Subtest: mined start with lost reply reconciles after composer restart without resending (host-registry profile, real v2 runtime)
+ok 6 - mined start with lost reply reconciles after composer restart without resending (host-registry profile, real v2 runtime)
+  ---
+  duration_ms: 2349.481005
+  type: 'test'
+  ...
+# Subtest: canonical Offline by the accepted owner: durable same-generation denial in the actual dispatch; a stale Online read never restores
+ok 7 - canonical Offline by the accepted owner: durable same-generation denial in the actual dispatch; a stale Online read never restores
+  ---
+  duration_ms: 3199.605053
+  type: 'test'
+  ...
+# Subtest: reporter quorum Offline despite failed operator; old quorum after policy change and old owner after transfer are rejected
+ok 8 - reporter quorum Offline despite failed operator; old quorum after policy change and old owner after transfer are rejected
+  ---
+  duration_ms: 344.182825
+  type: 'test'
+  ...
+# Subtest: no legacy heartbeat/reactivation: metadata edits keep Offline; only a new qualified generation returns Online
+ok 9 - no legacy heartbeat/reactivation: metadata edits keep Offline; only a new qualified generation returns Online
+  ---
+  duration_ms: 436.863652
+  type: 'test'
+  ...
+# Subtest: pin refusals: separate (even internally consistent) ownership registry, wrong code/artifact, wrong composer profile, no durable section
+ok 10 - pin refusals: separate (even internally consistent) ownership registry, wrong code/artifact, wrong composer profile, no durable section
+  ---
+  duration_ms: 496.879105
+  type: 'test'
+  ...
+# Subtest: same block and authority: no nested verified for rpc-quorum; pre-registry block and stale runtime pin are unknown
+ok 11 - same block and authority: no nested verified for rpc-quorum; pre-registry block and stale runtime pin are unknown
+  ---
+  duration_ms: 324.132948
+  type: 'test'
+  ...
+ROOT policy-clock evidence {"restart":{"start":false,"reason":"restart backoff","nextAt":1793270783534},"assignment":{"state":"queued","host":"0x0000000000000000000000000000000000000000000000000000000000000000","operator":"0x0000000000000000000000000000000000000000","generation":3,"revision":1,"changedAt":1793270780,"startAfter":1793270802000,"failures":0,"crashHeld":false,"lastIntent":"0x31df648a24792a013918206ce3620ac3cfbe9a46faaef800ab18f5a81622c5f2"},"now":1793270781056,"nextAt":1793270802000}
+# Subtest: missed Offline: old context fenced durably; unknown cannot rebind; explicit adoption -> v2 gate handoff -> authorized queued transition -> fresh start serves
+ok 12 - missed Offline: old context fenced durably; unknown cannot rebind; explicit adoption -> v2 gate handoff -> authorized queued transition -> fresh start serves
+  ---
+  duration_ms: 27548.000453
+  type: 'test'
+  ...
+# Subtest: stale prepared Running refuses at the submit boundary before the sender; the journaled intent is kept, never resent
+ok 13 - stale prepared Running refuses at the submit boundary before the sender; the journaled intent is kept, never resent
+  ---
+  duration_ms: 1550.846312
+  type: 'test'
+  ...
+# Subtest: old-context pending Running transaction resolves canonically without resend after missed Offline, recovery and restart
+ok 14 - old-context pending Running transaction resolves canonically without resend after missed Offline, recovery and restart
+  ---
+  duration_ms: 1614.08737
+  type: 'test'
+  ...
+# Subtest: a current valid Offline needs no fresh qualification; the deployment-owner stop path stays available on an Offline host
+ok 15 - a current valid Offline needs no fresh qualification; the deployment-owner stop path stays available on an Offline host
+  ---
+  duration_ms: 1047.177168
+  type: 'test'
+  ...
+# Subtest: durable host incarnation journal: exact uint64, rollback/equivocation refused, binding only to the floor, survives reopen
+ok 16 - durable host incarnation journal: exact uint64, rollback/equivocation refused, binding only to the floor, survives reopen
+  ---
+  duration_ms: 2.330891
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 43626.154465

@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: real manager HTTP client and four witness endpoints stage, admit and retire a runtime on permit expiry
+ok 1 - real manager HTTP client and four witness endpoints stage, admit and retire a runtime on permit expiry
+  ---
+  duration_ms: 195.02276
+  type: 'test'
+  ...
+# Subtest: permit expiry removes the concrete VM while boundary allow and hold both hang
+ok 2 - permit expiry removes the concrete VM while boundary allow and hold both hang
+  ---
+  duration_ms: 285.841836
+  type: 'test'
+  ...
+# Subtest: a delayed allow acknowledgment after revocation cannot restore serving
+ok 3 - a delayed allow acknowledgment after revocation cannot restore serving
+  ---
+  duration_ms: 78.140379
+  type: 'test'
+  ...
+# Subtest: stop removes staged compute even if boundary withdrawal times out
+ok 4 - stop removes staged compute even if boundary withdrawal times out
+  ---
+  duration_ms: 50.24286
+  type: 'test'
+  ...
+# Subtest: expiry removes only the verified instance, never a replacement with the same deployment name
+ok 5 - expiry removes only the verified instance, never a replacement with the same deployment name
+  ---
+  duration_ms: 121.967326
+  type: 'test'
+  ...
+# Subtest: refused startups get durable distinct attempt identities while unknown inventory never spawns
+ok 6 - refused startups get durable distinct attempt identities while unknown inventory never spawns
+  ---
+  duration_ms: 27.87631
+  type: 'test'
+  ...
+# Subtest: a retired failed boot can be replaced within the queued generation without clearing crash accounting
+ok 7 - a retired failed boot can be replaced within the queued generation without clearing crash accounting
+  ---
+  duration_ms: 31.495687
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1052.006014

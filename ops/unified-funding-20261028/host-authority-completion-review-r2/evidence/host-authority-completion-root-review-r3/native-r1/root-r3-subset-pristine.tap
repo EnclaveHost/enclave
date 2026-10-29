@@ -1,0 +1,21 @@
+TAP version 13
+node:internal/test_runner/harness:99
+      throw err;
+      ^
+
+Error: ENOENT: no such file or directory, open '/tmp/hacr2.JdQD3t/lifecycle-host-authority-review-r2/src/network/deployment-lifecycle-runner.mjs'
+    at Object.openSync (node:fs:560:18)
+    at Object.readFileSync (node:fs:444:35)
+    at file:///tmp/hacr2.JdQD3t/r3-pristine/test/helpers/baseline.mjs:40:12
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async node:internal/test_runner/runner:755:13
+    at async runFiles (node:internal/test_runner/runner:746:9)
+    at async runChain (node:internal/test_runner/runner:806:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/tmp/hacr2.JdQD3t/lifecycle-host-authority-review-r2/src/network/deployment-lifecycle-runner.mjs'
+}
+
+Node.js v22.23.3

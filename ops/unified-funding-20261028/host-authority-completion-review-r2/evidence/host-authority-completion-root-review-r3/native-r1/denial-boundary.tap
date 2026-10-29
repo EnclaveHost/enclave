@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: same-generation Offline persists and older Online cannot erase denial
+ok 1 - same-generation Offline persists and older Online cannot erase denial
+  ---
+  duration_ms: 4.792007
+  type: 'test'
+  ...
+# Subtest: explicit new-generation recovery remains possible after Offline
+ok 2 - explicit new-generation recovery remains possible after Offline
+  ---
+  duration_ms: 1.058701
+  type: 'test'
+  ...
+# Subtest: loss of an already observed journal remains unknown rather than fresh genesis
+ok 3 - loss of an already observed journal remains unknown rather than fresh genesis
+  ---
+  duration_ms: 0.99874
+  type: 'test'
+  ...
+# Subtest: malformed nested accepted floor is rejected
+ok 4 - malformed nested accepted floor is rejected
+  ---
+  duration_ms: 0.724394
+  type: 'test'
+  ...
+# Subtest: directory fsync failure after rename stays unknown in the same process
+ok 5 - directory fsync failure after rename stays unknown in the same process
+  ---
+  duration_ms: 1.048821
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 32.548775

@@ -1,0 +1,35 @@
+ROOT awaited handoff reached, changed owner 0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a revision 2 persisted binding {"generation":"1","digest":"0xafdb2ac48092dc484aea76818d19669ce543abaa79c3dd4cec1adc017c9350a4","reason":"explicit owner adoption after confirmed runtime quiescence","at":1000,"requeue":true}
+TAP version 13
+# Subtest: unchanged canonical authority after runtime handoff can bind
+ok 1 - unchanged canonical authority after runtime handoff can bind
+  ---
+  duration_ms: 7.102752
+  type: 'test'
+  ...
+# Subtest: canonical owner change during awaited runtime handoff must abort durable adoption
+not ok 2 - canonical owner change during awaited runtime handoff must abort durable adoption
+  ---
+  duration_ms: 2.589879
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-adoption-final-await-r3/test/root-final-await.test.mjs:37:1'
+  failureType: 'testCodeFailure'
+  error: 'must reread canonical authority after the awaited runtime handoff'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: ~
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-adoption-final-await-r3/test/root-final-await.test.mjs:45:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 198.631778

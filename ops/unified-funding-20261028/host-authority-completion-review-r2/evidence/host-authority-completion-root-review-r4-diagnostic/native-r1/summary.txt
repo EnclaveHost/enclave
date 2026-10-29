@@ -1,0 +1,5 @@
+FAIL host-registry rc 1 expected 16 tests 16 pass 15 fail 1 cancelled 0 skipped 0 todo 0
+FAIL root-r3-pristine rc 1 expected 101 tests 48 pass 47 fail 1 cancelled 0 skipped 0 todo 0
+PASS root-r3-subset-pristine rc 0 expected 42 tests 42 pass 42 fail 0 cancelled 0 skipped 0 todo 0
+PASS root-r3-final rc 0 expected 42 tests 42 pass 42 fail 0 cancelled 0 skipped 0 todo 0
+PASS explicit-origin rc 0 expected 3 tests 3 pass 3 fail 0 cancelled 0 skipped 0 todo 0
