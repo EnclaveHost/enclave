@@ -1,0 +1,14 @@
+{
+  "NEXT-SOURCE-TASK.txt": "316c19e0c3a3e8b25572f5a25564095036981d41c597c632636f02bb4b3c1a3a",
+  "ROOT-REVIEW.md": "e886cdf7f3b2675a0661995758d2ec53bb7f992d42856ac03ee783e37dc957d0",
+  "frozen-input.json": "dfdde23cd7fb749a4012089a2c78ce6fe09586859f25fc3cc116b23d88cabd12",
+  "next-input-pins.json": "16bb4cb1a530d0455f78827961430374e215b69f0ed09039f1df1be515680202",
+  "root-source-pins.json": "16bb4cb1a530d0455f78827961430374e215b69f0ed09039f1df1be515680202",
+  "validation-inner.guard.log": "9e3a340252ac1673a782f4ffd246cf0f991ef0777618f38c34c35b973ccc4971",
+  "validation-outer.guard.log": "731c9b0582d5fd9207f8d10607340e0a918f38d85d0ea31abfb67e14a71b8649",
+  "validation-result/compile.log": "9bdc6ae4c3b97dce8d49ec6d5a44e52e09cb874a12ca601a32220920fbefd9ce",
+  "validation-result/registry-abi.json": "a738e8202f360cb19e01fe66894b9593ac24c220acebaac1c5f178be070d05ee",
+  "validation-result/registry-storage.json": "914a4c2dd15c7b60eb9966e061fab01c6bce62dc99af2523c6870b836c654ba2",
+  "validation-result/result.json": "85e76a852cc6d81ea6f78e9e510b18b2572cd3313dfbe60be1fc752ea72e2c62",
+  "validation-result/tests.log": "3ead6c35619bf38e4dd4d84a74744418200735d8abc9839d650d39c1bbd6e68a"
+}
