@@ -1,0 +1,20 @@
+{
+  "RELEASE-CLOSURE-R9.json": "3423c67dd0b9c66a8a7e78b1f8a1e04acf9e13b41c4a22b829afa1de7a911974",
+  "REPORT-WINDOWS-PERMIT-R9.md": "5308b8bbb528b4a71f4499b97b773f9dc922033477263303e23f122f140fd4d4",
+  "control/windows/node/agent.mjs": "f01d0bd60a7f3f56ad1db8b34397e391d38f06c6f690b60c3339396b2b5d88f7",
+  "control/windows/node/host.mjs": "c5975132cf3b6f284c88ac1ef2b09567b9518168a49a806782bd9063bfd66bc9",
+  "control/windows/node/protected-authority-factory.mjs": "829030ad22d0c2bbd361e155e6e3b6f1d26039f15fa335aa922e03ace4f0abc8",
+  "control/windows/node/protected-supervisor.mjs": "38961e7839cbbc24d020b60ccf2fd885dde07a0cdc277523c221b6ec0e6a3052",
+  "package-lock.json": "b398b25c6ff5cca69bca25990bcb2f89ce12de3499b9f2c3aef7cc5216d65cd8",
+  "package.json": "9efab9a3e7860e086bd015a6ee231e180cf0703e118b326822919111e45fd737",
+  "test/windows-permit/r4-supervisor-chain.test.mjs": "32c5a49f1feb2f7b3526b16762f624acf5164bdbb3fc57fcdf10b1be9c5c51ef",
+  "test/windows-permit/r5-ownership-chain.test.mjs": "b90dcc6c0732cffd52588a77f5b35d7fddf022736c09aeca6b3a0dd58bf1c802",
+  "test/windows-permit/r6-stage-revocation.test.mjs": "919ae6a67f7d81285451ca341c201d5c2844d4367ac840e02e6aa09177bfc2c8",
+  "test/windows-permit/r7-composite.test.mjs": "571f7e9bd60cede1869b089d937787dea8ca605e734453d19f7ee0d767bf99f5",
+  "test/windows-permit/r7-owner-lifetime.test.mjs": "8bd3be1b7add74f8d853fd84a37804661bdd03b577795df3092798f31d0c3d99",
+  "test/windows-permit/r7-supervisor-withdrawal.test.mjs": "4a83da353782f003ff649eb376a395975638654ea1692a67aaa546602ad88923",
+  "test/windows-permit/r8-authority-factory.test.mjs": "286c6d0c7e55e4555a047b3ae59e0aa8fc25266680a1bcc66c36f0a836dafb2c",
+  "test/windows-permit/r8-permit-owner-loss.test.mjs": "ad90b88d0c591c06d8519770b819d8da8f44a6408dc70a706c3e7bdb87d81120",
+  "test/windows-permit/r8-unknown-owner-loss.test.mjs": "e1ea183c48a6bddc7a7abe2d2a514473250eb0f12cc9de7f088f930d79f50c9d",
+  "test/windows-permit/r9-real-owned-factory.test.mjs": "44248d33c89ef073eb68623b3497fa5a80e8ae9142392b3f572b177e9f07b0bd"
+}

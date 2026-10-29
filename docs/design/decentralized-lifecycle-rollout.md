@@ -1,6 +1,6 @@
 # Decentralized lifecycle, admission and gas funding
 
-## Current rollout status — October 29, r8 review
+## Current rollout status — October 29, r9 review
 
 This feature is not activated on the new lifecycle protocol. The sections below retain the evidence history; a later passing review supersedes only the exact failures it covers.
 
@@ -12,9 +12,9 @@ This feature is not activated on the new lifecycle protocol. The sections below 
 | Automatic gas funding / self-host Top up | Existing finite grants produced two confirmed recovery payments under the legacy reserve | New-protocol authorization and ordinary-reserve refill, protected Offline separation and app-card integration |
 | Censorship resistance | Independent-owner policy and local recovery cases pass for pinned candidates | End-to-end cold recovery, new-user deployment, storage endpoint failure and continued hosting under Enclave refusal |
 
-The current [Windows r8 review](../../ops/unified-funding-20261028/windows-manager-review-r8/ROOT-REVIEW.md) passes the prior owner-loss regressions: a processed permit response cannot restore released ownership, and a lost processed-stage reply is reconciled to exact removal. The actual two-manager control and router TCP composite passes. Initial focused tests were49/53, followed by7/7 in the two corrected fixture files; original failed evidence remains and product source is unchanged. These runs overlap and are not additive unique coverage. Platform and chain interfaces remain explicitly TEST.
+The [Windows r9 review](../../ops/unified-funding-20261028/windows-manager-review-r9/ROOT-REVIEW.md) repairs the real owned factory's missing routes: constructor, route activation and three Linux lock releases pass with labeled TEST chain/quiescence/host-view components. The actual two-manager/router TCP composite still passes. Focused tests were38/44; the six older fixture failures pass in17 overlapping checks using the prior root corrections and explicit TEST preactivated handoff. Product source is unchanged; original failures remain.
 
-A new node startup factory is present, but the real owned lifecycle constructor requires explicit routes which the factory does not supply. A real-constructor regression now reproduces this refusal after establishing the parent and both sidecar journals, and confirms all three Linux locks can be reacquired after failure. Module-doubled tests do not qualify real chain authority or successful startup. Runtime dependencies and their transitive closure are not fully packaged; native protected workloads, remaining workload boundaries and Windows ownership qualification remain unfinished. The host launch path still depends on legacy lease admission. No candidate was installed and no additional app recovery or payment is claimed.
+Actual Host consumer tests pass the positive reachability control but reproduce three blockers: publisher delisting prevents protected reconciliation, retired address-book failure prevents the enrolled-route pass, and pending lifecycle allocations are omitted from host capacity usage. These tests execute the real Host class with labeled external service doubles; they do not qualify authenticated chain operation or actual workload serving. Invalid-policy legacy send exclusion also remains a source-review concern. The new factory still needs a production quiescence verifier, authenticated configuration independent of the old ledger/catalog, and real allocation recovery before staging. Native protected workload routing, Windows ownership and full release closure remain unfinished. No candidate was installed, no additional app recovered, and no new payment was sent.
 
 ## Qualified ownership baseline
 
