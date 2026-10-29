@@ -1,0 +1,45 @@
+{
+  "changes": {
+    "RELEASE-CLOSURE-OPERATOR-DURABILITY-R2.json": {
+      "seedSha256": null,
+      "finalSha256": "18179404e4c9173f314c061b6060c42fddaa58f0aa098fba2e4e177c969482e8",
+      "kind": "new"
+    },
+    "REPORT-OPERATOR-DURABILITY-R2.md": {
+      "seedSha256": null,
+      "finalSha256": "dc93e0b7145465a85bb8c0d83681ac19b90b07f2e8439de21f16b0924c649d40",
+      "kind": "new"
+    },
+    "control/windows/node/chain.mjs": {
+      "seedSha256": "292004ac1a017c14c7d43af8514276bfe905d6d9fdab12893734410f76cf1fe9",
+      "finalSha256": "275261d9702f4f208de5939c1aa6025dd959d23b7d8ea5a16b5fca3e6bb9f156",
+      "kind": "modified"
+    },
+    "control/windows/node/operator-effects.mjs": {
+      "seedSha256": "41c7d34f4fa443281eb2447611d04713efb103315557ecaf7e3e9687bea73ed6",
+      "finalSha256": "a9579c168278e0e9441cc52a1dce3800fa51b1dee150ab96eb3e42ed38f907d0",
+      "kind": "modified"
+    },
+    "test/windows-permit/helpers/od-r2-inert-chain.mjs": {
+      "seedSha256": null,
+      "finalSha256": "5c577fe5db489d172ddbe49cec71628ae7cdb2d4d999232641ddcbade127e4b6",
+      "kind": "new"
+    },
+    "test/windows-permit/od-r1-sponsored.test.mjs": {
+      "seedSha256": "47374533437c787725143e58a4e334351dffac9e4b6313fa47f02f5136a3fcd1",
+      "finalSha256": "e27de9d70789a772bb670225a7778bb5fa021df5a8b592ba85f947b6b90ded3d",
+      "kind": "modified"
+    },
+    "test/windows-permit/od-r2-direct-continuity.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "3b3e9be3fba038da89de11817311f02eaa8cd782e29db0d00e72da20ab84352c",
+      "kind": "new"
+    },
+    "test/windows-permit/od-r2-shipped-client.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "2e1fcdec69edb8fc6bf4f3b5cd0b24b46ed469c323388f437d3569e58df7a49d",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}

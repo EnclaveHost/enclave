@@ -6,13 +6,11 @@ The existing app-card **Top up** now supports self-hosted zero-rate deployments 
 
 The release preserves the newer Host Copy update and all 1,131 other existing files; only the boot entry changes and 98 compiled files are added. See the [release record](../../ops/unified-funding-20261028/selfhost-topup-production-r1/ROOT-REVIEW.md) for deployment verification, source/build pins and rollback boundaries. Production browser inspection of the user's sia-s3 app reached a valid quote under the existing NucBox grant; this inspection sent no payment. Later read-only verification confirmed a successful sia-s3 gas payment from that existing grant: $0.533994 USDC for 0.0002 ETH. Its lease resumed normally and the public endpoint returned HTTPS200. The [recovery evidence](../../ops/unified-funding-20261028/sia-recovery-confirmed-20261029/ROOT-REVIEW.md) preserves canonical receipt/session attribution, earlier transient failures and remaining grant balance. No additional funding or restart was sent by the agent.
 
-The focused [operator durability delivery](../../ops/unified-funding-20261028/operator-durability-delivery-r1/ROOT-STATUS.md) is now preserved in full in Git. Its source is not installed or test-qualified. Remaining findings include state continuity at final effects, post-persistence sponsored gates, cross-kind nonce quarantine and Windows startup/storage wiring.
+## Operator durability qualification — October 29, r2
 
-## Operator durability qualification — October 29
+The complete [r2 delivery](../../ops/unified-funding-20261028/operator-durability-delivery-r2/ROOT-STATUS.md) and [root review](../../ops/unified-funding-20261028/operator-durability-root-review-r2/ROOT-REVIEW.md) are committed. The initial 34-case run passes, including the three prior independent failures and six cases through the actual shipped client. Root then reproduced two additional failures: a new deployment could re-sign an identical authorization while its account nonce was still quarantined. The separate one-file repair removes this exception; all 36 final cases pass with no skips. Tests require an independently observed mined fence before new work and retain older unresolved lease obligations.
 
-The [root validation](../../ops/unified-funding-20261028/operator-durability-root-review-r1/ROOT-REVIEW.md) passes all 18 author cases, including the two earlier file-loss/restart and provably-unsent-discharge failures. Four sponsored cases remain emulator tests. The new three-case actual-sender boundary suite fails: loss of the state file or its established marker immediately before a send still permits a write, and a recorded unresolved sponsored authorization does not fence a direct account-nonce write. These are inert-wallet tests with real owned storage, not production payments. The original fixture setup failures and corrected tests are both retained.
-
-The frontend rollout remains live. No backend installation follows from these partial passes. The next focused repair must check persistent-state continuity at the effect boundary, coordinate unresolved direct/sponsored account nonces, and test sponsored post-persistence gates through the actual shipped client. Windows startup/storage qualification remains separate and unfinished.
+These are local tests with actual Linux owned storage, the unmodified shipped client and inert external signers/RPC/relay inputs. They do not establish Windows or Base production readiness. Windows explicit store installation, SDDL/configuration wiring, native exclusion and target qualification remain unfinished. The backend is not installed; the frontend remains live. Automatic replenishment and the replacement lifecycle still require the remaining integration and migration work.
 
 ## Lifecycle qualification baseline — October 29, r12 consuming integration review
 
@@ -74,7 +72,7 @@ Independent **host** offline reporting now has an actual [canonical registry con
 
 ## Current evidence and limits
 
-The production USDC-to-gas path has two confirmed recovery payments (d979 and EyesOff); those payments must never be repeated. This does not prove the event-driven migration or automatic replenishment complete. The live legacy protocol remains in use until a properly fenced per-app migration.
+The production USDC-to-gas path has three confirmed recovery payments (d979, EyesOff and sia-s3); those payments must never be repeated. This does not prove the event-driven migration or automatic replenishment complete. The live legacy protocol remains in use until a properly fenced per-app migration.
 
 The lifecycle candidate is on codex/deployment-lifecycle-20261026, reviewed baseline ecf364c0a81b9176163d254dcfc9685572bde0cd: ledger schema17/lifecycle schema2. It is not the current deployed contract set. Prior root r6 chain adapter qualification contains 66 offline checks; no present production Base-authority claim follows from them.
 
