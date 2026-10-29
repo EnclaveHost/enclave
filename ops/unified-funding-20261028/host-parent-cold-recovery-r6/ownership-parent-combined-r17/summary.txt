@@ -1,0 +1,5 @@
+PASS ownership-async-composed rc 0 expected 33 tests 33 pass 33 fail 0 cancelled 0 skipped 0 todo 0
+FAIL ownership-original-adapted rc 1 expected 9 tests 9 pass 8 fail 1 cancelled 0 skipped 0 todo 0
+PASS root-raw-effects rc 0 expected 3 tests 3 pass 3 fail 0 cancelled 0 skipped 0 todo 0
+PASS root-parent rc 0 expected 2 tests 2 pass 2 fail 0 cancelled 0 skipped 0 todo 0
+PASS root-cold rc 0 expected 6 tests 6 pass 6 fail 0 cancelled 0 skipped 0 todo 0

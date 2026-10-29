@@ -1,0 +1,1 @@
+FAIL root-cold rc 1 expected 4 tests 4 pass 2 fail 2 cancelled 0 skipped 0 todo 0

@@ -1,0 +1,74 @@
+{
+ "lifecycle-host-dispatch.mjs": {
+  "sha256": "ac2cf3016b263406f495b33801e961aeb8ccd4700bfee20eb9381509369927a3",
+  "baselineSha256": "9a155041a4a38402288bd36741fe708480e55d60675a99a731a58d13d6f84778",
+  "manifest": [
+   {
+    "name": "state",
+    "baselineLine": 290,
+    "candidateOffset": 23142,
+    "length": 241
+   },
+   {
+    "name": "offline-floor",
+    "baselineLine": 301,
+    "candidateOffset": 24219,
+    "length": 205
+   },
+   {
+    "name": "bind-param",
+    "baselineLine": 307,
+    "candidateOffset": 24986,
+    "length": 17
+   },
+   {
+    "name": "bind-early",
+    "baselineLine": 309,
+    "candidateOffset": 25092,
+    "length": 59
+   },
+   {
+    "name": "bind-requeue",
+    "baselineLine": 310,
+    "candidateOffset": 25278,
+    "length": 9
+   },
+   {
+    "name": "fresh-capture",
+    "baselineLine": 322,
+    "candidateOffset": 25960,
+    "length": 65
+   },
+   {
+    "name": "requeue-denial",
+    "baselineLine": 353,
+    "candidateOffset": 28581,
+    "length": 201
+   },
+   {
+    "name": "requeue-clear",
+    "baselineLine": 399,
+    "candidateOffset": 31928,
+    "length": 207
+   },
+   {
+    "name": "serve-v2",
+    "baselineLine": 430,
+    "candidateOffset": 34236,
+    "length": 178
+   },
+   {
+    "name": "adopt-handoff",
+    "baselineLine": 624,
+    "candidateOffset": 46667,
+    "length": 1493
+   },
+   {
+    "name": "adopt-requeue",
+    "baselineLine": 624,
+    "candidateOffset": 48257,
+    "length": 6
+   }
+  ]
+ }
+}
