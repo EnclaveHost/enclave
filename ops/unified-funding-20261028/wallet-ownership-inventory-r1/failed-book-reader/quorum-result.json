@@ -1,0 +1,18 @@
+{
+  "capturedAt": "2026-10-29T23:37:55.715Z",
+  "mode": "quorum",
+  "readOnly": true,
+  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+  "reserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+  "wallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+  "scope": "Complete bounded ledger enumeration, known legacy-vault classification and public balances. No sends, signatures, private config or secret payloads. Unknown contract owners retained for further classification. Eth_call simulation does not execute a transaction.",
+  "assurance": "Two-provider consistent block observation, not finality or full migration readiness",
+  "error": {
+    "message": "no 2 RPCs agreed at block 53263863 (base-rpc.publicnode.com: HTTP request failed.; api.enclave.host: The contract function \"deployments\" reverted.; base-mainnet.public.blastapi.io: The contract function \"deployments\" reverted.)",
+    "failures": [
+      "base-rpc.publicnode.com: HTTP request failed.",
+      "api.enclave.host: The contract function \"deployments\" reverted.",
+      "base-mainnet.public.blastapi.io: The contract function \"deployments\" reverted."
+    ]
+  }
+}
