@@ -3,6 +3,7 @@
   "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
   "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8",
   "qualification-admission-plan.json": "7538040f2a3e6af511984b17f95684c4e1450034276c5d65647f50beaa990c95",
+  "root-launch-command.json": "8b5dc62daed52106d0a497f27e8aa104a7aec4d80ac72635371a597a3141c4a2",
   "collect-terminal.py": "c0a16176148b0e3abb0acd6fcb10f3aca56257246298653c53183396ac4504c5",
   "root-prelaunch-review.json": "4cd64e2c3bb36d8cd63a386a98058cc799455b288309783b32094831fc392a1c",
   "preparation-audit.json": "c01495d85cbcf83e3e1396775664fa42211303186b393dcd6917136e9f0c7574",
@@ -13,10 +14,13 @@
   "seed-pins.json": "28a94534fa697b8e972dbe5881f727df1af111a21b6c6cd7c7f5c1a16d603e12",
   "seed-provenance.json": "9c4ea6f22e68305f00d7d3cfd67e51cf8938e6ab6f10492f4a01fc08062911ac",
   "preflight-inner.guard.log": "e8c6ac3d10a6b59625425e599d74c378b40af23fb51ac33af266529ee6d06791",
+  "account-verification.json": "8f2349ef4dd4bdced4c14177ee787fb2f6bed2014e08ea0937c064d4e3a9dd00",
   "PREPARED.json": "345020a832acfaf5429884daa4618e29ae9d2f6a63cde1822120b76a5f2931d4",
   "root-preflight.py": "09b0d9fa2829994d274d05fcebed25525c1f0a69ffd22e6068437bb549a4d98d",
   "SEED-REFERENCE.md": "ba2ae2a172a03ee98dc17c535f56ba317606736b582ce187d9bbbeed696b4f3a",
   "ROOT-TASK-REVIEW.md": "ab50163c4b588d955848fdda65bf3e1eea4c2c50347f43350614d4e7329482a7",
+  "HANDOFF-LATEST.md": "eb38f936c11b0242ef07f77f1792ea51f4ded555898ef60eab8caea4cf1df2dc",
   "run.py": "ede915a8f198572b53cfc031cb09c9e66de295d476af5a950067e6189b7d3faf",
-  "preflight-outer.guard.log": "3042f2ce1ba135c7f1730f7119f7f437a928e13efa3407bcce0258b86aaa58bb"
+  "preflight-outer.guard.log": "3042f2ce1ba135c7f1730f7119f7f437a928e13efa3407bcce0258b86aaa58bb",
+  "admission-record.json": "b39ec6587a8eaf2c40a392be31f06fe46cda0c44d4c19e5a5b27994bde6bc59a"
 }

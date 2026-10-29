@@ -1,0 +1,84 @@
+{
+  "unit": "enclave-shared-allocation-owner-r1-20261029-author.service",
+  "ActiveState": "active",
+  "InvocationID": "0eebfaa71fe94669a7cc19ed17d059b6",
+  "MainPID": "1975418",
+  "mainPid": 1975418,
+  "mainPidStartTicks": "161952609",
+  "runnerPid": 1975435,
+  "runnerPidStartTicks": "161952622",
+  "claudePid": 1975483,
+  "claudePidStartTicks": "161952708",
+  "invocationId": "0eebfaa71fe94669a7cc19ed17d059b6",
+  "processes": [
+    {
+      "pid": 1975418,
+      "start": "161952609",
+      "ppid": 1899,
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    },
+    {
+      "pid": 1975435,
+      "start": "161952622",
+      "ppid": 1975428,
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 1975483,
+      "start": "161952708",
+      "ppid": 1975435,
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029",
+      "affinity": [
+        1
+      ]
+    }
+  ],
+  "verifiedAt": 1793314425.080299,
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "sourceOnly": true,
+  "remoteOrFinancialActions": false
+}
