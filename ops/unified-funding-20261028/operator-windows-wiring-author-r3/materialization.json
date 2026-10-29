@@ -1,0 +1,10 @@
+{
+  "scope": "Exact root repaired249 wiring r2, two root trust-path additions preserved; no preparation product edits/additions",
+  "originalFiles": 249,
+  "addedFiles": 0,
+  "existingFilesOverwritten": [],
+  "productEdits": [],
+  "inheritedMaterialization": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r2-20261029/materialization.json",
+  "inheritedMaterializationSha256": "1b212801a59317cf13dc1d99190d416e07dc4cbfccc6d3ce23baa6d594b23f13",
+  "note": "Static file/hash preparation only. No candidate evaluation, tests/builds, author launch or Windows actions."
+}
