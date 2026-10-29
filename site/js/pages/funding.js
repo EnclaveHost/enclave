@@ -46,6 +46,43 @@ let epoch = 0;
 let busy = false;
 const view = { c: null };                               // the verified context of THIS render epoch (never reused across owners)
 
+// funding-quote-ux-r1: gas-fund quote UI state. `draft` holds plain inputs only, for exactly `ctxKey`; `bound` is the fresh
+// verified context + finite scope the held quote was made with; `rev` counts input changes; `seq` orders gas renders;
+// `timer` is the one countdown interval; `who` is the owner|chain of the last mount (a change drops the stored draft).
+const DRAFT_KEY = "enclave.funding.gasDraft.v1";
+const gas = { who: null, ctxKey: null, draft: null, bound: null, note: null, rev: 0, seq: 0, pending: false, timer: null };
+const session = () => { try { return globalThis.sessionStorage ?? null; } catch { return null; } };
+function stopTick() { if (gas.timer !== null) { clearInterval(gas.timer); gas.timer = null; } }
+function resetGas(dropStored) {
+  stopTick();
+  Object.assign(gas, { ctxKey: null, draft: null, bound: null, note: null, pending: false });
+  gas.rev += 1;
+  gas.seq += 1;
+  if (dropStored) { try { session()?.removeItem(DRAFT_KEY); } catch { /* storage blocked: nothing kept */ } }
+}
+const plainDraft = (d) => {
+  const s = (v) => (typeof v === "string" && v.length <= 96 ? v : null);
+  const p = d && typeof d === "object" ? { deployment: s(d.deployment), ethOut: s(d.ethOut), feeTier: s(d.feeTier) } : null;
+  return p && p.deployment !== null && p.ethOut !== null && p.feeTier !== null ? p : null;
+};
+function loadDraft(ctxKey) {
+  if (gas.ctxKey === ctxKey && gas.draft) return gas.draft;
+  let raw = null;
+  try { raw = JSON.parse(session()?.getItem(DRAFT_KEY) || "null"); } catch { raw = null; }
+  if (!raw) return null;
+  if (raw.ctxKey !== ctxKey) { try { session()?.removeItem(DRAFT_KEY); } catch { /* ignore */ } return null; }
+  return plainDraft(raw);
+}
+function saveDraft(ctxKey, d) {
+  const p = plainDraft(d);
+  if (!p) return;
+  gas.ctxKey = ctxKey;
+  gas.draft = p;
+  try { session()?.setItem(DRAFT_KEY, JSON.stringify({ ctxKey, ...p })); } catch { /* storage blocked: memory only */ }
+}
+const usableS = (qv) => Math.max(0, qv.secondsLeft - Number(ST.QUOTE_MARGIN_S));
+const leftText = (qv) => `usable for ${usableS(qv)}s more`;
+
 const errText = (e) => `${esc(e?.code ? `${e.code}: ` : "")}${esc(e?.message ?? String(e))}`;
 const ownerNow = () => ST.lower(Enclave.address || "");
 const live = () => ({ epoch, owner: Enclave.address || "", chainId: Enclave.chainId, provider: Enclave.provider });
@@ -71,11 +108,15 @@ function mount() {
   epoch += 1;
   memory.clear();                                      // remount / wallet / chain change: no held signature or quote survives
   view.c = null;
+  const who = `${ownerNow()}|${Number(Enclave.chainId)}`;
+  resetGas(!!gas.who && !gas.who.startsWith("|") && gas.who !== who);
+  gas.who = who;
   return render(epoch, ownerNow());
 }
 
 async function render(e, owner) {
   view.c = null; // Never reuse a prior runtime if this refresh fails.
+  stopTick(); // countdown belongs to the current DOM
   const b = $("#fdBody");
   if (!b) return;
   if (!owner) {
@@ -170,6 +211,7 @@ async function context(owner) {
 // verifyRuntime tolerates only intake-off / relay-unreachable; any other error is shown as is.
 // =====================================================================================================================
 const EXEC_LABEL = {
+  expired_unused: "Expired unused; no payment was made. Get a new quote to pay.",
   admitted: "Admitted but not sent; a check releases it only if it was never dispatched.",
   dispatching: "Outcome unknown: it may have been processed. It is never resent.",
   unknown: "Outcome unknown: it may have been processed. It is never resent.",
@@ -327,6 +369,9 @@ async function renderMigration(e, owner) {
 async function renderGas(e, owner) {
   const box = $("#fdGas");
   const c = view.c;
+  stopTick();                                           // funding-quote-ux-r1
+  const seq = ++gas.seq;                                // funding-quote-ux-r1: only the newest render of this section writes
+  const stale = () => e !== epoch || ownerNow() !== owner || seq !== gas.seq;
   let np = null;
   try { np = ST.validateProposal(FUNDING_MIGRATION_PROPOSAL, { owner, chainId: CHAIN }); } catch { np = null; }
   if (!c || !np) { box.innerHTML = `<h3>Gas for your apps</h3><p>Not available here.</p>`; return; }
@@ -334,56 +379,153 @@ async function renderGas(e, owner) {
   const recs = ST.selectOwnRecords(await c.gasStore.listKeys(), c.ctx).filter((r) => r.status === "open");
   const execEntries = await c.gasStore.listJournal();   // client-execution-site-r2: unresolved payments of these grants
   const execOpen = recs.flatMap((r) => c.f.listGasExecutions(execEntries, r).filter((x) => x.blocking));
-  if (!recs.length) { memory.dropQuote(); box.innerHTML = `<h3>Gas for your apps</h3><p>No open gas grant in this browser.</p>`; return; }
+  if (stale()) return;
+  if (gas.ctxKey !== c.ctx.key) Object.assign(gas, { ctxKey: c.ctx.key, draft: null, bound: null, note: null });   // funding-quote-ux-r1
+  if (!recs.length) { memory.dropQuote(); gas.bound = null; box.innerHTML = `<h3>Gas for your apps</h3><p>No open gas grant in this browser.</p>`; return; }
   let scope;
   try { scope = await c.f.freshRecoveryScope({ rpc: c.rpc, book: c.cfg.book, owner, legacyVault: c.runtime.cfg.legacyVault,
     deploymentIds: [...np.deploymentIds], now: nowS() }); }
-  catch (err) { box.innerHTML = `<h3>Gas for your apps</h3><p>The deployment list could not be read (${errText(err)}).</p>`; return; }
-  if (e !== epoch || ownerNow() !== owner) return;
+  catch (err) { if (!stale()) box.innerHTML = `<h3>Gas for your apps</h3><p>The deployment list could not be read (${errText(err)}).</p>`; return; }
+  if (stale()) return;
   const deps = [...scope.deployments.keys()];
   const tiers = c.runtime.intake.feeTiers.map(String);
   const held = memory.quoteInputs(c.ctx);
-  if (held && (!deps.includes(held.deployment) || !tiers.includes(held.feeTier))) memory.dropQuote();
-  const start = memory.quoteInputs(c.ctx) ?? { deployment: deps[0], ethOut: "20000000000000", feeTier: tiers[0] };
+  if (held && (!deps.includes(held.deployment) || !tiers.includes(held.feeTier))) { memory.dropQuote(); gas.bound = null; }
+  const base = memory.quoteInputs(c.ctx) ?? { deployment: deps[0], ethOut: "20000000000000", feeTier: tiers[0] };
+  const draft = loadDraft(c.ctx.key);                   // funding-quote-ux-r1: the person's own inputs for this exact context
+  const start = draft ? { deployment: deps.includes(draft.deployment) ? draft.deployment : base.deployment, ethOut: draft.ethOut,
+    feeTier: tiers.includes(draft.feeTier) ? draft.feeTier : base.feeTier } : base;
   box.innerHTML = `<h3>Gas for your apps</h3>
     <select id="fdDep">${deps.map((d) => `<option value="${esc(d)}" ${d === start.deployment ? "selected" : ""}>${esc(d.slice(0, 12))}… (app ${esc(scope.deployments.get(d).appId.slice(0, 10))}…)</option>`).join("")}</select>
     <label>ETH to buy (wei) <input id="fdEth" inputmode="numeric" value="${esc(start.ethOut)}"></label>
     <select id="fdTier">${tiers.map((t) => `<option ${t === start.feeTier ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>
     ${execOpen.length ? `<p data-exec-blocked="${execOpen.length}"><strong>${execOpen.length} gas payment(s) of this browser are not resolved yet (see Gas payments). No new payment can be quoted for those grants until a check resolves them.</strong></p>` : ""}
     <button class="btn" id="fdQuote">Get quote</button>
-    <div id="fdQuoteOut"></div>
+    <div id="fdQuoteOut" aria-live="polite"></div>
     <button class="btn" id="fdFund" disabled>Sign with this browser's gas key &amp; fund</button>`;
-  const inputs = () => ST.quoteInputsOf({ deployment: $("#fdDep").value, ethOut: $("#fdEth").value, feeTier: $("#fdTier").value });
+  const dep = $("#fdDep"), eth = $("#fdEth"), tier = $("#fdTier");
+  const raw = () => ({ deployment: dep.value, ethOut: eth.value, feeTier: tier.value });
+  const inputs = () => ST.quoteInputsOf(raw());
   const out = $("#fdQuoteOut");
   const fund = $("#fdFund");
+  // funding-quote-ux-r1: the held quote is shown only for the current inputs AND the fresh context/scope it was made with.
+  const shownQuote = () => {
+    const cur = inputs();
+    const b = gas.bound;
+    const q = cur && b && b.ctxKey === c.ctx.key ? memory.peekQuote(c.ctx, cur, nowS()) : null;
+    return q && q.digest === b.digest ? q : null;
+  };
+  const status = (state, html) => { out.dataset.state = state; out.dataset.digest = ""; out.innerHTML = html; fund.disabled = true; };
+  const tick = () => {
+    if (stale() || !out.isConnected) return false;
+    const q = shownQuote();
+    if (!q) { show(); return false; }                  // expired (or no longer matching): show why, once
+    const left = out.querySelector("#fdQuoteLeft");
+    if (left) left.textContent = leftText(ST.quoteView(q.review, nowS()));
+    return true;
+  };
   const show = () => {
-    const q = memory.peekQuote(c.ctx, inputs(), nowS());
-    if (!q) { out.innerHTML = ""; out.dataset.digest = ""; fund.disabled = true; return; }
-    const rec = recs.find((r) => r.id === q.recordId);
-    const qv = ST.quoteView(q.review, nowS());
-    out.dataset.digest = q.digest;
-    out.innerHTML = `<p>Grant <strong>${esc(rec?.label || q.recordId)}</strong>, deployment <code>${esc(q.inputs.deployment.slice(0, 12))}…</code>,
-      ${esc(q.inputs.ethOut)} wei, tier ${esc(q.inputs.feeTier)}: ${qv.text.map(esc).join(" · ")} · valid ${qv.secondsLeft}s ·
-      call <code>${esc(q.digest.slice(0, 12))}…</code></p>`;
-    fund.disabled = qv.expired;
+    stopTick();
+    const q = shownQuote();
+    if (q) {
+      const rec = recs.find((r) => r.id === q.recordId);
+      const qv = ST.quoteView(q.review, nowS());
+      out.dataset.state = "ready";
+      out.dataset.digest = q.digest;
+      out.innerHTML = `<p>Grant <strong>${esc(rec?.label || q.recordId)}</strong>, deployment <code>${esc(q.inputs.deployment.slice(0, 12))}…</code>,
+        ${esc(q.inputs.ethOut)} wei, tier ${esc(q.inputs.feeTier)}: ${qv.text.map(esc).join(" · ")} · <span id="fdQuoteLeft">${esc(leftText(qv))}</span> ·
+        call <code>${esc(q.digest.slice(0, 12))}…</code></p>
+        <p>Review these amounts. Nothing is signed or sent until you press Fund.</p>`;
+      fund.disabled = qv.expired;
+      const id = setInterval(() => { if (!tick()) { clearInterval(id); if (gas.timer === id) gas.timer = null; } }, 1000);
+      gas.timer = id;
+      return;
+    }
+    const cur = inputs();
+    const heldNow = memory.quoteInputs(c.ctx);
+    if (cur && heldNow && heldNow.deployment === cur.deployment && heldNow.ethOut === cur.ethOut && heldNow.feeTier === cur.feeTier) {
+      status("expired", `<p><strong>This quote has expired</strong> (a quote must be used at least ${esc(String(ST.QUOTE_MARGIN_S))}s before its deadline).
+        Nothing was signed or sent. Press <strong>Get quote</strong> for a fresh quote.</p>`);
+      return;
+    }
+    const note = gas.note && gas.note.ctxKey === c.ctx.key ? `<p>${esc(gas.note.text)}</p>` : "";
+    if (!cur) { status("invalid", `${note}<p>Choose a deployment and a fee tier and enter a whole number of wei greater than 0, then press <strong>Get quote</strong>.</p>`); return; }
+    status("none", `${note}<p>No quote yet. Press <strong>Get quote</strong> to see the exact gas maximum, relay fee and total for these choices.
+      Fund unlocks only while a reviewed quote is valid.</p>`);
   };
   show();                                               // a normal re-render shows the same held quote again
-  const changed = () => { memory.dropQuote(); show(); out.innerHTML = "<p>Choices changed; get a new quote.</p>"; };
-  for (const id of ["#fdDep", "#fdEth", "#fdTier"]) { $(id).addEventListener("input", changed); $(id).addEventListener("change", changed); }
-  $("#fdQuote").addEventListener("click", act(e, owner, async (g) => {
+  const changed = () => {
+    gas.rev += 1;
+    saveDraft(c.ctx.key, raw());
+    const had = gas.pending || memory.quoteInputs(c.ctx) !== null;
     memory.dropQuote();
-    await FL.quoteFlow({ g, memory, ctx: c.ctx, inputs: inputs(), store: c.gasStore, scope, core: c.f,
-      quoteArgs: { runtime: c.runtime, relay: FL.guardRelayFn(c.relay, g) }, now: nowS });
-    return "Quote ready: review it, then fund.";
+    gas.bound = null;
+    gas.note = had ? { ctxKey: c.ctx.key, text: gas.pending
+      ? "Your choices changed while a quote was being fetched; that quote will be discarded. Press Get quote again when it finishes."
+      : "Choices changed; the previous quote was dropped." } : gas.note; // retain the message across input + change for one edit
+    show();
+  };
+  for (const el of [dep, eth, tier]) { el.addEventListener("input", changed); el.addEventListener("change", changed); }
+  $("#fdQuote").addEventListener("click", act(e, owner, async (g) => {
+    const picked = inputs();                            // funding-quote-ux-r1: the choices exactly as they are at the click
+    const rev = gas.rev;
+    const ctxKey = c.ctx.key;
+    saveDraft(ctxKey, raw());
+    stopTick(); // root: fetching status must not be replaced by the previous quote's timer
+    memory.dropQuote();
+    gas.bound = null;
+    gas.note = null;
+    if (!picked) { show(); throw new ST.StateError("quote_inputs", "choose a deployment, a whole-wei ETH amount greater than 0 and a fee tier"); }
+    status("pending", "<p>Getting a fresh quote: re-checking the wallet, vault, relay and deployments. Nothing is signed or sent.</p>");
+    gas.pending = true;
+    const moved = () => new ST.StateError("quote_inputs_changed", "your choices changed while quoting; that quote was discarded. Press Get quote again");
+    try {
+      const fc = await context(owner);         // FRESH verified runtime for this click
+      g.check("quoting");
+      if (fc.ctx.key !== ctxKey) throw new ST.StateError("context_mismatch", "the fresh check names another wallet, network, vault or relay; nothing was quoted");
+      if (!fc.runtime.intake) throw new ST.StateError("intake_off", `new gas funding is paused (${fc.runtime.intakeWhy || "intake off"})`);
+      const fresh = await fc.f.freshRecoveryScope({ rpc: fc.rpc, book: fc.cfg.book, owner, legacyVault: fc.runtime.cfg.legacyVault,
+        deploymentIds: [...np.deploymentIds], now: nowS() });   // FRESH finite scope for this click
+      g.check("quoting");
+      if (gas.rev !== rev) throw moved();
+      const q = await FL.quoteFlow({ g, memory, ctx: fc.ctx, inputs: picked, store: fc.gasStore, scope: fresh, core: fc.f,
+        quoteArgs: { runtime: fc.runtime, relay: FL.guardRelayFn(fc.relay, g) }, now: nowS });
+      if (gas.rev !== rev) { memory.dropQuote(); throw moved(); }
+      gas.bound = { ctxKey, digest: q.digest, recordId: q.recordId, fc, scope: fresh };
+      return "Quote ready: review it, then fund.";
+    } catch (err) {
+      memory.dropQuote();
+      if (g.alive()) {
+        gas.bound = null;
+        gas.note = { ctxKey, text: `The last quote attempt failed (${err?.code ? `${err.code}: ` : ""}${err?.message ?? err}). Nothing was signed or sent. Press Get quote to try again.` };
+      }
+      throw err;
+    } finally {
+      if (g.alive()) gas.pending = false;
+    }
   }));
   fund.addEventListener("click", act(e, owner, async (g) => {
     fund.disabled = true;
-    const r = await FL.fundFlow({ g, memory, ctx: c.ctx, inputs: inputs(), shownDigest: out.dataset.digest || "", store: c.gasStore,
-      scope, core: c.f, fundArgs: { runtime: c.runtime, relay: c.relay, rpc: c.rpc, relayBase: relayRoot(),   // client-execution-site-r2
-        dispatchGuard: () => g.check("sending the payment") }, now: nowS });
-    return r.pending ? "Sent, not on chain yet: see Gas payments (it is never resent)"
-      : r.status === "settled" ? `Funded: ${usd(r.settlement.actual.totalDebit6)} used (final on chain)`
-      : `Funded: ${usd(r.settlement.actual.totalDebit6)} used (on chain, NOT final yet: Gas payments keeps it until a check proves finality)`;
+    stopTick();
+    const picked = inputs();                            // funding-quote-ux-r1: what is on screen at the click; never re-quoted here
+    const shownDigest = out.dataset.digest || "";
+    const b = gas.bound;
+    try {
+      if (!picked || !shownDigest || !b || b.ctxKey !== c.ctx.key || b.digest !== shownDigest) {
+        throw new ST.StateError("quote_stale", "no valid reviewed quote for these choices; press Get quote for a fresh quote (nothing was signed or sent)");
+      }
+      // The context and finite scope verified for THIS quote at its Get quote click (same context key as this render).
+      const r = await FL.fundFlow({ g, memory, ctx: b.fc.ctx, inputs: picked, shownDigest, store: b.fc.gasStore,
+        scope: b.scope, core: b.fc.f, fundArgs: { runtime: b.fc.runtime, relay: b.fc.relay, rpc: b.fc.rpc, relayBase: relayRoot(),   // client-execution-site-r2
+          dispatchGuard: () => g.check("sending the payment") }, now: nowS });
+      if (g.alive()) gas.note = { ctxKey: b.ctxKey, text: "That quote was used once. Press Get quote for another payment." };
+      return r.pending ? "Sent, not on chain yet: see Gas payments (it is never resent)"
+        : r.status === "settled" ? `Funded: ${usd(r.settlement.actual.totalDebit6)} used (final on chain)`
+        : `Funded: ${usd(r.settlement.actual.totalDebit6)} used (on chain, NOT final yet: Gas payments keeps it until a check proves finality)`;
+    } finally {
+      memory.dropQuote();                               // single use: any Fund attempt ends this quote
+      if (g.alive()) gas.bound = null;
+    }
   }));
 }
 
