@@ -1,0 +1,217 @@
+[
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/inner.guard.log",
+    "snapshot": "evidence/root-r2/inner.guard.log",
+    "sha256": "63cdbfa5461769acc22bcab40fa75ce00adfe79d2bc0744a0928d96f7e3a74ad"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/liveness-inner.guard.log",
+    "snapshot": "evidence/root-r2/liveness-inner.guard.log",
+    "sha256": "7062be46d39a82a1883eddc78a57f2f4066e399e15d2322e96835075df80287c"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/liveness-outer.guard.log",
+    "snapshot": "evidence/root-r2/liveness-outer.guard.log",
+    "sha256": "91c50903a76e032e1f274beb4121fcf0c3d517a9db5703328e223fe4761405b0"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/liveness-remaining-test-files.json",
+    "snapshot": "evidence/root-r2/liveness-remaining-test-files.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/liveness-result.rc",
+    "snapshot": "evidence/root-r2/liveness-result.rc",
+    "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/liveness-result.tap",
+    "snapshot": "evidence/root-r2/liveness-result.tap",
+    "sha256": "27596a65f527778ff95a70d26dbb40ef4b4f18dfb961c98fcf9e2fa45f0b4155"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/liveness-temp-dir.json",
+    "snapshot": "evidence/root-r2/liveness-temp-dir.json",
+    "sha256": "6aea78dc7199875379d02524c08203f960838ac7249db6327f1980b8ee5bc048"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/outer.guard.log",
+    "snapshot": "evidence/root-r2/outer.guard.log",
+    "sha256": "ae488bf93660b2486d528e1ae295029bf368ea4d7e06ed332d3362eda2a66e0f"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/races-fixed-inner.guard.log",
+    "snapshot": "evidence/root-r2/races-fixed-inner.guard.log",
+    "sha256": "a74dd943416c535c276829770127535e08c80e187750e04bfa615f3a9fc419ef"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/races-fixed-outer.guard.log",
+    "snapshot": "evidence/root-r2/races-fixed-outer.guard.log",
+    "sha256": "bc0bcb41a2d6ea5e5f559d46fae1eb11a84759b06e5bda51e6b0b0c8941e5125"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/races-fixed-remaining-test-files.json",
+    "snapshot": "evidence/root-r2/races-fixed-remaining-test-files.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/races-fixed-result.rc",
+    "snapshot": "evidence/root-r2/races-fixed-result.rc",
+    "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/races-fixed-result.tap",
+    "snapshot": "evidence/root-r2/races-fixed-result.tap",
+    "sha256": "e19229f4120001d14fba37b0f52ec7e5907e7a2b0c5aa108f4027f134f507cea"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/races-fixed-temp-dir.json",
+    "snapshot": "evidence/root-r2/races-fixed-temp-dir.json",
+    "sha256": "7eb2974ef75b6a3d990f67efd5c6752514b3d6f467b101d8319700767cbe83a7"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/races-inner.guard.log",
+    "snapshot": "evidence/root-r2/races-inner.guard.log",
+    "sha256": "218f21addd5cc9855ff212da42c8936d411148f71e378651ae91393c3d7f9bb2"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/races-outer.guard.log",
+    "snapshot": "evidence/root-r2/races-outer.guard.log",
+    "sha256": "01b33bc4affdbfbf760ae2439031b7170cf21a32eee14e00c96075713da01d8c"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/races-remaining-test-files.json",
+    "snapshot": "evidence/root-r2/races-remaining-test-files.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/races-result.rc",
+    "snapshot": "evidence/root-r2/races-result.rc",
+    "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/races-result.tap",
+    "snapshot": "evidence/root-r2/races-result.tap",
+    "sha256": "41569fd2c45317f3c5ee60587b1f4bdd6212b33e537c806c9ebed84e6f2517e1"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/races-temp-dir.json",
+    "snapshot": "evidence/root-r2/races-temp-dir.json",
+    "sha256": "d72da3c18e4cbfc4018e30f099ff58aa563f24fabe6c5fa7553a58809ad53690"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/remaining-test-files.json",
+    "snapshot": "evidence/root-r2/remaining-test-files.json",
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/result.rc",
+    "snapshot": "evidence/root-r2/result.rc",
+    "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/result.tap",
+    "snapshot": "evidence/root-r2/result.tap",
+    "sha256": "2abc3a359099f7845c6064ab0fc633c02af80b50362ac66446336252ff4e7b67"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/root-hold.test.mjs",
+    "snapshot": "evidence/root-r2/root-hold.test.mjs",
+    "sha256": "45714b46d055693dc577f8ab07fcbfba95d1743c6bc55a0a7fcbd6d57cbb1dbb"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/root-races-initial.test.mjs",
+    "snapshot": "evidence/root-r2/root-races-initial.test.mjs",
+    "sha256": "86f752bc72e0a9f51b1d14ae78b2d77c8cab12f508ce4002ac69f5679dd02bb2"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/root-races.test.mjs",
+    "snapshot": "evidence/root-r2/root-races.test.mjs",
+    "sha256": "48ccf1b2ce2d87e504eef6629aa14e055e1c0506c10ec30748954e5062655f8e"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/run-liveness.py",
+    "snapshot": "evidence/root-r2/run-liveness.py",
+    "sha256": "a8ab8c4bcb7f530faa4cf62c43d3147acb64fa1f5dd0dbefa68d34c2e0b49505"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/run-races-fixed.py",
+    "snapshot": "evidence/root-r2/run-races-fixed.py",
+    "sha256": "da40450fbea5aa8feaad7bef67068405e214b7f6c27987500ba59f321dc5e496"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/run-races.py",
+    "snapshot": "evidence/root-r2/run-races.py",
+    "sha256": "b89ab08ca6dfc51800ee69885d290d07be814d32971b1a7e70351326032987f4"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/run.py",
+    "snapshot": "evidence/root-r2/run.py",
+    "sha256": "8009d0c8799041f3abacf5310077bbfcc56ecb93b6227f676d0783cefca5bd6a"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/source-pins.json",
+    "snapshot": "evidence/root-r2/source-pins.json",
+    "sha256": "78b8fb24a82b88922cfc6bf7e377a080465a9a6b62eb35a2bd272c4313291b36"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/temp-dir.json",
+    "snapshot": "evidence/root-r2/temp-dir.json",
+    "sha256": "c6afdaef05cb04bcb8b687da887f3f96e1544170dad4ffe6c41ce3b2bd03c9ba"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r2/test-liveness.mjs",
+    "snapshot": "evidence/root-r2/test-liveness.mjs",
+    "sha256": "253b1059ee3ccd85d9cc54daa0814620656e8bd05f129722072eeb8d678a924b"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-repair-r2-20261029/terminal-summary.json",
+    "snapshot": "evidence/peer-r2/terminal-summary.json",
+    "sha256": "da045f8eb3c0f03dc81b87306449c02fa2bae568648b22641fb542b40b050584"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-repair-r2-20261029/terminal-source-review.json",
+    "snapshot": "evidence/peer-r2/terminal-source-review.json",
+    "sha256": "aee9d10ce5d44ad3534721958ab69a21a3416cee7066f3ba3ac19d1421aba7c2"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-repair-r2-20261029/terminal-review-checklist.json",
+    "snapshot": "evidence/peer-r2/terminal-review-checklist.json",
+    "sha256": "128ed99d3b919beeaf1ff29f65d0fd5487c15b106b473a50be0d21aee8e13f65"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-repair-r2-20261029/source-changes.json",
+    "snapshot": "evidence/peer-r2/source-changes.json",
+    "sha256": "5d03c602c9649739ee0a3e6cc7275ff45babc5f7873b6bbd6ada546d2305f563"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-repair-r2-20261029/author-delivery-manifest.json",
+    "snapshot": "evidence/peer-r2/author-delivery-manifest.json",
+    "sha256": "3ef2255486db86f75e610219902b6ae50aa47bef7fa47bfdf56deb8f785b2490"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-repair-r2-20261029/post-admission-root-hold-evidence.json",
+    "snapshot": "evidence/peer-r2/post-admission-root-hold-evidence.json",
+    "sha256": "bba17237f9709a7327fccfa28a721d5e7ca6435ba6928860157a89030461bca3"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/router-admission-observation-proposal-20261029/result.json",
+    "snapshot": "evidence/current-router/result.json",
+    "sha256": "e19c48a1ed9b2c5ef085750d11dbb7d192229be0521946f7c27a3b31a6c7ad12"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/router-admission-observation-proposal-20261029/current-router-source-review.json",
+    "snapshot": "evidence/current-router/current-router-source-review.json",
+    "sha256": "62d362cab50d78d814a810708bc1382ecb63987065650db2f8a2f83957aea765"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/router-admission-observation-proposal-20261029/current-router-v12-to-v13.diff",
+    "snapshot": "evidence/current-router/current-router-v12-to-v13.diff",
+    "sha256": "d7493e885d3706d0e8e1e7749ff08e49275b5f93ae5a57483e9fe18d33497cf0"
+  },
+  {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/router-admission-observation-proposal-20261029/route-evidence.json",
+    "snapshot": "evidence/current-router/route-evidence.json",
+    "sha256": "a177c7ad32f3429d7a5c16d63d6543c83f5514ab2d5689083a3eb29620d177b7"
+  }
+]

@@ -1,0 +1,6 @@
+PREPARED ONLY, NOT LAUNCHED. Root must review exact task/pins/runner.
+Seed149=frozenr2 plus narrow two-hunk live966fd health merge; protected routes/accounting and all #noProtected calls preserved. Whole-file replacement rejected before launch. Merged source unexecuted.
+Root r2 suite with TEST-only service-lifetime preload74PASS/1FAIL(old fixture74)/0cancel/0skip; root actual MAC/TCP false-ingress testPASS. Original62PASS13cancel was TEST lifetime cancellation, not13product failures.
+Final independent race tests0PASS/3FAIL/0cancel/0skip: durable-write deadline crossings onregister+renew and journal-read failure suppressing independentguardwithdraw.
+Full A/B/C/D and all workloads remain required, not a refusal-only implementation. No actual Windows EXLOCK qualification or real authority construction claimed.
+Source author has Read/Grep/Write only, fresh session,55turns1800s,outer2100s,1536queue1408RSS27648floor1CPU0swap. No execution/network/production/finance/extraauthors.

@@ -1,0 +1,30 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "seedEntries": 149,
+  "readonlyInputPins": 790,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write"
+  ],
+  "turnLimit": 55,
+  "childTimeoutSec": 1800,
+  "outerTimeoutSec": 2100,
+  "queueMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/owned-tmp",
+  "hashes": {
+    "TASK.txt": "662d32199464b473898f3a7b0cf656f4ebb5885305a61c538a51ae610a8a457e",
+    "REVIEW-STATUS.txt": "327945f968f517f22ea168c61c24210d0d6abf8f7021f072038fa33ae2e62a07",
+    "run.py": "1d8d932ff082d37fa79fbc460f724189dd9a9837687e6238e9a4537dc5e8f0f4",
+    "launch-command.txt": "400751bbee66256bcb33ba37d63d3fba86d6b88808e08372afd7916e297fc202",
+    "input-pins.json": "626786476f9b5948f8b030f2193802d95bc81789eccb86061ea823a9524a008f",
+    "seed-pins.json": "28192b0f3524e1d1201c3235c873b974fb32309a79f1ee305b48f51f574adb28",
+    "seed-provenance.json": "118ca38a149edf46dc886cc051c1f992da8153856cb974ce1e90abd153bc058c",
+    "evidence-index.json": "62ff26b9b8fc637b9d8b0442194f180ace2d6ead9ea60f1066793ff357e0ba47"
+  }
+}
