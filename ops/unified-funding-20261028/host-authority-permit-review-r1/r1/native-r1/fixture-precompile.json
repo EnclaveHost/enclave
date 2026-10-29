@@ -1,0 +1,7 @@
+{
+  "qualification": "exact original compiler input; unchanged raw output, test fixture only",
+  "originalFixtureSha256": "26a67fff56d238072db398eafd25cbe16f4f47fd6aa9c23f42a2f7f3e22bb661",
+  "compiledInputSha256": "8858929942222fd40a8985b829de5da496741e0c05462f8b1469407507474fa5",
+  "compiledOutputSha256": "31426a9799dab3dec5652b9288ec3237f701f5edba15f0535807bc82fe27e02f",
+  "ownedFixtureSha256": "c0f5d10d41ca97841611516d033bc29c1ee92c3a2a113bcab73fa2cac1a2f2ea"
+}

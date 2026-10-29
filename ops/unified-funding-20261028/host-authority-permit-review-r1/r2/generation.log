@@ -1,0 +1,320 @@
+{
+ "deployment-serving-permit.mjs": {
+  "sha256": "bdd316a1be52668c2716b6453dfd77135685285a0668eb899d5d2d8d6518cd1d",
+  "baselineSha256": "82494ed819f91f65565391dc3f61a16341fc3465df0bf47a3ec823a8b8de0e61",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 9,
+    "candidateOffset": 656,
+    "length": 242
+   },
+   {
+    "name": "typed-v2",
+    "baselineLine": 22,
+    "candidateOffset": 1480,
+    "length": 137
+   },
+   {
+    "name": "validate-params",
+    "baselineLine": 62,
+    "candidateOffset": 4313,
+    "length": 77
+   },
+   {
+    "name": "validate-v2",
+    "baselineLine": 89,
+    "candidateOffset": 6683,
+    "length": 180
+   },
+   {
+    "name": "verify-return",
+    "baselineLine": 109,
+    "candidateOffset": 8135,
+    "length": 118
+   }
+  ]
+ },
+ "deployment-permit-gate.mjs": {
+  "sha256": "956de40ef26cabddcb34c51a71e354bdaaf5b374e3dfa5acbe6c407aa935e047",
+  "baselineSha256": "e198fe2160cf9ab31f1c473856c44d58e51c995ce0fe0f0907c94c2d39c8661b",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 8,
+    "candidateOffset": 539,
+    "length": 229
+   },
+   {
+    "name": "ctor-param",
+    "baselineLine": 10,
+    "candidateOffset": 888,
+    "length": 22
+   },
+   {
+    "name": "ctor-assign",
+    "baselineLine": 12,
+    "candidateOffset": 1062,
+    "length": 15
+   },
+   {
+    "name": "ctor-require",
+    "baselineLine": 14,
+    "candidateOffset": 1165,
+    "length": 189
+   },
+   {
+    "name": "verify-floor",
+    "baselineLine": 33,
+    "candidateOffset": 2336,
+    "length": 131
+   },
+   {
+    "name": "accept-before-resources",
+    "baselineLine": 44,
+    "candidateOffset": 2946,
+    "length": 167
+   },
+   {
+    "name": "drop-on-change",
+    "baselineLine": 55,
+    "candidateOffset": 4046,
+    "length": 168
+   },
+   {
+    "name": "entry-field",
+    "baselineLine": 55,
+    "candidateOffset": 4302,
+    "length": 53
+   },
+   {
+    "name": "install-return",
+    "baselineLine": 69,
+    "candidateOffset": 5123,
+    "length": 72
+   },
+   {
+    "name": "assert-param",
+    "baselineLine": 71,
+    "candidateOffset": 5234,
+    "length": 22
+   },
+   {
+    "name": "assert-check",
+    "baselineLine": 73,
+    "candidateOffset": 5395,
+    "length": 47
+   },
+   {
+    "name": "methods",
+    "baselineLine": 78,
+    "candidateOffset": 5621,
+    "length": 1864
+   }
+  ]
+ },
+ "deployment-lifecycle-witness.mjs": {
+  "sha256": "7c29b5b7577558db1d12c795a401ff70bd9f1f5da8a5661e593d690c62169ec4",
+  "baselineSha256": "9859a1307a83ff4f60ae6088c6533b0666ae12497c49794b9ef9ee32569551c0",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 9,
+    "candidateOffset": 751,
+    "length": 224
+   },
+   {
+    "name": "ctor-param",
+    "baselineLine": 11,
+    "candidateOffset": 1117,
+    "length": 29
+   },
+   {
+    "name": "ctor-assign",
+    "baselineLine": 15,
+    "candidateOffset": 1600,
+    "length": 22
+   },
+   {
+    "name": "ctor-require",
+    "baselineLine": 16,
+    "candidateOffset": 1627,
+    "length": 192
+   },
+   {
+    "name": "floor",
+    "baselineLine": 39,
+    "candidateOffset": 3071,
+    "length": 185
+   },
+   {
+    "name": "validate-1",
+    "baselineLine": 40,
+    "candidateOffset": 3398,
+    "length": 12
+   },
+   {
+    "name": "reread-after-readiness",
+    "baselineLine": 52,
+    "candidateOffset": 4470,
+    "length": 121
+   },
+   {
+    "name": "validate-2",
+    "baselineLine": 52,
+    "candidateOffset": 4678,
+    "length": 12
+   },
+   {
+    "name": "durable-floor",
+    "baselineLine": 55,
+    "candidateOffset": 4780,
+    "length": 167
+   },
+   {
+    "name": "after-signing",
+    "baselineLine": 63,
+    "candidateOffset": 5611,
+    "length": 136
+   },
+   {
+    "name": "method",
+    "baselineLine": 143,
+    "candidateOffset": 11671,
+    "length": 600
+   }
+  ]
+ },
+ "deployment-isolation-runtime.mjs": {
+  "sha256": "028b7188d9ce6a0192378846cddecea469637132eff088333b20f08b852dca62",
+  "baselineSha256": "40333d5bc08796f2881650331022746abc0b93051b48351c89f84d62a4462fd9",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 5,
+    "candidateOffset": 299,
+    "length": 256
+   },
+   {
+    "name": "v2",
+    "baselineLine": 12,
+    "candidateOffset": 1205,
+    "length": 243
+   },
+   {
+    "name": "fresh-handoff",
+    "baselineLine": 79,
+    "candidateOffset": 4986,
+    "length": 384
+   },
+   {
+    "name": "adopt",
+    "baselineLine": 99,
+    "candidateOffset": 6469,
+    "length": 681
+   },
+   {
+    "name": "record",
+    "baselineLine": 107,
+    "candidateOffset": 7775,
+    "length": 133
+   },
+   {
+    "name": "context",
+    "baselineLine": 109,
+    "candidateOffset": 8040,
+    "length": 41
+   },
+   {
+    "name": "track",
+    "baselineLine": 113,
+    "candidateOffset": 8374,
+    "length": 55
+   },
+   {
+    "name": "assert",
+    "baselineLine": 117,
+    "candidateOffset": 8764,
+    "length": 55
+   },
+   {
+    "name": "ack",
+    "baselineLine": 120,
+    "candidateOffset": 9038,
+    "length": 163
+   }
+  ]
+ },
+ "deployment-chain-adapter.mjs": {
+  "sha256": "022f8bdc19ed7848d1a63db2a7f421b47728ac72ffa3089a5186ef1b8267c7de",
+  "baselineSha256": "b648a3edf805252e239f548a4816b90b8281999b848d2ecece453cee7b8c226d",
+  "manifest": [
+   {
+    "name": "import",
+    "baselineLine": 51,
+    "candidateOffset": 5689,
+    "length": 253
+   },
+   {
+    "name": "helpers",
+    "baselineLine": 347,
+    "candidateOffset": 33774,
+    "length": 3583
+   },
+   {
+    "name": "parse-canonical",
+    "baselineLine": 357,
+    "candidateOffset": 38377,
+    "length": 25
+   },
+   {
+    "name": "parse-check",
+    "baselineLine": 358,
+    "candidateOffset": 38502,
+    "length": 327
+   },
+   {
+    "name": "canonical-param",
+    "baselineLine": 360,
+    "candidateOffset": 38911,
+    "length": 22
+   },
+   {
+    "name": "canonical-body",
+    "baselineLine": 362,
+    "candidateOffset": 39249,
+    "length": 45
+   },
+   {
+    "name": "snapshot-evidence",
+    "baselineLine": 522,
+    "candidateOffset": 54310,
+    "length": 328
+   },
+   {
+    "name": "prepare-context",
+    "baselineLine": 558,
+    "candidateOffset": 58476,
+    "length": 167
+   },
+   {
+    "name": "prepare-payload",
+    "baselineLine": 558,
+    "candidateOffset": 58741,
+    "length": 15
+   },
+   {
+    "name": "submit-require",
+    "baselineLine": 562,
+    "candidateOffset": 58860,
+    "length": 198
+   },
+   {
+    "name": "final-guard",
+    "baselineLine": 583,
+    "candidateOffset": 61340,
+    "length": 153
+   }
+  ]
+ }
+}

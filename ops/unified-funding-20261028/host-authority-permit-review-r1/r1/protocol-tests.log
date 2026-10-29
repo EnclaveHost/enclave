@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: 1 real v2 permit end to end: collector -> witness quorum -> gate -> runtime producer; positive fresh queued start
+ok 1 - 1 real v2 permit end to end: collector -> witness quorum -> gate -> runtime producer; positive fresh queued start
+  ---
+  duration_ms: 80.248682
+  type: 'test'
+  ...
+# Subtest: 2 same app generation: host gen1 -> Offline -> recovered gen2 (missed) drops tracked resources; old signatures refused; restart keeps the floor
+ok 2 - 2 same app generation: host gen1 -> Offline -> recovered gen2 (missed) drops tracked resources; old signatures refused; restart keeps the floor
+  ---
+  duration_ms: 160.734082
+  type: 'test'
+  ...
+# Subtest: 3 same host generation, legitimate owner revision increase: old grant withdrawn, explicit handoff then serve; lower/conflicting refuse
+ok 3 - 3 same host generation, legitimate owner revision increase: old grant withdrawn, explicit handoff then serve; lower/conflicting refuse
+  ---
+  duration_ms: 84.184866
+  type: 'test'
+  ...
+# Subtest: 4 tampering, omission, downgrade, unsafe uint64 and unqualified/nested-verified evidence never sign or grant
+ok 4 - 4 tampering, omission, downgrade, unsafe uint64 and unqualified/nested-verified evidence never sign or grant
+  ---
+  duration_ms: 19.097004
+  type: 'test'
+  ...
+# Subtest: 7a owner change DURING witness readiness/signing: no signature released, no grant
+ok 5 - 7a owner change DURING witness readiness/signing: no signature released, no grant
+  ---
+  duration_ms: 14.224292
+  type: 'test'
+  ...
+# Subtest: 7b host-wide advance, rollback handoff, latched persistence, malformed/lost sidecar: no grant or binding resurrection
+ok 6 - 7b host-wide advance, rollback handoff, latched persistence, malformed/lost sidecar: no grant or binding resurrection
+  ---
+  duration_ms: 71.745494
+  type: 'test'
+  ...
+# Subtest: 8 v1 default unchanged: no servingPermit pins -> v1 typed data, no host authority, servingContextOf undefined
+ok 7 - 8 v1 default unchanged: no servingPermit pins -> v1 typed data, no host authority, servingContextOf undefined
+  ---
+  duration_ms: 0.723681
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 645.261271
