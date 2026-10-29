@@ -1,0 +1,19 @@
+{
+  "ROOT-REVIEW.md": "5fa3daa716a6ab8bfc9a134ff5c7451e8f73448c410522c6f2c9229d27ac9220",
+  "inner.guard.log": "08a9819af55835f4d89de363dd0d93c2743fa952a7ba443b7cf7feef1116a92e",
+  "outer.guard.log": "5d21a27d1eb6f86a92f08ce27a5378d75b5b9b02670c1e8f31ded4a56c152aed",
+  "pins.json": "b2fcd90322f58be5d427895874ef4d8fc96bd4b9984d8581b9551ea3b08a291a",
+  "remaining-test-files.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "result.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "result.tap": "6cd4e2c6f3d82aec50982c4547c8fd82f3754846a046095cd26deb50c27b025b",
+  "retained-root-boundary-v2.test.mjs": "767ca2d1c1aff08c070e5878df00ec5f41a9aed28d475ad152099d8dfd283fd6",
+  "retained-root-quarantine.test.mjs": "90f14bcadf6b6688fbc55dfa7c5cfe295e11d738fa24392946ba83848163d3a7",
+  "retained-shipped-client.test.mjs": "5cd423ec9163c8104cc2201007787fd129fe7634fc8d670617d3b37a6c860a1a",
+  "root-installer-boundaries.test.mjs": "fb47bb2787dfee92024efc8b48346c0a9d4f233a6c8c376591b13516c4387dcf",
+  "root-powershell-bounds.test.mjs": "e490e0182025a1a62b01a3f8ff6878fb8af62082157fc411d3c566e5051a69b7",
+  "root-trust-inputs.test.mjs": "559b3f50fd75f97c657b02c34445758250ee34547dd71a1e2a05e0181f71634e",
+  "run.py": "8cd2f3853a4a8b213743ca8f92b14b8ecf56e8b4fd5fe5cb142c30b8e78f6f09",
+  "temp-dir.json": "ebac8a13af0fe8146f3f9bb5ae3e70e86e85d205ad70f18dadeb751e211f84b7",
+  "test-liveness.mjs": "253b1059ee3ccd85d9cc54daa0814620656e8bd05f129722072eeb8d678a924b",
+  "unit-result.txt": "1722886043474fefdfd66772c43fcf524503535a224970522d4f4f89753f1cea"
+}
