@@ -1,0 +1,33 @@
+Browser tab: 723101001, Title: "Self-hosted Top up — local TEST", URL: "http://127.0.0.1:38481/selfhost-topup-event-budget-r2-20261029/browser-fixture.html".
+0 AXWebArea Self-hosted Top up — local TEST, URL: 127.0.0.1:38481/selfhost-topup-event-budget-r2-20261029/browser-fixture.html
+	1 heading Existing Top up panel · TEST fixture, Value: 1
+		2 text Existing Top up panel · TEST fixture
+	3 text Local mock funds and public fixture identities. No production requests or signing.
+	4 heading sia-s3:0.1.9 · queued, Value: 2
+		5 text sia-s3:0.1.9 · queued
+	6 container panel
+		7 text TOP UP · 0X4444444444444444444444444444444444444444444444444444444444444444
+		8 text Self-hosted runtime is free: the ledger charges this deployment no runtime right now (rate 0, re-read each time this opens). USDC from your gas grant buys ETH for on-chain transactions. Gas funding does not promise a fixed number of runtime hours.
+		9 text Maximum for gas (USDC)
+		10 text field (settable) Maximum for gas (USDC), Help: at most $0.60 (your grant's per-payment gas cap), Value: 0.60, ID: efGasMax
+		11 button Pay from session
+		12 button Refresh quote
+		13 button (collapsed) quote details, Secondary Actions: Expand
+			14 text quote details
+		15 text Pays at most $0.526 from "Self-hosted apps": gas at most $0.46 + relay fee $0.066. The actual debit (real swap cost + fee) is shown after payment and never exceeds that. Usable for 285s.
+	16 text PASS 12 checks
+zero-rate panel ready
+opening does not sign or send
+renewal-hours estimate absent
+transaction-gas purpose displayed
+existing payment button retained
+input change disables stale quote
+low maximum refuses quote
+expired quote never sent
+provider change refuses
+double click submits once in mock
+unknown outcome stays blocked
+unknown outcome not resent
+Mock sends:1; production sends:0
+
+The focused UI element is 0 AXWebArea Self-hosted Top up — local TEST, URL: 127.0.0.1:38481/selfhost-topup-event-budget-r2-20261029/browser-fixture.html
