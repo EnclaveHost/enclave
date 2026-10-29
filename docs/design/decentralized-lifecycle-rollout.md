@@ -55,3 +55,9 @@ The new independent ledger must preserve deployment-owner/delegate cancellation,
 ## Cold restart must not restore central authority
 
 The root cold-handoff regression reproduces a mutable address-book veto after reopening the actual lifecycle journal. The dispatch now verifies the explicit route's finalized source-ledger proof without requiring the current global book to select that ledger. It retains unresolved release/activity checks before and after asynchronous proof verification. Wrong-ledger proofs still refuse. This fixes the staged dispatch, not the still-dependent r6 adapter or live host recovery. Source, before/after evidence and the exact remaining failures are in the host-authority root review.
+
+## Stable independent contract terms
+
+Retirement is not the only global authority. The [pinned contract review](../../ops/unified-funding-20261028/lifecycle-authority-boundary-audit-r1/ROOT-REVIEW.md) distinguishes mutable claim bonds and unilateral bond slashing, future deployment/resize economics, service-proof policy, ETH funding dependencies and unsealed imports. Independent qualification must cover new-user admission and failover as well as already-running apps. Keep agreed financial, proof and owner controls; removing off-chain checks cannot undo continuing on-chain administrator powers.
+
+Paid-service checkpoints are separate from lifecycle renewals and are not required for zero-rate self-host runs. The current prover still charges recurring settlement transactions for paid work. This is an open cost/independence issue, not evidence that the event-driven goal is already met or a reason to remove service-proof security. Migration must seal privileged imports and verify the actual immutable contract graph.
