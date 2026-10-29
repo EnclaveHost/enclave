@@ -1,0 +1,10 @@
+{
+  "RELEASE-CLOSURE-OPERATOR-DURABILITY-R2.json": "18179404e4c9173f314c061b6060c42fddaa58f0aa098fba2e4e177c969482e8",
+  "REPORT-OPERATOR-DURABILITY-R2.md": "dc93e0b7145465a85bb8c0d83681ac19b90b07f2e8439de21f16b0924c649d40",
+  "control/windows/node/chain.mjs": "6293f314a160756cf5b7a5e0d22b607509be6a309c94ca6bffabd4f136c6b206",
+  "control/windows/node/operator-effects.mjs": "f6c7a582bee319b85f943aab206b6f08f4f228599d6c09f71992186353247b17",
+  "test/windows-permit/helpers/od-r2-inert-chain.mjs": "5c577fe5db489d172ddbe49cec71628ae7cdb2d4d999232641ddcbade127e4b6",
+  "test/windows-permit/od-r1-sponsored.test.mjs": "d846e2856cb1f5df27fe09873247e507cdbb28b5dc043acd49d2074e840fa295",
+  "test/windows-permit/od-r2-direct-continuity.test.mjs": "3b3e9be3fba038da89de11817311f02eaa8cd782e29db0d00e72da20ab84352c",
+  "test/windows-permit/od-r2-shipped-client.test.mjs": "2e1fcdec69edb8fc6bf4f3b5cd0b24b46ed469c323388f437d3569e58df7a49d"
+}

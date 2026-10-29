@@ -1,0 +1,35 @@
+{
+  "schema": "enclave-release-closure/r5-proposal",
+  "status": "AUTHORED NOT RUN; root materializes, verifies and builds. Nothing here was executed or installed.",
+  "vendoredModules": [
+    {
+      "target": "control/network/deployment-isolation-runtime.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-isolation-runtime.mjs",
+      "sha256": "6309c386deefaec230045f0dadad30a1fb86b384be7693f68ce7bbc0a1e8e8f7",
+      "rule": "byte-exact copy; refuse if the sha256 differs. Its only import is ./deployment-host-authority.mjs (already in candidate/control/network, exports isHostAuthorityPermit/permitHostAuthorityOf/servingContextOf). The author did not retype it, to avoid byte drift.",
+      "consumers": ["test/windows-permit/r4-supervisor-chain.test.mjs", "test/windows-permit/r5-ownership-chain.test.mjs", "node entry composition (openRuntime) when composed"]
+    }
+  ],
+  "dependencies": {
+    "viem": { "version": "2.53.1", "declaredIn": "package.json", "lockfile": "MISSING: root must generate package-lock.json from the pinned registry tarball and record its integrity; the author cannot produce an honest integrity hash without network" }
+  },
+  "newOrModifiedR5": [
+    "control/windows/vbslike/manager/permit-journal.mjs",
+    "control/windows/vbslike/manager/permit-enforcement.mjs",
+    "control/windows/vbslike/manager/protected-manager.mjs",
+    "control/windows/node/protected-isolation.mjs",
+    "control/windows/node/protected-supervisor.mjs",
+    "control/windows/node/isolation-lifecycle.mjs",
+    "control/windows/node/host.mjs",
+    "test/windows-permit/r4-supervisor-chain.test.mjs",
+    "test/windows-permit/r5-ownership-chain.test.mjs",
+    "package.json",
+    "RELEASE-CLOSURE-R5.json",
+    "REPORT-WINDOWS-PERMIT-R5.md"
+  ],
+  "carriedFromR4Unchanged": [
+    "control/windows/vbslike/manager/compose.mjs",
+    "control/windows/vbslike/manager/main.mjs"
+  ],
+  "importMappingNotes": "All candidate imports are relative. The previous absolute R18 test import is replaced by the vendored mapping above. Root should resolve the four r4 setup failures (missing viem under the external R18 path) through this mapping plus the root-generated lock, and record the result separately."
+}

@@ -1,0 +1,60 @@
+{
+  "schema": "enclave-windows-permit-packaging/1",
+  "status": "AUTHORED, NOT RUN. No file below was hashed by the author (no shell); every sha256 for a NEW or MODIFIED candidate file must be computed by root. Dependency hashes are copied from the pinned supplement-input-manifest.json.",
+  "seed": { "archive": "installed source.zip", "sha256": "d2f00b2e8dd7cf564deb37e7ac86da427d9b93d76df787eb45c0b375f7a369b0", "entries": 119 },
+  "modifiedSeedFiles": {
+    "control/windows/vbslike/manager/main.mjs": { "seedSha256": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b", "change": "optional pinned legacy-role protected entry (ENCLAVE_PERMIT_CONFIG); native path unchanged when unset" },
+    "control/windows/vbslike/router/control.mjs": { "seedSha256": "ae43a93780e4f8651af6e365720ed5f0cc91557aef0f062979732eb867bc17c8", "change": "pp namespace, exact protected/control routes, authenticated whitelist, protected stage under the same latch/capacity admission" },
+    "control/windows/vbslike/router/io.mjs": { "seedSha256": "3a81d403c8f9a4d20d2f7651b31ca5d5a8eb8acae9c2b817082ec1bae74083e2", "change": "x-guestd-* request headers and response MAC carried; exact bytes on authenticated/protected routes" }
+  },
+  "unchangedSeedFilesNamedByTheTask": {
+    "control/windows/vbslike/manager/server.mjs": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+    "control/windows/vbslike/manager/backend.mjs": "d90b596a81a4f76752ba87c7905bb521f1f1674a6bbba3d8f3db210d657af9e2",
+    "control/windows/vbslike/manager/wmi-launcher.mjs": "bba4c309f5a837e17bf44be54cd8e4c4432ad74174a7d09eda559f11f5ef250e",
+    "control/windows/vbslike/datapath/datapath.mjs": "1149dfb2099a8ea3963c570d61d40e7b304d060b73c62694a31e8346bd258771",
+    "control/windows/vbslike/datapath/node-bridge.mjs": "0b6e57087e1ae920f5255e6aeed36a8a610770af7dc0f8f50e84c382138d302e",
+    "control/windows/node/isolation-client.mjs": "0b9808c7ab2d39a6e39df79efb98bb946d41d288d83d06861796c58e1d2c8ff5",
+    "source-manifest.json": "58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929",
+    "bootstrap.mjs": "8b749fa787ce991577ae9007b0c4cf2a884e5d3d362e8444b9fbc15736de3b25"
+  },
+  "newCandidateFiles": [
+    "control/windows/vbslike/manager/control.mjs",
+    "control/isolation/m4/guestd/control-client.mjs",
+    "control/windows/vbslike/manager/win-durable.mjs",
+    "control/windows/vbslike/manager/permit-journal.mjs",
+    "control/windows/vbslike/manager/permit-enforcement.mjs",
+    "control/windows/vbslike/manager/protected-manager.mjs",
+    "control/windows/vbslike/manager/authority-reader.mjs",
+    "control/windows/vbslike/guard/guard-core.mjs",
+    "control/windows/vbslike/guard/guard-client.mjs",
+    "control/windows/vbslike/guard/guard-main.mjs",
+    "control/windows/vbslike/guard/install-guard.ps1",
+    "test/windows-permit/helpers/world.mjs",
+    "test/windows-permit/helpers/manager-child.mjs",
+    "test/windows-permit/permit-enforcement.test.mjs",
+    "test/windows-permit/guard-death.test.mjs",
+    "test/windows-permit/win-durable.test.mjs",
+    "test/windows-permit/legacy-baseline.test.mjs",
+    "test/windows-permit/router-protected.test.mjs"
+  ],
+  "verbatimCopies": {
+    "control/windows/vbslike/manager/control.mjs": "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/windows/vbslike/manager/control.mjs (re-typed byte-for-byte by the author; root must sha256-compare - any difference is a defect)",
+    "control/isolation/m4/guestd/control-client.mjs": "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/isolation/m4/guestd/control-client.mjs (same)"
+  },
+  "vendorBeforeRunning": {
+    "note": "Exact r18 GENERATED runtime files (protocol-result/frozen-protocol/network, not the generator inputs under candidate/src). Copy to the destination unchanged and verify each hash. The candidate imports them at these paths; there is no fallback.",
+    "files": [
+      { "dest": "control/network/deployment-permit-gate.mjs", "source": "ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-permit-gate.mjs", "sha256": "2ee846d462354874eb704ef0a4cf6492536428497fa8f2fa93f654d411ad235a", "bytes": 14785 },
+      { "dest": "control/network/deployment-serving-permit.mjs", "source": "ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-serving-permit.mjs", "sha256": "bdd316a1be52668c2716b6453dfd77135685285a0668eb899d5d2d8d6518cd1d", "bytes": 8446 },
+      { "dest": "control/network/deployment-host-authority.mjs", "source": "ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-host-authority.mjs", "sha256": "c9edf50ce1bd0b21973728693c23623e3597467f6e0abc644444170f7f7a7a92", "bytes": 16171 },
+      { "dest": "control/network/deployment-generation-certificate.mjs", "source": "ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-generation-certificate.mjs", "sha256": "f998ea7e208631fa2594fe2543627d236b3307f3d3d94cead25eb1f450830c7f", "bytes": 8662 },
+      { "dest": "control/network/deployment-authority-window.mjs", "source": "ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-authority-window.mjs", "sha256": "b852076f53e6ed357b9731f2c2eca6f15f6de32ae7c84e83081bbec1e0ab2c96", "bytes": 4165 }
+    ],
+    "sourceRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028",
+    "alreadyInSeedWithEqualHash": { "control/network/canonical.mjs": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3" },
+    "npm": { "viem": "the exact version (and lockfile integrity) used by the executed r18/r19 runs; NOT pinned by this author because no lockfile was read. Required by the manager at runtime (permit-enforcement.mjs, the vendored r18 files) and by the tests (viem/accounts)." }
+  },
+  "testInputs": { "derive_vectors.json": "installed-manager-http-baseline-r1/derive_vectors.json (historical pinned baseline input; override with ENCLAVE_DERIVE_VECTORS)" },
+  "runCommand": "node --test test/windows-permit/  (Linux, from the candidate root, after vendoring; root executes)",
+  "releaseManifest": "source-manifest.json and bootstrap.mjs are UNCHANGED evidence of the installed release. Any release of this candidate needs a NEW reviewed closure/manifest listing every file above plus the vendored r18 files and node_modules/viem; none was produced here."
+}
