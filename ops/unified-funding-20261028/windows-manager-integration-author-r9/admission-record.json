@@ -1,5 +1,5 @@
 {
-  "unit": "ActiveState=active\nSubState=running\nInvocationID=1afdc6b42f36447197fe68cdde2cbc9d\nMainPID=1695331\n",
+  "unit": "enclave-windows-manager-integration-r9-20261029.service",
   "processes": [
     {
       "pid": 1695346,
@@ -21,5 +21,18 @@
     "email": "steven.r.batchelor@gmail.com",
     "subscriptionType": "max"
   },
-  "rootAuthorizedOneLaunch": true
+  "rootAuthorizedOneLaunch": true,
+  "rawUnit": "ActiveState=active\nSubState=running\nInvocationID=1afdc6b42f36447197fe68cdde2cbc9d\nMainPID=1695331\n",
+  "mainPid": 1695331,
+  "runnerPid": 1695346,
+  "claudePid": 1695356,
+  "invocation": "1afdc6b42f36447197fe68cdde2cbc9d",
+  "mainStartTicks": "159815761",
+  "runnerStartTicks": "159815773",
+  "claudeStartTicks": "159815829",
+  "normalization": {
+    "originalSha256": "362f0ba676dd5a1928c78d7bd69f57f23350b593534547611d1d1ee919df47e3",
+    "reason": "Normalize field names expected by unchanged reviewed collector",
+    "liveVerification": "ActiveState=active\nSubState=running\nInvocationID=1afdc6b42f36447197fe68cdde2cbc9d\nMainPID=1695331\n"
+  }
 }
