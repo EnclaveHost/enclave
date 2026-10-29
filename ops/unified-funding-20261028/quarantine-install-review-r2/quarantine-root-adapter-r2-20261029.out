@@ -1,0 +1,36 @@
+[queue] START available=92643MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+FF
+======================================================================
+FAIL: test_gate_uses_actual_inspect_field (__main__.AdapterTests.test_gate_uses_actual_inspect_field)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/quarantine-install-root-review-r2/test_root_adapter.py", line 13, in test_gate_uses_actual_inspect_field
+    self.assertEqual(host.gate_status('owned-operation')['hash'],'a'*64)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+
+======================================================================
+FAIL: test_unknown_start_does_not_own_unrelated_new_invocation (__main__.AdapterTests.test_unknown_start_does_not_own_unrelated_new_invocation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/quarantine-install-root-review-r2/test_root_adapter.py", line 25, in test_unknown_start_does_not_own_unrelated_new_invocation
+    self.assertEqual(stopped,[], 'an unrelated new invocation is not owned solely because the old PID disappeared')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['enclave-api-relay.service'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'enclave-api-relay.service'
+
+- ['enclave-api-relay.service']
++ [] : an unrelated new invocation is not owned solely because the old PID disappeared
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+FAILED (failures=2)
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[queue] EXIT 1
