@@ -1,0 +1,83 @@
+TAP version 13
+# [chain] renew hash not journaled (operator-effects store failed: write/flush outcome unknown (durable state lost or changed underneath this process): the record may or may not have landed); the nonce record still fences it
+# [chain] renew settled but its record could not be removed (operator-effects store failed: write/flush outcome unknown (durable state lost or changed underneath this process): the record may or may not have landed); reconciled again later
+# Subtest: ROOT final gate removes established state: no inert write
+not ok 1 - ROOT final gate removes established state: no inert write
+  ---
+  duration_ms: 38.397872
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r1/root-boundary-v2.test.mjs:65:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"writes":[["renew",60]],"result":{"value":"0xabababababababababababababababababababababababababababababababab"}}
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r1/root-boundary-v2.test.mjs:71:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# [chain] renew hash not journaled (operator-effects store failed: write/flush outcome unknown (durable state established marker lost): the record may or may not have landed); the nonce record still fences it
+# [chain] renew settled but its record could not be removed (operator-effects store failed: write/flush outcome unknown (durable state established marker lost): the record may or may not have landed); reconciled again later
+# Subtest: ROOT final gate removes established.established: no inert write
+not ok 2 - ROOT final gate removes established.established: no inert write
+  ---
+  duration_ms: 28.998372
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r1/root-boundary-v2.test.mjs:65:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"writes":[["renew",60]],"result":{"value":"0xabababababababababababababababababababababababababababababababab"}}
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r1/root-boundary-v2.test.mjs:71:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT pending sponsored authorization fences the actual direct sender on the same account/chain
+not ok 3 - ROOT pending sponsored authorization fences the actual direct sender on the same account/chain
+  ---
+  duration_ms: 50.667308
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r1/root-boundary-v2.test.mjs:76:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"writes":[["renew",70]],"result":{"value":"0xabababababababababababababababababababababababababababababababab"}}
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r1/root-boundary-v2.test.mjs:87:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 0
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 203.043766
