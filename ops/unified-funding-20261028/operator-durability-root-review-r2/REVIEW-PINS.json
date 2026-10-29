@@ -280,5 +280,6 @@
   "source-changes.json": "ab77c065674cbf7e90f64c7f18e743be1885768a7afe4c07e86e9b7b45834d87",
   "source-pins.json": "a0a46fada76cae08e0896933b678bcf5a0d7eddd0b93b00b69abfdba7f26b57a",
   "terminal-summary.json": "346375a76f8b5f06d6df921a778ad263436c8fb170522de24ae01f93d790aba1",
-  "test-liveness.mjs": "253b1059ee3ccd85d9cc54daa0814620656e8bd05f129722072eeb8d678a924b"
+  "test-liveness.mjs": "253b1059ee3ccd85d9cc54daa0814620656e8bd05f129722072eeb8d678a924b",
+  "HANDOFF-20-02.md": "c36113233d94da1cacc40b2bd956c6b0abb646bc081cc2a9e3ffec0b50ed2a68"
 }
