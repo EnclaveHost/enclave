@@ -1,0 +1,68 @@
+TAP version 13
+# Subtest: ROOT stage: unchanged policy reaches authenticated destination
+ok 1 - ROOT stage: unchanged policy reaches authenticated destination
+  ---
+  duration_ms: 38.785772
+  type: 'test'
+  ...
+# Subtest: ROOT stage: policy revoked during handshake blocks mutation
+not ok 2 - ROOT stage: policy revoked during handshake blocks mutation
+  ---
+  duration_ms: 26.113455
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r12/root-transport-fence.test.mjs:12:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    only unchanged policy may reach the authenticated mutation handler
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r12/root-transport-fence.test.mjs:34:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT permit: unchanged policy reaches authenticated destination
+ok 3 - ROOT permit: unchanged policy reaches authenticated destination
+  ---
+  duration_ms: 27.015616
+  type: 'test'
+  ...
+# Subtest: ROOT permit: policy revoked during handshake blocks mutation
+not ok 4 - ROOT permit: policy revoked during handshake blocks mutation
+  ---
+  duration_ms: 21.842176
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r12/root-transport-fence.test.mjs:12:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    only unchanged policy may reach the authenticated mutation handler
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r12/root-transport-fence.test.mjs:34:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 2
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 385.093309

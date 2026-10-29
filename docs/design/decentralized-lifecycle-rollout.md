@@ -1,22 +1,22 @@
 # Decentralized lifecycle, admission and gas funding
 
-## Current rollout status — October 29, r11 review
+## Current rollout status — October 29, r12 consuming integration review
 
-This feature is not activated on the new lifecycle protocol. The sections below retain the evidence history; a later passing review supersedes only the exact failures it covers.
+The new lifecycle protocol is not activated. The [r12 review](../../ops/unified-funding-20261028/windows-manager-review-r12/ROOT-REVIEW.md) now establishes the previously missing local consuming path: actual Host → owned factory/journals/dispatch/runtime → authenticated client → router/two managers/guard → TCP → off-chain permit refresh → Stop. Three focused cases pass after a narrow repair preserving authenticated catalog identity and explicit fixture corrections. Chain/finality, hardware and witness inputs remain labeled TEST fixtures; this is not a production recovery or independently submitted ledger Offline.
+
+Two real transport tests reproduced stage/permit sends after admission changed during a handshake. The final-send owner/policy check repairs them; all four positive/negative boundary cases pass. Stop and withdrawal remain independent of new-work admission. The broader run passes71/83; corrected external fixtures pass29/30. Runs overlap. One sponsored-release pending-result check remains unresolved, and its historical lease-client emulator does not qualify the shipped bundle.
+
+Two new actual sender regressions remain: deletion of an established unresolved journal permits a second inert write after module reconstruction; a final pre-send refusal leaves a provably unsent record quarantined. Ordinary retained-file restart tests pass, but storage ownership, missing-state detection and exact sponsored identity/recovery need a focused repair using existing durable primitives. No actual signing, payment or OS crash occurred in these tests. The r12 Claude author has finished; original evidence and frozen source are preserved.
 
 | Area | Established evidence | Remaining before production |
 | --- | --- | --- |
-| Event-driven lifecycle and host Offline | Linked local-chain contract/adapter tests, canonical registry fixtures and owned host recovery checks | Live independently authenticated authority, actual runtime composition, funded independent Offline submitter and fenced migration |
-| Windows permit enforcement | Deadline/storage repairs and authenticated hold behavior pass local real-module tests; actual permit expiry closes TCP and removes TEST compute | Real production authority composition and release closure, native protected wiring, Windows exclusion and supported-workload qualification |
-| Capacity and joining-host gas | Required attestation/test-before-listing rules documented; protected-budget contract fixtures | Zero-gas bootstrap test producer, fresh measured capacity consumers, sponsor selection and liability-safe provisioner fallback |
-| Automatic gas funding / self-host Top up | Existing finite grants produced two confirmed recovery payments under the legacy reserve | New-protocol authorization and ordinary-reserve refill, protected Offline separation and app-card integration |
-| Censorship resistance | Independent-owner policy and local recovery cases pass for pinned candidates | End-to-end cold recovery, new-user deployment, storage endpoint failure and continued hosting under Enclave refusal |
+| Event-driven lifecycle and Offline | Linked local-chain contracts/adapters and local Host start/serve/Stop composition | Live independent authority, protected Offline gas/submitter and fenced migration |
+| Windows permit enforcement | Real local consuming path, TCP closure, off-chain refresh and final-send refusal tests | Windows ownership/storage, native protected workloads and complete release closure |
+| Capacity and joining-host gas | Attestation/test-before-listing rules and protected-budget contract fixtures | Zero-gas test bootstrap, fresh measured-capacity consumers and liability-safe sponsorship |
+| Automatic gas / self-host Top up | Two historical recovery payments using existing finite legacy grants | Durable sender recovery, exact sponsored-client qualification, new-protocol authority and refill/UI wiring |
+| Censorship resistance | Independent-owner policy and local recovery/component integration | Cold recovery, new-user deployment, storage failure and independent hosting under Enclave refusal |
 
-The [Windows r11 review](../../ops/unified-funding-20261028/windows-manager-review-r11/ROOT-REVIEW.md) closes the independently reproduced policy-cache, serialized-send permission and held-plan/other-route Stop regressions. The sequential isolated run passes88 of90 checks. One carried direct-constructor fixture lacked the newly required pinned policy; its external correction passes all4 cases. Product source remains unchanged by review, and results overlap rather than adding unique coverage. An earlier shared-process run was contaminated by a TEST global fetch mock; the failed evidence is retained.
-
-The remaining reproduced failure is restart reconstruction: after an ambiguous inert wallet write, a fresh sender module using the same TEST identity/RPC state permits a second inert write. Unknown transaction obligations need durable recovery before new sends. This test performs no real signing, transaction or OS crash. Source review also leaves actual plan/body freshness, post-await commitment/policy checks, shared unknown-operation cleanup and real sponsored-client qualification unfinished.
-
-The mandatory positive actual Host + real factory/journals/dispatch/runtime/client/manager/router queued → Running → TCP → off-chain permit refresh → Stop/Offline path is still missing. Existing composite tests use explicitly labeled TEST authority/handoff components. Native protected workloads, independently authenticated live authority, production quiescence verification, Windows ownership, zero-gas qualification, automatic funding and full release closure remain unqualified. The r11 author has finished. The [r12 source-only successor](../../ops/unified-funding-20261028/windows-manager-integration-author-r12/README.md) is active with the real consuming integration first; no outcome is claimed yet. No candidate was installed, no additional app recovery was established, and no payment was sent.
+No candidate was installed, no additional app recovery was established and no payment was sent. This remains the highest-priority feature of the same decentralization goal.
 
 ## Qualified ownership baseline
 
