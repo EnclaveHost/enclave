@@ -1,0 +1,514 @@
+TAP version 13
+# Subtest: manager process death: the independent guard removes exactly the protected VM; the legacy neighbor is untouched
+ok 1 - manager process death: the independent guard removes exactly the protected VM; the legacy neighbor is untouched
+  ---
+  duration_ms: 482.138882
+  type: 'test'
+  ...
+# Subtest: guard death while serving: access is withdrawn at once, capability goes false, the manager removes compute itself
+ok 2 - guard death while serving: access is withdrawn at once, capability goes false, the manager removes compute itself
+  ---
+  duration_ms: 525.558339
+  type: 'test'
+  ...
+# Subtest: guard restart over its own journal: no lifetime is continued, the armed VM is removed, the neighbor stays
+ok 3 - guard restart over its own journal: no lifetime is continued, the armed VM is removed, the neighbor stays
+  ---
+  duration_ms: 163.241553
+  type: 'test'
+  ...
+# Subtest: the guard refuses a manager whose pid + creation time do not match, and a bad key
+ok 4 - the guard refuses a manager whose pid + creation time do not match, and a bad key
+  ---
+  duration_ms: 74.87097
+  type: 'test'
+  ...
+# Subtest: Manager: current manager reports readiness capabilities, never claims continuing lifecycle deadline enforcement
+ok 5 - Manager: current manager reports readiness capabilities, never claims continuing lifecycle deadline enforcement
+  ---
+  duration_ms: 6.676382
+  type: 'test'
+  ...
+# Subtest: Manager: legacy start/read/explicit stop still works through exact-source HTTP without treating readiness as a permit
+ok 6 - Manager: legacy start/read/explicit stop still works through exact-source HTTP without treating readiness as a permit
+  ---
+  duration_ms: 9.785279
+  type: 'test'
+  ...
+# Subtest: Manager: unimplemented deadline endpoint refuses; HTTP success on legacy VM is not an enforcement acknowledgment
+ok 7 - Manager: unimplemented deadline endpoint refuses; HTTP success on legacy VM is not an enforcement acknowledgment
+  ---
+  duration_ms: 15.457328
+  type: 'test'
+  ...
+# Subtest: ProtectedManager: current manager reports readiness capabilities, never claims continuing lifecycle deadline enforcement
+ok 8 - ProtectedManager: current manager reports readiness capabilities, never claims continuing lifecycle deadline enforcement
+  ---
+  duration_ms: 6.665002
+  type: 'test'
+  ...
+# Subtest: ProtectedManager: legacy start/read/explicit stop still works through exact-source HTTP without treating readiness as a permit
+ok 9 - ProtectedManager: legacy start/read/explicit stop still works through exact-source HTTP without treating readiness as a permit
+  ---
+  duration_ms: 6.459544
+  type: 'test'
+  ...
+# Subtest: ProtectedManager: unimplemented deadline endpoint refuses; HTTP success on legacy VM is not an enforcement acknowledgment
+ok 10 - ProtectedManager: unimplemented deadline endpoint refuses; HTTP success on legacy VM is not an enforcement acknowledgment
+  ---
+  duration_ms: 5.872248
+  type: 'test'
+  ...
+# Subtest: missing guard or missing authority reader: capability false with the exact reason, stage refused, legacy unaffected
+ok 11 - missing guard or missing authority reader: capability false with the exact reason, stage refused, legacy unaffected
+  ---
+  duration_ms: 14.415816
+  type: 'test'
+  ...
+# Subtest: capability is TEST-qualified and complete; legacy spawn can neither opt in nor imitate a protected id
+ok 12 - capability is TEST-qualified and complete; legacy spawn can neither opt in nor imitate a protected id
+  ---
+  duration_ms: 88.890139
+  type: 'test'
+  ...
+# Subtest: authorized opt-in: staged ownership before serving, then an owner-selected quorum serves under Enclave-witness refusal
+ok 13 - authorized opt-in: staged ownership before serving, then an owner-selected quorum serves under Enclave-witness refusal
+  ---
+  duration_ms: 760.353435
+  type: 'test'
+  ...
+# Subtest: forged/replayed/wrong-manager control requests are refused before side effects
+ok 14 - forged/replayed/wrong-manager control requests are refused before side effects
+  ---
+  duration_ms: 100.405645
+  type: 'test'
+  ...
+# Subtest: attachment must name exactly this instance: wrong GUID/epochs/app/runtime/image/generation/digest refuse
+ok 15 - attachment must name exactly this instance: wrong GUID/epochs/app/runtime/image/generation/digest refuse
+  ---
+  duration_ms: 500.043043
+  type: 'test'
+  ...
+# Subtest: signatures: below threshold and an unauthorized witness refuse; the staged instance is never served and stays owned
+ok 16 - signatures: below threshold and an unauthorized witness refuse; the staged instance is never served and stays owned
+  ---
+  duration_ms: 435.135651
+  type: 'test'
+  ...
+# Subtest: Offline host authority withdraws a serving instance and refuses its renewal
+ok 17 - Offline host authority withdraws a serving instance and refuses its renewal
+  ---
+  duration_ms: 577.133716
+  type: 'test'
+  ...
+# Subtest: the same envelope cannot extend; expiry closes existing streams, refuses new ones and removes exact compute
+ok 18 - the same envelope cannot extend; expiry closes existing streams, refuses new ones and removes exact compute
+  ---
+  duration_ms: 1983.007074
+  type: 'test'
+  ...
+# Subtest: a genuinely newer permit renews while allowed; an older sequence afterwards is refused and withdraws
+not ok 19 - a genuinely newer permit renews while allowed; an older sequence afterwards is refused and withdraws
+  ---
+  duration_ms: 8167.585768
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/candidate/test/windows-permit/permit-enforcement.test.mjs:125:1'
+  failureType: 'testCodeFailure'
+  error: 'waitFor timed out'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/candidate/test/windows-permit/helpers/world.mjs:131:81)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/candidate/test/windows-permit/permit-enforcement.test.mjs:132:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: wall-clock discontinuity (forward jump) closes the gate: no access, compute removed, capability off
+ok 20 - wall-clock discontinuity (forward jump) closes the gate: no access, compute removed, capability off
+  ---
+  duration_ms: 412.479893
+  type: 'test'
+  ...
+# Subtest: staging is bounded: no permit before the staging deadline means removal
+ok 21 - staging is bounded: no permit before the staging deadline means removal
+  ---
+  duration_ms: 1602.200258
+  type: 'test'
+  ...
+# Subtest: a launch that completes after its withdrawal is still removed (late startup completion)
+ok 22 - a launch that completes after its withdrawal is still removed (late startup completion)
+  ---
+  duration_ms: 119.15782
+  type: 'test'
+  ...
+# Subtest: stop that hangs then fails: streams close at once, compute removal is retried and confirmed later
+ok 23 - stop that hangs then fails: streams close at once, compute removal is retried and confirmed later
+  ---
+  duration_ms: 2049.959166
+  type: 'test'
+  ...
+# Subtest: a verifier-delayed install that completes after a hold regains nothing
+ok 24 - a verifier-delayed install that completes after a hold regains nothing
+  ---
+  duration_ms: 1006.098299
+  type: 'test'
+  ...
+# Subtest: restart: nothing protected is continued; recovery removes it and the floor survives the new owner
+ok 25 - restart: nothing protected is continued; recovery removes it and the floor survives the new owner
+  ---
+  duration_ms: 291.848703
+  type: 'test'
+  ...
+# Subtest: ROOT release immediately revokes retained admission while retaining physical ownership during withdrawal
+ok 26 - ROOT release immediately revokes retained admission while retaining physical ownership during withdrawal
+  ---
+  duration_ms: 4.20981
+  type: 'test'
+  ...
+# Subtest: ROOT authenticated hash chain does not admit semantically invalid replay rows
+ok 27 - ROOT authenticated hash chain does not admit semantically invalid replay rows
+  ---
+  duration_ms: 7.052659
+  type: 'test'
+  ...
+# Subtest: ROOT rejected expired registration leaves no armed record invisible to session-death cleanup
+ok 28 - ROOT rejected expired registration leaves no armed record invisible to session-death cleanup
+  ---
+  duration_ms: 6.483763
+  type: 'test'
+  ...
+# Subtest: r2 release: every admission path refuses while withdrawal-direction writes still land under the held handle
+ok 29 - r2 release: every admission path refuses while withdrawal-direction writes still land under the held handle
+  ---
+  duration_ms: 15.940135
+  type: 'test'
+  ...
+# Subtest: r2 release: a rejected listener keeps the handle owned and admissions revoked; release() retries only the failed listener
+ok 30 - r2 release: a rejected listener keeps the handle owned and admissions revoked; release() retries only the failed listener
+  ---
+  duration_ms: 6.082306
+  type: 'test'
+  ...
+# Subtest: r2 release: the REAL r18 gate closes through the journal listener and new gate work is refused at release begin
+ok 31 - r2 release: the REAL r18 gate closes through the journal listener and new gate work is refused at release begin
+  ---
+  duration_ms: 4.08231
+  type: 'test'
+  ...
+# Subtest: r2 replay: positive cold reopen reproduces every section written through the journal API
+not ok 32 - r2 replay: positive cold reopen reproduces every section written through the journal API
+  ---
+  duration_ms: 23.417951
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/candidate/test/windows-permit/r2-repairs.test.mjs:116:1'
+  failureType: 'testCodeFailure'
+  error: 'permit journal: inst ppdddddddddddddddddddddddddddddddd: removed without its exact survey confirmation'
+  code: 'JOURNAL_SEMANTICS'
+  stack: |-
+    bad (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/candidate/control/windows/vbslike/manager/permit-journal.mjs:55:45)
+    checkInst (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/candidate/control/windows/vbslike/manager/permit-journal.mjs:169:119)
+    Object.putInstance (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/candidate/control/windows/vbslike/manager/permit-journal.mjs:262:7)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r3/candidate/test/windows-permit/r2-repairs.test.mjs:128:5)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: negative revision
+ok 33 - r2 replay refuses a well-chained but impossible journal: negative revision
+  ---
+  duration_ms: 7.116429
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: generation rollback
+ok 34 - r2 replay refuses a well-chained but impossible journal: generation rollback
+  ---
+  duration_ms: 8.670807
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: revision rollback
+ok 35 - r2 replay refuses a well-chained but impossible journal: revision rollback
+  ---
+  duration_ms: 8.028852
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: sequence equivocation
+ok 36 - r2 replay refuses a well-chained but impossible journal: sequence equivocation
+  ---
+  duration_ms: 7.934692
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: sequence rollback
+ok 37 - r2 replay refuses a well-chained but impossible journal: sequence rollback
+  ---
+  duration_ms: 7.842643
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: new generation keeps old sequence
+ok 38 - r2 replay refuses a well-chained but impossible journal: new generation keeps old sequence
+  ---
+  duration_ms: 7.963263
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: binding equivocation
+ok 39 - r2 replay refuses a well-chained but impossible journal: binding equivocation
+  ---
+  duration_ms: 7.877794
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: unfenced without newer assignment
+ok 40 - r2 replay refuses a well-chained but impossible journal: unfenced without newer assignment
+  ---
+  duration_ms: 8.21439
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: denial floor rollback
+ok 41 - r2 replay refuses a well-chained but impossible journal: denial floor rollback
+  ---
+  duration_ms: 7.963793
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: sequence without digest
+ok 42 - r2 replay refuses a well-chained but impossible journal: sequence without digest
+  ---
+  duration_ms: 6.874481
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: unknown lc field
+ok 43 - r2 replay refuses a well-chained but impossible journal: unknown lc field
+  ---
+  duration_ms: 7.452676
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: string generation
+ok 44 - r2 replay refuses a well-chained but impossible journal: string generation
+  ---
+  duration_ms: 6.87727
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: uppercase deployment id
+ok 45 - r2 replay refuses a well-chained but impossible journal: uppercase deployment id
+  ---
+  duration_ms: 6.819381
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: unknown record kind
+ok 46 - r2 replay refuses a well-chained but impossible journal: unknown record kind
+  ---
+  duration_ms: 6.841031
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: instance first record not staging
+ok 47 - r2 replay refuses a well-chained but impossible journal: instance first record not staging
+  ---
+  duration_ms: 6.88993
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: instance revived
+ok 48 - r2 replay refuses a well-chained but impossible journal: instance revived
+  ---
+  duration_ms: 10.014058
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: instance launch epoch changed
+ok 49 - r2 replay refuses a well-chained but impossible journal: instance launch epoch changed
+  ---
+  duration_ms: 7.982253
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: instance unknown field
+ok 50 - r2 replay refuses a well-chained but impossible journal: instance unknown field
+  ---
+  duration_ms: 7.544975
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: instance removal back to serving
+ok 51 - r2 replay refuses a well-chained but impossible journal: instance removal back to serving
+  ---
+  duration_ms: 12.48293
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: removed without confirmation
+ok 52 - r2 replay refuses a well-chained but impossible journal: removed without confirmation
+  ---
+  duration_ms: 17.260695
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: host authority rollback
+ok 53 - r2 replay refuses a well-chained but impossible journal: host authority rollback
+  ---
+  duration_ms: 11.737745
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: host authority forged digest
+ok 54 - r2 replay refuses a well-chained but impossible journal: host authority forged digest
+  ---
+  duration_ms: 7.191928
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: Offline cleared at same generation
+ok 55 - r2 replay refuses a well-chained but impossible journal: Offline cleared at same generation
+  ---
+  duration_ms: 9.009695
+  type: 'test'
+  ...
+# Subtest: r2 replay: an injected flush failure latches the handle; the landed intent is replayed (outcome unknown is conservative)
+ok 56 - r2 replay: an injected flush failure latches the handle; the landed intent is replayed (outcome unknown is conservative)
+  ---
+  duration_ms: 6.555593
+  type: 'test'
+  ...
+# Subtest: r2 guard: invalid admission fields write nothing
+ok 57 - r2 guard: invalid admission fields write nothing
+  ---
+  duration_ms: 6.101606
+  type: 'test'
+  ...
+# Subtest: r2 guard: timer installation failure after the durable arm expires the instance (never armed without a timer)
+ok 58 - r2 guard: timer installation failure after the durable arm expires the instance (never armed without a timer)
+  ---
+  duration_ms: 11.644966
+  type: 'test'
+  ...
+# Subtest: r2 guard: a write whose outcome is unknown is owned and removed, never forgotten
+ok 59 - r2 guard: a write whose outcome is unknown is owned and removed, never forgotten
+  ---
+  duration_ms: 9.320892
+  type: 'test'
+  ...
+# Subtest: r2 guard: session death and stop cover a durable armed record that has no live timer
+ok 60 - r2 guard: session death and stop cover a durable armed record that has no live timer
+  ---
+  duration_ms: 9.458082
+  type: 'test'
+  ...
+# Subtest: r2 guard: an expired renew writes nothing and keeps the previous deadline in force
+ok 61 - r2 guard: an expired renew writes nothing and keeps the previous deadline in force
+  ---
+  duration_ms: 11.578177
+  type: 'test'
+  ...
+# Subtest: r2 guard: an impossible replayed registration refuses the guard
+ok 62 - r2 guard: an impossible replayed registration refuses the guard
+  ---
+  duration_ms: 7.445806
+  type: 'test'
+  ...
+# Subtest: r2 enforcement: a hung raw startup does not block withdrawal; absence is confirmed only after the launch settles
+ok 63 - r2 enforcement: a hung raw startup does not block withdrawal; absence is confirmed only after the launch settles
+  ---
+  duration_ms: 212.385237
+  type: 'test'
+  ...
+# Subtest: r2 enforcement: a hung installed removal stays owned and unconfirmed; a failed data-plane close is not acknowledged as ingress withdrawn
+ok 64 - r2 enforcement: a hung installed removal stays owned and unconfirmed; a failed data-plane close is not acknowledged as ingress withdrawn
+  ---
+  duration_ms: 311.281824
+  type: 'test'
+  ...
+# Subtest: r2 EXLOCK adapter: refuses without an exact qualification, on another runtime, or on Linux
+ok 65 - r2 EXLOCK adapter: refuses without an exact qualification, on another runtime, or on Linux
+  ---
+  duration_ms: 0.555836
+  type: 'test'
+  ...
+# Subtest: r2 EXLOCK adapter: an ignored flag (second open succeeds) refuses and closes both handles; a sharing violation passes
+ok 66 - r2 EXLOCK adapter: an ignored flag (second open succeeds) refuses and closes both handles; a sharing violation passes
+  ---
+  duration_ms: 0.372647
+  type: 'test'
+  ...
+# Subtest: ROOT register: a durable write crossing the deadline cannot acknowledge a live permit
+ok 67 - ROOT register: a durable write crossing the deadline cannot acknowledge a live permit
+  ---
+  duration_ms: 50.423486
+  type: 'test'
+  ...
+# Subtest: ROOT renew: a durable write crossing the deadline cannot acknowledge a live permit
+ok 68 - ROOT renew: a durable write crossing the deadline cannot acknowledge a live permit
+  ---
+  duration_ms: 56.353884
+  type: 'test'
+  ...
+# Subtest: ROOT journal read failure must not suppress independent guard withdrawal
+ok 69 - ROOT journal read failure must not suppress independent guard withdrawal
+  ---
+  duration_ms: 23.324862
+  type: 'test'
+  ...
+# Subtest: r3 a journal fault never records absence; the retry stays owned
+ok 70 - r3 a journal fault never records absence; the retry stays owned
+  ---
+  duration_ms: 21.069137
+  type: 'test'
+  ...
+# Subtest: r3 guard down + hung installed removal: the independent exact remover is called for the exact identity only
+ok 71 - r3 guard down + hung installed removal: the independent exact remover is called for the exact identity only
+  ---
+  duration_ms: 123.36397
+  type: 'test'
+  ...
+# Subtest: route parsing is exact for protected and control routes
+ok 72 - route parsing is exact for protected and control routes
+  ---
+  duration_ms: 0.694865
+  type: 'test'
+  ...
+# Subtest: composite handle: unauthenticated protected routes never reach a manager; authenticated ones are forwarded byte-exact
+ok 73 - composite handle: unauthenticated protected routes never reach a manager; authenticated ones are forwarded byte-exact
+  ---
+  duration_ms: 3.195487
+  type: 'test'
+  ...
+# Subtest: guestd-control/1 survives the real router hop; the router refuses a stage before side effects when inventory is unknown
+ok 74 - guestd-control/1 survives the real router hop; the router refuses a stage before side effects when inventory is unknown
+  ---
+  duration_ms: 137.396938
+  type: 'test'
+  ...
+# Subtest: exclusive open first; a second owner is refused; the Windows exclusion refuses off Windows
+ok 75 - exclusive open first; a second owner is refused; the Windows exclusion refuses off Windows
+  ---
+  duration_ms: 29.428507
+  type: 'test'
+  ...
+# Subtest: missing, foreign, corrupt or link-reached journals refuse; nothing defaults to empty
+ok 76 - missing, foreign, corrupt or link-reached journals refuse; nothing defaults to empty
+  ---
+  duration_ms: 45.602931
+  type: 'test'
+  ...
+# Subtest: a torn tail is ambiguous: no write until an explicit owner quarantine, which is recorded and never truncates
+ok 77 - a torn tail is ambiguous: no write until an explicit owner quarantine, which is recorded and never truncates
+  ---
+  duration_ms: 51.941315
+  type: 'test'
+  ...
+# Subtest: a flush failure latches the handle: outcome unknown, no further writes
+ok 78 - a flush failure latches the handle: outcome unknown, no further writes
+  ---
+  duration_ms: 27.72053
+  type: 'test'
+  ...
+# Subtest: permit journal: floors survive a new owner; terminal instances never revive; identity is immutable
+ok 79 - permit journal: floors survive a new owner; terminal instances never revive; identity is immutable
+  ---
+  duration_ms: 78.744202
+  type: 'test'
+  ...
+# Subtest: ROOT authenticated hold must not acknowledge ingress closed after actual closeInstance fails
+ok 80 - ROOT authenticated hold must not acknowledge ingress closed after actual closeInstance fails
+  ---
+  duration_ms: 578.951961
+  type: 'test'
+  ...
+1..80
+# tests 80
+# suites 0
+# pass 78
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 21806.448905

@@ -1,0 +1,75 @@
+{
+  "scope": "Readonly frozen source review; no candidate execution/tests/builds.",
+  "manifestSha256": "41f0aacd74e7406620b29d29a0541522dabf01c0cb434bf6fdbb8621cb18a02f",
+  "verdict": "PARTIAL. Not production migration; A/D entry integration, C actual workload paths, B genuine authority, Windows qualification and closure missing.",
+  "sourceFindings": [
+    {
+      "id": "known-clock-regression",
+      "file": "control/windows/vbslike/manager/permit-journal.mjs",
+      "line": 182,
+      "finding": "checkInst rejects n.at<prev.at for withdrawal writes too. Backward wall jump prevents durable removal recording until time catches up. Author explicitly acknowledges introduced defect; uncorrected frozen source."
+    },
+    {
+      "id": "composite-reconcile-route",
+      "file": "control/windows/node/protected-isolation.mjs",
+      "line": 39,
+      "finding": "#findStaged sends authenticated GET /vms, but unchanged protected router auth table permits only GET /health and GET/DELETE /vms/<ppid>. Composite reconciliation therefore cannot retrieve inventory; needs actual direct/composite integration tests."
+    },
+    {
+      "id": "unknown-stage-lost",
+      "file": "control/windows/node/protected-isolation.mjs",
+      "line": 108,
+      "finding": "resolveUnknown deletes ownership on empty current inventory when wanted=false; also deletes after hits even when hold throws and is converted into error result. Late raw stage or failed hold is forgotten. Stage reconciliation picks first matching name without unique exact epoch/runtime/request identity. Author acknowledges no-hit loss but failure/alias cases also matter."
+    },
+    {
+      "id": "permit-reconcile-not-serving-proof",
+      "file": "control/windows/node/protected-isolation.mjs",
+      "line": 81,
+      "finding": "Matching permitDigest alone returns serving:true; protected view retains digest after hold/expiry, with serving:false and expired deadline. Reconciliation must verify current exact instance/epoch/deadline/grant and ownership; digest alone insufficient."
+    },
+    {
+      "id": "boundary-close-not-retryable",
+      "file": "control/windows/vbslike/manager/permit-enforcement.mjs",
+      "line": 389,
+      "finding": "#closeBoundaries removes callback map before closes. Failed callbacks survive only as acknowledgment strings, cannot be retried by retryRelease. Generic API not wired into real paths; no full-workload claim."
+    },
+    {
+      "id": "guard-old-expiry-renew",
+      "file": "control/windows/vbslike/guard/guard-core.mjs",
+      "line": 240,
+      "finding": "renew #own checks durable armed state, not existing live deadline before accepting new digest. If expiry timer delayed, need regression for old permit expired before newer renewal arrives. Source concern, not independently executed."
+    },
+    {
+      "id": "test-fixtures-incomplete",
+      "file": "test/windows-permit/root-races.test.mjs",
+      "line": 48,
+      "finding": "New guard-down test uses wrong Notes marker, acknowledges it in comment, and asserts only that legacy was not removed, never asserts protected GUID removal occurred. Existing r2 positive reopen confirmed rows lack new vmId schema. TEST liveness/shortIPC helper changes not made. Root original tests should remain exact and new fixes separately reviewed."
+    },
+    {
+      "id": "stop-entry-journal-fault",
+      "file": "control/windows/vbslike/manager/protected-manager.mjs",
+      "line": 49,
+      "finding": "Actual authenticated DELETE path calls ProtectedManager.remove(), which reads enforcement.journal.instance(id) before calling enforcement.withdraw. Journal read fault therefore still prevents independent guard withdrawal through the deployed Stop entry, despite fixing direct enforcement.withdraw. Needs actual MAC/TCP route regression, not only direct class test."
+    },
+    {
+      "id": "reauth-absent-auto-replay",
+      "file": "control/windows/node/protected-isolation.mjs",
+      "line": 49,
+      "finding": "After unsigned401reauth, GuestdControl invokes reconcile then automatically resends non-idempotent stage when callback returns null. Empty current name-based inventory does not prove prior raw stage cannot complete later; preserve unknown effect and exact attempt binding."
+    }
+  ],
+  "positiveSource": [
+    "Guard absolute deadline fixed before durable append and rechecked afterward; demonstrated root race candidate repair.",
+    "Guard withdrawal now precedes journal read; known identity map retains cleanup context across faults.",
+    "Instance replay rejects same-sequence digest change/null reset/deadline extension and requires full confirmation; restore provenance introduced.",
+    "Current two-hunk router merge untouched by author, protected routes and #noProtected retained."
+  ],
+  "fullScopeMissing": [
+    "ProtectedIsolationClient unwired; host supervisor and main general/native composition unchanged.",
+    "computeRemover injection exists but no entry constructs it.",
+    "All actual desktop/GPU/worker/egress/secrets/volumes/ports/command paths unwired; generic callback API only; derivation whitelist remains /1+/5.",
+    "Authority wrapper unchanged caller-JSON qualification; real Windows reader/proof/anchor journal absent.",
+    "No actual direct+composite client positive tests, no release closure, no Windows qualification."
+  ],
+  "noRetryOrMutation": true
+}
