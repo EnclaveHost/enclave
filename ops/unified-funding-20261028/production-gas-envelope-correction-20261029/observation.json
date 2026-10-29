@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-29T02:36:04.606Z",
+  "readOnly": true,
+  "gasLimit": 1200000,
+  "feeCap": "80000",
+  "providers": [
+    "https://mainnet.base.org",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "block": "53226007",
+  "blockHash": "0x172ad78b8b0b2dfacd9d06e1709a339af4905b6bfaa0b7393f04c0751ea07706",
+  "error": "feed_unreadable: eth_call failed: rpc: mainnet.base.org eth_call: HTTP 429"
+}

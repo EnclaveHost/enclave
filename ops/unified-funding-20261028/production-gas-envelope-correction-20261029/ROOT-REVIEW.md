@@ -1,0 +1,15 @@
+# First production gas payment — diagnosed pre-send refusal
+
+Production relay journal error: POST /funding/execute returned quote_policy_failed from envelope: gas_above_cap, required 1,051,860 gas by the queue rule vs configured1,000,000. In exact installed funding-route source this executes before intentSubmit or TxQueue.send. No newer transaction/intent than nonce97 (Metal grant opening) is in durable journal. Peer quorum2 block53225907 independently finds NucBoxgrant full4.8USDC,spent0,periodOps0 and lane0seq0; actual call lane still needs binding before inferring its nonce.
+
+Candidate operational change: only fee-policy.tx.gasLimit1,000,000 to1,200,000. Fee cap remains80,000microUSDC, allother pricing/oracle/sequencer/expiry/fee/replacement/size constraints unchanged. Existing signatures/grant budgets are not widened. Exact environment/argv/admin/source unchanged; one identifiedrelayrestart required because policy is loaded at construction. New bounded operation retains gate/privatepre+post snapshots and nojournalreset/replay; oldpendingtrackingrisk waiver retained without coverage claim. Stage/preflight passed actualPID256324/start49472391; notyetapplied.
+
+First two-provider fee observation failed mainnet.base.org429; retainedobservation.json. Second bounded observation uses alreadyallowlistedPublicNode+Blast, exactpinnedconfig, no funds/signatures. Qualification pending.
+
+Client UNKNOWN is correct for generic503, but no expired-unused resolution exists. Focused Claude source-only task execute-expiry-recovery-r1 must add finality+canonicalheader+chain+nonceproof and safeCAS same-nonce newquote after expiration preservingallpublicevidence. No deletion/forgedrefusal/broad503allowlist. No automatic retry. Candidate notyetreviewed.
+
+First root regression used incorrect inverse queue padding (assumed20% instead of actual125%+20000) and failed its numeric assertion; second case passed. Corrected fixture825488 produces exact observed1051860 under actual queue rule; product unchanged.
+
+Three-provider actual fresh policy quote PASS block53226217:66,098microUSDC <80,000cap. Two targeted regression checks PASS after documented fixture correction. Three earlier direct captures rate-limited and retained. Peer read-only operational review found no blocker; exact oldpolicy rawbytes preservation and finalgateAbsent/matchesBefore were added before execution.
+Actual correction COMPLETED02:44:44UTC: newrelayPID270588/start49760405/invocation1ddd9115fa804568a55375b1c984d548. Onlyfee-policygasLimit changed1M->1.2M; allsource/argv/env/adminsettings preserved. Privatepre/post state snapshots retained; nojournalreset/restore/replay. Public gateABSENT/matchesBefore26d27de. Rootoneshotexit0/no stderr. This does NOT establish successful payment or apprecovery. ClientUNKNOWN remains until reviewed expired-unused reconciliation fix; no signature reuse.
+Operational scripts are one-time evidence and must NOT be blindly rerun. Test fixture imports refer to original stagedfee-policy fixtures; not self-contained portable package.

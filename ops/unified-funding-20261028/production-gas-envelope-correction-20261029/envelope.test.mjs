@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createGasFundQuotePolicy,queueGasFor} from '../fee-policy-r1/fee-policy.mjs';
+import {cfg,chain,quoteCtx,execCtx,envelopeCtx,NOW} from '../fee-policy-r1/test/fixture.mjs';
+async function policy(gasLimit){const s=chain(x=>{x.estimate=825488n;x.round[1]=230000000000n});const p=createGasFundQuotePolicy({config:cfg(c=>{c.tx.gasLimit=gasLimit;c.pricing.maxFee6='80000'}),request:s.request,now:()=>NOW});const q=await p.quote(quoteCtx({maxFee6:80000n}));await p.accept(execCtx(q.fee6));return {s,p,q};}
+test('observed required gas reproduces oldcap refusal before envelope',async()=>{assert.equal(queueGasFor(825488n),1051860n);const {p,q}=await policy(1000000);await assert.rejects(p.envelope(envelopeCtx(q.fee6)),e=>e.code==='gas_above_cap');});
+test('1.2M envelope admits measured estimate under unchanged fee cap and rejects excess',async()=>{const {s,p,q}=await policy(1200000);assert.ok(q.fee6<=80000n);const e=await p.envelope(envelopeCtx(q.fee6));assert.equal(e.gasLimit,1200000n);s.estimate=1100000n;await assert.rejects(p.envelope(envelopeCtx(q.fee6)),e=>e.code==='gas_above_cap');});

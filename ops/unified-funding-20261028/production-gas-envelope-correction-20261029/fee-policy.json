@@ -1,0 +1,43 @@
+{
+  "schema": "enclave-gasfund-fee-policy-r1",
+  "chainId": 8453,
+  "notAfter": 1793312474,
+  "maxBlockAgeSec": 180,
+  "quoteTtlSec": 300,
+  "oracle": {
+    "address": "0x420000000000000000000000000000000000000f",
+    "proxyCodehash": "0x1f958654ab06a152993e7a0ae7b6dbb0d4b19265cc9337b8789fe1353bd9dc35",
+    "implementation": "0x4f1db3c6abd250ba86e0928471a8f7db3afd88f1",
+    "implementationCodehash": "0xe9fc7c96c4db0d6078e3d359d7e8c982c350a513cb2c31121adf5e1e8a446614"
+  },
+  "feed": {
+    "address": "0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70",
+    "proxyCodehash": "0xbd6f524cdc4268b6bd1bb6f77a8821faeea9c52ee9e0afa0b6d948ce82c966c2",
+    "aggregator": "0x05c84a58fe042275b37db038baacd15f410c7bb0",
+    "aggregatorCodehash": "0xf6294d36c840bfea38edbdb99f1922a5abe223fa5684b3042a7e5d8885a68189",
+    "decimals": 8,
+    "description": "ETH / USD",
+    "maxAgeSec": 3600,
+    "minAnswer": "10000000000",
+    "maxAnswer": "10000000000000"
+  },
+  "sequencer": {
+    "address": "0xbcf85224fc0756b9fa45aa7892530b47e10b6433",
+    "proxyCodehash": "0xbd6f524cdc4268b6bd1bb6f77a8821faeea9c52ee9e0afa0b6d948ce82c966c2",
+    "aggregator": "0x606c6ecbd272e2174f6710b5974f23fe9899602e",
+    "aggregatorCodehash": "0x83bd777b0df4cfc33add17478008b2955d5dea1481e7f8170524c104e77c4a11",
+    "graceSec": 3600
+  },
+  "tx": {
+    "gasLimit": 1200000,
+    "maxFeePerGas": "20000000",
+    "maxPriorityFeePerGas": "2000000",
+    "maxSignedBytes": 720,
+    "maxAttempts": 3,
+    "replacementBumpBps": 2500
+  },
+  "pricing": {
+    "marginBps": 2000,
+    "maxFee6": "80000"
+  }
+}

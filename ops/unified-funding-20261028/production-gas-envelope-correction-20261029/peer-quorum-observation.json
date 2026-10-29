@@ -1,0 +1,85 @@
+{
+  "readOnly": true,
+  "startedAt": "2026-10-29T02:43:05.680Z",
+  "automaticRetries": 0,
+  "snapshot": {
+    "value": {
+      "fee6": "66098",
+      "detail": {
+        "kind": "conservative capped compensation (not a receipt cost; no refund when the actual cost is lower)",
+        "fee6": "66098",
+        "required6": "55082",
+        "marginBps": "2000",
+        "configHash": "0xfcc10900acacfc7de4b8729f077d6c41d364a6c9c9cdfefd5b7c79302fa4c61c",
+        "chainId": "8453",
+        "block": "53226217",
+        "blockHash": "0x644308216f339945ec482b609a0041b7f69c2b1b9b3cd0470af9beaacb5a800b",
+        "blockTimestamp": "1793241781",
+        "expiresAt": "1793242081",
+        "components": {
+          "l2": {
+            "gasLimit": "1200000",
+            "maxFeePerGas": "20000000",
+            "wei": "24000000000000",
+            "usdc6Ceil": "55067"
+          },
+          "l1": {
+            "maxSignedBytes": 720,
+            "oracleArgument": 657,
+            "wei": "6698268972",
+            "usdc6Ceil": "16"
+          },
+          "operator": {
+            "gasLimit": "1200000",
+            "wei": "0",
+            "usdc6Ceil": "0"
+          },
+          "totalWei": "24006698268972",
+          "note": "fee6 = ceil(totalWei x answer x (1 + margin) / 10^(18 + decimals) x 10^6), one rounding; per-component USDC is rounded up separately for display only"
+        },
+        "price": {
+          "feed": "0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70",
+          "aggregator": "0x05c84a58fe042275b37db038baacd15f410c7bb0",
+          "description": "ETH / USD",
+          "decimals": "8",
+          "roundId": "55340232221128665391",
+          "answer": "229442632973",
+          "startedAt": "1793241347",
+          "updatedAt": "1793241361",
+          "ageSec": "420"
+        },
+        "sequencer": {
+          "roundId": "18446744073709551636",
+          "startedAt": "1782491507"
+        },
+        "baseFeePerGas": "5000000",
+        "envelope": {
+          "gasLimit": "1200000",
+          "maxFeePerGas": "20000000",
+          "maxPriorityFeePerGas": "2000000",
+          "maxSignedBytes": 720,
+          "maxAttempts": 3,
+          "replacementBumpBps": "2500",
+          "largestSignedExecute": 702
+        },
+        "assumptions": [
+          "L2: gasLimit x maxFeePerGas bounds the execution fee of every broadcast the host queue may make for this call (replacements included); the queue refuses anything outside the envelope",
+          "L1: GasPriceOracle.getL1FeeUpperBound at the pinned block for the maximum signed size, its argument raised so the oracle's fastlz heuristic covers n + ceil(n/32); L1 base/blob fees and scalars at inclusion may differ (observation, not a guarantee; the relayer bears drift)",
+          "operator: GasPriceOracle.getOperatorFee(gasLimit) at the pinned block; Isthmus operator fee parameters may change before inclusion (relayer's risk)",
+          "price: Chainlink ETH/USD proxy 0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70 with aggregator 0x05c84a58fe042275b37db038baacd15f410c7bb0 pinned by address and code hash; the proxy owner can repoint it (that refuses until re-review); aggregator-internal min/max circuit breakers are not read, config bounds 10000000000..10000000000000 apply",
+          "oracle: GasPriceOracle predeploy proxy and its EIP-1967 implementation pinned by code hash; a hard-fork upgrade refuses until re-review",
+          "sequencer: the L2 sequencer uptime feed must report up for longer than the grace period",
+          "budget: the route requires maxUsdcIn6 + fee6 <= session balance and period remainder and fee6 <= the grant's maxFeePerOp; the vault re-checks on chain; this policy never changes the intent, the grant or the fee after signing"
+        ]
+      }
+    },
+    "blockNumber": "53226217",
+    "blockHash": "0x644308216f339945ec482b609a0041b7f69c2b1b9b3cd0470af9beaacb5a800b",
+    "timestamp": 1793241781000,
+    "agreeing": 3,
+    "peers": 3,
+    "failures": []
+  },
+  "agreed": true,
+  "finishedAt": "2026-10-29T02:43:20.043Z"
+}
