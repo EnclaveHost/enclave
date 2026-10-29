@@ -1,0 +1,14 @@
+{
+  "preparedSha256": "628d33e906cbb129eb8b82f83503d9a32b32716a2e00547947fa603eefd233be",
+  "readonlyPins": 7285,
+  "seedFiles": 225,
+  "inputDrift": [],
+  "candidatePreEdits": [],
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "review": "Read final TASK/runner/prepared inputs; actual consumer first, no production; one source-only invocation authorized",
+  "rootPid": 1774928
+}

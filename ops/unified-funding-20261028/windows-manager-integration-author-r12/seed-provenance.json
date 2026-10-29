@@ -1,0 +1,11 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r11/candidate",
+  "sourceManifest": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r11/source-pins.json",
+  "sourceManifestSha256": "92b92f12e6930157c11a3b142ee96e284bda66652af56bce578d8499d7af5454",
+  "seedFiles": 225,
+  "seedManifestSha256": "1eeb9a4f5ccf3dadb83350f463a59bf7de64244c6a28ce2723dd600ef17a6e62",
+  "preAuthorProductEdits": [],
+  "rootProductChangesSinceAuthorR11": [],
+  "noCandidateCodeExecuted": true,
+  "externalFixtureCorrections": "Root complete r5 correction and r8 actual pinned TEST enrollment file/hash/env fixture readonly; exact candidate untouched. Root process-isolation rerun retained separately from initial mock-contaminated run."
+}
