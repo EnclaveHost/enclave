@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: schema3 snapshot admission accepts only the explicitly selected schema3 profile
+ok 1 - schema3 snapshot admission accepts only the explicitly selected schema3 profile
+  ---
+  duration_ms: 1.755932
+  type: 'test'
+  ...
+# Subtest: schema3 host composition binds exact profile and route before activation, then reconciles actual dispatcher/runner
+ok 2 - schema3 host composition binds exact profile and route before activation, then reconciles actual dispatcher/runner
+  ---
+  duration_ms: 5.814699
+  type: 'test'
+  ...
+# Subtest: schema3 routes require exact profile and bundle; no schema inference or cross-profile pairing
+ok 3 - schema3 routes require exact profile and bundle; no schema inference or cross-profile pairing
+  ---
+  duration_ms: 1.221277
+  type: 'test'
+  ...
+# Subtest: schema3 snapshot admission does not infer eligibility from a profile label or accept old-profile snapshots
+ok 4 - schema3 snapshot admission does not infer eligibility from a profile label or accept old-profile snapshots
+  ---
+  duration_ms: 0.544524
+  type: 'test'
+  ...
+# Subtest: schema3 composer refuses a changed snapshot before runtime serving and retains explicit reporter gap
+ok 5 - schema3 composer refuses a changed snapshot before runtime serving and retains explicit reporter gap
+  ---
+  duration_ms: 0.798641
+  type: 'test'
+  ...
+# Subtest: schema3 owner refusal revokes service while a foreign platform refusal has no veto
+ok 6 - schema3 owner refusal revokes service while a foreign platform refusal has no veto
+  ---
+  duration_ms: 0.696183
+  type: 'test'
+  ...
+# Subtest: schema3 incomplete adapter holds only its exact routes without falling back to legacy
+ok 7 - schema3 incomplete adapter holds only its exact routes without falling back to legacy
+  ---
+  duration_ms: 0.492535
+  type: 'test'
+  ...
+# Subtest: generated Host composes schema3, retains uncertain resources and releases only confirmed removals
+ok 8 - generated Host composes schema3, retains uncertain resources and releases only confirmed removals
+  ---
+  duration_ms: 457.008388
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 663.680706

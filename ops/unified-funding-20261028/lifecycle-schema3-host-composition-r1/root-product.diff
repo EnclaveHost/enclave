@@ -1,0 +1,83 @@
+--- work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-schema3-host-composition-r1/before-source/lifecycle-host-authority.mjs	2026-10-28 23:29:40.430817750 -0700
++++ work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-schema3-host-composition-r1/src/network/lifecycle-host-authority.mjs	2026-10-29 00:57:38.280479625 -0700
+@@ -16,0 +17 @@
++import { hostProfile, SCHEMA3_HOST_PROFILE } from './lifecycle-host-profile.mjs';
+@@ -106 +107,2 @@
+-export function createSnapshotHostAdmission({ hostId, now = Date.now }) {
++export function createSnapshotHostAdmission({ hostId, profile = INDEPENDENT_PROFILE, now = Date.now }) {
++  const selected = hostProfile(profile);
+@@ -111 +113,2 @@
+-      if (!ID.test(id || '') || s?.id !== id || s.thisHost !== hostId || s.verified !== true || s.profile !== INDEPENDENT_PROFILE)
++      if (!ID.test(id || '') || s?.id !== id || s.thisHost !== hostId || s.verified !== true || s.profile !== selected.profile ||
++          (selected.lifecycleSchema === 3 && (s.lifecycleSchema !== 3 || s.lifecycleProofSchema !== 2)))
+@@ -129 +132 @@
+- *                         pins, pins.profile 'independent-r1' (a legacy-profile adapter is refused: it still applies the
++ *                         pins, exact independent-r1 or independent-schema3-r1 profile (a legacy adapter is refused: it applies the
+@@ -144 +147,5 @@
+-  if (adapterPins?.profile !== INDEPENDENT_PROFILE) missing.push('adapterPins.profile (independent-r1)');
++  let selected;
++  try { selected = hostProfile(adapterPins?.profile); }
++  catch { missing.push('adapterPins.profile (exact reviewed independent profile)'); }
++  const s3 = selected?.profile === SCHEMA3_HOST_PROFILE;
++  if (s3 && adapterPins.chainId !== 8453) missing.push('adapterPins.chainId (Base8453)');
+@@ -146,2 +153,4 @@
+-  if (!missing.length && (adapter.profile !== INDEPENDENT_PROFILE || !Array.isArray(adapter.independence?.blockers)))
+-    missing.push('adapter.profile (independent-r1 candidate adapter)');
++  if (!missing.length && (adapter.profile !== selected.profile || !Array.isArray(adapter.independence?.blockers)))
++    missing.push('adapter.profile (exact reviewed independent adapter)');
++  if (s3 && (adapter?.lifecycleSchema !== 3 || adapter?.lifecycleProofSchema !== 2 || adapter?.bundleSha256 !== selected.bundleSha256))
++    missing.push('adapter.profile (schema3/proof2/exact reviewed bundle)');
+@@ -149,2 +158,3 @@
+-  const binding = { ledger, controller, deploymentsSchema: 17, lifecycleSchema: 2,   // the adapter refuses any other schema at every read
+-    ledgerCodeHash: C.ledger.codeHash, controllerCodeHash: C.lifecycle.codeHash };
++  const binding = { ledger, controller, deploymentsSchema: 17, lifecycleSchema: selected.lifecycleSchema,   // exact profile, never schema >= 2
++    ledgerCodeHash: C.ledger.codeHash, controllerCodeHash: C.lifecycle.codeHash,
++    ...(s3 ? {profile:selected.profile,bundleSha256:selected.bundleSha256} : {}) };
+@@ -155 +165,6 @@
+-    async read(id) { const s = await adapter.read(id); return s && { ...s, ledger, controller }; },
++    async read(id) {
++      const s = await adapter.read(id);
++      if (s3 && (!s || s.profile !== selected.profile || s.lifecycleSchema !== 3 || s.lifecycleProofSchema !== 2))
++        throw Error('schema3 route received a mismatched profile/schema snapshot');
++      return s && { ...s, ledger, controller };
++    },
+@@ -159 +174 @@
+-  const authority = usable ? createSnapshotHostAdmission({ hostId, now }) : undefined;
++  const authority = usable ? createSnapshotHostAdmission({ hostId, profile:selected.profile, now }) : undefined;
+--- work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-schema3-host-composition-r1/before-source/lifecycle-host-dispatch.mjs	2026-10-28 23:23:22.331957469 -0700
++++ work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-schema3-host-composition-r1/src/network/lifecycle-host-dispatch.mjs	2026-10-29 00:57:38.280384076 -0700
+@@ -37,0 +38 @@
++import { schema3Binding } from './lifecycle-host-profile.mjs';
+@@ -85 +86,2 @@
+-  exactKeys(b, BINDING_KEYS, 'lifecycle chain binding');
++  const s3 = schema3Binding(b);
++  exactKeys(b, s3 ? [...BINDING_KEYS, 'profile', 'bundleSha256'] : BINDING_KEYS, 'lifecycle chain binding');
+@@ -88,2 +90,2 @@
+-  if (b.deploymentsSchema !== LIFECYCLE_DEPLOYMENTS_SCHEMA || b.lifecycleSchema !== LIFECYCLE_SCHEMA)
+-    throw Error('lifecycle chain binding must pin deploymentsSchema 17 and lifecycleSchema 2');
++  if (b.deploymentsSchema !== LIFECYCLE_DEPLOYMENTS_SCHEMA || b.lifecycleSchema !== (s3 ? 3 : LIFECYCLE_SCHEMA))
++    throw Error(`lifecycle chain binding must pin deploymentsSchema 17 and lifecycleSchema ${s3 ? 3 : 2}`);
+@@ -102,0 +105,2 @@
++  binding = parseBinding(binding);
++  const s3 = schema3Binding(binding);
+@@ -108 +112,3 @@
+-    exactKeys(r, ROUTE_KEYS, what);
++    exactKeys(r, s3 ? [...ROUTE_KEYS, 'profile', 'bundleSha256'] : ROUTE_KEYS, what);
++    if (s3 && (r.profile !== binding.profile || r.bundleSha256 !== binding.bundleSha256))
++      throw Error(`${what}: profile or bundle differs from the exact chain binding`);
+@@ -114,2 +120,2 @@
+-    if (r.deploymentsSchema !== LIFECYCLE_DEPLOYMENTS_SCHEMA || r.lifecycleSchema !== LIFECYCLE_SCHEMA)
+-      throw Error(`${what}: deploymentsSchema 17 and lifecycleSchema 2 required`);
++    if (r.deploymentsSchema !== LIFECYCLE_DEPLOYMENTS_SCHEMA || r.lifecycleSchema !== binding.lifecycleSchema)
++      throw Error(`${what}: deploymentsSchema 17 and lifecycleSchema ${binding.lifecycleSchema} required`);
+@@ -165,0 +172,4 @@
++  const emergencyStatus = schema3Binding(binding) ? Object.freeze({
++    status: 'unconfigured', code: 'LIFECYCLE_REPORTER_NOT_CONFIGURED',
++    reason: 'schema3 app cutoff is qualified; independent emergency submission and host registry offline are not installed by this dispatch'
++  }) : EMERGENCY_OFFLINE;
+@@ -409 +419 @@
+-    emergencyOffline: EMERGENCY_OFFLINE,
++    emergencyOffline: emergencyStatus,
+@@ -552 +562 @@
+-        emergencyOffline: EMERGENCY_OFFLINE.code };
++        emergencyOffline: emergencyStatus.code };
