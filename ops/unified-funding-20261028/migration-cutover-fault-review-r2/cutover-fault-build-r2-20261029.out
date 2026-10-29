@@ -1,0 +1,60 @@
+[queue] START available=93228MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+✘ [ERROR] The symbol "s1" has already been declared
+
+    unified-funding-20261028/migration-cutover-fault-r2/shell/main.mjs:700:8:
+      700 │   const s1 = await status();
+          ╵         ~~
+
+  The symbol "s1" was originally declared here:
+
+    unified-funding-20261028/migration-cutover-fault-r2/shell/main.mjs:681:8:
+      681 │   const s1 = await status();
+          ╵         ~~
+
+✘ [ERROR] The symbol "s2" has already been declared
+
+    unified-funding-20261028/migration-cutover-fault-r2/shell/main.mjs:710:8:
+      710 │   const s2 = await status();
+          ╵         ~~
+
+  The symbol "s2" was originally declared here:
+
+    unified-funding-20261028/migration-cutover-fault-r2/shell/main.mjs:695:8:
+      695 │   const s2 = await status();
+          ╵         ~~
+
+/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/esbuild/lib/main.js:1748
+  let error = new Error(text);
+              ^
+
+Error: Build failed with 2 errors:
+unified-funding-20261028/migration-cutover-fault-r2/shell/main.mjs:700:8: ERROR: The symbol "s1" has already been declared
+unified-funding-20261028/migration-cutover-fault-r2/shell/main.mjs:710:8: ERROR: The symbol "s2" has already been declared
+    at failureErrorWithLog (/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/esbuild/lib/main.js:1748:15)
+    at /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/esbuild/lib/main.js:1207:25
+    at runOnEndCallbacks (/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/esbuild/lib/main.js:1588:45)
+    at buildResponseToResult (/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/esbuild/lib/main.js:1205:7)
+    at /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/esbuild/lib/main.js:1232:16
+    at responseCallbacks.<computed> (/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/esbuild/lib/main.js:884:9)
+    at handleIncomingPacket (/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/esbuild/lib/main.js:939:12)
+    at Socket.readFromStdout (/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/esbuild/lib/main.js:862:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12) {
+  errors: [Getter/Setter],
+  warnings: [Getter/Setter]
+}
+
+Node.js v22.23.3
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-fault-r2/run-build-r2.py", line 34, in <module>
+    subprocess.run(['node', str(p / 'build/build-harness.mjs')], check=True, timeout=120)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['node', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/migration-cutover-fault-r2/build/build-harness.mjs']' returned non-zero exit status 1.
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

@@ -1,0 +1,46 @@
+[queue] START available=93168MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: generator outputs are exactly the recorded bytes; inputs are root's review-r1 manifest values
+ok 1 - generator outputs are exactly the recorded bytes; inputs are root's review-r1 manifest values
+  ---
+  duration_ms: 2.47215
+  type: 'test'
+  ...
+# Subtest: the code under test is byte-identical to the qualified review-r1 build (page, flows, state, util, vendor f23ba2d7..., sessions SDK)
+ok 2 - the code under test is byte-identical to the qualified review-r1 build (page, flows, state, util, vendor f23ba2d7..., sessions SDK)
+  ---
+  duration_ms: 3.246484
+  type: 'test'
+  ...
+# Subtest: server: every bound and guard kept; the two new faults are labelled, one-shot and bounded
+ok 3 - server: every bound and guard kept; the two new faults are labelled, one-shot and bounded
+  ---
+  duration_ms: 1.20713
+  type: 'test'
+  ...
+# Subtest: shell: changed phases labelled; click order; prompt total 21; peer whitelist; no database clearing or wallet discovery added
+ok 4 - shell: changed phases labelled; click order; prompt total 21; peer whitelist; no database clearing or wallet discovery added
+  ---
+  duration_ms: 2.854707
+  type: 'test'
+  ...
+# Subtest: page shell: no stale provenance paragraph; clock + cumulative history visible; title is TEST ONLY
+ok 5 - page shell: no stale provenance paragraph; clock + cumulative history visible; title is TEST ONLY
+  ---
+  duration_ms: 0.160869
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 56.149284
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

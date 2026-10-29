@@ -1,0 +1,124 @@
+SOURCE-ONLY REVIEW — 2026-10-29 UTC
+No additional execution, live observer, stop, restart, financial send or acceptance.
+
+Conclusion
+The useful financial invariant is narrower than zero post-checkpoint syscalls,
+but stronger than successful JSON rename plus process death. Every financial
+delegation capable of affecting the chain must be covered by either a reconciled
+canonical prefix or a retained attempt in the verified final checkpoint/archive.
+No relevant delegation outside that covered set may be introduced after capture.
+Coverage and outcome are separate: a recorded no-hash attempt stays UNKNOWN
+until reconciled; inclusion never authorizes replay, cancellation or replacement.
+
+Define delegation as the first handoff of a transaction or signing/send request
+to a component that can continue independently: transport, native worker, IPC
+service, separate process, remote signer or RPC provider. The boundary is before
+that handoff, not necessarily the final network write or sendTransaction return.
+Already delegated bytes may be written or retransmitted after capture and after
+sender death. Such traffic can be covered, but cannot be assumed covered merely
+because it is asynchronous. If the signer/account has other writers, the scope
+must include them or independently establish they cannot introduce new work.
+
+Exact old source support
+sessions.mjs SHA256
+457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d:
+_send164-174 awaits gas/fee/nonce reads, creates a sending record, pushes it into
+journal.data.txs, prunes to500, then calls wc.sendTransaction. Its own retries
+reuse that record and nonce. This ordering covers this specific path in memory,
+not all users of the signer and not durable pre-send recording. The record has
+label/to/nonce but no calldata, signer or chain identifier; bind those identities
+externally and do not mistake this record for a complete replayable intent.
+send_failed, stuck and nonce_lost are not proof of absent external effects.
+
+store.js SHA256
+12157d8ccf8b1ec4ffd4d0af9b5b846650ec20aac748bcc51ad087e119922dcd:
+signal handler54 synchronously flushes all stores and calls process.exit(0).
+atomicWriteJson21-24 serializes, writes temp, renames; no fsync, errors swallowed
+by signal handler. Under ordinary unmodified main-isolate execution, Promise
+and timer continuations do not run between these synchronous operations. This
+conditional observation covers neither other isolates nor synchronous reentry.
+Exact installed api-relay.js SHA481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d
+imports this class at121 and passes it to initSessions at3088 (prior readback).
+The nearby local api-relay.js is different; it is not runtime provenance.
+
+Node22.23.1 semantics
+Explicit process.exit emits exit listeners synchronously, then abandons queued
+event-loop work. beforeExit is not emitted by explicit exit. Thus 'no await'
+does not imply 'no application code executes after journal capture'. An exit
+listener could synchronously write a pre-signed transaction or delegate it to
+another process; scheduling an ordinary later timer alone would not work.
+Primary documentation:
+https://nodejs.org/download/release/v22.23.1/docs/api/process.html#event-exit
+https://nodejs.org/download/release/v22.23.1/docs/api/process.html#event-beforeexit
+This documents semantics; it does not establish the production loaded runtime.
+
+Identified counterexamples and required evidence
+1. Other signer users: direct wallet/writeContract/sendRawTransaction paths,
+   alternate queues, imported/exported clients, another service holding the key,
+   remote signer or pre-signed backlog. Inventory signer domains and all send
+   entrypoints. One literal grep match in sessions.mjs is not whole-process proof.
+   Production attestorEnv supplies no alternate queue, but generic APIs allow it.
+2. Separate worker isolates, native addons, shared-memory queues or IPC recipients
+   can introduce or finish delegated work while main JS is synchronous. Prove
+   each delegation preceded its retained record or fence/reconcile that sender.
+   A thread roster alone cannot establish what those threads can do.
+3. Exit listeners and native shutdown hooks may run after journal capture. Review
+   registrations including dynamic/preload/dependency paths. Earlier SIGTERM
+   listeners may delegate before the JsonStore handler; their records must still
+   be included. Runtime overrides of exit/emit/flush invalidate simple ordering.
+4. JSON.stringify invokes getters/toJSON/proxies. Data/prototype mutations and
+   patched JSON/fs methods can execute code while serializing. A hook after an
+   array length is captured could append an attempt omitted from those bytes.
+   Stores flushed after the journal can also invoke hooks and create new work.
+   Establish plain data and reviewed hooks, not just absence of explicit await.
+5. Multiple store instances/module URLs/reinitialization/other processes writing
+   the same filename or common .tmp can replace a correct snapshot with stale
+   bytes. Prove unique writer, actual store/path/inode identity, final ordering,
+   successful complete write/rename, absence of later overwrites, and durable
+   private readback after writer death. Catch-and-exit0 cannot prove any of this.
+6. Retention500 can remove unresolved attempts. Reconcile a trustworthy earlier
+   prefix and prove every later delegation is still represented across all
+   checkpoints/archives. Same-nonce replacements are one outcome group, but
+   retries, lost responses and different business operations must not collapse
+   into invented identities. Counts and monotonic nonce alone are insufficient.
+7. Serialization/write/rename failure, SIGKILL/OOM, wrong target, observer loss,
+   incomplete thread coverage and no fsync can produce missing/stale evidence.
+   A later fsync preserves observed bytes, not their correctness or freshness.
+8. Disk hashes, current executable on disk and a sanitized synthetic fixture do
+   not prove old PID loaded those bytes. Need justified startup provenance for
+   Node, source/dependency closure, loader/preloads/options/native addons, and
+   post-start mutation model. Do not obtain this by dumping keys/heap/environment
+   into reports. No such complete production provenance is established here.
+9. Termination at nonceN is a prefix anchor; earlier caught errors need outcome
+   checks. Ended original SID does not fence other opens, owner ops or attestations.
+   latest=pending, a bounded quiet period and no observed network writes do not
+   disprove already-held RPC transactions. Canonical receipts/state and exact
+   refund/accounting remain required before enabling any new writes.
+
+This is a set of identified proof obligations, not an exhaustive claim about
+arbitrary compromised runtimes. Some can be discharged with pinned code and a
+trusted startup model; others require qualified observation and reconciliation.
+Until their assumptions are evidenced, the narrower invariant is a proposal,
+not a way to waive unknown activity in the existing trace.
+
+Actual owned fixture remains REFUSED
+Trace1d1459a6944522ddd0510f4ee8de0580ce395eac74ccf86e3a59c3d10e6cff57
+shows post-rename write(fd14,8) and io_uring_enter(fd4,submit2,min2,flags1).
+FD generation/type and SQE operation/target are not captured. Neither is proven
+financial, harmless, or already covered. collectionCompleted=true;
+coverageVerified=false; productionAcceptance=false. No additional run occurred.
+
+Rollback/source review
+Published watchdog fe3e4ab1b8de00246ddd7414e33df8a3175728ac77e234f1b3ef77f53dcc749a
+does not restart relay or restore journals. It retains gate if activation marker,
+held activation lock or changed identity. Without marker, baseline PID/source
+permits gate removal at deadline even if financial outcome is unknown. Required
+driver must durably mark that hold before stop, retain marker, and never rearm
+by deleting it. This is a caller obligation, not a financial-awareness feature.
+Historical install-relay-r1.py lines60-62 daemon-reload then restart immediately;
+line70 compares journal only AFTER restart. That violates stop/reconcile before
+unquarantined writer restart. Its unchanged-journal assertion cannot prevent
+keeper sends. It remains unexecuted and must not be reused.
+Updated stop-and-reconcile-runbook.txt explicitly requires candidate-only stop,
+gate retention, original stopped, no journal rollback and qualified immutable
+no-write fallback if successor startup/attestation/configuration fails.

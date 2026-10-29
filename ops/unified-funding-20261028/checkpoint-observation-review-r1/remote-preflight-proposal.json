@@ -1,0 +1,129 @@
+{
+  "status": "proposal-not-executed-or-staged",
+  "observationAtUtc": "2026-10-29T00:02:19.744144+00:00",
+  "binaryPins": {
+    "node": {
+      "version": "v22.23.1",
+      "sha256": "93956de2e59480474a7b46571da1651180b1a050cdf32641ebec4ce6e478e068"
+    },
+    "strace": {
+      "version": "6.8",
+      "sha256": "28f957c227012de0b18d1bd7fff2d396cb693ea60ed8013be68de071e84b5001"
+    }
+  },
+  "memTotalKiB": 8131180,
+  "memAvailableKiB": 7034452,
+  "swapKiB": 0,
+  "commitLimitKiB": 4065588,
+  "committedAsKiB": 1265332,
+  "memoryPressureAverages": "0.00 some/full 10/60/300s",
+  "pendingSystemdJobs": 0,
+  "unlaunchedCommitments": "not observable; coordinator must confirm or add reserve",
+  "activeFiniteServices": [
+    {
+      "name": "api",
+      "maxBytes": 1610612736,
+      "currentBytes": 205725696
+    },
+    {
+      "name": "tls",
+      "maxBytes": 268435456,
+      "currentBytes": 87085056
+    },
+    {
+      "name": "dns",
+      "maxBytes": 268435456,
+      "currentBytes": 58642432
+    },
+    {
+      "name": "native-discovery",
+      "maxBytes": 134217728,
+      "currentBytes": 19845120
+    },
+    {
+      "name": "migration-bridge",
+      "maxBytes": 268435456,
+      "currentBytes": 30396416
+    },
+    {
+      "name": "migration-mirror",
+      "maxBytes": 201326592,
+      "currentBytes": 46030848
+    },
+    {
+      "name": "rpc-gateway",
+      "maxBytes": 201326592,
+      "currentBytes": 64823296
+    }
+  ],
+  "finiteCapHeadroomMiB": 2327.1953125,
+  "proposedFloorMiB": 4096,
+  "minimumLaunchAvailableMiB": 4416,
+  "floorReason": "4096MiB exceeds observed remaining finite service caps plus1024MiB allowance for uncapped service/kernel variation. Launch threshold adds192MiB fixture cap plus128MiB cushion. Unknown planned commitments must be added; these are not inferred absent. Existing service limits stay unchanged.",
+  "cgroupVersion": 2,
+  "pathsAbsentAtObservation": [
+    "/var/tmp/enclave-checkpoint-fixture-20261028-owned-r1",
+    "/var/tmp/enclave-checkpoint-fixture-20261028-owned-r1/source",
+    "/var/tmp/enclave-checkpoint-fixture-20261028-owned-r1/runs"
+  ],
+  "unitNotLoaded": "enclave-checkpoint-fixture-20261028-clean-r1.service",
+  "localSourcePins": {
+    "owned_attach_harness.py": "201085a9d77fda44e122c95ed56cd226eac468e4d96ba7ed7e81318e098d557e",
+    "owned_fixture.mjs": "2f8853effef7a19674297f2acd83dd36d67b6fa9b80443502a31f5f61c632963"
+  },
+  "resolvedFutureArgv": [
+    "/usr/bin/systemd-run",
+    "--wait",
+    "--pipe",
+    "--collect",
+    "--unit=enclave-checkpoint-fixture-20261028-clean-r1.service",
+    "--property=MemoryMax=192M",
+    "--property=MemorySwapMax=0",
+    "--property=TasksMax=64",
+    "--property=CPUQuota=50%",
+    "--property=RuntimeMaxSec=40s",
+    "--property=TimeoutStopSec=3s",
+    "--property=KillMode=control-group",
+    "--property=UMask=0077",
+    "/usr/bin/unshare",
+    "--net",
+    "--",
+    "/usr/bin/python3",
+    "/var/tmp/enclave-checkpoint-fixture-20261028-owned-r1/source/owned_attach_harness.py",
+    "--execute-owned-fixture",
+    "--output-root",
+    "/var/tmp/enclave-checkpoint-fixture-20261028-owned-r1/runs",
+    "--mode",
+    "clean",
+    "--expected-unit",
+    "enclave-checkpoint-fixture-20261028-clean-r1.service",
+    "--expected-strace-sha",
+    "28f957c227012de0b18d1bd7fff2d396cb693ea60ed8013be68de071e84b5001",
+    "--expected-node-sha",
+    "93956de2e59480474a7b46571da1651180b1a050cdf32641ebec4ce6e478e068",
+    "--min-available-mib",
+    "4096"
+  ],
+  "preLaunchRequirements": [
+    "Coordinator reviews final two-line collectionCompleted normalization pin delta.",
+    "Approve remote floor/commitment reserve and one clean fixture only.",
+    "Obtain shared small lane and retain local stricter27648MiB floor; remote dedicated cgroup bounds are separate.",
+    "Only then create fresh root0700 stage/runs, copy two pinned fixture files and verify remote source hashes.",
+    "Immediately re-read memory/jobs/service commitments, no competing fixture, exact new unit identity and fresh output path. Refuse changed pins/insufficient4416MiB launch availability; never lower4096MiB runtime floor.",
+    "No production attach/stop/restart or financial action."
+  ],
+  "productionAcceptance": false,
+  "followupObservation": {
+    "atUtc": "2026-10-29T00:04:02.146893+00:00",
+    "memAvailableMiB": 6985,
+    "pendingSystemdJobs": 0,
+    "rootCapSysPtrace": true,
+    "rootCapSysAdmin": true,
+    "requiredToolsExecutable": [
+      "/usr/sbin/ip",
+      "/usr/bin/unshare",
+      "/usr/bin/python3",
+      "/usr/bin/systemd-run"
+    ]
+  }
+}
