@@ -2,6 +2,8 @@
 
 Status at 2026-10-29: implementation and migration in progress. This is the highest-priority feature toward completely decentralizing Enclave's architecture for censorship resistance. It is not a separate funding project, and passing a component test does not demonstrate an independent deployed network.
 
+The [publication repair qualification](../../ops/unified-funding-20261028/host-lifecycle-registry-root-review-r2/ROOT-REVIEW.md) repeats all50 registry tests after changing only the visibility of a public mathematical constant. ABI, storage and executable runtime remain identical; source/artifact metadata have new explicit pins. This resolves a precommit false positive without bypassing the scanner. Canonical registry integration is the next source task; no live host behavior changed.
+
 ## Latest qualified state
 
 The [schema3 adapter review](../../ops/unified-funding-20261028/lifecycle-schema3-adapter-review-r1/ROOT-REVIEW.md) now qualifies80 local checks with zero remaining failures/skips: the actual linked schema3 contracts and runner pass the new profile checks, while71 existing regressions remain passing. Two test-fixture defects were repaired without changing product source or weakening authority/freshness rules. This is isolated EVM/adapter evidence, not production Base authority or full Host composition.

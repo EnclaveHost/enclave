@@ -1,0 +1,11 @@
+# Registry publication repair qualification
+
+Normal precommit classified the public secp256k1 HALF_N mathematical constant as a secret because its declaration used private. The sole product delta changes private to internal; the value is unchanged and no getter is created. No scanner exception, hook bypass or secret handling change was used. Both author delivery and the previously qualified repaired source remain preserved.
+
+Root read the exact delta and runner and independently verified44 frozen inputs before authorizing one bounded run. Actual build and50 distinct contract tests passed, zero failures/skips. Root counted50 unique PASS lines and rehashed all44 inputs afterward. Public ABI, canonical storage layout and executable runtime after the compiler CBOR trailer are identical to the previously qualified artifact. Runtime23968/init23994 bytes remain unchanged. New source68310acc3bda76be0c7bf06ad5149ac1b354e3687f8268223bc8589457c071a8; new artifacte8690734c4fae1f1adfa3525061d5542b314704c997feec2daa09fdecd49f23a. Metadata is newly pinned, not relabelled as the old artifact.
+
+Actual unit enclave-host-registry-validation-r2-20261029 invocation441519728eca4e4f8926af18c7ff8cfb completed; root observed inactive/MainPID0. Bounds remain768MiB outer/650RSS/floor27648/CPU1/noSwap, build300/test480/whole900 seconds. No retry or limit override. This is local contract qualification, not production deployment, real independent attestation or sufficient offline gas funding. All limitations in the r1 root review still apply.
+
+The versioned next task explicitly supersedes the held r1 task/pins. It requires canonical registry and ownership to be the same authenticated address/code and preserves existing profiles. Launch remains conditional on ordinary publication and exact remote verification. No production mutation, payment or restart occurred.
+
+Root publication initially refused the preserved diff because its removed old declaration matches the same scanner rule. The exact diff remains at the pinned original path; this package records its hash and visibility delta without the unnecessary mathematical literal. The refusal is not a test failure and no scanner bypass was used.
