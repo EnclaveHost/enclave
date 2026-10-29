@@ -1,0 +1,65 @@
+WINDOWS MANAGER AUTHORIZATION DEPENDENCY MAP — read-only source inspection
+
+Roots (absolute paths in implementation-input-manifest.json):
+B=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1
+P=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-completion-root-review-r14/protocol-result/frozen-protocol
+L=/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle
+
+INSTALLED SEED (B/control relative paths):
+windows/vbslike/manager/server.mjs
+  Manager owns in-memory domains, derives/validates launches, publishes health, recovers actual Hyper-V inventory. #judgeReadiness's deadline is boot readiness, not continuing authorization. recover():267 reconstructs Notes identity as starting/recovered, not evidence of readiness/permission. remove():784 preserves failures, asks backend stop then removes record/reclaims. createServer():843 serves CRUD only; no control-auth construction and no permit endpoint. Body bounds need extension review.
+windows/vbslike/manager/main.mjs
+  Concrete production entry wiring backend, readiness, Shield/desktop transports and loopback listeners. Native wrapper:269 pins exact config/deployment/image/resource shares and requires dedicated8095/8096. Do not weaken those constraints. dataPlaneFor at294; onReclaim at299 closes sessions only after current reclaim. Actual per-app auth/reader/journal/independent guard not wired.
+windows/vbslike/manager/backend.mjs
+  HyperVPartitionBackend.start/stop/survey delegate real launcher. Supports readiness features but no continuing lifecycle enforcement. TEST launch callback path in baseline is explicitly not actual Hyper-V.
+windows/vbslike/manager/wmi-launcher.mjs
+  WMI/PowerShell launch/remove and strict image/runtime identity, namespace and Notes. notesFor/parseNotes at242/248 carries id,name,instanceId,appId,imageRole, not lifecycle expiry. stop at1290 closes worker transport/egress/relay then removes by VM GUID and requires result acknowledgment; sequential cleanup needs explicit hung-child/late-effect testing before using it as deadline enforcement. Targeted GUID and marker identity protect unrelated VMs; broad teardown is not per-app expiry.
+windows/vbslike/manager/wmiserve-run.mjs
+  Child --hold stdin closes relay/report service on manager pipe EOF. Header explicitly says restarted manager finds VMs still present. This is useful data-plane death handling, NOT compute removal. Windows host binary is external to archive and must have separate pinned/proven execution evidence.
+windows/vbslike/manager/psrun.mjs
+  Bounded PowerShell command adapter; use actual WMI result validation. A locally timed out child does not automatically prove the remote Hyper-V operation never happened. Acknowledgment/reconciliation remains required.
+windows/vbslike/datapath/datapath.mjs
+  ENCLAVE-SPLICE/1 checks instance/app/image/runtime/transport key against record, status running and relay. No continuing permit. createDataPlane tracks sessions; closeInstance at173 closes those for the exact instance. Add protected-only authorization at admission and post-await boundaries plus expiry revocation of existing sessions. Existing idle timeout is not permission expiry.
+windows/vbslike/datapath/node-bridge.mjs
+  dataPlaneFor passes manager.get; supervisor-to-domain routing/config/desktop/storage/secret wiring. Do not mistake an identity-matching record for a current grant. Inspect bypass transport paths and scope any claims about storage/secret revocation.
+windows/vbslike/manager/desktop-router.mjs, desktop-worker-transport.mjs, egress.mjs, shield-profile.mjs, bridge-auth.mjs
+  Real launch/session/worker transport dependencies. Bridge auth is not app lifecycle authority and cannot grant a witness/quorum permit. Include exact stop/close completion in ownership; report residuals instead of synthesizing aggregate success.
+windows/vbslike/router/control.mjs
+  CompositeManager merges legacy8091 and native8095, strict native deployment pins, capacity/epoch snapshots, serialized launch and append-only LaunchJournal. routePath:27-28 admits onlyhealth/vms/reconcile/instance/custody; handle:249-258 permits only GET/DELETE or custodyPOST. Needs explicit protected route extension and consistent identity/role handling; no blanket passthrough.
+windows/vbslike/router/io.mjs
+  makeRequest fixed loopback upstreams, forwards only content-type and x-enclave-custody-callback. controlServer has size/concurrency limits but no authentication verifier. dataServer routes immutable instance namespaces and preserves preamble to backend. New auth request/response semantics must survive actual hop; comments that original managers own auth do not establish a real cryptographic channel.
+windows/vbslike/router/main.mjs, platform.mjs
+  Actual8097/8098 entry; source config/journal pins and Windows NTFS/ACL/reparse checks. lockJournal is wx lockfile with token and explicit stale-lock/manual recovery, not OS-held lock and not Linux flock. Do not silently clear stale lock from PID absence or erase launch ambiguity. Parent-lifecycle persistence fix requires Windows platform design; current helper is not a drop-in equivalent.
+windows/node/isolation-client.mjs
+  Actual supervisor-side IsolationClient HTTP contract: spawnBody,spawn,get,list,findByName,remove and absent-vs-unknown behavior. It does not by itself verify permit or supply authenticated transport. Extend client contract only with exact manager capability and matching acknowledgment, preserving old behavior.
+B/bootstrap.mjs, source-manifest.json, run-manager.cmd, run-router.cmd
+  Installed hash-checked packaging/startup chain; candidate edits require a new reviewed closure/release manifest. Do not run these scripts or overwrite live release. All119 archived entries were byte-compared against B;114 are control files.
+
+QUALIFIED PROTOCOL REFERENCE (P/network; real modules but tested with synthetic hardware/authority where labeled):
+deployment-serving-permit.mjs, deployment-host-authority.mjs, deployment-authority-window.mjs
+  Actual typed signatures, quorum/operator/generation/freshness/denial windows and v2 host context. v2 record fields omit VM GUID/runtime id/manager epoch; per-instance binding is additional work, not already signed.
+deployment-permit-gate.mjs, deployment-host-authority-journal.mjs
+  Durable floors, host-specific Offline, wall+monotonic deadline, resource revocation and raw-work ownership. Preserve root fixes; don't reuse r5 unsafe timeout assertion.
+deployment-isolation-runtime.mjs, deployment-permit-collector.mjs, deployment-lifecycle-witness.mjs
+  Actual generated protocol composition and signed collection; enforcement callbacks are dependencies, not evidence the installed Windows manager implements them. Reuse contract semantics without passing TEST flags in production.
+owned-durable-state.mjs, deployment-lifecycle-journal.mjs, lifecycle-host-owned-authority.mjs, runtime-lock.mjs
+  r14 physical ownership and real-parent-before-read model. runtime-lock explicitly requires Linux/usr/bin/flock. Not Windows qualified. ROOT HAS SINCE REPORTED ADDITIONAL PARENT PERSISTENCE FIXES r16..r18; draft references r14 historical validated snapshot only. Root must substitute latest final frozen qualification/pins before any author launch, not trust this snapshot as complete parent durability.
+deployment-chain-adapter.mjs, lifecycle-host-registry-profile.mjs, lifecycle-schema3-profile.mjs
+  createLifecycleChainAdapter requires actual authority.snapshot, receipts, policy document source, reviewed closure/code hashes; derives authenticated app/host context at one block. Full adapter has financial operations not needed by manager. Select/read-only compose real authority capability; don't fabricate signer/relay or authority.kind to satisfy constructor. A minimal reader must preserve actual trust checks and be separately qualified.
+
+SOURCE REFERENCES (L; NOT proven in installed archive):
+windows/vbslike/manager/control.mjs + control.test.mjs; isolation/m4/guestd/control-client.mjs
+  Real guestd-control/1 HMAC request+response/instance/replay protocol. No key means refusal. Stops impostors/replay; explicitly NOT protection against privileged host. Not present in installed seed; actual integration and key provisioning/config review remain required. No credentials read/exported in preparation.
+network/derived-reader/lifecycle.mjs, provider.mjs; network/lifecycle-finality-bridge.mjs; network/verified-chain.mjs
+  In-process authenticated derivation capability + proof verifier joined at exact root/block, durable anchor rollback floor. readAnchor is trusted implementation capability, not JSON status. Windows deployability/config/runtime of actual reader is not established here.
+network/attested-verifier-client.mjs (+ pinned static dependencies)
+  Verifies remote SEV-SNP measured-control execution and TLS peer binding. Does not attest Windows manager, nor automatically supply derived-finality evidence. Production replica/config/collateral pins absent from this task; no inferred endpoints or test roots allowed.
+network/app-ingress.mjs, app-redirect.mjs, app-broker.mjs, broker-client.mjs
+  Existing authorize/revoke/stream closure primitives, tested elsewhere in real loopback/IPC fixtures. AppIngress authorization callback alone is not an authenticated authority source; full broker/guardian ownership and late-dial revocation need actual composition.
+network/windows-circuit-worker.mjs
+  Existing per-app worker closes on stdin EOF and uses local wall expiry. Useful lifetime primitive only: unsigned local admission commands/wall-only check cannot qualify the proposed signed, monotonic, compute enforcement path.
+windows/vbslike/host/src/wmiserve.rs
+  Source reference for actual host relay lifetime; current installed binary provenance not proved by merely reading it. No Rust build/run delegated.
+
+GAPS BEFORE END-TO-END/HARDWARE CLAIM
+No actual installed permit endpoint, bound per-instance cryptographic opt-in, qualified Windows-side authority composition, persistent continuing-permit journal, process-independent per-app compute guardian or advertised capability. New root parent persistence changes await final pin inclusion. Existing installed archive has no control HMAC server wiring. Windows lock/flush/recovery and guard death semantics need real OS acceptance, not Linux fixtures. Linux portable tests alone cannot show Hyper-V removal or host-excluded/TEE attestation. Installed manager is T0-hv/hostExcluded=false; preserve that description.
