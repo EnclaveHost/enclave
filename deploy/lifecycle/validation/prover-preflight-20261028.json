@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "qualification": "Offline source candidate only; not production migration or live Base authority",
+  "testedSourceCommit": "ea356fc47",
+  "proverTests": {
+    "passed": 41,
+    "failed": 0,
+    "skipped": 0
+  },
+  "preflightTests": {
+    "passed": 13,
+    "failed": 0,
+    "skipped": 0
+  },
+  "logs": [
+    {
+      "file": "prover-build.log",
+      "sha256": "ceca5fb085abb854b12407891800fe17b38c404b09a4a80cf5b13fca7c95b160"
+    },
+    {
+      "file": "prover-tests.log",
+      "sha256": "05ecb124376e51cc441cbd0ada2f469f22ef4f3a0a9e063b5338c63e88b9ef6b"
+    },
+    {
+      "file": "migration-preflight-tests.log",
+      "sha256": "7874c08c1bcd377f528db050adc80c30b8f8fd4c2d83d636e4c9751c7e8cb220"
+    }
+  ],
+  "additionalChanges": "Subsequent diagnostic obligation text does not change collector or classifier behavior."
+}
