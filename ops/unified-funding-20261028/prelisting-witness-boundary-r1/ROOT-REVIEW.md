@@ -1,0 +1,11 @@
+# Pre-listing qualification boundary
+
+Four focused executions against the pinned original witness reproduce its exact behavior: (1) an unregistered host is rejected before attestation or capacity work; (2) an active host with no successful audit reaches receipt signing; (3) receipt units come from claimed availability, even when a test record describes a much smaller exercised workload; (4) an explicit failed audit prevents signing. These four PASS results mean the baseline behavior is reproduced, not that pre-listing requirements pass. Attestation and signer callbacks are TEST mocks; no cryptographic verification or hardware test was performed.
+
+The new canonical registry stores resource/test/attestation/intent commitments, but a correct signature over those commitments still requires a real qualification producer. The existing witness cannot be reused as that producer unchanged. The workload also requires a paid lease from the already-active deployment path, creating another pre-registration dependency. A separate bounded bootstrap job must use verified direct host isolation and fresh evidence before Online admission; no fake active row or lease is acceptable.
+
+The current host-capacity reader correctly labels signed documents selfReported. Its aggregate uses claimed free capacity. A future verified projection must share exact measured evidence with scheduling and subtract live allocations/pending commitments/headroom, without turning CPU/RAM work into GPU or exclusive physical-capacity proof. Existing offchain capacity reporting need not add ledger heartbeats.
+
+Actual test job completed0,4PASS/0fail/0skip under one small256MiB queue/inner220RSS/floor27648/CPU1/noSwap/runtime100s. Peakinner151/outer199MiB, minimum available34057MiB. Original source pins unchanged. No network, production state, funds or host runtime mutation. Current main-lane canonical registry profile author remains separate.
+
+NEXT-IMPLEMENTATION-TASK.txt is a concrete source-only specification, NOT an active/authorized new author. It connects the verified baseline boundary to fresh pre-listing workload/attestation, canonical receipts, measured capacity projection and conservative listing/offline gas qualification. No production readiness claim follows from these tests.
