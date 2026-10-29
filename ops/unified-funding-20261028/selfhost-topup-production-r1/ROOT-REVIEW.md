@@ -1,6 +1,6 @@
 # Self-host Top up production release
 
-Status: qualified frontend candidate; activation not yet performed. This release is independent of the unfinished new lifecycle and automatic refiller.
+Status: deployed and verified on all four production edges on October 29, 2026. This release is independent of the unfinished new lifecycle and automatic refiller.
 
 Zero-rate deployments use the existing finite gas grant rather than runtime funding that reverts FundRateTooLow(0,0). The app-card Top up quotes 0.0002 ETH, displays the maximum USDC debit and fee, and submits only the explicitly clicked current quote. Missing scope, restricted compute credit, changed owner/provider/rate, expired quotes and unresolved prior payments refuse. Positive-rate runtime funding is preserved. No new grant, migration, additional deposit or automatic funding is introduced.
 
@@ -13,3 +13,11 @@ Actual Chromium helper/state/flows checks12PASS using mock SDK/RPC/funds; produc
 Deployment uses a fresh per-edge operation directory, checks exact live config and every old file, copies the immutable current tree, replaces only the new copy's boot entry and adds pinned files. Caddy validation plus ETag compare-and-swap changes exactly two apex roots; no restart or app/controller mutation. Verify all99 graph outputs plus six preserved critical files via TLS per edge. No automatic retries. Original tree/config backups remain. A rollback must first capture current config and explicitly restore only these two roots; never replay financial operations or rewrite journals.
 
 This package stores full reconstructed112-source graph, pins, exact compiled delta and build/deployment scripts. The large unchanged base/CAR remain preserved locally; release.json identifies all bytes. Build requires the pinned existing site-release helper and local esbuild. Private financial journals, keys and credentials are excluded. Runtime deployments, lifecycle authority, Offline sponsorship and automatic refill remain unfinished.
+
+## Production verification
+
+All four fresh edge operations completed: 1,230 exact files on disk, exactly two apex root changes, old trees/configuration preserved, no service restart. Each edge then passed all 105 TLS/HTTP hash checks (99 graph outputs and six critical preserved files). Existing Host Copy assets remain unchanged.
+
+Actual signed-in Chromium inspection of sia-s3 ef514ed3 reached the zero-rate self-host gas panel and an enabled current quote from the existing NucBox grant: maximum 0.536802 USDC = 0.469814 maximum swap input + 0.066988 relay fee, for 0.0002 ETH. This was a short-lived read-only quote, not a payment receipt or a claim that the app recovered. No Pay button was clicked, no signature requested and no new transaction submitted. The old runtime-hours form is absent from this panel. The production screenshot and DOM are retained. The browser reports seven queued/three running deployments; this display is not a fresh canonical recovery inventory.
+
+Source/build package was pushed before activation (49880a807bf6, complete ignored inputs/logs55c77114c824). The entire frozen 238-file backend delivery was separately preserved at19cab0728855 as unvalidated. Local UI server is stopped/MainPID0 and port36755 closed. Its systemd unit retains failed state from the explicit stop rather than a running process.

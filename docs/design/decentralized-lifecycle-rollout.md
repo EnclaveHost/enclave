@@ -1,6 +1,14 @@
 # Decentralized lifecycle, admission and gas funding
 
-## Current rollout status — October 29, r12 consuming integration review
+## Production frontend update — October 29
+
+The existing app-card **Top up** now supports self-hosted zero-rate deployments through the already approved finite gas grants. It quotes an exact 0.0002 ETH purchase, displays the maximum USDC debit and capped fee, and requires the user's explicit payment click. It does not translate gas into runtime-hours. Automatic refill and the replacement lifecycle remain unfinished.
+
+The release preserves the newer Host Copy update and all 1,131 other existing files; only the boot entry changes and 98 compiled files are added. See the [release record](../../ops/unified-funding-20261028/selfhost-topup-production-r1/ROOT-REVIEW.md) for deployment verification, source/build pins and rollback boundaries. Production browser inspection of the user's sia-s3 app reached a valid quote under the existing NucBox grant; this inspection sent no payment.
+
+The focused [operator durability delivery](../../ops/unified-funding-20261028/operator-durability-delivery-r1/ROOT-STATUS.md) is now preserved in full in Git. Its source is not installed or test-qualified. Remaining findings include state continuity at final effects, post-persistence sponsored gates, cross-kind nonce quarantine and Windows startup/storage wiring.
+
+## Lifecycle qualification baseline — October 29, r12 consuming integration review
 
 The new lifecycle protocol is not activated. The [r12 review](../../ops/unified-funding-20261028/windows-manager-review-r12/ROOT-REVIEW.md) now establishes the previously missing local consuming path: actual Host → owned factory/journals/dispatch/runtime → authenticated client → router/two managers/guard → TCP → off-chain permit refresh → Stop. Three focused cases pass after a narrow repair preserving authenticated catalog identity and explicit fixture corrections. Chain/finality, hardware and witness inputs remain labeled TEST fixtures; this is not a production recovery or independently submitted ledger Offline.
 
@@ -16,7 +24,7 @@ Two new actual sender regressions remain: deletion of an established unresolved 
 | Automatic gas / self-host Top up | Two historical recovery payments using existing finite legacy grants | Durable sender recovery, exact sponsored-client qualification, new-protocol authority and refill/UI wiring |
 | Censorship resistance | Independent-owner policy and local recovery/component integration | Cold recovery, new-user deployment, storage failure and independent hosting under Enclave refusal |
 
-No candidate was installed, no additional app recovery was established and no payment was sent. This remains the highest-priority feature of the same decentralization goal.
+No lifecycle candidate was installed, no additional app recovery was established and no payment was sent during this qualification. This remains the highest-priority feature of the same decentralization goal.
 
 ## Qualified ownership baseline
 

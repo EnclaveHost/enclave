@@ -1,6 +1,13 @@
 # Unified platform funding
 
-Status: explicitly prioritized for production release by the user on October 28; implementation and qualification in progress, not deployed. The existing funded session is authorized for signatures/actions its current contract permits.
+Status, October 29: the scoped USDC-to-gas path and app-card self-host Top up are deployed. The complete unified funding objective is still in progress: automatic refill, fully backed ETH service settlement, eligible closed-loop credit and replacement-lifecycle funding are not production complete. Existing sessions authorize only the actions and targets in their actual contracts and signed grants.
+
+### Deployed self-host Top up
+
+On Dashboard, open a zero-runtime-rate app's **Top up** panel. The panel checks the current rate, owner, runtime and finite gas grant, then quotes an exact 0.0002 ETH reserve deposit with a maximum USDC debit. **Pay from session** submits only the current quote after the user's explicit click. The amount field is a spending ceiling, not a requested runtime duration. Positive-rate apps retain runtime funding. Restricted compute credit cannot pay this withdrawable gas reserve; a missing grant must not be silently replaced or enlarged.
+
+Expired quotes, changed context and unresolved previous payments disable or refuse payment. Reconcile unknown outcomes before attempting another payment; do not infer failure from an HTTP error or lost browser reply. No new deposit or grant was introduced by this UI release. The original ended session is not reused. See the [pinned production release](../ops/unified-funding-20261028/selfhost-topup-production-r1/ROOT-REVIEW.md).
+
 User requirement recorded October 28, 2026: ETH, USDC, and compute credit must fund platform operations interchangeably. The platform must handle settlement currency rather than require users to maintain separate compute and gas balances.
 
 ## User-visible contract

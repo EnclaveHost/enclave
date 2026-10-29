@@ -1,5 +1,11 @@
 # Billing ops runbook
 
+## October 29 scope update: gas funding and sponsorship
+
+The app-card self-host Top up uses an explicitly scoped user USDC gas grant to purchase and deposit an exact ETH amount. It is separate from Stripe orders and company treasury sweeps. The UI now shows a maximum gas debit instead of runtime-hours for zero-rate apps; automatic refill is not yet installed. Keep unknown transactions quarantined until reconciled; no payment replay or new grant is implied by a frontend rollback. See [unified funding](unified-funding.md) for the live path and its limits.
+
+The user has separately authorized the existing Stripe provisioner wallet as a future joining-host sponsorship fallback when no eligible online paid-work sponsor exists. That fallback is not yet implemented or production-qualified. Before any release of listing gas, require a passed capacity test and fresh valid attestation, verify the exact provisioner identity and chain, preserve customer-order liabilities and float headroom, enforce caps/replay protection and coordinate the sole nonce submitter. This is not authorization for arbitrary host cashout or use of cold treasury. Historical company-wallet rules below describe the existing billing implementation and must not be treated as evidence that sponsorship is live.
+
 Operational procedures for the hybrid billing system (card via hosted Stripe
 Checkout, USDC via the PaymentRouter on Base). This document is the manual
 half of the design: customer-facing money decisions (refunds, reviews,
