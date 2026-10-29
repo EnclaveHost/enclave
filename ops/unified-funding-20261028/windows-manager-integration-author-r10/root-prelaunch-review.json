@@ -1,0 +1,9 @@
+{
+  "verifiedReadonlyPins": 5213,
+  "verifiedSeedEntries": 219,
+  "seedMatchesRootR9": true,
+  "noPreauthorEdits": true,
+  "collectorUnchanged": true,
+  "liveExactClaude": [],
+  "review": "Task/runner/launch/interfaces read; root authorizes one guarded source-only invocation after independent required account check. No production/test/financial authority."
+}
