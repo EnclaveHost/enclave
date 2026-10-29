@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: ROOT stale sequence cannot revoke or extend current valid permit; its real expiry still removes compute
+ok 1 - ROOT stale sequence cannot revoke or extend current valid permit; its real expiry still removes compute
+  ---
+  duration_ms: 1158.16041
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1441.079755
