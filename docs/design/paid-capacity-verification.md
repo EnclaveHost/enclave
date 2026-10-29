@@ -4,6 +4,16 @@ Implementation branch: `codex/paid-capacity-audits-20260930`. Workload app:
 `EnclaveHost/enclave-apps`, branch `codex/capacity-work-20260930`, directory
 `capacity-work`. Capacity Work 1.0.0 is published and approved on Base.
 
+## October29 decentralization implementation requirements
+
+The timestamped production records below describe earlier deployments, not a fresh inventory. The current highest-priority lifecycle/admission/gas work is tracked in [Decentralized lifecycle, admission and gas funding](decentralized-lifecycle-rollout.md). It is not yet a completed replacement of this paid-audit path.
+
+Joining hosts must complete a capacity test and present fresh, identity-bound valid attestation **before** receiving listing gas or appearing online. Sponsor-side reservation can precede qualification; initial failures remain unlisted. Existing registered-host receipts and paid-lease audit jobs do not solve the zero-gas, pre-registration bootstrap. A payout wallet alone is not host ownership.
+
+An eligible online paid-work sponsor is primary. The existing Stripe provisioner is the explicitly authorized fallback when no such sponsor is available, subject to verified identity/chain/balance, customer liabilities, caps and nonce coordination. This is not permission for arbitrary host cash transfers or to divert restricted credits. Listing compensation must provide the online transaction and a protected offline reserve usable by an independent authenticated reporter if the host fails. Online eligibility may block; offline reporting must not depend on passing it again. No periodic on-chain renewals or heartbeats are part of the replacement.
+
+The same fresh capacity evidence must feed Live enclaves and scheduling, with live allocations, pending commitments and headroom deducted. The existing CPU/RAM workload proves only the exercised work; it cannot establish untested GPU capacity, exclusive hardware or an arbitrary full-machine resource claim. The current display's host availability fields and the audit scheduler's capacity receipts are separate paths, not proof that this integration is implemented. Off-chain capacity updates need no periodic ledger writes.
+
 ## Production status (2026-10-16): RUNNING, first audit verified, bootstrap trust
 
 The fee market runs as designed; its first and only funded source is Enclave's own canary.

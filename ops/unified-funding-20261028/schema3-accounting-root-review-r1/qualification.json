@@ -1,0 +1,20 @@
+{
+  "peerCommit": "e386c48a8eedd2d73f026070343647f5ca5eedd5",
+  "remoteBranchVerified": "codex/deployment-lifecycle-20261026",
+  "actualTests": 63,
+  "uniqueActualTests": 47,
+  "failed": 0,
+  "skipped": 0,
+  "testLogSha256": "f520c72a986105d6b2c520e555b0ba688a2102a1c1e6fafda0b524818ffd1f33",
+  "currentPackagedSourcesVerified": {
+    "candidate/test-js/lifecycle-linked-artifacts.test.mjs": "e2dcb7d9671c1d28fada5f92fc750d2bdfad1e257fcbf3e657dc207a2b96cff9",
+    "candidate/test/AccountingConservation.t.sol": "901f869c2eb2741bf341587af5966af558cf6f065df3f6402ee6886b30a427c5",
+    "candidate/test/Lifecycle.t.sol": "cde216383e0c179ad5fdd9059f800a3fa1c78f63447ac7e085bfdfab74feccb1",
+    "candidate/test/LifecycleProofOfTime.t.sol": "12f912897de976010d1338253c576a4d6c52e5dedadeeda7f26883e522c35c2f",
+    "candidate/test/LifecycleCutoff.t.sol": "928a59450dbe51663b45c89cd74a440bbb4994cef79e0ba28023360ab42a96c6",
+    "candidate/deploy/EnclaveProofOfTime.sol": "946f0b90db1597ee95316029f467b8c7588e962c72168e78da77d3886f72eec5",
+    "candidate/deploy/EnclaveDeployments.sol": "c720f1bfe021abcc4f080a5646d756c60a14cd2be8b746d995e3d1ba8b21da15",
+    "candidate/network/lifecycle-linked-artifacts.mjs": "d9ad52648cf5bda505d2ccebb8a6ea49fb3bc682a7fd0d431d1f5def372808cf"
+  },
+  "qualification": "Actual local Forge linked ledger/controller/library/prover; mock token/fixtures. Not production, Base authority, or schema3 host composition."
+}
