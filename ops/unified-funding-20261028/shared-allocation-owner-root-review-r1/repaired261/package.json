@@ -1,0 +1,12 @@
+{
+  "name": "enclave-windows-permit-r5-candidate",
+  "private": true,
+  "type": "module",
+  "description": "permit r5 SOURCE ONLY: exact runtime dependency pin for the candidate tree (lockfile to be generated and pinned by root; not fabricated here)",
+  "dependencies": {
+    "viem": "2.53.1"
+  },
+  "overrides": {
+    "ws": "8.21.1"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "schema": "enclave-windows-permit-release-closure/r9",
+  "status": "source-only; authored tests NOT RUN; hashes to be computed by root after delivery (no execution available to the author)",
+  "base": "r9 materialized seed (216 files: 176 root r8 + 40 byte-exact R18/source dependencies); R8 closure hashes remain historical",
+  "changedProduct": [
+    { "path": "control/windows/node/protected-authority-factory.mjs", "change": "explicit config routes + owner-pinned quiescence verifier passed to the real R18 owned factory; dispatch attached to Host view, cadence never started; handoff surface; route identity vs enrollment" },
+    { "path": "control/windows/node/protected-supervisor.mjs", "change": "handoff required from opener; new-work gate after withdrawal; enrolledDeployments(); protectedShutdown()" },
+    { "path": "control/windows/node/host.mjs", "change": "legacy exclusion of enrolled ids (consider/renewDue/reconcileTracked/giveUp); event-driven #protectedLaunch; needLease off for routed; lifecycleView()" },
+    { "path": "control/windows/node/agent.mjs", "change": "hostView passed; bounded protected graceful shutdown on SIGINT" },
+    { "path": "package.json", "change": "overrides.ws = 8.21.1 (matches installed lock entries; reviewed override, no download)" },
+    { "path": "package-lock.json", "change": "root overrides mirror; coordinator must verify npm acceptance offline" }
+  ],
+  "unchangedR18Dependencies": [
+    { "path": "control/network/lifecycle-host-owned-authority.mjs", "sha256": "ee1f93c8ab968ab6b26e3f38a18cf66604d476b87acd37acd7e9cb09ea6c302c" },
+    { "path": "control/network/lifecycle-host-dispatch.mjs", "note": "unchanged seed copy; route validation is its parseLifecycleRoutes" },
+    { "path": "control/network/lifecycle-host-authority.mjs", "note": "unchanged seed copy" },
+    { "path": "control/network/deployment-permit-gate.mjs", "sha256": "c0035eff009686a37ef8262f2d7c93456d252876f0867eb4e09feecc2c87bd49" },
+    { "path": "control/network/deployment-isolation-runtime.mjs", "sha256": "21140a534e83494b7f282763d4b54fd6fe40133f1a2335a0eb5d43d79d55f65e" }
+  ],
+  "tests": {
+    "added": ["test/windows-permit/r9-real-owned-factory.test.mjs"],
+    "updated": [
+      { "path": "test/windows-permit/r8-authority-factory.test.mjs", "why": "r9 config keys/host view/attach contract" },
+      { "path": "test/windows-permit/r4-supervisor-chain.test.mjs", "why": "labelled TEST pre-activated handoff fixture" },
+      { "path": "test/windows-permit/r5-ownership-chain.test.mjs", "why": "labelled TEST pre-activated handoff fixture" },
+      { "path": "test/windows-permit/r6-stage-revocation.test.mjs", "why": "labelled TEST pre-activated handoff fixture" },
+      { "path": "test/windows-permit/r7-composite.test.mjs", "why": "labelled TEST pre-activated handoff fixture" },
+      { "path": "test/windows-permit/r7-supervisor-withdrawal.test.mjs", "why": "labelled TEST pre-activated handoff fixture" },
+      { "path": "test/windows-permit/r8-unknown-owner-loss.test.mjs", "why": "labelled TEST pre-activated handoff fixture" },
+      { "path": "test/windows-permit/r7-owner-lifetime.test.mjs", "why": "carried root correction: await retirement entry.promise" },
+      { "path": "test/windows-permit/r8-permit-owner-loss.test.mjs", "why": "carried root correction: retained pre-removal attachment" }
+    ],
+    "imports": "portable relative imports into the candidate only; no external workspace imports",
+    "executed": false
+  },
+  "rootEvidencePreserved": ["evidence/root-r8/real-owned-factory.test.mjs (d2693af2..., 0 PASS / 1 FAIL missing routes)", "evidence/root-r8 focused 49/4/0 and corrected 7/0/0 TAP"],
+  "remaining": [
+    "useful stage/serve/renew and Stop/Offline/owner-loss through the real factory composition with the real manager rig",
+    "production quiescence proof verifier module",
+    "direct tests of Host.lifecycleView/#protectedLaunch/#legacyHandoff/#protectedWithdraw",
+    "event-driven configuration from the authenticated new-ledger snapshot",
+    "dispatch allocation accounting without cadence",
+    "native manager role/instance/epoch routing, protected native stage/serve, native neighbour composite",
+    "per-workload boundaries (KVM desktop, GPU, worker, egress, secrets, volumes, storage, ports, command sockets)",
+    "Windows Job/EXLOCK, Base/finality and production qualification"
+  ]
+}

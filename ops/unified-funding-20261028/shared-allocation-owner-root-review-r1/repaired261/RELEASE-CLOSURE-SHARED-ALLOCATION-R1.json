@@ -1,0 +1,57 @@
+{
+  "schema": "enclave-release-closure/shared-allocation-r1",
+  "status": "SOURCE_AUTHORED_NOT_RUN",
+  "date": "2026-10-29",
+  "executed": { "commands": false, "tests": false, "builds": false, "network": false, "remote": false, "native": false, "live": false, "finance": false },
+  "testResults": null,
+  "hashes": null,
+  "implemented": {
+    "ledger": "allocation-owner.mjs: purpose enclave-shared-allocation/1; stores owned-log (win-durable openOwnedLog + WINDOWS_EXCLUSION/numeric-qualified) and owned-durable-state (openOwnedLock+openDurableState); explicit isolated establishment; normal open refuses missing/foreign/unestablished/torn/quarantined/uncertain/other-domain; owner-open incarnation+generation; contiguous sequence; MAX_ACTIVE 128",
+    "operations": "serialized register/acquire/enter/observe/status/sweep; own fresh sampler + all coverage terms required; floor max(18432, domain, live); full physical+commit persisted before grant; qualification holds consume capacity; release only on exact evidence; expiry never releases entered reservations; persistence failure closes new admission",
+    "authenticatedPath": "allocation-service.mjs: guestd-control/1 ControlServer per role (distinct keys) + existing GuestdControl client; loopback; 64 KiB request/response caps; 16 connections; timeouts",
+    "integration": "allocation-integration.mjs + backend.interposeAllocation + WmiHyperVLauncher.installAllocationGate: same Manager/records/handles; actual backend.launch and stop interposed and made non-writable; define/start WMI boundary gates; baseline incl. already-entered starts; post-await rechecks; settlement queue + reconcile",
+    "wiring": "compose.mjs validateAllocationConfig/composeSharedAllocation; main.mjs ENCLAVE_ALLOCATION_CONFIG(+_SHA256), explicit role, all WMI launchers gated, installed after inventory and before listeners, closed (no fallback) when the client cannot be composed; allocation-owner-main.mjs entry",
+    "legacy": "unconfigured mode unchanged; claims no shared coverage"
+  },
+  "changedFiles": {
+    "added": [
+      "control/windows/vbslike/manager/allocation-owner.mjs",
+      "control/windows/vbslike/manager/allocation-service.mjs",
+      "control/windows/vbslike/manager/allocation-integration.mjs",
+      "control/windows/vbslike/manager/allocation-owner-main.mjs",
+      "test/windows-permit/allocation-owner.test.mjs",
+      "test/windows-permit/allocation-integration.test.mjs",
+      "test/windows-permit/helpers/alloc-fixture.mjs",
+      "REPORT-SHARED-ALLOCATION-R1.md",
+      "RELEASE-CLOSURE-SHARED-ALLOCATION-R1.json"
+    ],
+    "edited": [
+      "control/windows/vbslike/manager/backend.mjs",
+      "control/windows/vbslike/manager/wmi-launcher.mjs",
+      "control/windows/vbslike/manager/compose.mjs",
+      "control/windows/vbslike/manager/main.mjs"
+    ],
+    "notEdited": ["control/windows/vbslike/manager/server.mjs", "all lock/durable/win-durable/win-exclusion/control/control-client primitives", "existing 140 tests"]
+  },
+  "consumerPaths": [
+    "POST /vms (8091/8095) -> Manager.spawn -> backend.start -> interposed backend.launch -> original launcher closure -> WmiHyperVLauncher.start -> define gate -> New-CustomVM -> start gate -> startAndRead/Start-VM",
+    "ProtectedManager.spawnProtectedInternal and applyNativeRole wrappers -> Manager.spawn (same path)",
+    "DELETE /vms/:id -> Manager.remove -> interposed backend.stop -> original stop -> exact removal evidence -> owner observe"
+  ],
+  "authoredNotRunTests": {
+    "test/windows-permit/allocation-owner.test.mjs": 9,
+    "test/windows-permit/allocation-integration.test.mjs": 9,
+    "helpers": ["test/windows-permit/helpers/alloc-fixture.mjs"],
+    "testOnlyComponents": ["TEST_inProcessExclusion", "inert PowerShell host", "TEST sampler/coverage numbers", "readiness judge"]
+  },
+  "retainedObligations": [
+    "installed-process activation: none proven; resident 8091/8095 processes do not have this code or a load hook",
+    "physical/commit sampler relation to Hyper-V partition commit and vmCommitOverheadMiB: unqualified",
+    "parent E/O, creator, observer, request buffering, component fetches, PowerShell, relay, kernel/worker overhead: owner-declared coverage terms only, not measured or enforced; VM capacity is not complete host safety",
+    "native Windows EXLOCK/NTFS durability/ACL for the allocation ledger: unqualified",
+    "JS boundary prechecks are not OS atomicity; other administrative allocators uncovered",
+    "R4 SYSTEM CutoverUnqualified unchanged"
+  ],
+  "nativeReady": false,
+  "liveActivationClaimed": false
+}

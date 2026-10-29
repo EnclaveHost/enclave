@@ -1,0 +1,12 @@
+{
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/.bin/detect-libc": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/detect-libc/bin/detect-libc.js",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/.bin/esbuild": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/esbuild/bin/esbuild",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/.bin/jiti": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/jiti/lib/jiti-cli.mjs",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/.bin/mime": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/mime/cli.js",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/.bin/playwright": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/playwright/cli.js",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/.bin/playwright-cli": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/@playwright/cli/playwright-cli.js",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/.bin/playwright-core": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/playwright-core/cli.js",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/.bin/semver": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/semver/bin/semver",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/.bin/solcjs": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/solc/solc.js",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/.bin/tailwindcss": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/@tailwindcss/cli/dist/index.mjs"
+}
