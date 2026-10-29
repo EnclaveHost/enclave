@@ -10,4 +10,4 @@ export FOUNDRY_OUT=contracts/foundry/out/lifecycle
 export FOUNDRY_CACHE_PATH=contracts/foundry/cache/lifecycle
 export FOUNDRY_OPTIMIZER_RUNS=1
 export FOUNDRY_EVM_VERSION=prague
-forge test --threads 1 --match-contract LifecycleTest -vv
+forge test --threads 1 --match-contract '^Lifecycle(Test|ProofOfTimeTest)$' -vv

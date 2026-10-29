@@ -204,6 +204,41 @@
         "sameOwner": "0x14318bec"
       },
       "events": {}
+    },
+    "EnclaveProofOfTime": {
+      "source": "deploy/lifecycle/EnclaveProofOfTime.sol",
+      "sourceSha256": "57c511e4ff987fa85b3db1f17e9a945a49332d44f253cba89084ebee0de49983",
+      "runtimeBytes": 6467,
+      "creationKeccak256": "0xd5899bbb80f3824cfe63d7b37fe4c8f692d7fae99fc5d28fd141eef73d637be1",
+      "runtimeTemplateKeccak256": "0x85e8b65add5420f591df431bc6aa2a962151ec8c75422fc2cdb046700ba7884f",
+      "selectors": {
+        "acceptOwnership": "0x79ba5097",
+        "checkpoint": "0xa713013a",
+        "checkpointMany": "0x3a62c1cb",
+        "coverageOf": "0xeede78f6",
+        "deployments": "0x08483906",
+        "domainSeparator": "0xf698da25",
+        "hostedSec": "0x48bad8bc",
+        "lifecycleProofSchema": "0xd7a73469",
+        "maxProofWindowSec": "0xe3c65ac8",
+        "owner": "0x8da5cb5b",
+        "pendingOwner": "0xe30c3978",
+        "proofDigest": "0x7b92d220",
+        "proofSchema": "0x752e4a67",
+        "proofWindowSec": "0xd2b4577a",
+        "recordOf": "0xd1c60a3a",
+        "registry": "0x7b103999",
+        "setProofWindow": "0x51fd1883",
+        "transferOwnership": "0xf2fde38b",
+        "unprovenSec": "0xf5d0ee9c"
+      },
+      "events": {
+        "CheckpointRejected": "0xa26f324794f6d884c9474683798a693dcb7e1718392add5c55549d9f44b7877b",
+        "Checkpointed": "0xf89bf2a7be8d9e38f539459c84995dab7f89383cc783d7fab08b57eaeecec760",
+        "OwnerChanged": "0xa2ea9883a321a3e97b8266c2b078bfeec6d50c711ed71f874a90d500ae2eaf36",
+        "OwnershipTransferStarted": "0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700",
+        "ProofWindowSet": "0x45658addd094c3a3e3b6b19f71f89652f8a1e263a52a3436c9748ce651837256"
+      }
     }
   },
   "rolloutBlocks": [

@@ -24,6 +24,7 @@ const definitions = [
   ['EnclaveDeployments', 'deploy/lifecycle/EnclaveDeployments.sol'],
   ['EnclaveDeploymentLifecycle', 'contracts/EnclaveDeploymentLifecycle.sol'],
   ['EnclaveSelfHostingIdentity', 'contracts/EnclaveSelfHostingIdentity.sol'],
+  ['EnclaveProofOfTime', 'deploy/lifecycle/EnclaveProofOfTime.sol'],
 ];
 const outputs = new Map();
 const manifest = { schema: 1, qualification: 'candidate; not enabled for production', compiler: version,

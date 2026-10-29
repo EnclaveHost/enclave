@@ -143,6 +143,20 @@ Those settlement checkpoints are distinct from liveness heartbeats. This
 candidate does not claim that paid compute has only three lifetime transactions.
 Self-hosted zero-rate execution has no compute settlement to charge.
 
+The lifecycle-specific `EnclaveProofOfTime.sol` preserves elapsed-time and
+funded-horizon checks without calling the removed `leaseSec()` selector. Its
+constructor requires the source proof window and maximum explicitly. The
+candidate artifact builder includes it, and the lifecycle test script runs its
+tests as well as the controller suite. This does not qualify live paid settlement.
+
+`network/deployment-migration-preflight.mjs` provides a read-only inventory through
+the trusted in-domain snapshot capability. It checks deployed code pins and
+source/destination bindings at one block and reports migration blockers. Its
+first-canary assessment is restricted to zero-balance self-hosted records;
+nonzero runtime or escrow requires a separate conservation plan. Legacy reserve
+balances and immutable gas-adapter grants are not treated as destination funding.
+The output is diagnostic and never constructs or authorizes transactions.
+
 ## Migration sequence, not an executable rollout
 
 1. Qualify the authority/fencing protocol and implement the adapters above.
