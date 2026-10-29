@@ -8,6 +8,12 @@ The release preserves the newer Host Copy update and all 1,131 other existing fi
 
 The focused [operator durability delivery](../../ops/unified-funding-20261028/operator-durability-delivery-r1/ROOT-STATUS.md) is now preserved in full in Git. Its source is not installed or test-qualified. Remaining findings include state continuity at final effects, post-persistence sponsored gates, cross-kind nonce quarantine and Windows startup/storage wiring.
 
+## Operator durability qualification — October 29
+
+The [root validation](../../ops/unified-funding-20261028/operator-durability-root-review-r1/ROOT-REVIEW.md) passes all 18 author cases, including the two earlier file-loss/restart and provably-unsent-discharge failures. Four sponsored cases remain emulator tests. The new three-case actual-sender boundary suite fails: loss of the state file or its established marker immediately before a send still permits a write, and a recorded unresolved sponsored authorization does not fence a direct account-nonce write. These are inert-wallet tests with real owned storage, not production payments. The original fixture setup failures and corrected tests are both retained.
+
+The frontend rollout remains live. No backend installation follows from these partial passes. The next focused repair must check persistent-state continuity at the effect boundary, coordinate unresolved direct/sponsored account nonces, and test sponsored post-persistence gates through the actual shipped client. Windows startup/storage qualification remains separate and unfinished.
+
 ## Lifecycle qualification baseline — October 29, r12 consuming integration review
 
 The new lifecycle protocol is not activated. The [r12 review](../../ops/unified-funding-20261028/windows-manager-review-r12/ROOT-REVIEW.md) now establishes the previously missing local consuming path: actual Host → owned factory/journals/dispatch/runtime → authenticated client → router/two managers/guard → TCP → off-chain permit refresh → Stop. Three focused cases pass after a narrow repair preserving authenticated catalog identity and explicit fixture corrections. Chain/finality, hardware and witness inputs remain labeled TEST fixtures; this is not a production recovery or independently submitted ledger Offline.
