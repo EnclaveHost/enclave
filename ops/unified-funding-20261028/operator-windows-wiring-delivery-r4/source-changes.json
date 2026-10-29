@@ -1,0 +1,35 @@
+{
+  "changes": {
+    "RELEASE-CLOSURE-OPERATOR-WINDOWS-WIRING-R4.json": {
+      "seedSha256": null,
+      "finalSha256": "b1e1c69390a45d47bfbf76744607416d3c98f5e2401011c4be4f5a4230425f61",
+      "kind": "new"
+    },
+    "REPORT-OPERATOR-WINDOWS-WIRING-R4.md": {
+      "seedSha256": null,
+      "finalSha256": "6d48b9553cdf36098e04b76750b1ea79a033a5a39845916dd2ffbe8e543a6155",
+      "kind": "new"
+    },
+    "control/windows/node/install-operator-effects.mjs": {
+      "seedSha256": "f5501195fb265bdf4d10b499eb3d4ac8dc42637aed2a8f6dd65303762423dabc",
+      "finalSha256": "b1e5189a49dcb27a9cd66254d74eb2b3ece0654078f2b83387bbf6023f74a26a",
+      "kind": "modified"
+    },
+    "control/windows/node/operator-effects-config.mjs": {
+      "seedSha256": "b910f50c38a5d1a2106bbebdfc21d1ea865b9662cd4288a2c4edb95ed68847f8",
+      "finalSha256": "ab3a585170b8335b327a53ae17ee67557c741f9c3e62b35092c20ba9f61f04a6",
+      "kind": "modified"
+    },
+    "test/windows-permit/helpers/ow-fixture.mjs": {
+      "seedSha256": "65bfcf6e2c90acf332d183d26b21594b49bc0a95d1f240ec74f07d13c6695767",
+      "finalSha256": "b2311e68ffa9fbece9cd16562a539a7ab1219debb7b9964af295d813982f8abc",
+      "kind": "modified"
+    },
+    "test/windows-permit/ow-r4-system-identity.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "7bcb904e964aec7b3c22e1ea54744724fa3a4f3e2ee1e16b616a32fa461c7dbe",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}

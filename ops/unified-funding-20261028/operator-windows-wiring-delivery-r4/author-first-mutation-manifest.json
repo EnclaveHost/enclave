@@ -1,0 +1,8 @@
+{
+  "RELEASE-CLOSURE-OPERATOR-WINDOWS-WIRING-R4.json": "b1e1c69390a45d47bfbf76744607416d3c98f5e2401011c4be4f5a4230425f61",
+  "REPORT-OPERATOR-WINDOWS-WIRING-R4.md": "6d48b9553cdf36098e04b76750b1ea79a033a5a39845916dd2ffbe8e543a6155",
+  "control/windows/node/install-operator-effects.mjs": "1373d52fa40d86f2ff583cf5fb089d8416664544f48e87a69d809244e6f42f30",
+  "control/windows/node/operator-effects-config.mjs": "c423aa539d7d16030eda54e747066a17c3fb0640feb66bc49c2ccc4a3e849941",
+  "test/windows-permit/helpers/ow-fixture.mjs": "cb3fda89f5cacc069ba3a73485a97b429c2c974f642af8c56948c461b168052b",
+  "test/windows-permit/ow-r4-system-identity.test.mjs": "b3cb146ac0f140a61bde18eb21f2b8b25436f06f35826adcc3bf550e08349b59"
+}

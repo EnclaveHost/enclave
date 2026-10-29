@@ -1,0 +1,43 @@
+{
+  "schema": "enclave-windows-permit-release-closure/r12",
+  "status": "SOURCE ONLY - AUTHORED, NOT RUN - NOT DEPLOYABLE",
+  "executedByAuthor": { "tests": false, "builds": false, "modules": false, "network": false, "signing": false, "transactions": false },
+  "rootExecutedBaselineR11": { "isolated90": { "pass": 88, "fail": 2 }, "r8PolicyFixtureCorrection": { "pass": 4, "fail": 0 },
+    "initialSharedProcess89": { "pass": 57, "fail": 32, "note": "global fetch mock leakage, not 32 product defects" } },
+  "hashes": "not computed by the author (no execution); root computes the delivery manifest",
+  "changedSource": [
+    { "path": "control/windows/node/protected-isolation.mjs", "why": "planBasisOf; plans.read binds body basis to the staged snapshot; newWorkRefusal before stage/permit POST; per-route unknown resolution" },
+    { "path": "control/windows/node/protected-supervisor.mjs", "why": "basis stored with frozen body; live newWorkRefusal; per-route bounded unknown/orphan cleanup; fence recheck after ensureStaged" },
+    { "path": "control/windows/node/isolation-lifecycle.mjs", "why": "forwards deployment.basis to the supervisor" },
+    { "path": "control/windows/node/host.mjs", "why": "#protectedLaunch passes the authenticated snapshot as basis; sets durable operator-write and sponsored journals" },
+    { "path": "control/windows/node/protected-authority-factory.mjs", "why": "settleStart receives the live rawUnknown predicate" },
+    { "path": "control/network/lifecycle-host-dispatch.mjs", "why": "settleStart rechecks predicate and journal commitment AFTER the inventory await, synchronously before discharge" },
+    { "path": "control/windows/node/chain.mjs", "why": "durable direct attempted-write records and read-only recovery; durable latched sponsored obligations; resolvePendingSponsored" },
+    { "path": "control/windows/node/operator-obligations.mjs", "why": "NEW strict bounded durable keyed record store (atomic + fsync)" }
+  ],
+  "changedTests": [
+    { "path": "test/windows-permit/r12-real-consumer.test.mjs", "kind": "NEW first-deliverable real consumer positive + findings 1/2", "fixtureUnverified": ["host admission decision/hostIncarnation shape from adapter read", "Host plan inputs vs TEST component vector precheck"] },
+    { "path": "test/windows-permit/r12-durable-send-restart.test.mjs", "kind": "NEW extension of root restart regression with real durable store" },
+    { "path": "test/windows-permit/helpers/world.mjs", "kind": "basisOf helper" },
+    { "path": "test/windows-permit/r4-supervisor-chain.test.mjs", "kind": "basis carriage" },
+    { "path": "test/windows-permit/r5-ownership-chain.test.mjs", "kind": "basis carriage" },
+    { "path": "test/windows-permit/r6-stage-revocation.test.mjs", "kind": "basis carriage" },
+    { "path": "test/windows-permit/r7-supervisor-withdrawal.test.mjs", "kind": "basis carriage" },
+    { "path": "test/windows-permit/r7-composite.test.mjs", "kind": "basis carriage (TEST preactivated handoff retained in this legacy file; superseded by r12-real-consumer)" },
+    { "path": "test/windows-permit/r8-unknown-owner-loss.test.mjs", "kind": "basis carriage" },
+    { "path": "test/windows-permit/r10-host-independence.test.mjs", "kind": "settleStart double evaluates predicate" }
+  ],
+  "dependencies": { "added": [], "sponsoredBundle": "unchanged (no minified edits); no generator/mapping authored; readonly-reference untouched" },
+  "expectedRootAttention": [
+    "root r11 restart regression without a configured journal now fails closed (NoWriteJournal) at its first assertion; r12-durable-send-restart is the configured successor",
+    "r11-policy-send-boundary sponsored/direct cases need ENCLAVE_OPERATOR_WRITE_JOURNAL / ENCLAVE_SPONSORED_OBLIGATIONS and the function form of withheldLeaseSignatures",
+    "r12-real-consumer fixture inputs listed as fixtureUnverified"
+  ],
+  "remaining": [
+    "real-dispatch tests for settleStart late-commitment retention / stale token and per-route Stop while another route's unknown cleanup hangs",
+    "actual shipped-bundle sponsored consumer tests (external account/RPC/HTTP fixtures only)",
+    "native protected manager role/instance/epoch routing, running native neighbour, protected native serve",
+    "useful KVM desktop/GPU/worker/egress/secrets/volumes/storage/ports/command sockets",
+    "Base/Windows/native/dependency/funding qualification and migration (root-owned)"
+  ]
+}
