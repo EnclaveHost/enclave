@@ -1,0 +1,9 @@
+{
+  "RELEASE-CLOSURE-NATIVE-ADMISSION-R1.json": "42674bc7f4acfabe66891f7815739196a08f559d9e6fb3ca2ca69baa226766bf",
+  "REPORT-NATIVE-ADMISSION-R1.md": "4537b6d6e223a92bf4035133c273d7511566055133edd6bb4426449fa8b384e4",
+  "admission-envelope-cases.json": "8f0384f028e86540b7febc2a1b1c172386d0ebf562383f36684d470e9bb7caf4",
+  "admission-envelope.c": "d0bd730d99051ba24eb2bbff29ed490a13bf2b660779516aa25f71a071051fdc",
+  "build-request.json": "a5de25380344bb06108d0e1a8edae57eb284f10d92ca040c3385b177bc7a6e0d",
+  "owned-job.c": "885dfb3d32c0845b5e98ec3ae0bb2d329da57bf1ac837ed15254affceff50ff5",
+  "run-contract.json": "80d4ca6ffb549fce971495a66b4e3e6b14236550124779df6c0355bd25f0d0f0"
+}

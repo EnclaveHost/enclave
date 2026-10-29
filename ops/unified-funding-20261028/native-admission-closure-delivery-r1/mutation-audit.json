@@ -1,0 +1,133 @@
+{
+  "events": [
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/admission-envelope.c",
+      "rel": "admission-envelope.c",
+      "id": "toolu_01XkjTo4kkpjU5tg7JyqYyQM",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/admission-envelope.c",
+      "rel": "admission-envelope.c",
+      "id": "toolu_01Gb1QesvbcffJoeGSoG81mK",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/admission-envelope.c",
+      "rel": "admission-envelope.c",
+      "id": "toolu_011vfMSUsDLJf7sx7YELkCuj",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/admission-envelope.c",
+      "rel": "admission-envelope.c",
+      "id": "toolu_01FBaj2AHVbrfaovE5baGaFH",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/owned-job.c",
+      "rel": "owned-job.c",
+      "id": "toolu_017a8Vo6wRwhQuJAeTxum6KD",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/owned-job.c",
+      "rel": "owned-job.c",
+      "id": "toolu_01AU2moDwtcmfco56kiPfhaj",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/owned-job.c",
+      "rel": "owned-job.c",
+      "id": "toolu_01JfMJBpb2N2HkVKd9jm2Kdc",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/owned-job.c",
+      "rel": "owned-job.c",
+      "id": "toolu_01M9ioYXGC877z8VrAMyz2eA",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/owned-job.c",
+      "rel": "owned-job.c",
+      "id": "toolu_01AgFFABQZFvk7WmyTEAPv9B",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/owned-job.c",
+      "rel": "owned-job.c",
+      "id": "toolu_015Q6B2yVw33pcWwzNgWTsmf",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/owned-job.c",
+      "rel": "owned-job.c",
+      "id": "toolu_01LQ68HcLMuQBqbwD24R8HhL",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/build-request.json",
+      "rel": "build-request.json",
+      "id": "toolu_01VSFF28fsY69EBGAjfEtFBZ",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/build-request.json",
+      "rel": "build-request.json",
+      "id": "toolu_01LgainuDeSrwWRkQB4wkFqe",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/run-contract.json",
+      "rel": "run-contract.json",
+      "id": "toolu_011DdDbcDR1GWZQXtrkC3iYp",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/run-contract.json",
+      "rel": "run-contract.json",
+      "id": "toolu_019CZymaAsSE5cm5cf2d9M73",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/admission-envelope-cases.json",
+      "rel": "admission-envelope-cases.json",
+      "id": "toolu_01X91WNwbupsBS5DvMLFy5xB",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/REPORT-NATIVE-ADMISSION-R1.md",
+      "rel": "REPORT-NATIVE-ADMISSION-R1.md",
+      "id": "toolu_01NoWzDkr6dfSpzMpqGjxjv5",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author/candidate/RELEASE-CLOSURE-NATIVE-ADMISSION-R1.json",
+      "rel": "RELEASE-CLOSURE-NATIVE-ADMISSION-R1.json",
+      "id": "toolu_01TskYVPVp7HvTWaPZFdNEU7",
+      "outcome": "reported-success"
+    }
+  ],
+  "replayIssues": [],
+  "outsideCandidateAttempts": [],
+  "note": "first successful mutation snapshots reconstructed from immutable seed and successful tool results; any mismatch requires manual audit, never assumed clean"
+}

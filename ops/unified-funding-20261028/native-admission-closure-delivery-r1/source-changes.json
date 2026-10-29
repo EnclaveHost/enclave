@@ -1,0 +1,40 @@
+{
+  "changes": {
+    "RELEASE-CLOSURE-NATIVE-ADMISSION-R1.json": {
+      "seedSha256": null,
+      "finalSha256": "42674bc7f4acfabe66891f7815739196a08f559d9e6fb3ca2ca69baa226766bf",
+      "kind": "new"
+    },
+    "REPORT-NATIVE-ADMISSION-R1.md": {
+      "seedSha256": null,
+      "finalSha256": "4537b6d6e223a92bf4035133c273d7511566055133edd6bb4426449fa8b384e4",
+      "kind": "new"
+    },
+    "admission-envelope-cases.json": {
+      "seedSha256": null,
+      "finalSha256": "8f0384f028e86540b7febc2a1b1c172386d0ebf562383f36684d470e9bb7caf4",
+      "kind": "new"
+    },
+    "admission-envelope.c": {
+      "seedSha256": null,
+      "finalSha256": "a82de080eac44d5c1eef651579e1dbff74c1cfdc805ab219fbf3ee24be5b191e",
+      "kind": "new"
+    },
+    "build-request.json": {
+      "seedSha256": null,
+      "finalSha256": "acb40137584189586a47124c4dfbe45be3bfb5b01492699325fa6677b9be5f63",
+      "kind": "new"
+    },
+    "owned-job.c": {
+      "seedSha256": "509356d9833cd29aed0cc605c82a1d80a739570118e6b1e92f433378993734ee",
+      "finalSha256": "31fd95ef3f444931bb8e22409ea4064fe018aead90706f5507cf465e57db3eca",
+      "kind": "modified"
+    },
+    "run-contract.json": {
+      "seedSha256": null,
+      "finalSha256": "a4f9b646dfb4c214cb13546b8f56191d0c611bae72959a6281bceb638c401ff0",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}
