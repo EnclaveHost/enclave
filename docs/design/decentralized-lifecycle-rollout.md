@@ -1,6 +1,6 @@
 # Decentralized lifecycle, admission and gas funding
 
-## Current rollout status — October 29, r10 review
+## Current rollout status — October 29, r11 review
 
 This feature is not activated on the new lifecycle protocol. The sections below retain the evidence history; a later passing review supersedes only the exact failures it covers.
 
@@ -12,11 +12,11 @@ This feature is not activated on the new lifecycle protocol. The sections below 
 | Automatic gas funding / self-host Top up | Existing finite grants produced two confirmed recovery payments under the legacy reserve | New-protocol authorization and ordinary-reserve refill, protected Offline separation and app-card integration |
 | Censorship resistance | Independent-owner policy and local recovery cases pass for pinned candidates | End-to-end cold recovery, new-user deployment, storage endpoint failure and continued hosting under Enclave refusal |
 
-The [Windows r10 review](../../ops/unified-funding-20261028/windows-manager-review-r10/ROOT-REVIEW.md) repairs actual Host dependence on the retired book/catalog and includes pending lifecycle allocations in capacity accounting. Its eight new tests pass with explicitly labeled external-service/runtime fixtures; real factory/dispatch recovery and earlier two-manager/router TCP checks remain passing. Focused results are51/52; the remaining carried transport fixture passes after an external argument-forwarding correction. Product source is unchanged by root review.
+The [Windows r11 review](../../ops/unified-funding-20261028/windows-manager-review-r11/ROOT-REVIEW.md) closes the independently reproduced policy-cache, serialized-send permission and held-plan/other-route Stop regressions. The sequential isolated run passes88 of90 checks. One carried direct-constructor fixture lacked the newly required pinned policy; its external correction passes all4 cases. Product source remains unchanged by review, and results overlap rather than adding unique coverage. An earlier shared-process run was contaminated by a TEST global fetch mock; the failed evidence is retained.
 
-New independent tests expose two cached-policy failures, three serialized-send permission failures, and one actual Host scheduling failure: a held startup plan for one app delays another app's authenticated Stop pass. Source review also identifies stale deployment snapshots at stage admission and missing reservation discharge for confirmed ended startup. Original failures are retained; passing initial-policy and constructor tests do not cover these boundaries.
+The remaining reproduced failure is restart reconstruction: after an ambiguous inert wallet write, a fresh sender module using the same TEST identity/RPC state permits a second inert write. Unknown transaction obligations need durable recovery before new sends. This test performs no real signing, transaction or OS crash. Source review also leaves actual plan/body freshness, post-await commitment/policy checks, shared unknown-operation cleanup and real sponsored-client qualification unfinished.
 
-The positive real Host + factory/runtime/client/manager queued-to-serving-to-Stop path remains unqualified. Native protected workload routing, independently authenticated live authority, production quiescence verification, Windows ownership and full release closure are unfinished. No candidate was installed, no additional app recovery was established, and no new payment was sent. The [r11 source-only repair successor](../../ops/unified-funding-20261028/windows-manager-integration-author-r11/README.md) is active with the reproduced failures and required positive consumer test; no result is claimed yet.
+The mandatory positive actual Host + real factory/journals/dispatch/runtime/client/manager/router queued → Running → TCP → off-chain permit refresh → Stop/Offline path is still missing. Existing composite tests use explicitly labeled TEST authority/handoff components. Native protected workloads, independently authenticated live authority, production quiescence verification, Windows ownership, zero-gas qualification, automatic funding and full release closure remain unqualified. The r11 author has finished; a successor is being prepared with the real consuming integration first. No candidate was installed, no additional app recovery was established, and no payment was sent.
 
 ## Qualified ownership baseline
 

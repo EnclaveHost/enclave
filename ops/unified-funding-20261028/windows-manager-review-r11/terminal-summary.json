@@ -1,0 +1,76 @@
+{
+  "admission": {
+    "unit": "enclave-windows-manager-integration-r11-20261029.service",
+    "mainPid": 1749298,
+    "runnerPid": 1749314,
+    "claudePid": 1749324,
+    "invocation": "dd6abf47a1394ae2a3b8247cb301b17c",
+    "mainStartTicks": "160150741",
+    "runnerStartTicks": "160150752",
+    "claudeStartTicks": "160150813",
+    "processes": [
+      {
+        "pid": 1749298,
+        "ppid": 1899,
+        "start": "160150741",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven"
+      },
+      {
+        "pid": 1749314,
+        "ppid": 1749307,
+        "start": "160150752",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven"
+      },
+      {
+        "pid": 1749324,
+        "ppid": 1749314,
+        "start": "160150813",
+        "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+        "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r11-20261029"
+      }
+    ],
+    "rawUnit": "ActiveState=active\nInvocationID=dd6abf47a1394ae2a3b8247cb301b17c\nMainPID=1749298\n",
+    "account": {
+      "loggedIn": true,
+      "email": "steven.r.batchelor@gmail.com",
+      "subscriptionType": "max"
+    },
+    "rootAuthorizedOneLaunch": true
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 0,
+    "finishedAt": 1793297237.941145,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "df9140f7-c0e4-4bd3-941e-12fb4f5b4517",
+  "duration_ms": 843028,
+  "num_turns": 91,
+  "configuredMaxAgenticTurns": 55,
+  "distinctAssistantMessageIds": 51,
+  "transcriptUserRows": 91,
+  "turnMetricNote": "Raw success-result num_turns is a different user-message counter from max-agentic/API-turn limit; retain without conflating. See pinned turn-metric-investigation.json.",
+  "is_error": false,
+  "outputParseFailed": false,
+  "files": 225,
+  "changedFiles": 9,
+  "removedFiles": [],
+  "manifestSha256": "1eeb9a4f5ccf3dadb83350f463a59bf7de64244c6a28ce2723dd600ef17a6e62",
+  "firstMutations": 9,
+  "firstMutationManifestSha256": "b95b5e390837dfcf2fe62337f24849441b2a9b1b341ded435cbb2c05d9528c6d",
+  "currentInvocationTools": {
+    "Read": 26,
+    "Grep": 27,
+    "Edit": 34,
+    "Write": 3
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [],
+  "mutationAuditSha256": "4d5b66e9f0981791d172fa6da69aefc716e98cd45bad72cba0174bc70948cf35",
+  "innerGuard": "[memory-guard] exit=0 peakTreeRssMiB=303 minHostAvailableMiB=32922\n",
+  "outerGuard": "[memory-guard] exit=0 peakTreeRssMiB=369 minHostAvailableMiB=32951\n"
+}

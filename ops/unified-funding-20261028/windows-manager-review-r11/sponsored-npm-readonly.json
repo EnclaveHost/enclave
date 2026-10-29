@@ -1,0 +1,31 @@
+{
+  "at": "2026-10-29T18:02:25.997829+00:00",
+  "sourceReferenceGit": "debbfb377d90f4193ea9182f5cb67d714ffaa322",
+  "manifestSha256": "b954680783ca2078ebecf51296a16791e0e6796137ce4c46ec768144f75b09f4",
+  "nodeModules": "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-kvm-guest/node_modules",
+  "matchingManifestedNpmFiles": 411,
+  "missingOrChanged": [],
+  "versions": {
+    "esbuild": {
+      "installed": "0.28.1",
+      "lock": "0.28.1",
+      "packageSha256": "d55d1d19fcc5b6079e4a71dd4111340c79c682bc36835ac7058a0c364c7db58a",
+      "lockIntegrity": "sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw=="
+    },
+    "viem": {
+      "installed": "2.53.1",
+      "lock": "2.53.1",
+      "packageSha256": "e949a8d53708d253df522476d1ff2face4b05beee8099a90ed81934793455dfb",
+      "lockIntegrity": "sha512-FhfJ/SW73CVosiyVLmIMVgKDRKYV1AGCLzZoHYvmNayyVff63Qi1ocPCk59LqC/cNw244RbBJjHnmxqXkE7NpA=="
+    },
+    "ws": {
+      "installed": "8.21.1",
+      "lock": "8.21.1",
+      "packageSha256": "5d9fcf3bb6aaa7c789b4a020b79e208e76fbc32b1989caf2c275db8cb04329de",
+      "lockIntegrity": "sha512-+0NTnW77fFN/DjQi6k/Sq/Yvk4Sgajw7urW8V+asjXnRgDs9gyGkdb7EzgfhA4goXsRIZKE28fzIXBHEzhuiWw=="
+    }
+  },
+  "built": false,
+  "candidateUntouched": true,
+  "note": "Read-only manifest comparison, not full transitive runtime/lock or regenerated bundle qualification."
+}
