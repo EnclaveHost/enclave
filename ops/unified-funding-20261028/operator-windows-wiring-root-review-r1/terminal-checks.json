@@ -1,0 +1,12 @@
+{
+  "baseline": {
+    "tempGone": true,
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/ow1-ux23w_g7"
+  },
+  "boundary": {
+    "tempGone": true,
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/ow1-1_gfqdyl"
+  },
+  "enclave-operator-windows-wiring-baseline-root-20261029.service": "ActiveState=inactive\nInvocationID=\nMainPID=0\nResult=success\n",
+  "enclave-operator-windows-wiring-boundaries-root-20261029.service": "ActiveState=failed\nInvocationID=17653364c7ea4d648c9b0bda4c56cbc4\nMainPID=0\nResult=exit-code\n"
+}
