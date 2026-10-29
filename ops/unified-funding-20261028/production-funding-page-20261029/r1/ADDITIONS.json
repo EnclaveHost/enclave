@@ -1,0 +1,27 @@
+[
+  {
+    "path": "funding.html",
+    "sha256": "88befcec80517a89685e35f90677f62cc68f7626dbbafa3403253ab1df10d239",
+    "bytes": 7598
+  },
+  {
+    "path": "js/funding-cutover-r1/funding.50ef18f69295ca01.js",
+    "sha256": "50ef18f69295ca0197c833267c7557e3e681149757d93791238f8d6a3b42a406",
+    "bytes": 165958
+  },
+  {
+    "path": "vendor/sessions.funding-cutover-r1.9dda76f6c22ef102.js",
+    "sha256": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997",
+    "bytes": 342282
+  },
+  {
+    "path": "vendor/funding.funding-cutover-r1.f23ba2d79661ade4.js",
+    "sha256": "f23ba2d79661ade43ed484e186d0347b95756dbe70a9735c4b3152da653dd957",
+    "bytes": 364013
+  },
+  {
+    "path": "css/site.funding-cutover-r1.4b52a34c258c6cf5.css",
+    "sha256": "4b52a34c258c6cf5469e4f531040b57b826fd04ec16089cec8e35a79e4cdf2b3",
+    "bytes": 152540
+  }
+]

@@ -1,0 +1,54 @@
+{
+  "host": "eu-central",
+  "at": "2026-10-29T02:12:54.703527+00:00",
+  "verified": [
+    {
+      "path": "funding.html",
+      "sha256": "ff5e449a07f59b98e61b3432365cbd8be20bc946a764431de0107174730ee827",
+      "bytes": 7598,
+      "tlsVerified": true
+    },
+    {
+      "path": "js/funding-cutover-r1/funding.5c5f4e876e91dd8f.js",
+      "sha256": "5c5f4e876e91dd8fedf1ebca7be60a1418942d6f98abbdcb649213747b19b062",
+      "bytes": 166237,
+      "tlsVerified": true
+    },
+    {
+      "path": "vendor/sessions.funding-cutover-r1.9dda76f6c22ef102.js",
+      "sha256": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997",
+      "bytes": 342282,
+      "tlsVerified": true
+    },
+    {
+      "path": "vendor/funding.funding-cutover-r1.f23ba2d79661ade4.js",
+      "sha256": "f23ba2d79661ade43ed484e186d0347b95756dbe70a9735c4b3152da653dd957",
+      "bytes": 364013,
+      "tlsVerified": true
+    },
+    {
+      "path": "css/site.funding-cutover-r1.4b52a34c258c6cf5.css",
+      "sha256": "4b52a34c258c6cf5469e4f531040b57b826fd04ec16089cec8e35a79e4cdf2b3",
+      "bytes": 152540,
+      "tlsVerified": true
+    },
+    {
+      "path": "index.html",
+      "sha256": "65cab6bb756d2e999bc87df2c920a75a8563e710ec8927ab0acee87c58c87d07",
+      "bytes": 43550,
+      "tlsVerified": true
+    },
+    {
+      "path": "js/boot.js",
+      "sha256": "183d3c1c8dc009ff694a870607b9ad9b548e6c32cb33e2ed4fd6613b251cb5e5",
+      "bytes": 168,
+      "tlsVerified": true
+    },
+    {
+      "path": "vendor/sessions.js",
+      "sha256": "b61255778aa3a901b2a0807642c37e9e1b8ce5951e8190c17fcbd6bde05008e9",
+      "bytes": 342286,
+      "tlsVerified": true
+    }
+  ]
+}

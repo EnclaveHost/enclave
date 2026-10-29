@@ -1,0 +1,346 @@
+{
+  "schema": "enclave-funding-addon-manifest-r2",
+  "version": "funding-cutover-r1",
+  "mode": "build",
+  "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-cutover-addon-root-review-r1/overlay-r1",
+  "reusedAddon": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-site-addon-r2",
+  "deps": {
+    "dir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source",
+    "esbuild": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/esbuild/lib/main.js",
+    "readOnlyForEsbuild": true
+  },
+  "live": "/home/steven/Documents/Codex/2026-10-23/it/work/restore-queued-20261028/live-site-public",
+  "esbuildVersion": "0.28.1",
+  "pins": {
+    "config": "66d398cea105290c392c25d8e717cfb0c66b3ca229a1623c1837edc7ec52dcdd",
+    "existingPaths": "dbeeb6d10c43fac4faef393c779ffc80db0dffa735fb8658d14a3cbffc3215c5",
+    "liveInventory": "baff66d6b085a1a870e67c87002bbcdc7d1ec7e026d69d2458efc068138609a9",
+    "liveSessionsVendor": "b61255778aa3a901b2a0807642c37e9e1b8ce5951e8190c17fcbd6bde05008e9"
+  },
+  "inputs": {
+    "addon:lib.mjs": "c5017676b9f9e0260ef7aed4cf78fb037ccee724f414f9256cd7935df4f7ce4b",
+    "addon:src/entry.js": "0e8ccaebe5dca36cb7ab8f806075ad3d202d8081e0ab207c84b6c9848a471e7e",
+    "addon:src/hard-nav.js": "6598b6050caa0ebbf7cef8a66921de95c7ea85e494b6e468ae7d5157da1342f9",
+    "sdk/funding/MANIFEST.json": "838344f7fa68969e67cbda7a467d24812c51c60a145175294f11c71af3c02e72",
+    "site/components/footer/footer.html": "72d95953de2982f62b4efbffec3f6630090bd4839816b93ded4580e9e75905d9",
+    "site/components/footer/footer.js": "e316319a3ab3f38af03b341d73370380f53aa0ead1920c82fd7890115eb6b11a",
+    "site/components/header/header.html": "efac44b1b8b4a20e7a8b9f9ef9448c6b0c115630e0b8fd66316720d4024a8b42",
+    "site/components/header/header.js": "14d77dd2fcbba022fe6d7cad7379bd23ce0eefb0ed9c71e48b76309ef0df35f3",
+    "site/components/section-head/section-head.html": "8a666295021b03b6c1ffc11d48d18e5ff2eb59185849722441732602931dcea1",
+    "site/components/toast/toast.html": "0e89127f552d48c12139d6eb397c0da1e05dc693b9a16c54fddbc7df31c125ac",
+    "site/components/toast/toast.js": "dbafe2e63558454e2b29da08e0486f7c935f10a416f167ae7995b16ddf8e8a9d",
+    "site/components/wallet-button/wallet-button.html": "cd77c04b5045cf56920216544a2a7cf8713427d860d0cc41530257383c4ea2a8",
+    "site/components/wallet-button/wallet-button.js": "c7fec3deb421dc3c7c20501c2f75c76aa2f1655aa34d097b396116b3f1bbe0ed",
+    "site/css/site.css": "4b52a34c258c6cf5469e4f531040b57b826fd04ec16089cec8e35a79e4cdf2b3",
+    "site/funding.html": "2f46bebb4e74c2c5840dae57105c3a0c5e1f6c5c47ccdc9ac0c5013769527b66",
+    "site/js/core/account.js": "a494c36be529e308d15fa875fc0e967447eea9c6144165436d6b3680bc8fb921",
+    "site/js/core/api.js": "cf4cb0d0fb881772e6c93d52a17a80fae50dc12940fb86383cda4b087c5cbf72",
+    "site/js/core/chain.js": "8c840ea8a5d6385cfaee5ba0e63a125ae50c6fe910dd749a4fcd45c7f6acaebf",
+    "site/js/core/config.js": "6dfeaa9fb98480bc77d03c73a122506f1ea24f03753ef12bf07fa8358cdae770",
+    "site/js/core/keccak.js": "ee3929ff49bd8c5b054fea158fd7e9e0de9de7f29a540d52748410d9d9049bb8",
+    "site/js/core/ledger-calls.js": "ec6b2780dcf1b6213ecddc03504e311961caf5f881f47d71b5b0da92dc016469",
+    "site/js/core/pricing.js": "43f7eceff5a392b7eb99c7dc615a6a132e8ea8c12602ffb472c6551347588af0",
+    "site/js/core/runlog.js": "d6868eb5d13905d04c50d84bbb1d6e976b97fb81da8cc4f78b655a514dcf697c",
+    "site/js/core/sessions.js": "7242d89951d7df4501991ade3171cdd3a068f14bc9277be8ecdc2e7c47d11c7c",
+    "site/js/core/spec.js": "164dae830ba451105f3ff4868a6fe92dd96184101d08eefe9348671624b23116",
+    "site/js/core/util.js": "71a896f187d4577c7cf615daf72dac22f705a45dc9058d994d6983f83358d830",
+    "site/js/core/vault.js": "a6ab42793d8e36d159a815aad9724969cb00d6433c479132afe83eedd710c8b3",
+    "site/js/core/wallet.js": "fff283426c2be5a1a3957e33c4076f32b9e2a3708b7fc075cfca447177f45594",
+    "site/js/funding/flows.js": "88d2e23a8990858546c306d3249483822d9ea14f77846d8007c721fbd6b70ab2",
+    "site/js/funding/state.js": "010d864fc4947c2a46961a6011ff8cba2fce29d6097fa8f64e65d2c8ab5e2825",
+    "site/js/lib/enclave-element.js": "dc01f1c8a30f92e9922031c20e77eb77b28abb76f8eace0c63c1a999e055c1c8",
+    "site/js/lib/qr.js": "0ca06bd4c594dc105da5b364a21674eef3549b1e87eb0ae08ccd135c762238dd",
+    "site/js/pages/funding.js": "635cdcc1737f827badd2c7b5fcd878df7af0080a2a487f19f2fc6644fbab3fc1",
+    "site/vendor/funding.js": "f23ba2d79661ade43ed484e186d0347b95756dbe70a9735c4b3152da653dd957",
+    "site/vendor/funding.manifest.json": "155ca4e33d26e2bfea760f0ce24a571d517e7d8547027a4d2b5d6c55feb6888b",
+    "site/vendor/sessions.js": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997"
+  },
+  "moduleClosure": [
+    "addon:src/entry.js",
+    "addon:src/hard-nav.js",
+    "site/components/footer/footer.js",
+    "site/components/header/header.js",
+    "site/components/toast/toast.js",
+    "site/components/wallet-button/wallet-button.js",
+    "site/js/core/account.js",
+    "site/js/core/api.js",
+    "site/js/core/chain.js",
+    "site/js/core/config.js",
+    "site/js/core/keccak.js",
+    "site/js/core/ledger-calls.js",
+    "site/js/core/pricing.js",
+    "site/js/core/runlog.js",
+    "site/js/core/sessions.js",
+    "site/js/core/spec.js",
+    "site/js/core/util.js",
+    "site/js/core/vault.js",
+    "site/js/core/wallet.js",
+    "site/js/funding/flows.js",
+    "site/js/funding/state.js",
+    "site/js/lib/enclave-element.js",
+    "site/js/lib/qr.js",
+    "site/js/pages/funding.js"
+  ],
+  "replacements": {
+    "site/components/wallet-button/wallet-button.js": {
+      "originalSha256": "c7fec3deb421dc3c7c20501c2f75c76aa2f1655aa34d097b396116b3f1bbe0ed",
+      "replacedSha256": "f69814f782a865a28521dd53dc91dc774b0c357d42676bfee6b9aa77a66d5869",
+      "pairs": [
+        {
+          "from": "import { navigate } from \"../../js/boot.js\";",
+          "to": "import { navigate } from \"enclave-addon:hard-nav\";"
+        }
+      ],
+      "reverseEqual": true
+    },
+    "site/js/pages/funding.js": {
+      "originalSha256": "635cdcc1737f827badd2c7b5fcd878df7af0080a2a487f19f2fc6644fbab3fc1",
+      "replacedSha256": "f3369cd1280c7f0e36071138bde2b6de8111d99f08db0c189a89d0ab9bab96d1",
+      "pairs": [
+        {
+          "from": "import(\"/vendor/funding.js\")",
+          "to": "import(\"/vendor/funding.funding-cutover-r1.f23ba2d79661ade4.js\")"
+        }
+      ],
+      "reverseEqual": true
+    },
+    "site/js/core/wallet.js": {
+      "originalSha256": "fff283426c2be5a1a3957e33c4076f32b9e2a3708b7fc075cfca447177f45594",
+      "replacedSha256": "c72140699431680fceb008960b8333ff47c258b99ce3467346e25a55257e2efc",
+      "pairs": [
+        {
+          "from": "(await import(\"../boot.js\")).navigate(",
+          "to": "(await import(\"enclave-addon:hard-nav\")).navigate("
+        }
+      ],
+      "reverseEqual": true
+    },
+    "site/js/core/config.js": {
+      "originalSha256": "6dfeaa9fb98480bc77d03c73a122506f1ea24f03753ef12bf07fa8358cdae770",
+      "replacedSha256": "9e33d6353da41696675a744475697388270301b8ed2bbe6c9ba0cf233de4318a",
+      "pairs": [
+        {
+          "from": "export const FUNDING_RUNTIME = null;",
+          "to": "export const FUNDING_RUNTIME = {\"schema\":\"enclave-funding-browser-runtime-r1\",\"chainId\":8453,\"factory\":\"0x83616b7fA62F8a43cfc634a25c0aCFb0CCAB76e8\",\"implementation\":\"0x9a869B2BA0D6FB4F297Eb140406478f0aed55F96\",\"gasAdapter\":\"0xE5198b7BA033612C45c720d204C469D9ECe77D9e\",\"legacyFactory\":\"0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C\",\"usdc\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"feeTiers\":[100,500,3000],\"codehashes\":{\"factory\":\"0xcea778eb9622f6423e8a2159c83ae5b696e81e5f22e87e8c285516e663b87e0f\",\"implementation\":\"0x94c41042068ffe6b08f43b6cb9546b4b725c81a60010a201fc0c428382cb3a95\",\"gasAdapter\":\"0xe3cb6aeac87a81b82653f71327fb517a30b23285907ea47a4049cec5a432cf10\"},\"source\":{\"kind\":\"deployed-receipts\",\"deployTxs\":[\"0x91da584b22366f81b1174d8b73571bd6a34ba54f721b8476b2e25fcf420ce6b6\",\"0xa394688c44c411a5129fd94fe590957214431fee1c95f54959ce5073c0407160\",\"0xc9ab30f239ceffac08344577b6238a4c16e65fcf36a59dde6c714abc098efc29\",\"0x9c0328c93b8c28c6c78a5bf94a9b7482aa5eca7034469a78634ff88ae60dbaad\"],\"reviewedBy\":\"root: four deployed receipts verified; public live funding runtime pins verified 2026-10-29T01:57:05Z\"}};"
+        },
+        {
+          "from": "export const FUNDING_MIGRATION_PROPOSAL = null;",
+          "to": "export const FUNDING_MIGRATION_PROPOSAL = {\"schema\":\"enclave-funding-migration-proposal-r1\",\"chainId\":8453,\"owner\":\"0x0b2d009c0c9Af05b12100D77F3c815fea822eE61\",\"oldSid\":\"0x3aaf56fd65c168ba3e99e204ede06e2f2e8f1ff544ecd28f9ef8a4a011312227\",\"legacy6\":\"24000000\",\"gas\":[{\"name\":\"nucbox\",\"budget6\":\"4800000\",\"opsPerPeriod\":\"16\",\"appIds\":[\"0x093fa91736c2639e93867b76074c6c4dbc5e49150faf4e8618bdf45e30d275c6\",\"0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7\",\"0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc\",\"0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06\",\"0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef\",\"0xcdc1fa941d248411e49f922e0bc7adfe8cc343712ca4fe4dfb24fab3ef6c70ce\",\"0xf1897f065ed94bc096d351b831514311e08b30702148c639cbaf8d0deb74d03a\",\"0xfd420627abb04e52e7d12e3a535e2df94a048ba51c0b0fec173e9e7de2e24b28\"]},{\"name\":\"metal\",\"budget6\":\"1200000\",\"opsPerPeriod\":\"4\",\"appIds\":[\"0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737\",\"0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6\"]}],\"deploymentIds\":[\"0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a\",\"0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371\",\"0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77\",\"0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c\",\"0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681\",\"0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238\",\"0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c\",\"0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b\",\"0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9\",\"0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c\"]};"
+        },
+        {
+          "from": "export const FUNDING_MIGRATION_APPROVAL = null;",
+          "to": "export const FUNDING_MIGRATION_APPROVAL = {\"schema\":\"enclave-funding-migration-approval-r1\",\"rootReviewed\":true,\"termsHash\":\"0xaf133ffff73469d57b6289676dfa2247fa3abb9bddf368dabacde29827b14a02\",\"owner\":\"0x0b2d009c0c9Af05b12100D77F3c815fea822eE61\",\"chainId\":8453,\"oldSid\":\"0x3aaf56fd65c168ba3e99e204ede06e2f2e8f1ff544ecd28f9ef8a4a011312227\"};"
+        }
+      ],
+      "reverseEqual": true
+    },
+    "site/js/core/sessions.js": {
+      "originalSha256": "7242d89951d7df4501991ade3171cdd3a068f14bc9277be8ecdc2e7c47d11c7c",
+      "replacedSha256": "b6bf91e8425b2ce35b6dc9a4a24c7ba55188952a8db5a660683dcb8fc06f64e9",
+      "pairs": [
+        {
+          "from": "import(\"/vendor/sessions.js\")",
+          "to": "import(\"/vendor/sessions.funding-cutover-r1.9dda76f6c22ef102.js\")"
+        }
+      ],
+      "reverseEqual": true
+    }
+  },
+  "html": {
+    "source": "2f46bebb4e74c2c5840dae57105c3a0c5e1f6c5c47ccdc9ac0c5013769527b66",
+    "replacements": [
+      {
+        "from": "<link rel=\"stylesheet\" href=\"css/site.css\" />",
+        "to": "<link rel=\"stylesheet\" href=\"css/site.funding-cutover-r1.4b52a34c258c6cf5.css\" />"
+      },
+      {
+        "from": "<script type=\"module\" blocking=\"render\" src=\"js/boot.js\"></script>",
+        "to": "<script type=\"module\" src=\"js/funding-cutover-r1/funding.5c5f4e876e91dd8f.js\"></script>"
+      }
+    ],
+    "reverseEqual": true,
+    "removedInlineScripts": [
+      {
+        "sha256": "c590f04acbca2f507262c9da920a43882dfb442145ebbff7d8e8e273b3d7be2e",
+        "csp": "'sha256-xZDwSsvKL1ByYsnakgpDiC37RCFF67/32Ojic7PXvi4='"
+      }
+    ],
+    "unbakedTags": [],
+    "links": [
+      "./",
+      "./#about",
+      "./#attest",
+      "./#how",
+      "./#pricing",
+      "./#why",
+      ".well-known/security.txt",
+      "apps",
+      "assets/apple-touch-icon.png",
+      "assets/icon.svg",
+      "css/site.funding-cutover-r1.4b52a34c258c6cf5.css",
+      "dashboard",
+      "develop",
+      "develop#api",
+      "develop#architecture",
+      "develop#contract",
+      "develop#docs",
+      "develop#independent",
+      "develop#progress",
+      "develop#shield",
+      "develop#verify",
+      "favicon.ico",
+      "host",
+      "js/funding-cutover-r1/funding.5c5f4e876e91dd8f.js",
+      "openapi.json",
+      "privacy",
+      "terms"
+    ]
+  },
+  "config": {
+    "schema": "enclave-funding-addon-config-cutover-r1",
+    "release": "enabled",
+    "nullExports": [
+      "FUNDING_RUNTIME",
+      "FUNDING_MIGRATION_PROPOSAL",
+      "FUNDING_MIGRATION_APPROVAL",
+      "FUNDING_MIGRATION_CUTOVER",
+      "FUNDING_CUTOVER_ACTIVATION"
+    ],
+    "funding": {
+      "FUNDING_RUNTIME": "a0503b251d93d7d260caa529273a80ce653997f2c392e84435b4b71997ed0215",
+      "FUNDING_MIGRATION_PROPOSAL": "9df2cc5067907099cf09d5728d9050678aba3d688b4e39fcadb6571e42051543",
+      "FUNDING_MIGRATION_APPROVAL": "7034b192a17bff3468246f38a52d50dade57dd24ea89cd8ac0b8191cb3f25629",
+      "FUNDING_MIGRATION_CUTOVER": null,
+      "FUNDING_CUTOVER_ACTIVATION": null
+    },
+    "humanApproval": null,
+    "approvalNote": "FUNDING_MIGRATION_APPROVAL.rootReviewed is the reviewed-artifact flag the page requires; it is NOT human grant approval. Human signatures are still required by the wallet and contracts. Optional humanApproval metadata is a reference only, not verified authorization.",
+    "literals": [
+      {
+        "literal": "https://api.enclave.host/v1",
+        "status": "in-live"
+      },
+      {
+        "literal": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "status": "in-live"
+      },
+      {
+        "literal": "0xab214342d5A490150A4A977063A2f88E21F80907",
+        "status": "in-live"
+      },
+      {
+        "literal": "0x18419ca2b502d423a8de6269aeee171a378626e3",
+        "status": "in-live"
+      },
+      {
+        "literal": "0xf9e71385c5cb49844f2457ba6567de0742f8b89a",
+        "status": "in-live"
+      },
+      {
+        "literal": "0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b727dbfc8bf0de07fe4f9c",
+        "status": "in-live"
+      },
+      {
+        "literal": "https://base-rpc.publicnode.com",
+        "status": "in-live"
+      },
+      {
+        "literal": "https://base.drpc.org",
+        "status": "in-live"
+      },
+      {
+        "literal": "https://1rpc.io/base",
+        "status": "in-live"
+      },
+      {
+        "literal": "https://mainnet.base.org",
+        "status": "in-live"
+      },
+      {
+        "literal": "https://ipfs.enclave.host/add-wasm",
+        "status": "in-live"
+      },
+      {
+        "literal": "https://ipfs.enclave.host/add-image",
+        "status": "in-live"
+      },
+      {
+        "literal": "https://ipfs.enclave.host/add-json",
+        "status": "in-live"
+      },
+      {
+        "literal": "https://ipfs.io/ipfs/",
+        "status": "in-live"
+      },
+      {
+        "literal": "https://ipfs.enclave.host/ipfs/",
+        "status": "in-live"
+      }
+    ]
+  },
+  "vendor": {
+    "sessions": {
+      "from": "site/vendor/sessions.js",
+      "sha256": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997",
+      "path": "vendor/sessions.funding-cutover-r1.9dda76f6c22ef102.js",
+      "liveGlobalSha256": "b61255778aa3a901b2a0807642c37e9e1b8ce5951e8190c17fcbd6bde05008e9",
+      "differsFromLiveGlobal": true,
+      "importSpecifiers": [
+        ",{type:"
+      ]
+    },
+    "funding": {
+      "from": "site/vendor/funding.js",
+      "sha256": "f23ba2d79661ade43ed484e186d0347b95756dbe70a9735c4b3152da653dd957",
+      "path": "vendor/funding.funding-cutover-r1.f23ba2d79661ade4.js",
+      "coreManifestSha256": "838344f7fa68969e67cbda7a467d24812c51c60a145175294f11c71af3c02e72",
+      "importSpecifiers": []
+    }
+  },
+  "css": {
+    "mode": "source",
+    "path": "css/site.funding-cutover-r1.4b52a34c258c6cf5.css",
+    "references": [
+      "assets/hex-grid.svg"
+    ]
+  },
+  "navigation": {
+    "hardNavViews": [
+      "dashboard",
+      "checkout"
+    ]
+  },
+  "externals": [
+    "/vendor/funding.funding-cutover-r1.f23ba2d79661ade4.js",
+    "/vendor/sessions.funding-cutover-r1.9dda76f6c22ef102.js",
+    "/vendor/walletconnect.js",
+    "/vendor/webauthn.js"
+  ],
+  "additions": [
+    {
+      "path": "funding.html",
+      "sha256": "ff5e449a07f59b98e61b3432365cbd8be20bc946a764431de0107174730ee827",
+      "bytes": 7598
+    },
+    {
+      "path": "js/funding-cutover-r1/funding.5c5f4e876e91dd8f.js",
+      "sha256": "5c5f4e876e91dd8fedf1ebca7be60a1418942d6f98abbdcb649213747b19b062",
+      "bytes": 166237
+    },
+    {
+      "path": "vendor/sessions.funding-cutover-r1.9dda76f6c22ef102.js",
+      "sha256": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997",
+      "bytes": 342282
+    },
+    {
+      "path": "vendor/funding.funding-cutover-r1.f23ba2d79661ade4.js",
+      "sha256": "f23ba2d79661ade43ed484e186d0347b95756dbe70a9735c4b3152da653dd957",
+      "bytes": 364013
+    },
+    {
+      "path": "css/site.funding-cutover-r1.4b52a34c258c6cf5.css",
+      "sha256": "4b52a34c258c6cf5469e4f531040b57b826fd04ec16089cec8e35a79e4cdf2b3",
+      "bytes": 152540
+    }
+  ]
+}
