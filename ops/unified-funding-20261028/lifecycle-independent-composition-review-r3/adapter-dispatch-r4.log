@@ -1,0 +1,9 @@
+PASS r5-policy rc 0 expected 9 tests 9 pass 9 fail 0 cancelled 0 skipped 0 todo 0
+PASS r5-proof rc 0 expected 10 tests 10 pass 10 fail 0 cancelled 0 skipped 0 todo 0
+PASS kvm-generation rc 0 expected 15 tests 15 pass 15 fail 0 cancelled 0 skipped 0 todo 0
+PASS kvm-boundary rc 0 expected 9 tests 9 pass 9 fail 0 cancelled 0 skipped 0 todo 0
+PASS kvm-runner rc 0 expected 11 tests 11 pass 11 fail 0 cancelled 0 skipped 0 todo 0
+PASS runtime-expiry rc 0 expected 7 tests 7 pass 7 fail 0 cancelled 0 skipped 0 todo 0
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-independent-composition-review-r3/adapter-run-r4
+## stage SHA256SUMS 39a80c03a406f6a20dbb749afc67808cae80b3fefa7419e04ad3d72e0ab0d969
+## lifecycle-chain-adapter-r6 rc=0
