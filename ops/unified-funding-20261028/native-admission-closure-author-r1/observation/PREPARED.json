@@ -1,0 +1,35 @@
+{
+  "status": "PREPARED_ONLY_NOT_EXECUTED",
+  "hashes": {
+    "run.py": "2260fa93433f4b9993b202209b903173665d5c3af496cd4c02f7f1f4f48a0f55",
+    "probe.template.ps1": "667b34dff53ea4fa93e3658e1ce770577595098818c876b1a8a6149a4acdc138",
+    "validate.cjs": "7e972e4f7b63b4c4c67c3960448db287e3e335464503cae98d99bce3337aafce",
+    "input-pins.json": "a4e28bfc1625fb98c6d0362dfc3d978adaac4573382f6287e12bba5aa2f86830",
+    "launch-command.txt": "21a0264735d1902de77b3b0f7f93c99a1dc96bc71423b712613ab910e4799e99"
+  },
+  "limits": {
+    "localHardMiB": 512,
+    "localRssMiB": 450,
+    "floorMiB": 27648,
+    "cpu": 1,
+    "swap": 0,
+    "outerSeconds": 60,
+    "transportSeconds": 45,
+    "combinedOutputBytes": 32768,
+    "httpPerResponseBytes": 262144,
+    "httpRequestDeadlineMs": 2000,
+    "inventoryRowsPerManager": 128,
+    "journalBytes": 1048576
+  },
+  "admissible": false,
+  "limitsOfEvidence": [
+    "Readonly observation only; remote PowerShell/Node bootstrap is not a qualified Job envelope. Root must separately admit bounded diagnostic process overhead.",
+    "No hard remote RSS bound or whole-process deadline; local timeout does not establish remote death. No retries.",
+    "Manager epoch consistency is not atomic reservation or whole-host inventory.",
+    "Known public router source/config hashes do not establish all executing modules or absence of direct callers.",
+    "Total P, enforced E and O remain unknown; no native test admitted."
+  ],
+  "sourcePinsSha256": "6fa4abe975268fac3af3aa8382bf6af7585a1e6fe04cc010423f6b077020641c",
+  "interfaceGapSha256": "ecade256e9258c13d7468405d60185977cebd4e1373f29b33d1b3295ec5bebc9",
+  "limitationsCorrection": "Queued router closures are not admitted commitments; no total P is inferred from queue length."
+}

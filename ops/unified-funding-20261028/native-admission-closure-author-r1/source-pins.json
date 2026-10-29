@@ -1,0 +1,60 @@
+{
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/installed-router-v13/control.mjs": {
+    "original": "/home/steven/Documents/Codex/2026-10-23/it/work/native-router-health-v13/control/windows/vbslike/router/control.mjs",
+    "sha256": "966fd3b5480e9859de4f1dc578b25afa1150e97552437e8c183c03bba4606e6a",
+    "role": "historically observed installed v13 router; current in-memory pin still requires actual observation"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/installed-router-v13/io.mjs": {
+    "original": "/home/steven/Documents/Codex/2026-10-23/it/work/native-router-health-v13/control/windows/vbslike/router/io.mjs",
+    "sha256": "3a81d403c8f9a4d20d2f7651b31ca5d5a8eb8acae9c2b817082ec1bae74083e2",
+    "role": "historically observed installed v13 router; current in-memory pin still requires actual observation"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/installed-router-v13/main.mjs": {
+    "original": "/home/steven/Documents/Codex/2026-10-23/it/work/native-router-health-v13/control/windows/vbslike/router/main.mjs",
+    "sha256": "d021c31460f8b4313ab15a50a1e9792360df4b00de2f64d727e21b79d04fb9a7",
+    "role": "historically observed installed v13 router; current in-memory pin still requires actual observation"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/installed-router-v13/platform.mjs": {
+    "original": "/home/steven/Documents/Codex/2026-10-23/it/work/native-router-health-v13/control/windows/vbslike/router/platform.mjs",
+    "sha256": "cc0d52c6ebec92b27e0eebc772c970975d0c51ae5275782bd6641be385da7807",
+    "role": "historically observed installed v13 router; current in-memory pin still requires actual observation"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/r4-manager/server.mjs": {
+    "original": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/server.mjs",
+    "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+    "role": "R4 frozen source; not by itself proof of current installed manager code"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/r4-manager/wmi-launcher.mjs": {
+    "original": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/wmi-launcher.mjs",
+    "sha256": "bba4c309f5a837e17bf44be54cd8e4c4432ad74174a7d09eda559f11f5ef250e",
+    "role": "R4 frozen source; not by itself proof of current installed manager code"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/r4-manager/main.mjs": {
+    "original": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/main.mjs",
+    "sha256": "eacd28d75b6397ca7890f832e654ee476a482b2018660f21473e9d4e5f0d1ea7",
+    "role": "R4 frozen source; not by itself proof of current installed manager code"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/r4-manager/psrun.mjs": {
+    "original": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/psrun.mjs",
+    "sha256": "41142d0dc36ccad20941c74aa89c5189bdb9dcc904e267bbc5f79726111732ab",
+    "role": "R4 frozen source; not by itself proof of current installed manager code"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/historical-installed-manager-baseline/server.mjs": {
+    "original": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/control/windows/vbslike/manager/server.mjs",
+    "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+    "role": "historical installed manager baseline, freshness unknown",
+    "equalsR4": true
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/historical-installed-manager-baseline/wmi-launcher.mjs": {
+    "original": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/control/windows/vbslike/manager/wmi-launcher.mjs",
+    "sha256": "bba4c309f5a837e17bf44be54cd8e4c4432ad74174a7d09eda559f11f5ef250e",
+    "role": "historical installed manager baseline, freshness unknown",
+    "equalsR4": true
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/evidence/historical-installed-manager-baseline/main.mjs": {
+    "original": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/control/windows/vbslike/manager/main.mjs",
+    "sha256": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b",
+    "role": "historical installed manager baseline, freshness unknown",
+    "equalsR4": false
+  }
+}

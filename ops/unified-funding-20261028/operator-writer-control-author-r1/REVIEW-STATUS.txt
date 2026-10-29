@@ -1,0 +1,1 @@
+PREPARED ONLY. No author/test/build/native/remote execution. Root must independently verify the exact Claude binary and Max account before launching; runner repeats validation. Review exact task/pins and current shared queue admission. Native author is prioritized; writer author is retained, deferred.
