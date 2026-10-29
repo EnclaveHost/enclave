@@ -1,0 +1,175 @@
+
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-job-probe-build-r4b/job-probe.exe:     file format pei-x86-64
+
+Characteristics 0x22
+	executable
+	large address aware
+
+Time/Date		Thu Oct 29 08:00:02 2026
+Magic			020b	(PE32+)
+MajorLinkerVersion	14
+MinorLinkerVersion	0
+SizeOfCode		0000000000001400
+SizeOfInitializedData	0000000000000c00
+SizeOfUninitializedData	0000000000000000
+AddressOfEntryPoint	0000000000001000
+BaseOfCode		0000000000001000
+ImageBase		0000000140000000
+SectionAlignment	00001000
+FileAlignment		00000200
+MajorOSystemVersion	6
+MinorOSystemVersion	0
+MajorImageVersion	0
+MinorImageVersion	0
+MajorSubsystemVersion	6
+MinorSubsystemVersion	0
+Win32Version		00000000
+SizeOfImage		00006000
+SizeOfHeaders		00000400
+CheckSum		00000000
+Subsystem		00000003	(Windows CUI)
+DllCharacteristics	00008160
+					HIGH_ENTROPY_VA
+					DYNAMIC_BASE
+					NX_COMPAT
+					TERMINAL_SERVICE_AWARE
+SizeOfStackReserve	0000000000100000
+SizeOfStackCommit	0000000000001000
+SizeOfHeapReserve	0000000000100000
+SizeOfHeapCommit	0000000000001000
+LoaderFlags		00000000
+NumberOfRvaAndSizes	00000010
+
+The Data Directory
+Entry 0 0000000000000000 00000000 Export Directory [.edata (or where ever we found it)]
+Entry 1 00000000000035d8 00000028 Import Directory [parts of .idata]
+Entry 2 0000000000000000 00000000 Resource Directory [.rsrc]
+Entry 3 0000000000005000 00000084 Exception Directory [.pdata]
+Entry 4 0000000000000000 00000000 Security Directory
+Entry 5 0000000000000000 00000000 Base Relocation Directory [.reloc]
+Entry 6 0000000000000000 00000000 Debug Directory
+Entry 7 0000000000000000 00000000 Description Directory
+Entry 8 0000000000000000 00000000 Special Directory
+Entry 9 0000000000000000 00000000 Thread Storage Directory [.tls]
+Entry a 0000000000000000 00000000 Load Configuration Directory
+Entry b 0000000000000000 00000000 Bound Import Directory
+Entry c 00000000000036b8 000000b8 Import Address Table Directory
+Entry d 0000000000000000 00000000 Delay Import Directory
+Entry e 0000000000000000 00000000 CLR Runtime Header
+Entry f 0000000000000000 00000000 Reserved
+
+There is an import table in .rdata at 0x1400035d8
+
+The Import Tables (interpreted .rdata section contents)
+ vma:            Hint    Time      Forward  DLL       First
+                 Table   Stamp     Chain    Name      Thunk
+ 000035d8	00003600 00000000 00000000 0000396c 000036b8
+
+	DLL Name: kernel32.dll
+	vma:     Ordinal  Hint  Member-Name  Bound-To
+	000036b8  <none>  003d  CloseHandle
+	000036c0  <none>  0091  CreateProcessW
+	000036c8  <none>  0105  ExitProcess
+	000036d0  <none>  016a  GetCommandLineW
+	000036d8  <none>  01a5  GetCurrentProcess
+	000036e0  <none>  01a6  GetCurrentProcessId
+	000036e8  <none>  01c8  GetExitCodeProcess
+	000036f0  <none>  01e8  GetLastError
+	000036f8  <none>  01fa  GetModuleFileNameW
+	00003700  <none>  0240  GetProcessTimes
+	00003708  <none>  0252  GetStdHandle
+	00003710  <none>  0286  GetTickCount64
+	00003718  <none>  02b4  GlobalMemoryStatusEx
+	00003720  <none>  02f7  IsProcessInJob
+	00003728  <none>  0394  QueryInformationJobObject
+	00003730  <none>  0403  ResumeThread
+	00003738  <none>  04af  Sleep
+	00003740  <none>  04bb  TerminateProcess
+	00003748  <none>  04e6  VirtualAlloc
+	00003750  <none>  04ea  VirtualFree
+	00003758  <none>  04f8  WaitForSingleObject
+	00003760  <none>  051f  WriteFile
+
+ 000035ec	00000000 00000000 00000000 00000000 00000000
+
+The Function Table (interpreted .pdata section contents)
+vma:			BeginAddress	 EndAddress	  UnwindData
+ 0000000140005000:	0000000140001000 0000000140001d96 000000014000397c
+ 000000014000500c:	0000000140001d96 0000000140001e25 0000000140003998
+ 0000000140005018:	0000000140001e25 0000000140001e88 00000001400039a4
+ 0000000140005024:	0000000140001e88 0000000140001ed8 00000001400039b0
+ 0000000140005030:	0000000140001ed8 0000000140001f2f 00000001400039b8
+ 000000014000503c:	0000000140001f2f 000000014000204f 00000001400039c0
+ 0000000140005048:	000000014000204f 00000001400020d6 00000001400039d0
+ 0000000140005054:	00000001400020d6 000000014000210a 00000001400039b0
+ 0000000140005060:	000000014000210a 000000014000216b 00000001400039d8
+ 000000014000506c:	000000014000216b 00000001400021c0 00000001400039e4
+ 0000000140005078:	00000001400021c0 000000014000224f 00000001400039e4
+
+Dump of .rdata
+ 000000014000397c (rva: 0000397c): 0000000140001000 - 0000000140001d96
+	Version: 1, Flags: none
+	Nbr codes: 12, Prologue size: 0x1c, Frame offset: 0x0, Frame reg: none
+	  pc+0x1c: save xmm6 at rsp + 0x500
+	  pc+0x13: alloc large area: rsp = rsp - 0x518
+	  pc+0x0c: push rbx
+	  pc+0x0b: push rbp
+	  pc+0x0a: push rdi
+	  pc+0x09: push rsi
+	  pc+0x08: push r12
+	  pc+0x06: push r13
+	  pc+0x04: push r14
+	  pc+0x02: push r15
+ 0000000140003998 (rva: 00003998): 0000000140001d96 - 0000000140001e25
+	Version: 1, Flags: none
+	Nbr codes: 4, Prologue size: 0x07, Frame offset: 0x0, Frame reg: none
+	  pc+0x07: alloc small area: rsp = rsp - 0x30
+	  pc+0x03: push rbx
+	  pc+0x02: push rdi
+	  pc+0x01: push rsi
+ 00000001400039a4 (rva: 000039a4): 0000000140001e25 - 0000000140001e88
+	Version: 1, Flags: none
+	Nbr codes: 3, Prologue size: 0x06, Frame offset: 0x0, Frame reg: none
+	  pc+0x06: alloc small area: rsp = rsp - 0x38
+	  pc+0x02: push rdi
+	  pc+0x01: push rsi
+ 00000001400039b0 (rva: 000039b0): 0000000140001e88 - 0000000140001ed8
+	Version: 1, Flags: none
+	Nbr codes: 2, Prologue size: 0x05, Frame offset: 0x0, Frame reg: none
+	  pc+0x05: alloc small area: rsp = rsp - 0x30
+	  pc+0x01: push rsi
+ 00000001400039b8 (rva: 000039b8): 0000000140001ed8 - 0000000140001f2f
+	Version: 1, Flags: none
+	Nbr codes: 2, Prologue size: 0x05, Frame offset: 0x0, Frame reg: none
+	  pc+0x05: alloc small area: rsp = rsp - 0x50
+	  pc+0x01: push rsi
+ 00000001400039c0 (rva: 000039c0): 0000000140001f2f - 000000014000204f
+	Version: 1, Flags: none
+	Nbr codes: 5, Prologue size: 0x0a, Frame offset: 0x0, Frame reg: none
+	  pc+0x0a: alloc large area: rsp = rsp - 0xc0
+	  pc+0x03: push rbx
+	  pc+0x02: push rdi
+	  pc+0x01: push rsi
+ 00000001400039d0 (rva: 000039d0): 000000014000204f - 00000001400020d6
+	Version: 1, Flags: none
+	Nbr codes: 1, Prologue size: 0x04, Frame offset: 0x0, Frame reg: none
+	  pc+0x04: alloc small area: rsp = rsp - 0x68
+ 00000001400039b0 (rva: 000039b0): 00000001400020d6 - 000000014000210a
+	Version: 1, Flags: none
+	Nbr codes: 2, Prologue size: 0x05, Frame offset: 0x0, Frame reg: none
+	  pc+0x05: alloc small area: rsp = rsp - 0x30
+	  pc+0x01: push rsi
+ 00000001400039d8 (rva: 000039d8): 000000014000210a - 000000014000216b
+	Version: 1, Flags: none
+	Nbr codes: 4, Prologue size: 0x07, Frame offset: 0x0, Frame reg: none
+	  pc+0x07: alloc small area: rsp = rsp - 0x20
+	  pc+0x03: push rbx
+	  pc+0x02: push rdi
+	  pc+0x01: push rsi
+ 00000001400039e4 (rva: 000039e4): 000000014000216b - 00000001400021c0
+	Version: 1, Flags: none
+	Nbr codes: 2, Prologue size: 0x05, Frame offset: 0x0, Frame reg: none
+	  pc+0x05: alloc small area: rsp = rsp - 0x20
+	  pc+0x01: push rsi
+ 00000001400039e4 also used for function at 00000001400021c0
+
