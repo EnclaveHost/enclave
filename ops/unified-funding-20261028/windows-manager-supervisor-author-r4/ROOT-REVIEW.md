@@ -1,0 +1,9 @@
+# Reviewed source-only supervisor integration author r4
+
+One active Claude invocation, not an implementation result. Root read exact task/runner/interface map and verified986 immutable read inputs plus152 frozen seed files, no preparation product edits. Both independent auth check and runner enforce the required steven.r.batchelor@gmail.com Max account. The previous three deadline/storage fixes and authenticated hold behavior are retained; four reproduced client/actual Stop defects remain required repairs. Stale replay must not revoke a valid newer grant; actual expiry/Stop/revocation still withdraws.
+
+Priority is the actual consuming host/supervisor, signed-envelope carriage and shared general/native manager construction, with positive direct/composite MAC and TCP tests. Full workloads, genuine independently derived authority, platform qualification and release closure remain required; unused wrappers or caller JSON are not completion. Source-only tools are a workflow restriction, not an OS sandbox.
+
+Unit enclave-windows-manager-supervisor-r4-20261029, invocation78433b1b642b4a40868c992281ba3413, observed Main1557040/runner1557062/Claude1557072. One fresh session/55turns,1800s child/2100s unit; shared1536MiB hard cap,1408RSS, floor27648, one CPU/no swap. Actual child/process and account evidence are in root-admission-record. No automatic retry/cap raise, tests/build/production/financial action. Peer owns terminal collection/freeze of this same invocation only. Active input files must remain unchanged. A silent final-output file is not proof of process termination.
+
+Separate Windows launcher/Job/EXLOCK proposals are not authorized for remote execution by this source task. Production apps, payments, serving managers, relay/site and RPC-off state remain unchanged. Collect/review actual terminal source before executing bounded tests.

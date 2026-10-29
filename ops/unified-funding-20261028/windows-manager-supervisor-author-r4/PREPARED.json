@@ -1,0 +1,31 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "seedEntries": 152,
+  "readonlyInputPins": 986,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write"
+  ],
+  "turnLimit": 55,
+  "childTimeoutSec": 1800,
+  "outerTimeoutSec": 2100,
+  "queueMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-supervisor-r4-20261029/owned-tmp",
+  "hashes": {
+    "TASK.txt": "83a11356759814e23cf610157165d55cd8196cb4d08bdb0ca109304cdd8187d0",
+    "REVIEW-STATUS.txt": "028232e9407b8542e4b82cd9d0b2426c3f1b766d66361eb43bf376e88d588f14",
+    "run.py": "9def7cac67d25544da1a8bf722a262a7bd19ca8b4bcd126f355c3d0987bf3c4d",
+    "launch-command.txt": "a9126e6e1a25190251ec29ce6e1c5e7ecdd0737f299816912803ba69ca90e349",
+    "input-pins.json": "6f4ec4f9724db0434c01e6fcccc55d3572156360b3796d8158c48d2d1bc96c59",
+    "seed-pins.json": "41f0aacd74e7406620b29d29a0541522dabf01c0cb434bf6fdbb8621cb18a02f",
+    "seed-provenance.json": "818237483aaeada08d5e324f74402df1a82546259d2ba42f7ca78230a9c332f3",
+    "evidence-index.json": "b496684bdfc050e1593e2b5b94989724aea3f192ecc83dd9cf15787520f12f57",
+    "interface-map.json": "6ec89e4ea91aa17526c77221fdf8f8f500a59ede7d16faa90a4ec521bb24e800"
+  }
+}
