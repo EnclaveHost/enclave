@@ -1,0 +1,13 @@
+{
+  "source": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-routing-r1-20261029",
+  "files": {
+    "REPORT.md": "ac95c726735295952ee302821e12eaf14faddbef709f12daf7ed1d960d189c02",
+    "src/network/lifecycle-host-dispatch.mjs": "f3324c226c370200da3e87ca47b7ef00135b3b67f9d94bfa02aefe208d22f1eb",
+    "src/tools/generate-lifecycle-host-candidate.mjs": "275372f3a63245c19e6add7eac15081acc5763e8e0ebb6230b79297db77938f5",
+    "test/generate-lifecycle-host-candidate.test.mjs": "c074d2684a759d93261142cf54488d91400fb9abb69f1224a0f7724a769d4e34",
+    "test/helpers/baseline.mjs": "fc6e2c2500154f39f8580c3a2d11471c3e2429da4e88337c3484ca984a2ad8d1",
+    "test/helpers/lifecycle-fixture.mjs": "aa39ceb2767f83b9f3c862e9d5df69b863d9a56745460e7a1ced6a3a04b47e18",
+    "test/lifecycle-host-candidate.test.mjs": "410866bd1eeb00f0fc33d873469118cbe86013e5836329980142977b60afab6f",
+    "test/lifecycle-host-dispatch.test.mjs": "f96bc66e28347a4c649caee610bae629aa1ac13ba8771b29b151d9aab9dd8945"
+  }
+}
