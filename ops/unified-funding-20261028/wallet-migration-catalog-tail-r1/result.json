@@ -1,0 +1,644 @@
+{
+  "capturedAt": "2026-10-29T23:48:13.141Z",
+  "readOnly": true,
+  "scope": "Catalog lineage ownership and exact legacy escrow/proof-tail observation. No signatures, funds, writes, secret payloads, arbitrary owner authority or finality claim.",
+  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+  "catalog": "0x18419ca2b502d423a8de6269aeee171a378626e3",
+  "wallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+  "snapshot": {
+    "value": {
+      "count": "49",
+      "admin": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "adminMatchesUser": true,
+      "catalogCodeHash": "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f",
+      "proofRequired": true,
+      "prover": "0x6F462d77727F10f05A3E660650E7Dcc9cC60e6B2",
+      "publishers": [
+        {
+          "publisher": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+          "codeHash": null,
+          "classification": "target-wallet"
+        },
+        {
+          "publisher": "0x6e15d644e0f5abaec8786c9dafa8af750cec9cbc",
+          "codeHash": "0x4542cbf1da24ba964614e4f5585736e22884e23e97c0f0915de4f602585d2dd4",
+          "classification": "unclassified-contract"
+        },
+        {
+          "publisher": "0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a",
+          "codeHash": "0x13ece2fba1a144cc1bbb6eede1e1240982213b6c7968bffdbb894fdc3846bd4e",
+          "classification": "unclassified-contract"
+        },
+        {
+          "publisher": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+          "codeHash": null,
+          "classification": "externally-owned-account"
+        },
+        {
+          "publisher": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
+          "codeHash": "0x3028a275d579db5365554abb3dc85acee22d8a6bb7ace5e230a9adb89bc92a30",
+          "classification": "recognized-legacy-session-vault",
+          "controllingWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61"
+        }
+      ],
+      "apps": [
+        {
+          "appId": "0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "hello-world",
+          "name": "Hello World",
+          "description": "Simple Hello World application",
+          "versionCount": 5,
+          "createdAt": "1783422429",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x1b3595ed25c1d84289c01bff477824e289d0a2b6cda4edcf0934b117852ac04a",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "network-test",
+          "name": "Network Test",
+          "description": "Simple network test application",
+          "versionCount": 4,
+          "createdAt": "1783426871",
+          "updatedAt": "1785511665",
+          "active": false
+        },
+        {
+          "appId": "0x7dcc567894c57bc74da93ec90601f9597145e6612d7e1f1b71679e44edd1a96b",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "encrypted-volumes",
+          "name": "Encrypted Volumes",
+          "description": "An example of using encrypted volumes",
+          "versionCount": 5,
+          "createdAt": "1783444489",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x06a4ac8d5440fcfc3c9a6a028d1704c8f878d53555ed12016d3c81de062ecc13",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "llm-chat",
+          "name": "LLM Chat",
+          "description": "Private LLM chat on attested GPUs. Prompts and replies are processed only inside the enclave; the operator and the host never see your conversation. Chat history lives only in your browser, so there is nothing server-side to leak, subpoena, or breach. OpenAI-compatible API with streaming: set an API key in config and point any OpenAI SDK at your deployment URL, or just use the built-in playground. Ships no weights. Attach verified model volumes and one deployment serves whatever fits, largest fi",
+          "versionCount": 147,
+          "createdAt": "1783485259",
+          "updatedAt": "1786157513",
+          "active": false
+        },
+        {
+          "appId": "0x4a09f52e6b8197bd49e7c5c7a3c946044f507d825efc5b8c874bb2e619ed4dd9",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "minecraft-server",
+          "name": "MC Server",
+          "description": "Minecraft Server supporting version 1.8.x (protocol 47).",
+          "versionCount": 9,
+          "createdAt": "1783762883",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x4aa04ee9f58f01c0f5be23161aebb70016f436d665243def3521aeeedbf0e805",
+          "publisher": "0x6e15d644e0F5ABaEc8786C9DAfa8Af750cec9CBC",
+          "slug": "test",
+          "name": "Test",
+          "description": "",
+          "versionCount": 1,
+          "createdAt": "1783949111",
+          "updatedAt": "1783949111",
+          "active": true
+        },
+        {
+          "appId": "0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "image-generator",
+          "name": "Image Generator",
+          "description": "Private text-to-image on attested GPUs. Prompts go into the enclave and pixels come back; the operator and the host never see either. Generated images exist only in enclave RAM and your browser tab, so there is nothing server-side to leak. OpenAI-compatible images API with an optional key, plus a built-in playground with live progress, seeds, and a gallery. Ships no weights: attach verified model volumes and one deployment serves whatever fits, from Z-Image-Turbo at 6B to the 20B Qwen-Image-2512",
+          "versionCount": 45,
+          "createdAt": "1783966529",
+          "updatedAt": "1792824873",
+          "active": true
+        },
+        {
+          "appId": "0x36a82832dd7bcb6ed9fdd6da8611b2dfe5c81c75b6d97c50b7fe32ac6ed0175d",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "dead-drop",
+          "name": "Dead Drop",
+          "description": "Burn-after-reading secrets. AES-256-GCM in your browser, the key never leaves your link's #fragment; the enclave holds ciphertext only, counts reveals atomically, and erases at zero or expiry. Sender burn links, uniform 404s, counts-only logs.",
+          "versionCount": 4,
+          "createdAt": "1784487863",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "hookbin",
+          "name": "Hook Bin",
+          "description": "Webhook and request inspector. Point anything at your capture URL and watch it arrive live over SSE — method, headers, query, body, copy-as-curl. Configurable replies for testing sender retries. Captures exist in enclave RAM only: the inspector that provably can't leak what it saw.",
+          "versionCount": 5,
+          "createdAt": "1784487951",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x2700ff445ae7a1f71e63dae60bcba1c772092eb0976f98ac16bad0c31f29f038",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "ballot",
+          "name": "Ballot Box",
+          "description": "Anonymous polls, sealed until close. Ballots are hashes of browser-random tokens; in sealed mode the tally exists only in enclave RAM until the creator's close token reveals it — no mid-vote peeking, not even by the creator. Live mode for when the bandwagon is the fun part.",
+          "versionCount": 4,
+          "createdAt": "1784487969",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x2e86640df1bbeae3375394b592435031f0140769302522eb1ee538d3db2482b3",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "pixelboard",
+          "name": "Pixel Board",
+          "description": "One shared 128×128 canvas in enclave RAM. Sixteen colors, a 2-second cooldown nobody can cheat, live SSE deltas to everyone painting. The artwork lives while the deployment is funded — when it ends, the canvas provably ceases to exist.",
+          "versionCount": 5,
+          "createdAt": "1784487973",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x7f9d3a82003183804f76469765f4b978dcd2bab4f5d1adfb54ac2348849b184b",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "handoff",
+          "name": "Hand Off",
+          "description": "Files through an attested enclave. Chunked AES-256-GCM in your browser — the key rides the link's #fragment and even the filename travels inside an encrypted manifest. Downloads count on completion, and the only copy is erased at zero downloads, expiry, or the sender's burn link. 64 MB per file, RAM only.",
+          "versionCount": 3,
+          "createdAt": "1784489469",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x5769169caa9b838338d173f177e7b74bd77cc27ee3d0c050088674fe928621ce",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "backchannel",
+          "name": "Back Channel",
+          "description": "E2E-encrypted ephemeral chat rooms, relayed blind. The room key rides the invite link's #fragment and nicknames travel inside the ciphertext — the enclave rings 200 messages of blobs it can neither read nor attribute. Rooms die after 2 idle hours. Attested, so blind relay is checkable.",
+          "versionCount": 4,
+          "createdAt": "1784489829",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x90439a095e7d8f91ddbe813bbdc86e8679ab2a9fe2457eaa8af4a76fcea553aa",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "warpad",
+          "name": "War Pad",
+          "description": "One shared pad, encrypted before it leaves your machine. Every save replaces the pad's only ciphertext under a version counter — no history exists anywhere, structurally. Conflicts rebase in the client; the blind, attested relay just counts versions. Pads die after 24 idle hours.",
+          "versionCount": 3,
+          "createdAt": "1784491273",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0xd59372636b773fc26aa80089476a6f1af67cbfa03d26ee233435daa6b73c795c",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "failsafe",
+          "name": "Fail Safe",
+          "description": "Time capsules and dead man's switches. Ciphertext with a clock on the door: capsules release at a fixed moment, switches release only if the owner stops checking in — until then the attested enclave answers 423 to everyone, sender included. AES-256-GCM in your browser; the key rides the recipients' link.",
+          "versionCount": 2,
+          "createdAt": "1784492313",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x7d67c63703ca5511a5adf8071550a0b198f174b66f0c55340a34de46afb7b7b3",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "pulse",
+          "name": "Pulse",
+          "description": "Push-based uptime. Your cron jobs and backup scripts curl a per-monitor heartbeat URL into the enclave — no agents, no egress — and the live status page turns late or down the moment the beats stop. The history is attested RAM: nobody, host included, can backfill a beat or quietly edit what was green.",
+          "versionCount": 2,
+          "createdAt": "1784493305",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x6ee25734ead2c50a3f813c429a77a7ebe46b5d656d8a1c77b5062956c3275e30",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "quorum",
+          "name": "Quorum",
+          "description": "M of N must agree. Client-encrypted secrets the enclave refuses to serve until M of N approver tokens have signed — break-glass credentials and two-person rules that nobody, operator included, can bypass. Who approved stays private; only the count is public. Withdrawals until quorum; one-way after.",
+          "versionCount": 2,
+          "createdAt": "1784494189",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x7e0219119c8f24062927ecbc5afff0810b1af9f2e599798daf1b864792465ca2",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "fairdraw",
+          "name": "Fair Draw",
+          "description": "Raffles nobody can rig. The enclave commits sha256(salt) before the first entry exists; winners are a pure function of salt + the ordered entry list; the close reveals the salt and the page replays the whole draw in your browser with step-by-step checks. Attestation plus commit-reveal: rigging isn't forbidden, it's unconstructible.",
+          "versionCount": 2,
+          "createdAt": "1784494281",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x70bd9df6f058e6bf24d9788d7fe09a6d6680ec82436914a14b7d32c3f048c1f1",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "tripwire",
+          "name": "Trip Wire",
+          "description": "Canary tokens with a live alarm board. Plant a link in the file nobody should open — a fake passwords.xlsx, a honeypot API key — and the moment anything fetches it your board lights up. Valid and unknown tokens return byte-identical innocuous 404s, so the alarm fires silently. Append-only in attested RAM: what and when, never who.",
+          "versionCount": 2,
+          "createdAt": "1784501785",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0xf41a328417a48b0463643173caab34e530e1d59ddc6a46f859bdc41e2916c18b",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "tipline",
+          "name": "Tip Line",
+          "description": "An anonymous encrypted inbox. Sources encrypt to your public key in the browser with a discarded ephemeral key; the enclave stores ciphertext it can never read, and the notify path carries only counts and sizes. What makes it belong in a TEE: a source must trust the page they type into, and this one is attested code you can verify before you type.",
+          "versionCount": 2,
+          "createdAt": "1784502705",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x3e4cb567acbf7584d9e81b6d88554e9c82e1d09f201da3a9cc24d5c83ed7a2e4",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "keep",
+          "name": "Keep",
+          "description": "A confidential notebook on a wallet-unlocked encrypted volume. Your notes live as files the enclave decrypts into memory only; Save writes to the enclave's ramdisk, Sync re-encrypts and pushes ciphertext to your own S3 bucket, Lock wipes the plaintext. The bucket, the network, and the operator only ever see ciphertext — the wallet is the only key.",
+          "versionCount": 2,
+          "createdAt": "1784504653",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x8a2b50f9e0f7e28bc4cab8d2e651a0775da1827330e4f4b10cd0d94d2a0894e3",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "shoebox",
+          "name": "Shoe Box",
+          "description": "A private file locker and gallery on a wallet-unlocked encrypted volume. Drop files in, browse thumbnails, download — everything decrypts into the enclave's in-memory ramdisk. Sync re-encrypts and pushes ciphertext to your own S3 bucket; Lock wipes the plaintext. The bucket, the network, and the operator only ever see ciphertext.",
+          "versionCount": 2,
+          "createdAt": "1784504831",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x5b96bebd5e22784afd0e71dc9a00b3de154db56d924c889b2613bd7753ad62e9",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "gavel",
+          "name": "Gavel",
+          "description": "Sealed-bid auctions nobody can rig. Bids live only in attested enclave RAM — the seller's own admin link gets a 409 until the hammer falls, which is what makes honest Vickrey (second-price) auctions constructible at all. The reserve is blinded and committed before the first bid; at close only the winner and clearing price emerge, every bidder gets an inclusion fingerprint, and losing bids are scrubbed — amounts, names, contacts — never revealed to anyone.",
+          "versionCount": 2,
+          "createdAt": "1784506347",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0xbcfd503bc076f176fe16c89504b496970ab3d054fc769421ba1e9a162984c7d5",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "yardstick",
+          "name": "Yardstick",
+          "description": "Measure a group without anyone showing their number. Salaries, rates, estimates: each person seals one integer into attested enclave RAM; at close only aggregates — median, mean, quartiles — leave, and only if at least k people submitted. Below quorum nothing is revealed; either way every individual number is scrubbed in the same pass, so there is nothing left to leak, subpoena, or breach. Participants verify inclusion by fingerprint; the organizer never sees a single value.",
+          "versionCount": 2,
+          "createdAt": "1784506893",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0xd7b3ea413a285fb959a57f570884489e09b0b9912976469da5ba53d6debe5fba",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "anima",
+          "name": "RISC Box",
+          "description": "A real machine on the enclave's CPU. RISC Box boots a full RISC-V Linux inside the attested enclave from OS images in your own S3 bucket and bridges its serial console to your browser, keystrokes in, SSE out, disk saves back to the bucket. The guest, its images, and any credentials you type exist only in enclave RAM; the operator sees S3 traffic, never your machine.",
+          "versionCount": 15,
+          "createdAt": "1784684985",
+          "updatedAt": "1785511665",
+          "active": false
+        },
+        {
+          "appId": "0x688c9f066a8bdffe196c3eebff357c67f7b15215f9c192d93e0ebf0c8b4c2dc4",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "net-probe",
+          "name": "Net Probe",
+          "description": "Egress diagnostic page: prints the deployment's network identity and outbound reachability.",
+          "versionCount": 1,
+          "createdAt": "1784865199",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x985ab4b70da8555840918d4fefdc6a21f9e91f6db9f85e305587e9c76b932166",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "http-probe",
+          "name": "HTTP Probe",
+          "description": "Reports whether outgoing wasi:http requests from a guest reach public hosts. One line per target; any HTTP status proves reachability.",
+          "versionCount": 3,
+          "createdAt": "1784866437",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0xa856a26bd6ab39807baa0b6d9a54eaa7b29eeda18be71cd6b75e4d1b65922094",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "risc-box",
+          "name": "RISC Box",
+          "description": "A real machine on the enclave's CPU. RISC Box boots a full RISC-V Linux inside the attested enclave from OS images in your own S3 bucket and bridges its serial console to your browser, keystrokes in, SSE out, disk saves back to the bucket. The guest, its images, and any credentials you type exist only in enclave RAM; the operator sees S3 traffic, never your machine.",
+          "versionCount": 70,
+          "createdAt": "1784906155",
+          "updatedAt": "1791929851",
+          "active": true
+        },
+        {
+          "appId": "0x97371e0dc699c6582c37e74433f63f99401208990fed18158792c2e9caa92066",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "image-reader",
+          "name": "Image Reader",
+          "description": "Private vision on attested GPUs. Send an image and a question; the answer comes back and the picture is gone. Screenshots, documents, charts, photos: transcribe text exactly, read numbers off a chart, check whether a UI matches its spec. The component imports no outbound network, so what it sees provably cannot be forwarded, and nothing touches disk. A one-shot /v1/vision endpoint, an OpenAI-compatible chat API, a playground. Ships no weights: attach a vision volume.",
+          "versionCount": 4,
+          "createdAt": "1785370585",
+          "updatedAt": "1785511665",
+          "active": true
+        },
+        {
+          "appId": "0x3078e27f01e9ee9708c794c09b83270a9df1f60afb6dd16005aa345d3f5ba2fc",
+          "publisher": "0x3977E339f1935d1a31FbBeB945c9fB36fF537F2A",
+          "slug": "llm-chat-bench",
+          "name": "LLM Chat Bench",
+          "description": "throwaway-wallet bench build (lookup-assist prototype, default off); not for general use",
+          "versionCount": 32,
+          "createdAt": "1785612293",
+          "updatedAt": "1785897609",
+          "active": true
+        },
+        {
+          "appId": "0x0d69d004b7e97a2d93a14eb9a29233e10de4b5f160e8dd8481805b3c9ed062a1",
+          "publisher": "0x3977E339f1935d1a31FbBeB945c9fB36fF537F2A",
+          "slug": "risc-box-dev",
+          "name": "risc-box-dev",
+          "description": "",
+          "versionCount": 8,
+          "createdAt": "1786000395",
+          "updatedAt": "1786380343",
+          "active": true
+        },
+        {
+          "appId": "0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "eyesoff-ai",
+          "name": "EyesOff AI",
+          "description": "Private LLM chat on attested GPUs. Prompts and replies are processed only inside the enclave; the operator and the host never see your conversation. Chat history lives only in your browser, so there is nothing server-side to leak, subpoena, or breach. OpenAI-compatible API with streaming: set an API key in config and point any OpenAI SDK at your deployment URL, or use the built-in playground. Ships no weights. Attach verified model volumes and one deployment serves whatever fits, largest first.",
+          "versionCount": 86,
+          "createdAt": "1786185099",
+          "updatedAt": "1791963009",
+          "active": true
+        },
+        {
+          "appId": "0xcb65b362a3e3685db65fce2ad6fe3cc336fca26f917e05d85c8f720da3928658",
+          "publisher": "0x3977E339f1935d1a31FbBeB945c9fB36fF537F2A",
+          "slug": "eyesoff-dbg",
+          "name": "eyesoff-dbg",
+          "description": "Chunk boundaries end at any marker; repair double-encoded truncated arguments.",
+          "versionCount": 7,
+          "createdAt": "1786755147",
+          "updatedAt": "1786760745",
+          "active": true
+        },
+        {
+          "appId": "0xd4d384181dc1606ab67f306e8c02dad041914e3d61c4b098e78bee327a3c66ee",
+          "publisher": "0x3977E339f1935d1a31FbBeB945c9fB36fF537F2A",
+          "slug": "risc-box-doom",
+          "name": "risc-box-doom",
+          "description": "",
+          "versionCount": 19,
+          "createdAt": "1786866455",
+          "updatedAt": "1787216619",
+          "active": true
+        },
+        {
+          "appId": "0x4306e588755347dbb30b5e2090cacbc7e20b00afedff750fe352fe99d6d77a7c",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "s3-ipfs-adapter",
+          "name": "S3 IPFS Adapter",
+          "description": "Turn any S3-compatible bucket into IPFS content, served from an attested enclave. Every object gets the exact CID ipfs add would mint, and the bucket gets one root CID: a verifiable commitment you can pin, share, or cross-check anywhere without trusting this gateway. Bytes stay in your bucket; the enclave holds only the merkle index and re-hashes everything it serves, so changed data can never hide under a valid CID. Standard gateway surface: /ipfs paths, raw blocks, CAR streams, HTTP ranges, pl",
+          "versionCount": 18,
+          "createdAt": "1787089859",
+          "updatedAt": "1792392869",
+          "active": true
+        },
+        {
+          "appId": "0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "ipns-publisher",
+          "name": "IPNS Publisher",
+          "description": "Publish an IPNS name whose ed25519 key never leaves the enclave: held in attestation, not a plaintext file on disk. Records are signed in the TEE and pushed out three ways: served over /routing/v1, PUT to delegated routers, and stored on the public IPFS DHT by a hand-rolled, outbound-only libp2p stack (Noise XX, yamux, Kademlia PUT_VALUE), since rust-libp2p does not target wasip2. Byte-for-byte kubo-compatible; any node resolves the name straight from the DHT.",
+          "versionCount": 6,
+          "createdAt": "1787129497",
+          "updatedAt": "1791929781",
+          "active": true
+        },
+        {
+          "appId": "0xd63245b0ffaa35cbf00cff54866e9c4c51398b8eae7b9c93597c10eb0003aa04",
+          "publisher": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+          "slug": "risc-box-doom-fix",
+          "name": "RISC Box",
+          "description": "",
+          "versionCount": 22,
+          "createdAt": "1787256615",
+          "updatedAt": "1787654001",
+          "active": true
+        },
+        {
+          "appId": "0x9edba8506e2e9987de15acb37309294ad3794de7a2be434dadc71087e7bea111",
+          "publisher": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+          "slug": "eyesoff-perf",
+          "name": "eyesoff-perf",
+          "description": "",
+          "versionCount": 13,
+          "createdAt": "1787284417",
+          "updatedAt": "1788721529",
+          "active": true
+        },
+        {
+          "appId": "0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "jot",
+          "name": "Jot",
+          "description": "A notebook your agent keeps in your own bucket",
+          "versionCount": 5,
+          "createdAt": "1788334279",
+          "updatedAt": "1788465307",
+          "active": true
+        },
+        {
+          "appId": "0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "api-mcp-adapter",
+          "name": "API MCP Adapter",
+          "description": "Any HTTP API as an MCP server, from an attested enclave. Describe your\nendpoints once in the app config and every agent that speaks MCP can call\nthem, with the API keys held inside the enclave and a caller choosing only\narguments, never a URL or a header. For an eyesoff-ai deployment, one entry\nreplaces the whole tools block.",
+          "versionCount": 1,
+          "createdAt": "1788490219",
+          "updatedAt": "1788490219",
+          "active": true
+        },
+        {
+          "appId": "0x3c45d57b53f42fb26c22d285b212eeee248161150745aa00035b34a73e33c36c",
+          "publisher": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+          "slug": "risc-box-perf",
+          "name": "risc-box-perf",
+          "description": "",
+          "versionCount": 5,
+          "createdAt": "1788580131",
+          "updatedAt": "1788597489",
+          "active": true
+        },
+        {
+          "appId": "0xef6bc0c56c7ec1b74f72e2337b085ded98d7eea8bcbed711686dc0387def5e81",
+          "publisher": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+          "slug": "enclave-hello",
+          "name": "Enclave Hello",
+          "description": "The reference app for the enclave:app world: it runs inside a VBS enclave, interpreted from bytecode, and can call the model that lives in there.",
+          "versionCount": 1,
+          "createdAt": "1790031859",
+          "updatedAt": "1790031859",
+          "active": true
+        },
+        {
+          "appId": "0x160599c2cf27bd41e95157abae7da0e01f8907d9cdbf0b54418364728200f3dc",
+          "publisher": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+          "slug": "nucbox-shield-inference-check",
+          "name": "NucBox Shield inference check",
+          "description": "Public fixed-prompt WASI inference check for the isolated NucBox Shield GPU profile. No user data or secrets.",
+          "versionCount": 1,
+          "createdAt": "1790701017",
+          "updatedAt": "1790701017",
+          "active": true
+        },
+        {
+          "appId": "0xf1897f065ed94bc096d351b831514311e08b30702148c639cbaf8d0deb74d03a",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "cron",
+          "name": "Cron",
+          "description": "Schedule one-time and recurring tasks on Enclave. Trigger webhooks, automate workflows, and manage jobs through an API, MCP tools, or the web dashboard. Schedules survive restarts, with encrypted storage and run history.",
+          "versionCount": 4,
+          "createdAt": "1790788289",
+          "updatedAt": "1792114557",
+          "active": true
+        },
+        {
+          "appId": "0x962622b0284b438f58ad480b824d4fbf7fa9ce3dc84e2af97b65bd15392a5e6f",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "capacity-work",
+          "name": "Capacity Work",
+          "description": "Authenticated CPU and RAM verification workload with reproducible results. No GPU or exclusive physical-capacity claim.",
+          "versionCount": 1,
+          "createdAt": "1790817047",
+          "updatedAt": "1790817047",
+          "active": true
+        },
+        {
+          "appId": "0xfd420627abb04e52e7d12e3a535e2df94a048ba51c0b0fec173e9e7de2e24b28",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "depot",
+          "name": "Depot",
+          "description": "Private git server, encrypted at rest in your own bucket",
+          "versionCount": 6,
+          "createdAt": "1791584087",
+          "updatedAt": "1792074241",
+          "active": true
+        },
+        {
+          "appId": "0x093fa91736c2639e93867b76074c6c4dbc5e49150faf4e8618bdf45e30d275c6",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "sia-s3",
+          "name": "Sia S3",
+          "description": "An S3 endpoint backed by Sia, served from an attested enclave. Objects are encrypted and erasure-coded inside the enclave, then spread across independent storage hosts: any 10 of 30 shards rebuild every object, so no host can read your data and losing hosts loses nothing. Existing S3 clients work unchanged: SigV4, ranges, copy, multipart, ListObjectsV2. The key index lives in the objects' own sealed metadata, so the app keeps no local state.",
+          "versionCount": 9,
+          "createdAt": "1791952881",
+          "updatedAt": "1793102463",
+          "active": true
+        },
+        {
+          "appId": "0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06",
+          "publisher": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "slug": "enclavedns",
+          "name": "EnclaveDNS",
+          "description": "Validating DNSSEC resolver with native .eth (ENS) and .onion resolution, served as DNS-over-HTTPS and a JSON API; signed hosted zones; no query logs.",
+          "versionCount": 6,
+          "createdAt": "1792258721",
+          "updatedAt": "1792634267",
+          "active": true
+        },
+        {
+          "appId": "0xcdc1fa941d248411e49f922e0bc7adfe8cc343712ca4fe4dfb24fab3ef6c70ce",
+          "publisher": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+          "slug": "kvm-box-native",
+          "name": "KVM Box Native",
+          "description": "Native x86 Linux desktop with Firefox, FreeDoom and Moonlight. Runs llama.cpp and sd.cpp with supported masked GPU compute; unsupported operations and general OpenGL/Vulkan rendering run on the guest CPU. Requires the approved KVM Box native profile. Host-trusted on NucBox.",
+          "versionCount": 1,
+          "createdAt": "1792993355",
+          "updatedAt": "1792993355",
+          "active": true
+        }
+      ],
+      "vaultApps": [
+        {
+          "app": {
+            "appId": "0xcdc1fa941d248411e49f922e0bc7adfe8cc343712ca4fe4dfb24fab3ef6c70ce",
+            "publisher": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+            "slug": "kvm-box-native",
+            "name": "KVM Box Native",
+            "description": "Native x86 Linux desktop with Firefox, FreeDoom and Moonlight. Runs llama.cpp and sd.cpp with supported masked GPU compute; unsupported operations and general OpenGL/Vulkan rendering run on the guest CPU. Requires the approved KVM Box native profile. Host-trusted on NucBox.",
+            "versionCount": 1,
+            "createdAt": "1792993355",
+            "updatedAt": "1792993355",
+            "active": true
+          },
+          "controllingWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "simulation": {
+            "ok": true,
+            "caller": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+            "authorityNotEstablished": true
+          }
+        }
+      ],
+      "tails": [
+        {
+          "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+          "provenUntil": "1793030061",
+          "earn": [
+            "1",
+            "4910724",
+            "1793030061"
+          ],
+          "refundable6": "4799124",
+          "ownerEscrow6": "4850000",
+          "priorLeaseUntil": "1793141661",
+          "note": "Prior lease snapshot is explicitly historical; no settlement or refund executed."
+        },
+        {
+          "id": "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+          "provenUntil": "1793088631",
+          "earn": [
+            "14",
+            "5055558",
+            "1793088631"
+          ],
+          "refundable6": "4425558",
+          "ownerEscrow6": "5055558",
+          "priorLeaseUntil": "1793133631",
+          "note": "Prior lease snapshot is explicitly historical; no settlement or refund executed."
+        }
+      ]
+    },
+    "blockNumber": "53264171",
+    "blockHash": "0x4ab7ab39c6285d172c77d2975a413fbcab3dbde08249c2ae472497c02e4a6e27",
+    "timestamp": 1793317689000,
+    "agreeing": 2,
+    "peers": 3,
+    "failures": [
+      "base-rpc.publicnode.com: HTTP request failed."
+    ]
+  }
+}
