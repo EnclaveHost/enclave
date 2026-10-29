@@ -1,0 +1,46 @@
+{
+  "at": "2026-10-29T11:50:34.358486+00:00",
+  "rc": 0,
+  "status": {
+    "keys": [
+      "transport",
+      "updatedAt",
+      "relays",
+      "labels",
+      "deployments",
+      "pending"
+    ],
+    "deployment": {
+      "transport": "enclave-network",
+      "expiresAt": 1793274684154,
+      "httpsRoutes": [
+        {
+          "circuit": "9de2a32bd012c180a8ccab93809c48db",
+          "address": "134.209.248.172",
+          "port": 443,
+          "transport": "enclave-network"
+        },
+        {
+          "circuit": "ad08d2d444df8d303d5bebf0daf87425",
+          "address": "146.190.246.39",
+          "port": 443,
+          "transport": "enclave-network"
+        }
+      ],
+      "discovery": {
+        "ipns": "k51qzi5uqu5divjb1lwspv5cmfappqhjksdd9jl8emk0u7eke5d2mzu9a72xws"
+      },
+      "version": 2
+    },
+    "label": {
+      "transport": "enclave-network",
+      "expiresAt": 1793274684154,
+      "addresses": [
+        "134.209.248.172",
+        "146.190.246.39"
+      ]
+    },
+    "pending": []
+  },
+  "error": ""
+}

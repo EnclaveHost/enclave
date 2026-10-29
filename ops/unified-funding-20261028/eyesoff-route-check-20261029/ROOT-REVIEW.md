@@ -1,0 +1,5 @@
+# EyesOff app endpoint: bounded read-only route check
+
+Root verified all seven peer diagnostic file hashes and inspected the public route, selected-edge TLS probes and ordinary resolver result. The public app endpoint succeeds at11:50:59UTC with HTTP200/TLS verification0 through ordinary DNS. Both directory-selected edges independently succeeded at11:50:40. Non-selected edges returning EOF do not prove a fault in the published route. Earlier11:38 default-request failure lacks remote IP and a contemporaneous route snapshot; stale DNS/route remains a hypothesis. No restart, funding, claim, configuration or service change was made. This is timestamped reachability evidence, not continuous uptime, model quality or complete censorship-resistance qualification.
+
+If this recurs, capture resolved addresses, actual remote IP, route expiry/pending state and current instance certificate together. Do not infer insufficient reserve from TLS EOF or repeat the already confirmed payment. Private authenticated status was reviewed separately and is not copied into this public package.
