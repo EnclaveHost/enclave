@@ -1,0 +1,18 @@
+{
+  "REPORT-WINDOWS-PERMIT-R6.md": "2fc807bc4e0b2f0740b939c3be93400f38f4574f3ecddf670fbe93b94f2d0700",
+  "control/network/deployment-isolation-runtime.mjs": "22f333afbd398c0a7e6536c0385d8b4d32e8a6b646881a275fae6e4263e38bf1",
+  "control/network/deployment-permit-gate.mjs": "6d1d551293e1d0feec06a46b521332b86d9de554f55dfe974bbaf22760d82df5",
+  "control/windows/node/protected-isolation.mjs": "665659d0b34038e1ab6c0cd9b5c6e4d6d9a008d3013424ec79c52bc571c4eeb2",
+  "control/windows/node/protected-supervisor.mjs": "4e01c42d510a20bb52a8d2ea58313691118bc3e05bce2ab45c4d2fb68f68e53d",
+  "control/windows/vbslike/manager/compose.mjs": "64bcac377ac59945f1244442849dbeace52a6962d655b5858b317f3c1e76079e",
+  "control/windows/vbslike/manager/control.mjs": "f982c0655f3b08963586f61e0dfaf48fc74987da6c641ae78c37fe0a2eaacc88",
+  "control/windows/vbslike/manager/main.mjs": "3bfbd8e7f821ee65cfbb542abbc653085bd9feb00af5115cbf8319f9f93d8c31",
+  "control/windows/vbslike/manager/protected-manager.mjs": "5acbcf4a20fe6a39a9fe0b0f9b65f022adc1a0fae3e9925a8c3473f5906cb6d9",
+  "control/windows/vbslike/router/attest.mjs": "509ca326269636c47637f398d6e99ab29675d0ebfcb00f2f87e3d0ce2e4654b7",
+  "control/windows/vbslike/router/control.mjs": "4e9ce3c3e44bc579d70eddda2a25319c14f2fca4812ae968d75a32661fcc589d",
+  "control/windows/vbslike/router/io.mjs": "e7a43900d34baf77d6a3b06da4d9fc95e3a0fc56db217b910087fce656cdf5bf",
+  "control/windows/vbslike/router/main.mjs": "de72a5adc783fefe67b6306620bf1c7f5ca433a4832ad59f910ebe60eca2ce25",
+  "test/windows-permit/helpers/world.mjs": "5c03f01c219f5c5006f680d47d49d79bf76ded6c1848c7d62ff42e58e971de58",
+  "test/windows-permit/r6-router-ownership.test.mjs": "edf636551524423980c823aa0aef9814813c71814a2f8a9b9cc740ff8b2705ec",
+  "test/windows-permit/r6-stage-revocation.test.mjs": "4cd6ec2c9a54dc4bfdf224caed79510ae248bd5b8b22259ca66179044257d3b7"
+}

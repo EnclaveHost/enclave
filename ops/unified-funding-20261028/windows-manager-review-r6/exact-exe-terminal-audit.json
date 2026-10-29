@@ -1,0 +1,12 @@
+{
+  "unitState": "ActiveState=inactive\nSubState=dead\nMainPID=0\nExecMainStatus=0\n",
+  "knownPidsExist": {
+    "mainPid": false,
+    "runnerPid": false,
+    "claudePid": false
+  },
+  "exactExecutable": "/home/steven/.local/share/claude/versions/2.1.281",
+  "matchingStageProcesses": [],
+  "unknownCwdForExactExecutable": [],
+  "note": "Extra terminal proof because exact version binary comm is2.1.281, not claude. Checked before invoking pinned collector."
+}

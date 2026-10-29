@@ -1,0 +1,47 @@
+{
+  "admission": {
+    "unit": "enclave-windows-manager-integration-r6-20261029",
+    "invocation": "c00dad30f7c648929471b12614c9c568",
+    "mainPid": 1615374,
+    "runnerPid": 1615389,
+    "claudePid": 1615429,
+    "claudeStartTicks": "159320272",
+    "comm": "2.1.281",
+    "exactExe": "/home/steven/.local/share/claude/versions/2.1.281",
+    "recordedAt": 1793288128.286793
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 0,
+    "finishedAt": 1793288649.8715558,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "7c80dfa3-68a2-4574-9523-54d15b5adff3",
+  "duration_ms": 560387,
+  "num_turns": 74,
+  "configuredMaxAgenticTurns": 55,
+  "distinctAssistantMessageIds": 44,
+  "transcriptUserRows": 74,
+  "turnMetricNote": "Raw success-result num_turns is a different user-message counter from max-agentic/API-turn limit; retain without conflating. See pinned turn-metric-investigation.json.",
+  "is_error": false,
+  "outputParseFailed": false,
+  "files": 165,
+  "changedFiles": 16,
+  "removedFiles": [],
+  "manifestSha256": "dae4375fb6358b8c67ad2577898eb5006480d0c4835aaa4b7d50b5c0d6be46b0",
+  "firstMutations": 16,
+  "firstMutationManifestSha256": "a3ca095557cef06ce14bab4f632be7f4b1b4ce2ff247fe320176e1bfdafbb1b1",
+  "currentInvocationTools": {
+    "Read": 20,
+    "Grep": 13,
+    "Edit": 36,
+    "Write": 4
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [],
+  "mutationAuditSha256": "aa03eb9a4f819586f5edbfdcc9014a4813d6840ca7b5e141da875a7747eb7fd1",
+  "innerGuard": "[memory-guard] exit=0 peakTreeRssMiB=299 minHostAvailableMiB=33032\n",
+  "outerGuard": "[memory-guard] exit=0 peakTreeRssMiB=355 minHostAvailableMiB=33029\n"
+}

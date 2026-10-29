@@ -1,0 +1,33 @@
+TAP version 13
+# Subtest: ROOT actual entry validator accepts explicit absolute router attestation key while preserving old config
+not ok 1 - ROOT actual entry validator accepts explicit absolute router attestation key while preserving old config
+  ---
+  duration_ms: 0.650764
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/root-entry-config.test.mjs:4:1'
+  failureType: 'testCodeFailure'
+  error: 'permit configuration has unknown or missing fields'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    validatePermitConfig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/manager/compose.mjs:37:128)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/root-entry-config.test.mjs:4:240)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: ROOT actual entry validator refuses unknown config and relative router key
+ok 2 - ROOT actual entry validator refuses unknown config and relative router key
+  ---
+  duration_ms: 0.285738
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 30.594162

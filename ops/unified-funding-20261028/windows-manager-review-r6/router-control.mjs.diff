@@ -1,0 +1,119 @@
+--- work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/vbslike/router/control.mjs	2026-10-29 08:11:47.273842291 -0700
++++ work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/router/control.mjs	2026-10-29 08:40:36.914393695 -0700
+@@ -21,6 +21,7 @@
+ import {validateDesktopRecord} from '../manager/desktop-derive.mjs';
+ import {desktopSpawnRefusal} from '../manager/desktop-admission.mjs';
+ import {type1VmMemMiB} from '../manager/wmi-launcher.mjs';
++import {attestKey,attestRequest,verifyAttestResponse} from './attest.mjs';   // permit r6
+ 
+ export const NATIVE_ID = /^nd[0-9a-f]{32}$/;
+ export const PROTECTED_ID = /^pp[0-9a-f]{32}$/;
+@@ -106,7 +107,8 @@
+ }
+ 
+ export class CompositeManager {
+-  constructor({request, journal, nativePins, nativeScope='enclave-native-', availableMemoryMiB, mint=()=> 'nd'+randomBytes(16).toString('hex')}) {
++  constructor({request, journal, nativePins, nativeScope='enclave-native-', availableMemoryMiB, attestKey:key=null, mint=()=> 'nd'+randomBytes(16).toString('hex')}) {
++    this.attestKey=key===null?null:attestKey(key);   // permit r6: owner-selected K_r; null -> protected stages refused (never unauthenticated latching)
+     if (typeof request!=='function' || !journal || !nativePins || typeof availableMemoryMiB!=='function') throw error('router configuration absent');
+     for (const name of ['deployment','catalogApp']) if (!/^0x[0-9a-f]{64}$/.test(nativePins[name]||'')) throw error('invalid native deployment/catalog pin');
+     for (const name of ['runtimeId','profileSha256','igvmSha256','controllerSha256']) if (!/^[0-9a-f]{64}$/.test(nativePins[name]||'')) throw error('invalid native image pin');
+@@ -183,6 +185,7 @@
+     h.catalog.derives=[...new Set([...h.catalog.derives,V8])];
+     if(h.preflight?.roles)h.preflight.roles.desktop=s.native.preflight?.roles?.desktop ?? {ok:false};
+     try{if(this.journal.pending()||!this.journal.hasCapacity()){h.canStart=false;h.cannotStart=['router journal requires reconciliation or maintenance'];if(h.permitEnforcement)this.#noProtected(h,'router journal requires reconciliation');}}catch{h.canStart=false;h.cannotStart=['router journal unavailable'];if(h.permitEnforcement)this.#noProtected(h,'router journal unavailable');}
++    if(!this.attestKey&&h.permitEnforcement)this.#noProtected(h,'router attestation key not configured');   // permit r6
+     if(h.canStart===false){h.admission={ready:false,reason:h.cannotStart?.join('; ')||'manager unavailable'};return {status:503,body:h};}
+     return {status:200,body:h};
+   }
+@@ -275,11 +278,30 @@
+   });}
+   // permit r1: an authenticated protected stage. The body bytes are MAC'd end to end and are forwarded unchanged;
+   // the manager mints the pp id, so the latch records the name and correlates the id from the answer.
++  // permit r6: the router's OWN authenticated question to the legacy manager (router/attest.mjs). Any transport/MAC/shape
++  // failure throws (503): it is never read as "unauthenticated" or as "absent".
++  async attest(payload) {
++    if(!this.attestKey)throw error('router attestation key not configured: protected admission unavailable');
++    const q=attestRequest(this.attestKey,payload);
++    const r=await this.request('legacy','POST','/router/attest',q.raw,q.headers);
++    if(r.status!==200)throw error(`router attestation answered ${r.status}`);
++    return verifyAttestResponse(this.attestKey,q.nonce,r);
++  }
+   async stageProtected(path,raw,headers) {return this.serial(async()=>{
+     if(this.journal.pending())throw error('unreconciled router launch');
+     let req;try{req=JSON.parse(raw.toString('utf8'));}catch{throw error('invalid protected stage body',400);}
+     const body=req?.spawn;
+     if(!body || typeof body!=='object' || Array.isArray(body) || 'id' in body || body.name!==req.deployment)throw error('invalid protected stage body',400);
++    if(!/^op[0-9a-f]{32}$/.test(String(req.operation)))throw error('protected stage requires its durable operation id',400);
++    // permit r6: AUTHENTICATE BEFORE ANY ADMISSION-BLOCKING OWNERSHIP. The manager verifies the exact signed request without
++    // consuming its sequence; an invalid/expired session is answered 401 here with nothing latched and nothing forwarded.
++    const reqSha=createHash('sha256').update(raw).digest('hex');
++    const a=await this.attest({purpose:'stage',method:'POST',path,body:raw.toString('base64'),
++      headers:{'x-guestd-session':headers['x-guestd-session'],'x-guestd-seq':headers['x-guestd-seq'],'x-guestd-mac':headers['x-guestd-mac']}});
++    if(a.ok!==true)return {status:401,body:{error:'guestd-control/1 authentication required',reauth:true}};
++    if(a.requestSha256!==reqSha||a.deployment!==req.deployment||a.operation!==req.operation||typeof a.managerEpoch!=='string')throw error('router attestation does not bind this exact request');
++    // an operation with ANY recorded or accepted outcome is never admitted again (late original after cancellation, replay)
++    if(a.outcome?.state!=='unseen')return {status:409,body:{error:`operation already ${a.outcome?.state??'unknown'}: not admitted`,operation:req.operation}};
+     if(['secrets','env','secretValues','bootstrap'].some(k=>k in body)||body.derive?.derivation===V8||body.derive?.desktop||body.name===this.pins.deployment)throw error('protected stage crosses native or secret inputs',400);
+     if(Object.keys(body.derive?.catalog??{}).sort().join(',')!=='app,version')throw error('invalid catalog fields',400);
+     this.checkLegacy(body);
+@@ -290,7 +312,8 @@
+     if(existing)return {status:409,body:{error:'deployment already exists',id:existing.id}};
+     if(!s.legacy.canStart)throw error('target manager unavailable');
+     const expected=await this.admission(body,s,false);
+-    this.journal.begin({schema:'enclave-router-pending/1',role:'legacy',name:body.name,id:null,protected:true,requestSha256:createHash('sha256').update(raw).digest('hex'),epoch:s.epoch,expected,startedAt:new Date().toISOString()});
++    // capacity stays reserved (durable latch) BEFORE the raw stage, now bound to the attested operation/request/manager epoch
++    this.journal.begin({schema:'enclave-router-pending/1',role:'legacy',name:body.name,id:null,protected:true,requestSha256:reqSha,operation:req.operation,deployment:req.deployment,managerEpoch:a.managerEpoch,epoch:s.epoch,expected,startedAt:new Date().toISOString()});
+     let result;try{
+       result=await this.request('legacy','POST',path,raw,headers);
+       if(result.status===202){
+@@ -322,8 +345,32 @@
+   }
+   // Explicit operator reconciliation only. Absence, backend 4xx, restart or
+   // elapsed time NEVER clears a pending launch: it may still be in flight.
+-  async reconcile() {return this.serial(()=>this.observePending());}
++  async reconcile() {return this.serial(()=>{
++    const p=this.journal.read();
++    return p.state==='pending'&&p.record?.protected===true&&p.record.operation?this.resolveOperation():this.observePending();
++  });}
++  // permit r6: resolve ONLY this router's own pending protected reservation, ONLY from the manager's durable outcome of its
++  // exact operation obtained over the router's verified channel. cancelled (written once, never after executed: the manager
++  // writes `executed` BEFORE its staging intent) proves no start; executed is cleared only by the exact same-epoch reservation
++  // (observePending). in-progress/unseen/unknown, any HTTP status, another operation, elapsed time or a restart: stays charged.
++  async resolveOperation(op=null) {
++    const p=this.journal.read();
++    if(p.state!=='pending')return {status:200,body:{observed:false,reason:'no pending launch'}};
++    const r=p.record;
++    if(r.protected!==true||!/^op[0-9a-f]{32}$/.test(String(r.operation))||(op!==null&&op!==r.operation))
++      return {status:409,body:{observed:false,reason:'pending reservation belongs to another operation'}};
++    const a=await this.attest({purpose:'operation',operation:r.operation}),o=a.outcome;
++    if(a.ok!==true||o?.operation!==r.operation)throw error('pending operation outcome unknown');
++    if(o.deployment!==r.deployment)throw error('operation outcome names another deployment');
++    if(o.state==='cancelled'&&o.instanceId===null){
++      this.journal.clear({observation:'verified durable cancellation before execution',operation:r.operation,deployment:r.deployment,requestSha256:r.requestSha256,managerEpoch:a.managerEpoch});
++      return {status:200,body:{observed:true,cancelled:r.operation}};
++    }
++    if(o.state==='executed'&&PROTECTED_ID.test(String(o.instanceId)))return this.observePending(o.instanceId);
++    throw error(`pending operation ${o.state}: reservation stays charged`);
++  }
+   async handle(method,path,body,headers={}) {
++    headers={...headers};delete headers['x-router-mac'];   // permit r6: a client never speaks on the router's attestation channel
+     const r=routePath(path);
+     const auth=authenticated(headers);
+     // permit r1: control handshake and authenticated requests reach exactly the legacy (protected-capable) manager
+@@ -335,7 +382,14 @@
+       if(!auth)return {status:401,body:{error:'guestd-control/1 authentication required'}};
+       if(method!=='POST')throw error('unknown manager route',404);
+       if(r.stage)return this.stageProtected(path,Buffer.isBuffer(body)?body:Buffer.alloc(0),headers);
+-      return this.request('legacy',method,path,Buffer.isBuffer(body)?body:Buffer.alloc(0),headers);
++      const out=await this.request('legacy',method,path,Buffer.isBuffer(body)?body:Buffer.alloc(0),headers);
++      if(r.protectedOp==='cancel'){
++        // permit r6: join the manager's terminal outcome to router ownership through the router's OWN verified question,
++        // never from this (client-keyed, unverifiable here) answer or its status. Failure leaves the reservation charged.
++        const op=/^\/protected\/operations\/(op[0-9a-f]{32})\/cancel$/.exec(r.path)[1];
++        try{await this.serial(()=>this.resolveOperation(op));}catch{/* stays charged: health 503, admission.ready=false */}
++      }
++      return out;
+     }
+     // permit r5: authenticated exact reads, forwarded byte-for-byte with their MAC headers; the answer (and its response
+     // MAC) is the manager's, never synthesized or merged here. Unsigned: 401, nothing forwarded.
