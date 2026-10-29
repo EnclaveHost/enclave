@@ -1,5 +1,5 @@
 {
-  "ROOT-REVIEW.md": "2890bb7eeef174bb6c6fc40b04f00345b6497b2d9a37035ddf94e8da131038ff",
+  "ROOT-REVIEW.md": "fec1e187aae49ba11859a541add9a5b9a74baa7feaf366608c4b120f9a5ed45b",
   "TASK.txt": "662d32199464b473898f3a7b0cf656f4ebb5885305a61c538a51ae610a8a457e",
   "root-account-check.json": "8f2349ef4dd4bdced4c14177ee787fb2f6bed2014e08ea0937c064d4e3a9dd00",
   "REVIEW-STATUS.txt": "327945f968f517f22ea168c61c24210d0d6abf8f7021f072038fa33ae2e62a07",
@@ -17,5 +17,6 @@
   "router-three-way/live-v13.mjs": "966fd3b5480e9859de4f1dc578b25afa1150e97552437e8c183c03bba4606e6a",
   "router-three-way/live-to-merged.diff": "e4ea690f08b64ad163005de0166c8be84200e10f190022f0f1470943ceeb4f7b",
   "router-three-way/frozen-r2.mjs": "1c535912a3cf57ef7b6a32655c0c4ee566dece881c3ecfd30fb9e46ae57e9048",
-  "router-three-way/base-to-live.diff": "a8275c4605738f4e597d3c5f6252ec5682e1569085450662348029064d68a31d"
+  "router-three-way/base-to-live.diff": "a8275c4605738f4e597d3c5f6252ec5682e1569085450662348029064d68a31d",
+  "SCAN-REVIEW.md": "f5159d6a132f6cc20daa4bc6371056a141b5c514b4864ba574640507136e2384"
 }

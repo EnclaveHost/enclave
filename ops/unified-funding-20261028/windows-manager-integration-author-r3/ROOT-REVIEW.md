@@ -1,6 +1,6 @@
 # One active Claude Windows integration pass
 
-Root reviewed TASK662d32199464b473898f3a7b0cf656f4ebb5885305a61c538a51ae610a8a457e, runner1d8d932ff082d37fa79fbc460f724189dd9a9837687e6238e9a4537dc5e8f0f4 and PREPARED473168fb420f062c9f42a372313e6dd73eec4db505a8efa6c99c47fe0830d539; all790 read-only input hashes and149 candidate seed hashes independently matched. Required Max account was checked independently and enforced by the runner.
+Root reviewed TASK SHA256 662d32199464b473898f3a7b0cf656f4ebb5885305a61c538a51ae610a8a457e, runner1d8d932ff082d37fa79fbc460f724189dd9a9837687e6238e9a4537dc5e8f0f4 and PREPARED473168fb420f062c9f42a372313e6dd73eec4db505a8efa6c99c47fe0830d539; all790 read-only input hashes and149 candidate seed hashes independently matched. Required Max account was checked independently and enforced by the runner.
 
 The initial prepared router replacement was rejected before launch: frozen r2 control.mjs1c535912 includes substantial protected route/stage/MAC-forwarding/accounting work. Replacing it with the live966fd file would discard that work. The corrected seed e2bf6ea711d9894aba92fbfb77048adeac0cbdeba135b72f71c7ebc3796424cf narrowly merges the two live health changes into frozen r2. Root verified every byte outside health() unchanged and all three #noProtected call sites preserved. Exact three-way source and diffs are retained here. This source merge is not yet runtime-qualified.
 
