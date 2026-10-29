@@ -1,0 +1,1 @@
+historical93 complete PASS93/0skip after original perfile isolation/owned loopback fix. Root8 not executed: missing relocated runtime-lock import, module loader counted1failure not8tests. Added exact pinned dependency only to new r4, rerunroot8only; source assertions unchanged.

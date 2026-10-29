@@ -1,0 +1,169 @@
+{
+  "checkedAt": "2026-10-29T11:19:40.0666065Z",
+  "releases": [
+    {
+      "files": [
+        {
+          "path": "windows/vbslike/manager/server.mjs",
+          "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+          "manifestSha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+          "capabilityLines": [
+            {
+              "line": 79,
+              "text": "* @param judgeReady  ({host, port, appId, launcherKey, expectRuntime, deadlineMs}) -> verdict."
+            },
+            {
+              "line": 81,
+              "text": "* @param readyDeadlineMs  how long a domain has to become ready before it is failed."
+            },
+            {
+              "line": 84,
+              "text": "runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, protectedPorts = false, wasmSet = false, memory64 = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,"
+            },
+            {
+              "line": 151,
+              "text": "this.readyDeadlineMs = readyDeadlineMs;"
+            },
+            {
+              "line": 219,
+              "text": "deadlineMs: [DERIVATION_V6,DERIVATION_V7].includes(rec.derivation) ? Math.max(300_000,this.readyDeadlineMs) : this.readyDeadlineMs });"
+            },
+            {
+              "line": 853,
+              "text": "if (req.method === \"GET\" && p === \"/health\") return send(200, manager.health());"
+            },
+            {
+              "line": 857,
+              "text": "if (req.method === \"GET\" && p === \"/vms\") return send(200, { vms: manager.list(), managerEpoch: manager.epoch });"
+            },
+            {
+              "line": 858,
+              "text": "if (req.method === \"POST\" && p === \"/vms\") {"
+            },
+            {
+              "line": 874,
+              "text": "if (m && req.method === \"GET\") {"
+            },
+            {
+              "line": 882,
+              "text": "if (m && req.method === \"DELETE\") {"
+            }
+          ]
+        },
+        {
+          "path": "windows/vbslike/manager/backend.mjs",
+          "sha256": "d90b596a81a4f76752ba87c7905bb521f1f1674a6bbba3d8f3db210d657af9e2",
+          "manifestSha256": "d90b596a81a4f76752ba87c7905bb521f1f1674a6bbba3d8f3db210d657af9e2",
+          "capabilityLines": []
+        },
+        {
+          "path": "windows/vbslike/manager/main.mjs",
+          "sha256": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b",
+          "manifestSha256": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b",
+          "capabilityLines": []
+        },
+        {
+          "path": "windows/vbslike/router/main.mjs",
+          "sha256": "d021c31460f8b4313ab15a50a1e9792360df4b00de2f64d727e21b79d04fb9a7",
+          "manifestSha256": "d021c31460f8b4313ab15a50a1e9792360df4b00de2f64d727e21b79d04fb9a7",
+          "capabilityLines": []
+        },
+        {
+          "path": "windows/node/isolation-client.mjs",
+          "sha256": "0b9808c7ab2d39a6e39df79efb98bb946d41d288d83d06861796c58e1d2c8ff5",
+          "manifestSha256": "0b9808c7ab2d39a6e39df79efb98bb946d41d288d83d06861796c58e1d2c8ff5",
+          "capabilityLines": [
+            {
+              "line": 49,
+              "text": "async #req(method, path, body) {"
+            }
+          ]
+        }
+      ],
+      "sourceRoot": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929",
+      "manifestSha256": "58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929"
+    },
+    {
+      "files": [
+        {
+          "path": "windows/vbslike/manager/server.mjs",
+          "sha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+          "manifestSha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+          "capabilityLines": [
+            {
+              "line": 79,
+              "text": "* @param judgeReady  ({host, port, appId, launcherKey, expectRuntime, deadlineMs}) -> verdict."
+            },
+            {
+              "line": 81,
+              "text": "* @param readyDeadlineMs  how long a domain has to become ready before it is failed."
+            },
+            {
+              "line": 84,
+              "text": "runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, protectedPorts = false, wasmSet = false, memory64 = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,"
+            },
+            {
+              "line": 151,
+              "text": "this.readyDeadlineMs = readyDeadlineMs;"
+            },
+            {
+              "line": 219,
+              "text": "deadlineMs: [DERIVATION_V6,DERIVATION_V7].includes(rec.derivation) ? Math.max(300_000,this.readyDeadlineMs) : this.readyDeadlineMs });"
+            },
+            {
+              "line": 853,
+              "text": "if (req.method === \"GET\" && p === \"/health\") return send(200, manager.health());"
+            },
+            {
+              "line": 857,
+              "text": "if (req.method === \"GET\" && p === \"/vms\") return send(200, { vms: manager.list(), managerEpoch: manager.epoch });"
+            },
+            {
+              "line": 858,
+              "text": "if (req.method === \"POST\" && p === \"/vms\") {"
+            },
+            {
+              "line": 874,
+              "text": "if (m && req.method === \"GET\") {"
+            },
+            {
+              "line": 882,
+              "text": "if (m && req.method === \"DELETE\") {"
+            }
+          ]
+        },
+        {
+          "path": "windows/vbslike/manager/backend.mjs",
+          "sha256": "d90b596a81a4f76752ba87c7905bb521f1f1674a6bbba3d8f3db210d657af9e2",
+          "manifestSha256": "d90b596a81a4f76752ba87c7905bb521f1f1674a6bbba3d8f3db210d657af9e2",
+          "capabilityLines": []
+        },
+        {
+          "path": "windows/vbslike/manager/main.mjs",
+          "sha256": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b",
+          "manifestSha256": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b",
+          "capabilityLines": []
+        },
+        {
+          "path": "windows/vbslike/router/main.mjs",
+          "sha256": "d021c31460f8b4313ab15a50a1e9792360df4b00de2f64d727e21b79d04fb9a7",
+          "manifestSha256": "d021c31460f8b4313ab15a50a1e9792360df4b00de2f64d727e21b79d04fb9a7",
+          "capabilityLines": []
+        },
+        {
+          "path": "windows/node/isolation-client.mjs",
+          "sha256": "0b9808c7ab2d39a6e39df79efb98bb946d41d288d83d06861796c58e1d2c8ff5",
+          "manifestSha256": "0b9808c7ab2d39a6e39df79efb98bb946d41d288d83d06861796c58e1d2c8ff5",
+          "capabilityLines": [
+            {
+              "line": 49,
+              "text": "async #req(method, path, body) {"
+            }
+          ]
+        }
+      ],
+      "sourceRoot": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292",
+      "manifestSha256": "93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292"
+    }
+  ]
+}

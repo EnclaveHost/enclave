@@ -1,0 +1,26 @@
+{
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/source-manifest.json": {
+    "sha256": "58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929",
+    "bytes": 17929
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/package-summary-final.json": {
+    "sha256": "1900df509a4cd12596c8c5cbe23c37af468a16d7159a29bdf13e3d2bc9ffc107",
+    "bytes": 820
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/installed-baseline.json": {
+    "sha256": "84fb052ca066abcbf42e8d656f52f86baeae2f96ff61c28461aa3953e11c8264",
+    "bytes": 27784
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/source.zip": {
+    "sha256": "d2f00b2e8dd7cf564deb37e7ac86da427d9b93d76df787eb45c0b375f7a369b0",
+    "bytes": 849758
+  },
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/FLOOR-RECONCILIATION.md": {
+    "sha256": "35c8eda9f8642ff5c0e4e1c30e6a4a89168512dbd0568d6b8238c54b50a303af",
+    "bytes": 17041
+  },
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/FLOOR-BINARY-METADATA.txt": {
+    "sha256": "d3212ff96c229dc42afdd76bd94047571911ada5902a8b9610ec479708bf1fd8",
+    "bytes": 677
+  }
+}

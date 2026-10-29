@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: independently owned host: serves the routed app through a platform ban and outage; the legacy app is still refused
+ok 1 - independently owned host: serves the routed app through a platform ban and outage; the legacy app is still refused
+  ---
+  duration_ms: 6.796701
+  type: 'test'
+  ...
+# Subtest: independently owned host: a queued routed app starts despite the platform new-work refusal
+ok 2 - independently owned host: a queued routed app starts despite the platform new-work refusal
+  ---
+  duration_ms: 2.221984
+  type: 'test'
+  ...
+# Subtest: host owned by a pinned platform wallet: the ban is the owner's legitimate stop (local fence + ledger revocation)
+ok 3 - host owned by a pinned platform wallet: the ban is the owner's legitimate stop (local fence + ledger revocation)
+  ---
+  duration_ms: 1.187432
+  type: 'test'
+  ...
+# Subtest: ownership transfer to the platform wallet makes its ban apply; a replayed older revision cannot undo it
+ok 4 - ownership transfer to the platform wallet makes its ban apply; a replayed older revision cannot undo it
+  ---
+  duration_ms: 1.184451
+  type: 'test'
+  ...
+# Subtest: restart on a platform-owned host under new-work refusal: authenticated running state is served by each fresh host
+ok 5 - restart on a platform-owned host under new-work refusal: authenticated running state is served by each fresh host
+  ---
+  duration_ms: 1.919546
+  type: 'test'
+  ...
+# Subtest: the box owner's own control still stops an independently hosted app (not a platform veto)
+ok 6 - the box owner's own control still stops an independently hosted app (not a platform veto)
+  ---
+  duration_ms: 8.423809
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 601.96213

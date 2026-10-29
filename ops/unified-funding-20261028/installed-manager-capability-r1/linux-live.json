@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-10-29T11:20:11.175099+00:00",
+  "pid": 194657,
+  "executable": "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde",
+  "executableSha256": "9d1562738cde6d43cef9e58931cb6425542e400b26364986c209e90377759314",
+  "sourceCandidate": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/guestd/server.go",
+  "sourceSha256": "16aa6f5a14c2ee5b11334b90ebe9369ac0dff1846cc1ae300bde102a6e2d28a1",
+  "sourceBuildProvenanceVerified": false,
+  "goIdentity": [
+    "path\tenclave.host/isolation/m4/guestd",
+    "mod\tenclave.host/isolation/m4/guestd\t(devel)"
+  ],
+  "healthRead": "unavailable: HTTPError"
+}

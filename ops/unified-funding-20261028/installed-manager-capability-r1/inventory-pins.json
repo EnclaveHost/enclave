@@ -1,0 +1,11 @@
+{
+  "INVENTORY.txt": "5fee4163ddfa1b2d696f9d3adcd3fb6c2d56e47696bb6ba09d64ed9105f6d663",
+  "linux-live.json": "2b16a679f93214173dfe6b9a33630b12cf578a55efc42ce36a3502b0824c86b0",
+  "supporting-file-pins.json": "19bb5587ae98049b29e9688ca42a6ff779d469774c4edd2d9fe73a4f6485e572",
+  "windows-listeners-live.json": "d4c98da0ec21e1adc485da63e2e48786b27255974ef9d3da83f40dbb6329fb4d",
+  "windows-listeners-readonly.ps1": "43eb0568d80e06dd7ed81aeae0a62867254199c7061d2f1571fcccda5f144f08",
+  "windows-live.json": "6cb97a5e587746178b6466c4d01b7ba6179c2e6d6642c7d2fe152152711e9c86",
+  "windows-readonly.ps1": "3f7f45f0e4135a43da5a7c60f3be4b189cc16633235a0304b583127ea1b4bb07",
+  "windows-releases-live.json": "f11b24238c66208441ada903b4cdecf95a8128ca4f0003855716a0231aa0c027",
+  "windows-releases-readonly.ps1": "6f96c6935252aad5925ace3d14bcab6a0f0cb88da01bd7511824835bb81c604a"
+}

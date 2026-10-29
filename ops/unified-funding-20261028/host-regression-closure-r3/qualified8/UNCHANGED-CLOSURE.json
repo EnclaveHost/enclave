@@ -1,0 +1,29 @@
+{
+  "sameAs": "../qualified93",
+  "files": [
+    "test/root-owner-restart.test.mjs",
+    "test/r3-capacity-host.test.mjs",
+    "test/lifecycle-host-authority.test.mjs",
+    "test/generate-lifecycle-host-candidate.test.mjs",
+    "test/root-adapter-generator.test.mjs",
+    "test/r3-capacity.test.mjs",
+    "test/r3-durable-authority.test.mjs",
+    "test/root-incarnation-acceptance.test.mjs",
+    "test/root-schema3-host.test.mjs",
+    "src/tools/generate-lifecycle-adapter-candidate.mjs",
+    "src/tools/insertion-patch.mjs",
+    "src/tools/generate-lifecycle-journal-candidate.mjs",
+    "src/tools/generate-lifecycle-host-candidate.mjs",
+    "src/network/lifecycle-host-authority.mjs",
+    "src/network/lifecycle-host-incarnation-journal.mjs",
+    "src/network/lifecycle-host-profile.mjs",
+    "src/network/lifecycle-host-dispatch.mjs",
+    "src/network/lifecycle-independent-admission.mjs",
+    "src/network/owned-durable-state.mjs",
+    "test/helpers/baseline.mjs",
+    "test/helpers/lifecycle-fixture.mjs"
+  ],
+  "additional": [
+    "src/network/runtime-lock.mjs"
+  ]
+}

@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: recovered Running assignment remains charged to available host capacity
+ok 1 - recovered Running assignment remains charged to available host capacity
+  ---
+  duration_ms: 3.310266
+  type: 'test'
+  ...
+# Subtest: current local owner denial still reaches ledger revocation with operational generation authority
+ok 2 - current local owner denial still reaches ledger revocation with operational generation authority
+  ---
+  duration_ms: 16.319081
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 216.059701

@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: a journaled start intent is reconciled read-only under an accepted platform-owner refusal (new revision); never resent, never replaced
+ok 1 - a journaled start intent is reconciled read-only under an accepted platform-owner refusal (new revision); never resent, never replaced
+  ---
+  duration_ms: 4.305998
+  type: 'test'
+  ...
+# Subtest: a journaled start intent is reconciled read-only under a platform-owner new-work refusal only; never resent, never replaced
+ok 2 - a journaled start intent is reconciled read-only under a platform-owner new-work refusal only; never resent, never replaced
+  ---
+  duration_ms: 0.685175
+  type: 'test'
+  ...
+# Subtest: a journaled start intent is reconciled read-only under the host owner's committed refusal; never resent, never replaced
+ok 3 - a journaled start intent is reconciled read-only under the host owner's committed refusal; never resent, never replaced
+  ---
+  duration_ms: 0.893424
+  type: 'test'
+  ...
+# Subtest: a journaled start intent is reconciled read-only under unknown admission; never resent, never replaced
+ok 4 - a journaled start intent is reconciled read-only under unknown admission; never resent, never replaced
+  ---
+  duration_ms: 0.615136
+  type: 'test'
+  ...
+# Subtest: a journaled start intent is reconciled read-only under a full box; never resent, never replaced
+ok 5 - a journaled start intent is reconciled read-only under a full box; never resent, never replaced
+  ---
+  duration_ms: 0.764025
+  type: 'test'
+  ...
+# Subtest: a journaled start intent is reconciled read-only under the box owner turning hosting off; never resent, never replaced
+ok 6 - a journaled start intent is reconciled read-only under the box owner turning hosting off; never resent, never replaced
+  ---
+  duration_ms: 0.528406
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 203.526352

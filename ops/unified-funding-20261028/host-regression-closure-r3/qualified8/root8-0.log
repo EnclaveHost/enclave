@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: default new-profile imported runtime with no saved incarnation stays fenced
+ok 1 - default new-profile imported runtime with no saved incarnation stays fenced
+  ---
+  duration_ms: 19.933135
+  type: 'test'
+  ...
+# Subtest: fresh queued app binds its incarnation before a new start
+ok 2 - fresh queued app binds its incarnation before a new start
+  ---
+  duration_ms: 8.920215
+  type: 'test'
+  ...
+# Subtest: explicit adoption rereads current host state rather than trusting a cached Online decision
+ok 3 - explicit adoption rereads current host state rather than trusting a cached Online decision
+  ---
+  duration_ms: 2.354163
+  type: 'test'
+  ...
+# Subtest: explicit adoption must not rebind while an old app transition is pending
+ok 4 - explicit adoption must not rebind while an old app transition is pending
+  ---
+  duration_ms: 2.142024
+  type: 'test'
+  ...
+# Subtest: adoption refuses when old runtime quiescence cannot be confirmed
+ok 5 - adoption refuses when old runtime quiescence cannot be confirmed
+  ---
+  duration_ms: 3.114787
+  type: 'test'
+  ...
+# Subtest: explicit current adoption succeeds after confirmed stop and independent inventory absence
+ok 6 - explicit current adoption succeeds after confirmed stop and independent inventory absence
+  ---
+  duration_ms: 1.919736
+  type: 'test'
+  ...
+# Subtest: adoption and reconcile are serialized for one deployment
+ok 7 - adoption and reconcile are serialized for one deployment
+  ---
+  duration_ms: 2.197104
+  type: 'test'
+  ...
+# Subtest: owner revision change during quiescence aborts adoption; a subsequent explicit current-owner handoff can succeed
+ok 8 - owner revision change during quiescence aborts adoption; a subsequent explicit current-owner handoff can succeed
+  ---
+  duration_ms: 3.656644
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 243.617088

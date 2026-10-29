@@ -1,0 +1,1 @@
+r2 outerguard stopped process treeRSS256>256MiB; no cap raise. First legacy candidate test still timed out because root unshare namespace lacked loopback-up (fake Base uses loopback HTTP). Testsource unchanged. r3 brings up only owned namespace loopback, one file per isolated Node invocation; aggregates exact93 and root8. No product regression claim from r1/r2.
