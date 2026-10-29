@@ -62,7 +62,14 @@ initial protected offline amount, nonce and deadline. Recovery additionally bind
 the exact preceding generation/offline state and installs a strictly newer epoch.
 
 Acceptance installs owner+revision+reporters+budget+row+Online state atomically.
-Failure leaves no public active row. Normal enrollment may perform authenticated
+Failure leaves no public active row. A sponsor or independent submitter may
+send the qualified enrollment transaction using the bound operator/owner consent;
+the candidate/operator wallet may have ZERO ETH and is never required to pay gas
+first. The sender funds inclusion from its own recoverable budget or the exact
+reserved sponsor mechanism. No general transfer to a host payout wallet is a
+bootstrap prerequisite. Any host gas release/refund follows successful verification
+of this exact qualification/intent and stays within the payer's signed cap.
+Normal enrollment may perform authenticated
 attestation/consent/funding verification; only offline recording is forbidden from
 depending on external calls. Support genuine contract-wallet owner consent on
 normal paths without making emergency reporting depend on ERC1271 availability.
@@ -91,7 +98,13 @@ No registry/ownership/identity/token/oracle/recipient call and no current admiss
 approval. Record Offline and fence generation before reimbursement accounting.
 Reimbursement accounting must be zero-balance safe: clamp charges and reserved
 fee liabilities to actually available funds, use bounded checked arithmetic, and
-retain the valid offline transition even when reimbursement is zero. No payee
+retain the valid offline transition even when reimbursement is zero. Use
+saturating/min-bounded fee calculations; if a fee component is unpriceable or its
+arithmetic cannot be safely represented, its optional reimbursement is zero or
+explicitly pending within an already reserved finite cap, never a reverting
+post-authentication calculation. Validate configuration bounds when enrolling.
+Authentication and consensus limits are distinct: an out-of-gas transaction or
+failed signature is not a successfully recorded offline transition. No payee
 transfer occurs here. Merely putting the state writes before a potentially
 reverting payment calculation is NOT sufficient: a later EVM revert would undo
 them. Invalid authority/intents still fail authentication before any state change.
@@ -102,8 +115,14 @@ Because this is the actual registry, this call changes the canonical row's activ
 result immediately; it is not just a future promise to call legacy deregister.
 Any deferred payment settlement is separate from the already recorded offline
 state. Recovery cannot revive the old epoch through heartbeat/register/config.
-Graceful operator shutdown should use the same host generation machinery with
-its legitimate authority, not leave a second unfenced active-bit writer.
+`deactivateHost(HostOffline intent) returns(bool)` is the concrete graceful
+shutdown selector. Authorize `msg.sender` against the locally stored current
+operator OR accepted owner, then use the same intent checks and internal canonical
+`_recordOffline` transition as the reporter-quorum path. No external owner lookup
+or ERC1271 call occurs here; a contract-wallet owner can call through its own
+normal execution path. This preserves genuine owner/operator shutdown without
+requiring a reporter quorum or leaving another unfenced active-bit writer.
+Both paths share exact retry/digest handling, fencing and zero-safe reimbursement.
 
 **Budget and sponsor ports**
 
@@ -112,6 +131,12 @@ budget without making the host available. `fundHostOffline(hostId)` may add fund
 without changing authority. Offline withdrawal/settlement rules protect pending
 liabilities and the last transition; payout declarations confer no withdrawal
 right. A foreign sponsor may not reclaim protected live-host funds on demand.
+Recovery must not reset outstanding pull credits or consume their reserved backing.
+Fenced retirement/withdrawal requires canonical Offline, the current epoch fenced,
+no outstanding transition/fee liability, and preservation/payment of already owed
+reimbursements before releasing only the unencumbered balance to its entitled
+payer. Never silently clear debts or grant the payout wallet arbitrary withdrawal
+rights. A later qualified recovery funds its own required protected reserve.
 
 `claimHostReimbursement(to)` is pull payment. Specify the fee policy honestly:
 execution reimbursement may be measured/bounded; Base L1 fees need an explicitly
@@ -123,7 +148,10 @@ submitters need recoverable gas funds without the failed host key, durable pendi
 intents/nonces, and canonical receipt reconciliation. Chain/RPC unavailability or
 fees above the funded bound leave a durable pending report and local serving
 fenced; neither condition authorizes a false claim that the on-chain transition
-has landed.
+has landed. Reporter quorum availability is an explicit operational assumption;
+loss of enough enrolled reporter keys can prevent quorum submission. Direct
+accepted-owner/operator shutdown remains available to those parties when reachable.
+Neither a valid signature nor a funded budget guarantees network/chain inclusion.
 
 ## Qualification authority and listing-gas release
 
