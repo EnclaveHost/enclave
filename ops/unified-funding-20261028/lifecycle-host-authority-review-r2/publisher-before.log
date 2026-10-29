@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: publisher delisting alone cannot veto an independently owned deployment of the same committed artifact
+not ok 1 - publisher delisting alone cannot veto an independently owned deployment of the same committed artifact
+  ---
+  duration_ms: 5.183549
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-review-r2/test/root-publisher-veto.test.mjs:10:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    mutable publisher listing preferences are not this host or deployment owner policy
+    + actual - expected
+    
+    + 'the publisher has delisted this app'
+    - null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual: 'the publisher has delisted this app'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-review-r2/test/root-publisher-veto.test.mjs:13:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: publisher yanking alone cannot veto an independently owned deployment of the same committed artifact
+not ok 2 - publisher yanking alone cannot veto an independently owned deployment of the same committed artifact
+  ---
+  duration_ms: 0.372047
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-review-r2/test/root-publisher-veto.test.mjs:10:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    mutable publisher listing preferences are not this host or deployment owner policy
+    + actual - expected
+    
+    + 'the publisher has yanked this version'
+    - null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual: 'the publisher has yanked this version'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-review-r2/test/root-publisher-veto.test.mjs:13:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 282.682004
