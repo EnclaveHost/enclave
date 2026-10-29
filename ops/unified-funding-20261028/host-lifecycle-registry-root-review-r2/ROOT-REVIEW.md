@@ -9,3 +9,5 @@ Actual unit enclave-host-registry-validation-r2-20261029 invocation441519728eca4
 The versioned next task explicitly supersedes the held r1 task/pins. It requires canonical registry and ownership to be the same authenticated address/code and preserves existing profiles. Launch remains conditional on ordinary publication and exact remote verification. No production mutation, payment or restart occurred.
 
 Root publication initially refused the preserved diff because its removed old declaration matches the same scanner rule. The exact diff remains at the pinned original path; this package records its hash and visibility delta without the unnecessary mathematical literal. The refusal is not a test failure and no scanner bypass was used.
+
+Collected resource evidence reports inner439/outer501MiB peak and minimum available33919MiB. Peer normal publication1d94856fb870fdd699a5ad2a6e2f31c05fcbb202 was reported pushed with all29 manifest entries verified against Git objects; root separately verifies the remote.
