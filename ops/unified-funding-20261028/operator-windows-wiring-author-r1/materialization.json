@@ -1,0 +1,10 @@
+{
+  "scope": "Exact243 ROOT REPAIRED operator durability r2; sole root chain quarantine fix; no preparation product edits/additions",
+  "originalFiles": 243,
+  "addedFiles": 0,
+  "existingFilesOverwritten": [],
+  "productEdits": [],
+  "inheritedMaterialization": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r2-20261029/materialization.json",
+  "inheritedMaterializationSha256": "b016c007a1ac312e16b8186d4b6b727facd67576b6951a75478a8accbfcaa259",
+  "note": "Full243 source seed retained. Sponsored source remains separately namespaced and is a different bundle revision. No module evaluation, npm/build/platform qualification, tests or author launch."
+}

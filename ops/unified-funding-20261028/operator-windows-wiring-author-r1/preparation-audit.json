@@ -1,0 +1,26 @@
+{
+  "status": "PREPARATION_FILE_HASH_STATIC_IMPORT_INVENTORY_AND_HELPER_AST_ONLY",
+  "preparedSha256": "929e61168798defbdff5a4a92ef8c0bd132d21b219e7f8b0c869bb7bbc1228ac",
+  "seedFiles": 243,
+  "candidateExactRootRepairedSeed": true,
+  "rootChainQuarantineFixPreserved": true,
+  "rootRepairsPreserved": 3,
+  "preAuthorProductEdits": 0,
+  "readonlyPins": 11116,
+  "inputDrift": [],
+  "authorLaunched": false,
+  "candidateExecuted": false,
+  "testsOrBuildsRun": false,
+  "helperASTParsedNotExecuted": [
+    "run.py",
+    "collect-terminal.py",
+    "readonly-progress.py"
+  ],
+  "operatorLiteralProjectClosureFiles": 12,
+  "missingProjectImports": [],
+  "qualificationAdmissible": false,
+  "liveGuestdFloorMiB": 18432,
+  "sponsoredReadonlyReferenceFiles": 42,
+  "rootTopLevelEvidenceFiles": 40,
+  "note": "Preparation only. Root independently reviews TASK/runner/account and launches ONE author. Unchanged collector replays from exact243 immutable repaired seed."
+}
