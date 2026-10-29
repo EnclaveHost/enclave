@@ -1,0 +1,54 @@
+TAP version 13
+# Subtest: durable host authority rejects lower revision after process restart
+not ok 1 - durable host authority rejects lower revision after process restart
+  ---
+  duration_ms: 9.999411
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-owner-restart-regressions-r1/root-owner-restart.test.mjs:12:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    restart must retain the authenticated host authority floor
+    
+    'running' !== 'held'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'held'
+  actual: 'running'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-owner-restart-regressions-r1/root-owner-restart.test.mjs:27:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: durable host authority rejects same revision different owner after process restart
+not ok 2 - durable host authority rejects same revision different owner after process restart
+  ---
+  duration_ms: 1.823666
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-owner-restart-regressions-r1/root-owner-restart.test.mjs:12:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    restart must retain the authenticated host authority floor
+    
+    'running' !== 'held'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'held'
+  actual: 'running'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-owner-restart-regressions-r1/root-owner-restart.test.mjs:27:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 200.591017
