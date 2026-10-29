@@ -1,0 +1,27 @@
+TAP version 13
+# Subtest: test/root-async-ownership-r4.test.mjs
+not ok 1 - test/root-async-ownership-r4.test.mjs
+  ---
+  duration_ms: 1.346353
+  type: 'test'
+  error: 'Unexpected end of input'
+  name: 'SyntaxError'
+  stack: |-
+    compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:110:18)
+    #translate (node:internal/modules/esm/loader:559:20)
+    afterLoad (node:internal/modules/esm/loader:612:29)
+    ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:617:12)
+    #createModuleJob (node:internal/modules/esm/loader:640:36)
+    #getJobFromResolveResult (node:internal/modules/esm/loader:353:34)
+    ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:321:41)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 334.101749
