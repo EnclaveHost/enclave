@@ -1,0 +1,73 @@
+TAP version 13
+# Subtest: actual schema3 pair: library runtime + embedded self address; read/prepare/submit/resolve/finalize through lifecycleStart/lifecycleEndAt
+ok 1 - actual schema3 pair: library runtime + embedded self address; read/prepare/submit/resolve/finalize through lifecycleStart/lifecycleEndAt
+  ---
+  duration_ms: 2346.511623
+  type: 'test'
+  ...
+# Subtest: fail closed: absent/wrong library or self binding, wrong immutables, wrong prover/controller/ledger/recursive dependency, wrong profile
+ok 2 - fail closed: absent/wrong library or self binding, wrong immutables, wrong prover/controller/ledger/recursive dependency, wrong profile
+  ---
+  duration_ms: 899.806837
+  type: 'test'
+  ...
+# Subtest: qualified schema3 retirement is metadata only; residual admin powers remain blockers; admin change denies new starts, not reads/queue/reconciliation
+ok 3 - qualified schema3 retirement is metadata only; residual admin powers remain blockers; admin change denies new starts, not reads/queue/reconciliation
+  ---
+  duration_ms: 1631.970617
+  type: 'test'
+  ...
+# Subtest: pending emergency cutoff: exact tuple at the authenticated block; no fresh funding/admission/transition; reconciliation restores normal
+ok 4 - pending emergency cutoff: exact tuple at the authenticated block; no fresh funding/admission/transition; reconciliation restores normal
+  ---
+  duration_ms: 1658.954621
+  type: 'test'
+  ...
+# Subtest: stopped emergency + final settlement; a revoked confirmed start is never upgraded; a reorged emergency is not retained; reorg proof refusal
+ok 5 - stopped emergency + final settlement; a revoked confirmed start is never upgraded; a reorged emergency is not retained; reorg proof refusal
+  ---
+  duration_ms: 1586.839344
+  type: 'test'
+  ...
+# Subtest: runner: a pending offline run is never served/restarted; generation certificates refused; monotonic denial restored only after settlement
+not ok 6 - runner: a pending offline run is never served/restarted; generation certificates refused; monotonic denial restored only after settlement
+  ---
+  duration_ms: 940.167123
+  type: 'test'
+  location: '/tmp/s3a1.yKaz3l/r6/test/root-schema3-adapter.test.mjs:160:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /does not grant service/. Input:
+    
+    'Error: stale or invalid policy verification'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'stale or invalid policy verification'
+  stack: |-
+    timestamp (file:///tmp/s3a1.yKaz3l/r6/network/deployment-authority-window.mjs:17:68)
+    validateLifecycleAuthorityWindow (file:///tmp/s3a1.yKaz3l/r6/network/deployment-authority-window.mjs:27:3)
+    processGenerationChain (file:///tmp/s3a1.yKaz3l/r6/network/deployment-generation-certificate.mjs:55:18)
+    verifyGenerationChain (file:///tmp/s3a1.yKaz3l/r6/network/deployment-generation-certificate.mjs:109:62)
+    TestContext.<anonymous> (file:///tmp/s3a1.yKaz3l/r6/test/root-schema3-adapter.test.mjs:179:24)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///tmp/s3a1.yKaz3l/r6/test/root-schema3-adapter.test.mjs:179:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 5
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9282.670262

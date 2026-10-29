@@ -1,0 +1,8 @@
+{
+  "src/tools/insertion-patch.mjs": "53eeef0d475dc9abf2948d5cad4f4e1a067d68a1b1e424e07c40cab90afc372b",
+  "src/tools/generate-lifecycle-schema3-adapter-candidate.mjs": "0e8ed11caf453e00813c3af2fbf34f1ac5d242ed9407d70e77614b1dae80df07",
+  "src/network/lifecycle-schema3-profile.mjs": "e10f460866be7c30f71e0bc482929818b3003065f46ef5d53feb73d2f8134083",
+  "test/root-schema3-adapter.test.mjs": "02030a7946af4814e73e496d0e7229427b0c21dedb98c9dce86e77801afb5c5b",
+  "test/schema3-pure.test.mjs": "4587631efae2fdf4c08c3feb7f12eb5ed7b049939fd9a39f4420df9329e098de",
+  "test/fixtures/schema3-world.mjs": "d622b82ffba42c9a7b29803e7fef39b6226f42c2d0a97259116b16e22303a9f1"
+}

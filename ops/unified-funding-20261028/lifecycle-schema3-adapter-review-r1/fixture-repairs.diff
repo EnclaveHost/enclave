@@ -1,0 +1,32 @@
+--- before/test/schema3-pure.test.mjs
++++ after/test/schema3-pure.test.mjs
+@@ -28,7 +28,11 @@
+   for (const m of a.manifest) { restored += a.source.slice(from, m.candidateOffset); from = m.candidateOffset + m.length; }
+   assert.equal(restored + a.source.slice(from), r3);
+   for (const m of a.manifest) { const text = a.source.slice(m.candidateOffset, m.candidateOffset + m.length);   // inert unless S3 (or a declaration)
+-    assert.ok(/S3|SCHEMA3|R6_ABIS|s3Pending|schema3/.test(text) || text === ')', `${m.name} is not guarded`); }
++    if (m.name === 'read-offline-return') {
++      assert.equal(text, ', offline, lastEmergency');
++      assert.ok(a.source.includes("const offline = S3 ? await call(lifecycle, LIFECYCLE_ABI, 'offline', [id]) : null;"));
++      assert.ok(a.source.includes("const lastEmergency = S3 ? await call(lifecycle, LIFECYCLE_ABI, 'lastEmergency', [id]) : null;"));
++    } else assert.ok(/S3|SCHEMA3|R6_ABIS|s3Pending|schema3/.test(text) || text === ')', `${m.name} is not guarded`); }
+   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 's3-gen-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+   fs.writeFileSync(path.join(dir, 'adapter.mjs'), a.source);
+   const c = spawnSync(process.execPath, ['--check', path.join(dir, 'adapter.mjs')], { encoding: 'utf8', timeout: 10000 }); assert.equal(c.status, 0, c.stderr);
+--- before/test/fixtures/schema3-world.mjs
++++ after/test/fixtures/schema3-world.mjs
+@@ -123,7 +123,13 @@
+     bookKeys: Object.fromEntries(Object.keys(contracts).filter(k => k !== 'addressBook').map(k => [k, keccak256(toBytes(k))])),
+     admins: { ledgerOwner: [admin.address], ledgerPendingOwner: [ZERO], addressBookOwner: [admin.address], addressBookPendingOwner: [ZERO],
+       proofOfTimeOwner: [admin.address], proofOfTimePendingOwner: [ZERO] } };
+-  w.adapter = (over = {}) => createLifecycleChainAdapter({ pins: over.pins || w.pins, authority: testAuthority(w.auth, over.kind || 'derived'),
++  // TEST-only virtual clock: warp() advances the Anvil clock and runner's chainNow;
++  // observation time must use that same controlled clock, not unwarped wall time.
++  const virtualAuthority = kind => {
++    const base = testAuthority(w.auth, kind);
++    return { ...base, snapshot: async fn => ({ ...await base.snapshot(fn), observedAt: chainNow() }) };
++  };
++  w.adapter = (over = {}) => createLifecycleChainAdapter({ pins: over.pins || w.pins, authority: virtualAuthority(over.kind || 'derived'),
+     receipts: w.receipts, hostPolicy: { load: async h => { if (!w.policyDocs.has(h)) throw Error('policy document unavailable'); return structuredClone(w.policyDocs.get(h)); } },
+     generation: over.generation || null, now: chainNow, maxAncestry: over.maxAncestry,
+     actorSigner: async ({ target, typedData }) => { const a = target === 'running' ? operator : human; return { address: a.address, signature: await a.signTypedData(typedData) }; },

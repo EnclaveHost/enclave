@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: healthy self-hosting produces no recurring state transaction
+ok 1 - healthy self-hosting produces no recurring state transaction
+  ---
+  duration_ms: 22.130551
+  type: 'test'
+  ...
+# Subtest: a crash records queued once and an ambiguous submission never resubmits another intent
+ok 2 - a crash records queued once and an ambiguous submission never resubmits another intent
+  ---
+  duration_ms: 8.096989
+  type: 'test'
+  ...
+# Subtest: readiness failure, stale authority and unconfirmed retirement never start a replacement
+ok 3 - readiness failure, stale authority and unconfirmed retirement never start a replacement
+  ---
+  duration_ms: 0.877583
+  type: 'test'
+  ...
+# Subtest: queued startup failures back off without writing queued again
+ok 4 - queued startup failures back off without writing queued again
+  ---
+  duration_ms: 0.844103
+  type: 'test'
+  ...
+# Subtest: running is submitted only after readiness and is not served until confirmed
+ok 5 - running is submitted only after readiness and is not served until confirmed
+  ---
+  duration_ms: 1.187146
+  type: 'test'
+  ...
+# Subtest: reserve exhaustion fences before a single stopped transition
+ok 6 - reserve exhaustion fences before a single stopped transition
+  ---
+  duration_ms: 1.837124
+  type: 'test'
+  ...
+# Subtest: host-specific rejection queues its own running assignment but never disables it globally
+ok 7 - host-specific rejection queues its own running assignment but never disables it globally
+  ---
+  duration_ms: 2.465691
+  type: 'test'
+  ...
+# Subtest: a host cannot stop a running assignment belonging to another host
+ok 8 - a host cannot stop a running assignment belonging to another host
+  ---
+  duration_ms: 0.50537
+  type: 'test'
+  ...
+# Subtest: a queued deployment remains available for other eligible hosts
+ok 9 - a queued deployment remains available for other eligible hosts
+  ---
+  duration_ms: 0.780815
+  type: 'test'
+  ...
+# Subtest: a fresh proof of an older assignment cannot roll back the durable generation floor
+ok 10 - a fresh proof of an older assignment cannot roll back the durable generation floor
+  ---
+  duration_ms: 0.821663
+  type: 'test'
+  ...
+# Subtest: a merely mined or unproved receipt cannot clear the durable transition outbox
+ok 11 - a merely mined or unproved receipt cannot clear the durable transition outbox
+  ---
+  duration_ms: 1.01385
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 212.979602

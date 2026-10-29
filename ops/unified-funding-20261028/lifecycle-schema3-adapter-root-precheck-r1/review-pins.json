@@ -1,0 +1,14 @@
+{
+  "ROOT-PRECHECK.md": "ca4a15ae2ce5f1e284b6d491e66d112fc189b20476e1f93aa977f00ee3907288",
+  "generated.mjs": "07d02fca0fff2b4b59f7680ac0425c65b779aa61e13ae2b7205b7af4ee4443b2",
+  "guard.log": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+  "partial-source-pins.json": "0321bc149c642d255867a0f59af627957dffd0479ce0d00fffc162822bf57c55",
+  "precheck.mjs": "718cfc8bac7d448afa97c8d6834c820d80eea6889ac5756b4ef45c5d157a9927",
+  "queue.log": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+  "result.log": "6ddf0704284d5602993103c00dadfe4c0bce2fb4399b4785f82f9600d94f5ff8",
+  "result.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "run.py": "5d06231ed915a72bb60f72ab4db3416e75018c7ac6c5c513698182fe0a99e8de",
+  "src/network/lifecycle-schema3-profile.mjs": "e10f460866be7c30f71e0bc482929818b3003065f46ef5d53feb73d2f8134083",
+  "src/tools/generate-lifecycle-schema3-adapter-candidate.mjs": "0e8ed11caf453e00813c3af2fbf34f1ac5d242ed9407d70e77614b1dae80df07",
+  "src/tools/insertion-patch.mjs": "53eeef0d475dc9abf2948d5cad4f4e1a067d68a1b1e424e07c40cab90afc372b"
+}
