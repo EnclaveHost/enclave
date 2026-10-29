@@ -1,0 +1,41 @@
+{
+  "schema": "enclave-funding-addon-config-cutover-r1",
+  "release": "enabled",
+  "reviewed": false,
+  "note": "TEMPLATE ONLY. Refused as is (placeholders, reviewed:false). Fill ONLY from deployment receipts and separately reviewed production terms, never from TEST fixtures. release enabled = cutover preparation: FUNDING_CUTOVER_ACTIVATION stays null. It may be set only in a later release 'activation' rebuild from the actual post-operation record. FUNDING_MIGRATION_APPROVAL.rootReviewed is NOT human approval: humanApproval must reference the human grant-approval document (sha256) for the same termsHash, and the approval stays null until that exists.",
+  "overrides": [],
+  "acceptLegacy": [],
+  "humanApproval": null,
+  "funding": {
+    "FUNDING_RUNTIME": "<REPLACE: reviewed enclave-funding-browser-runtime-r1 object from deployment receipts>",
+    "FUNDING_MIGRATION_PROPOSAL": {
+      "schema": "enclave-funding-migration-proposal-r1",
+      "chainId": 8453,
+      "owner": "<REPLACE: owner address>",
+      "oldSid": "<REPLACE: original session id, lower-case 0x + 64 hex>",
+      "legacy6": "<REPLACE: reviewed replacement legacy budget, USDC micro-units>",
+      "gas": "<REPLACE: reviewed finite gas parts [{ name, budget6, opsPerPeriod, appIds }]>",
+      "deploymentIds": "<REPLACE: reviewed deployment ids>"
+    },
+    "FUNDING_MIGRATION_APPROVAL": {
+      "schema": "enclave-funding-migration-approval-r1",
+      "rootReviewed": "<REPLACE: true only after root reviewed this exact termsHash>",
+      "termsHash": "<REPLACE: termsHash of the displayed plan>",
+      "owner": "<REPLACE: same owner as the proposal>",
+      "chainId": 8453,
+      "oldSid": "<REPLACE: same oldSid as the proposal>"
+    },
+    "FUNDING_MIGRATION_CUTOVER": {
+      "schema": "enclave-funding-migration-cutover-r1",
+      "chainId": 8453,
+      "owner": "<REPLACE: same owner as the proposal>",
+      "oldSid": "<REPLACE: same oldSid as the proposal>",
+      "terms": {
+        "pauseAfter": "terminate",
+        "activationPlanSha256": "<REPLACE: 0x sha256 of the reviewed activation plan document>",
+        "rollbackPlanSha256": "<REPLACE: 0x sha256 of the reviewed rollback plan document>"
+      }
+    },
+    "FUNDING_CUTOVER_ACTIVATION": null
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "atUtc": "2026-10-29T00:55:29.925229+00:00",
+  "production": {
+    "pid": 228946,
+    "startTicks": "43738495",
+    "sourcePins": {
+      "/opt/nan-relay/api-relay.js": "481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d",
+      "/opt/nan-relay/sessions.mjs": "457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d",
+      "/opt/nan-relay/store.js": "12157d8ccf8b1ec4ffd4d0af9b5b846650ec20aac748bcc51ad087e119922dcd"
+    }
+  },
+  "availableMiB": 6981,
+  "finiteServiceHeadroomMiB": 2378.43359375
+}
