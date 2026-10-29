@@ -5,6 +5,22 @@ It does not modify the current ledger, address book, Windows host agent, RPC
 services, catalog, running deployments or owner/session balances. The integration
 and migration work below is required before it can replace the live lease loop.
 
+## Emergency-offline prototype
+
+The separate [emergency-offline prototype](emergency-offline/REPORT.md) records
+an authenticated revocation without calling identity, settlement, fee-oracle
+or payment-recipient contracts. Settlement remains pending at the exact revoked
+generation and recorded cutoff. Queued transitions preserve the final-stop
+reserve; payment rejection cannot undo the offline record.
+
+Root validation reproduced two reserve failures in the original draft, then
+passed all 32 tests (18 distinct scenarios) after correction. The controller
+runtime is 17,253 bytes. These tests use an explicitly limited mock ledger.
+The prototype requires a schema-3 paired ledger and rejects schema 2. The real
+ledger/prover integration, full Base fee reimbursement, independent sender,
+host registry offline mechanism and production boundary integration are still
+pending. The artifacts and implementation described below remain schema 2.
+
 ## Behavior implemented
 
 The new ledger pairs once with `EnclaveDeploymentLifecycle` and a pinned

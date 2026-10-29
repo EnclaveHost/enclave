@@ -1,0 +1,18 @@
+# Staging-only config for the emergency-offline candidate. Not a build pipeline.
+# Mirrors baseline compiler settings (root foundry.toml: solc 0.8.35, via_ir;
+# scripts/test-deployment-lifecycle.sh: optimizer runs 1, evm prague).
+# forge-std is referenced read-only from the baseline checkout; nothing here
+# writes into the baseline (out/cache are local to this directory).
+[profile.default]
+src = "candidate/contracts"
+test = "candidate/test"
+out = "out"
+cache_path = "cache"
+libs = ["../../../contracts/foundry/lib"]
+remappings = ["forge-std/=../../../contracts/foundry/lib/forge-std/src/"]
+allow_paths = ["../../../contracts/foundry/lib"]
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 1
+via_ir = true
+evm_version = "prague"
