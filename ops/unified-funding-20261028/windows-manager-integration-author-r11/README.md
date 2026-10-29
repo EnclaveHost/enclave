@@ -1,0 +1,9 @@
+# R11 source author admission
+
+One reviewed source-only Claude invocation was admitted after r10 root review6ab0384ee. Required Max account was verified independently by root and by the bounded runner. Invocation/PIDs/start ticks are in admission-record.json; the job is not complete at publication. No source qualification, tests, production or payment action is claimed here.
+
+Root read final TASK/runner and independently verified all6217 readonly input pins, the exact222-file r10 seed with no additions/edits, the pinned executable and unchanged collector. Author may edit only its candidate; Read/Grep/Write/Edit tool restrictions are not an OS sandbox. Resource bounds: shared1536MiB/hard1536/inner1408/floor27648/oneCPU/noSwap;55 agentic turns/1800second child/2100second outer. Required actual positive consumer remains in scope, along with the reproduced sender and per-route Stop failures and full native/workload closure. Off-chain serving-permit refresh must not introduce periodic chain renewal/heartbeat.
+
+The sponsored runtime reference is deliberately separate:42 exact files at git debbfb377d90f4193ea9182f5cb67d714ffaa322, including22 manifested project inputs, generator, package/lock and matching source references. The411 dependency hashes are retained but not installed/validated by preparation. Four mapped conflicts are explicit. It is not claimed equivalent to the older candidate bundle. Root must review authored source, regenerate and qualify before any replacement; no minified hand edit or authority downgrade. This publication contains provenance/hash manifests for that separate local reference, not a newly qualified build.
+
+Collect this same invocation after exact process termination; no duplicate author, tests or build while it occupies the shared lane. The candidate and production stay separate. Existing grants, confirmed payments, host controls, privacy, resource floors, pad preservation and RPC-off constraints remain unchanged.

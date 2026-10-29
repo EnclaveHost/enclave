@@ -16,7 +16,7 @@ The [Windows r10 review](../../ops/unified-funding-20261028/windows-manager-revi
 
 New independent tests expose two cached-policy failures, three serialized-send permission failures, and one actual Host scheduling failure: a held startup plan for one app delays another app's authenticated Stop pass. Source review also identifies stale deployment snapshots at stage admission and missing reservation discharge for confirmed ended startup. Original failures are retained; passing initial-policy and constructor tests do not cover these boundaries.
 
-The positive real Host + factory/runtime/client/manager queued-to-serving-to-Stop path remains unqualified. Native protected workload routing, independently authenticated live authority, production quiescence verification, Windows ownership and full release closure are unfinished. No candidate was installed, no additional app recovery was established, and no new payment was sent. A source-only repair successor is being prepared with the reproduced failures and required positive consumer test.
+The positive real Host + factory/runtime/client/manager queued-to-serving-to-Stop path remains unqualified. Native protected workload routing, independently authenticated live authority, production quiescence verification, Windows ownership and full release closure are unfinished. No candidate was installed, no additional app recovery was established, and no new payment was sent. The [r11 source-only repair successor](../../ops/unified-funding-20261028/windows-manager-integration-author-r11/README.md) is active with the reproduced failures and required positive consumer test; no result is claimed yet.
 
 ## Qualified ownership baseline
 
