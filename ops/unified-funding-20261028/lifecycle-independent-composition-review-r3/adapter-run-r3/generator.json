@@ -1,0 +1,151 @@
+{
+ "output": "/tmp/lca6.n1PNlx/r6/network/adapter-r3-generated.mjs",
+ "sha256": "8e666ed6970b8bfed283acfdd08bde917f7004bbdd4c9ebd51de038892406fb1",
+ "baselineSha256": "330a908222d3a0108f83ba9d9ec0d3947b6d19a5f268360fc4b48227a4da1d30",
+ "manifest": [
+  {
+   "name": "import",
+   "baselineLine": 44,
+   "candidateOffset": 4774,
+   "length": 202
+  },
+  {
+   "name": "profile",
+   "baselineLine": 85,
+   "candidateOffset": 9115,
+   "length": 6057
+  },
+  {
+   "name": "validate-profile",
+   "baselineLine": 93,
+   "candidateOffset": 15553,
+   "length": 135
+  },
+  {
+   "name": "required-open",
+   "baselineLine": 93,
+   "candidateOffset": 15706,
+   "length": 30
+  },
+  {
+   "name": "required-close",
+   "baselineLine": 93,
+   "candidateOffset": 15744,
+   "length": 1
+  },
+  {
+   "name": "admins-open",
+   "baselineLine": 129,
+   "candidateOffset": 19055,
+   "length": 28
+  },
+  {
+   "name": "admins-close",
+   "baselineLine": 129,
+   "candidateOffset": 19089,
+   "length": 1
+  },
+  {
+   "name": "book-validate-open",
+   "baselineLine": 130,
+   "candidateOffset": 19157,
+   "length": 137
+  },
+  {
+   "name": "book-validate-close",
+   "baselineLine": 140,
+   "candidateOffset": 20082,
+   "length": 4
+  },
+  {
+   "name": "adapter-profile",
+   "baselineLine": 153,
+   "candidateOffset": 21183,
+   "length": 116
+  },
+  {
+   "name": "book-read-open",
+   "baselineLine": 186,
+   "candidateOffset": 24483,
+   "length": 130
+  },
+  {
+   "name": "book-read-close",
+   "baselineLine": 190,
+   "candidateOffset": 25078,
+   "length": 8
+  },
+  {
+   "name": "book-admin-open",
+   "baselineLine": 237,
+   "candidateOffset": 29016,
+   "length": 144
+  },
+  {
+   "name": "book-admin-close",
+   "baselineLine": 239,
+   "candidateOffset": 29409,
+   "length": 8
+  },
+  {
+   "name": "adapter-object",
+   "baselineLine": 349,
+   "candidateOffset": 38728,
+   "length": 153
+  },
+  {
+   "name": "read-retired",
+   "baselineLine": 372,
+   "candidateOffset": 41055,
+   "length": 135
+  },
+  {
+   "name": "read-retired-return",
+   "baselineLine": 373,
+   "candidateOffset": 41505,
+   "length": 9
+  },
+  {
+   "name": "enabled-comment",
+   "baselineLine": 388,
+   "candidateOffset": 42683,
+   "length": 217
+  },
+  {
+   "name": "enabled-open",
+   "baselineLine": 388,
+   "candidateOffset": 42938,
+   "length": 16
+  },
+  {
+   "name": "enabled-close",
+   "baselineLine": 388,
+   "candidateOffset": 42977,
+   "length": 1
+  },
+  {
+   "name": "policy-unknown-decl",
+   "baselineLine": 393,
+   "candidateOffset": 43430,
+   "length": 131
+  },
+  {
+   "name": "host-denial",
+   "baselineLine": 399,
+   "candidateOffset": 44127,
+   "length": 422
+  },
+  {
+   "name": "policy-unknown-set",
+   "baselineLine": 400,
+   "candidateOffset": 44741,
+   "length": 26
+  },
+  {
+   "name": "snapshot-fields",
+   "baselineLine": 410,
+   "candidateOffset": 45816,
+   "length": 118
+  }
+ ]
+}

@@ -1,0 +1,21 @@
+--- author/src/tools/generate-lifecycle-host-candidate.mjs
++++ reviewed/src/tools/generate-lifecycle-host-candidate.mjs
+@@ -154,15 +154,15 @@
+   { name: 'occupies',
+     before: '  static occupies(r) {\n',
+     after: '    return r.status === "running" || !!r.isolation',
+-    text: '    if (r.lifecycle === true && r.lifecycleAllocated === true) return true;   // a lifecycle allocation is released only on evidence (dispatch)\n' },
++    text: '    if (r.lifecycle === true) return r.lifecycleAllocated !== false;   // dispatch owns allocation evidence; unknown counts, confirmed retirement releases despite stale provisioning status\n' },
+   { name: 'cpuShareFree',
+     before: '  cpuShareFree({ exclude = null, capped = true } = {}) {\n    if (!this.cfg.appsEnabled) return 0;\n',
+     after: '    const used = this.shareUse({ exclude }).cpu;',
+-    text: '    if (this.lifecycle?.capacityUnresolved()) return 0;   // a recovered lifecycle allocation is unknown: sell nothing new\n' },
++    text: '    if (this.lifecycle?.capacityUnresolved()) return 0;   // a recovered lifecycle allocation is unknown: offer no new CPU\n' },
+   { name: 'gpuShareFree',
+     before: '  gpuShareFree({ exclude = null, capped = true } = {}) {\n    if (!this.cfg.appsEnabled || !this.sellsCard()) return 0;\n',
+     after: '    const card = this.card && this.card();',
+-    text: '    if (this.lifecycle?.capacityUnresolved()) return 0;   // a recovered lifecycle allocation is unknown: sell nothing new\n' },
++    text: '    if (this.lifecycle?.capacityUnresolved()) return 0;   // a recovered lifecycle allocation is unknown: offer no new GPU\n' },
+   { name: 'capRefusal',
+     before: '  capRefusal(id, { cpuShare = 0, gpuShare = 0 } = {}) {\n',
+     after: '    const use = this.shareUse({ exclude: id });\n    const pct = (x) => Math.round(x * 100);',

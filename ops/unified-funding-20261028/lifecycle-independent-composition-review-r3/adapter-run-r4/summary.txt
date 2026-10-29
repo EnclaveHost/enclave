@@ -1,0 +1,6 @@
+PASS r5-policy rc 0 expected 9 tests 9 pass 9 fail 0 cancelled 0 skipped 0 todo 0
+PASS r5-proof rc 0 expected 10 tests 10 pass 10 fail 0 cancelled 0 skipped 0 todo 0
+PASS kvm-generation rc 0 expected 15 tests 15 pass 15 fail 0 cancelled 0 skipped 0 todo 0
+PASS kvm-boundary rc 0 expected 9 tests 9 pass 9 fail 0 cancelled 0 skipped 0 todo 0
+PASS kvm-runner rc 0 expected 11 tests 11 pass 11 fail 0 cancelled 0 skipped 0 todo 0
+PASS runtime-expiry rc 0 expected 7 tests 7 pass 7 fail 0 cancelled 0 skipped 0 todo 0

@@ -1,0 +1,15 @@
+{
+  "src/tools/generate-lifecycle-adapter-candidate.mjs": "eb0e2e2a85663e1dca247efc82e0f3396c3c254ae21620306334aa468dd7981f",
+  "src/tools/insertion-patch.mjs": "53eeef0d475dc9abf2948d5cad4f4e1a067d68a1b1e424e07c40cab90afc372b",
+  "src/tools/generate-lifecycle-journal-candidate.mjs": "61ff4a46912b98b4477003d654176542b100934ba2f3d2ca6f93c437f60a06da",
+  "src/tools/generate-lifecycle-host-candidate.mjs": "c02c807d19647c31fad4b1552ee3247a7a9e10f3a8f2113a80095eba77b03068",
+  "src/network/lifecycle-host-authority.mjs": "04ef113c78618f5f209db2557e2b250a409c61af23a1f46cf2aacd1b0b396e6f",
+  "src/network/lifecycle-host-dispatch.mjs": "5e209cc001695c72b5b3a67525d12091979a581c8073620845937c8861ef9b26",
+  "src/network/lifecycle-independent-admission.mjs": "9ec46b88e4be5550e6072bc9f6bc566c553edf36e6231b9da4f718f2bbb04db9",
+  "test/r3-capacity-host.test.mjs": "ec21c8af048b037238bb5c9ead9b62748853b346e223aaa46d5869850c624359",
+  "test/lifecycle-host-authority.test.mjs": "1e740ccfed6cd70d410f679a7cd06cee7d887c1fab886ce49f753397ff18e146",
+  "test/r3-capacity.test.mjs": "ffb5031c291aee52f98fd62500ec1aa96caa7d317a0ca337cb1468b469f6640e",
+  "test/r3-durable-authority.test.mjs": "e0c6a8aa326706f1227145de5daf370e8a22c3abcd5c12297da028f5f64c8680",
+  "test/helpers/baseline.mjs": "634aef51f53ba3031e79d2691de70e9305e022e09152497ba44c1a9722f1f267",
+  "test/helpers/lifecycle-fixture.mjs": "a5f599b75333771fa1f77c7dc2e98cbfd8a2de1d457e85e0ab49dfbcdac3e387"
+}
