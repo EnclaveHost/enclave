@@ -1,0 +1,11 @@
+{
+  "unit": "enclave-windows-manager-integration-r8-20261029",
+  "invocation": "2cc8261036e6494db87303cfc006b6e0",
+  "mainPid": 1662686,
+  "runnerPid": 1662704,
+  "claudePid": 1662714,
+  "claudeStartTicks": "159611177",
+  "comm": "2.1.281",
+  "exactExe": "/home/steven/.local/share/claude/versions/2.1.281",
+  "recordedAt": 1793291009.5678868
+}

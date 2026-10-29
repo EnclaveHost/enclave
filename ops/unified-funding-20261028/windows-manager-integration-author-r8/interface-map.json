@@ -1,0 +1,503 @@
+{
+  "scope": "Exact source interfaces and hashes; not an installed live process attestation",
+  "refs": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/node/host.mjs",
+      "sha256": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Actual seed node consumer: isolationVerdict/#isolationReconcile use legacy client. Wire protected branch here; current live node process source identity is not established merely by this archived file."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/node/isolation-client.mjs",
+      "sha256": "0b9808c7ab2d39a6e39df79efb98bb946d41d288d83d06861796c58e1d2c8ff5",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Legacy spawnBody/findByName/spawn/remove interface; preserve unprotected behavior."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/node/isolation-lifecycle.mjs",
+      "sha256": "5ae5f457f35fd4debb0b77f8b16ec00325d003470551354377e51c791734b033",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Existing legacy reconcile holds unknown launch/absence; do not route protected enrollment through periodic legacy lease behavior."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/node/protected-isolation.mjs",
+      "sha256": "e969f4e4b38690e5e6978c301ecef6849d63a41935e7095f24055b2ceb96ef66",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "New r3 client is currently unconsumed and has demonstrated reconciliation faults."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/isolation/m4/guestd/control-client.mjs",
+      "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Actual HMAC/replay/response binding; unsigned401 plus null reconcile automatically resends state-changing request."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/manager/main.mjs",
+      "sha256": "5f7c0fad4c4354f709df16127fa879b1030557d53360bd21742e42e0e01a44fc",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Actual packaged startup; currently protected native role forbidden and nativewrapper only!permitConfig. Refactor real consumption, not unused helper."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/manager/protected-manager.mjs",
+      "sha256": "bd22b3253982de3acb98c4f38901b651ed251a4a7157fa19b7667a50ede8050f",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Actual authenticated routes/CRUD adapter; journal-read beforewithdraw in remove is demonstrated failure."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/manager/control.mjs",
+      "sha256": "85cd2f51aa03b9fe969b2ff1406c53ce69b4ba84fbe4646ed42a3b3d12977813",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Actual ControlServer request+response authentication."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/manager/permit-enforcement.mjs",
+      "sha256": "a0a694619d8074c49da4e69caa1d443a9f332f4eb1ab664b73397221e7a97de6",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Stage/permit/hold, durable mapping, guard, generic boundary API. Sequence early-return policy explicit."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/router/control.mjs",
+      "sha256": "e2bf6ea711d9894aba92fbfb77048adeac0cbdeba135b72f71c7ebc3796424cf",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Merged health baseline and protected route/accounting; missing authGET/vms and nativeprotected path."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/router/io.mjs",
+      "sha256": "443cea7957df60696ababca7387f399ce6e0c9998f90c95cc9c591b0bdfa7807",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Actual MAC/header/rawbody forwarding and data routing."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/guard/guard-main.mjs",
+      "sha256": "91bc2ee77dc0f9e76a2773388d6a2443e4b7b35da9e76f21eda33db7e15a2fce",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Concrete Windows backend exact removal; entry import safety/composition needed."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/datapath/datapath.mjs",
+      "sha256": "1149dfb2099a8ea3963c570d61d40e7b304d060b73c62694a31e8346bd258771",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Actual TCP admission/existing-stream closure."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/datapath/node-bridge.mjs",
+      "sha256": "0b6e57087e1ae920f5255e6aeed36a8a610770af7dc0f8f50e84c382138d302e",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Actual launch/readiness/data path bridge."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/manager/desktop-worker-transport.mjs",
+      "sha256": "37131b79ce658edf99e2d6d0974ee9df89996af03e6121f5133223e860787805",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Actual desktop worker transport must consume protection, not just configurableadapterlabel."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-integration-r3-20261029/author-delivery/control/windows/vbslike/manager/egress.mjs",
+      "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05",
+      "role": "Historical r3/reference: frozen152 source consumer/interface",
+      "notes": "Actual egress transport boundary."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-isolation-runtime.mjs",
+      "sha256": "6309c386deefaec230045f0dadad30a1fb86b384be7693f68ce7bbc0a1e8e8f7",
+      "role": "Historical r3/reference: latest generated r18 protocol reference",
+      "notes": "Requires client.findByName/spawn/remove; plans/readiness/collectPermit; boundaries.allow(id,grant),hold. grant has no signed envelope; explicit secure carriage required."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-owned-authority.mjs",
+      "sha256": "ee1f93c8ab968ab6b26e3f38a18cf66604d476b87acd37acd7e9cb09ea6c302c",
+      "role": "Historical r3/reference: latest generated r18 protocol reference",
+      "notes": "Actual owned factory constructs runtime and independentdispatch; Linux physical lock implementations are not Windows qualifications."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-permit-collector.mjs",
+      "sha256": "2c2f3fc6d444300c5e15da5b54f393a72d8fb86d519c70cd7419c640a3091dba",
+      "role": "Historical r3/reference: latest generated r18 protocol reference",
+      "notes": "Actual signed-envelope collection interface."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-chain-adapter.mjs",
+      "sha256": "805cad12078d9cca7a24ce3a64f2debab4051d156bd59c0849158b00e42ff328",
+      "role": "Historical r3/reference: latest generated r18 protocol reference",
+      "notes": "Actual read adapter without financial capabilities; full genuine proof authority still required."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-permit-gate.mjs",
+      "sha256": "2ee846d462354874eb704ef0a4cf6492536428497fa8f2fa93f654d411ad235a",
+      "role": "Historical r3/reference: latest generated r18 protocol reference",
+      "notes": "Verified grant shape generation/host/validUntil/hostAuthority; preserves raw effects and physicalowner lifecycle."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-host-authority.mjs",
+      "sha256": "c9edf50ce1bd0b21973728693c23623e3597467f6e0abc644444170f7f7a7a92",
+      "role": "Historical r3/reference: latest generated r18 protocol reference",
+      "notes": "Actual servingContextOf conversion and host-authority enforcement."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-finality-bridge.mjs",
+      "sha256": "a719bece74e0b7d198bd36b35e361bcb4d9e9e155ce366f15185b4e37f91c197",
+      "role": "Historical r3/reference: latest generated r18 protocol reference",
+      "notes": "Actual derived/proof/anchor trust construction; no plain JSON qualification."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-isolation-runtime.mjs",
+      "sha256": "40333d5bc08796f2881650331022746abc0b93051b48351c89f84d62a4462fd9",
+      "role": "Historical r3/reference: source generator or exact general bootstrap reference",
+      "notes": "Retain provenance distinction; author edits copies only under candidate."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-livepool-v9/control/windows/vbslike/manager/main.mjs",
+      "sha256": "53a854973c9b2c61e556b317a1dd349135595dee1f07edc8299a43a888eb310b",
+      "role": "Historical r3/reference: source generator or exact general bootstrap reference",
+      "notes": "Retain provenance distinction; author edits copies only under candidate."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-supervisor-r4-20261029/author-delivery/control/windows/node/host.mjs",
+      "sha256": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24",
+      "role": "Historical r4 seed/reference",
+      "notes": "See r4 REPORT plus root executed regression evidence; edit candidate copy only."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-supervisor-r4-20261029/author-delivery/control/windows/node/protected-isolation.mjs",
+      "sha256": "b66a83f90ba975c03c9fce67ebe719ca56c8997fc0b61d69bcc7e573b7cf2a8c",
+      "role": "Historical r4 seed/reference",
+      "notes": "See r4 REPORT plus root executed regression evidence; edit candidate copy only."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-supervisor-r4-20261029/author-delivery/control/windows/node/protected-supervisor.mjs",
+      "sha256": "14fa74cdb4d30d55fda4e6a09ee7d11ff98c321f39f36c4769b01babbf57a982",
+      "role": "Historical r4 seed/reference",
+      "notes": "See r4 REPORT plus root executed regression evidence; edit candidate copy only."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-supervisor-r4-20261029/author-delivery/control/windows/node/isolation-lifecycle.mjs",
+      "sha256": "b663fa3fd194c80e668a675ae83ebf4120ab232bb775e64c74ecfadf05cd6ddf",
+      "role": "Historical r4 seed/reference",
+      "notes": "See r4 REPORT plus root executed regression evidence; edit candidate copy only."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-supervisor-r4-20261029/author-delivery/control/windows/vbslike/manager/main.mjs",
+      "sha256": "cd19d935f76fa589ebec35147699750b1c04e8e50d3c0804f44f95851f039343",
+      "role": "Historical r4 seed/reference",
+      "notes": "See r4 REPORT plus root executed regression evidence; edit candidate copy only."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-supervisor-r4-20261029/author-delivery/control/windows/vbslike/manager/compose.mjs",
+      "sha256": "226f438c30ef2747539df3d19893191665e987f89d30cf2d58d07af272b109a8",
+      "role": "Historical r4 seed/reference",
+      "notes": "See r4 REPORT plus root executed regression evidence; edit candidate copy only."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-supervisor-r4-20261029/author-delivery/control/windows/vbslike/manager/protected-manager.mjs",
+      "sha256": "2138b52f660808a7419616c44b83e5aee8bfd112ba6d4155f82f826379506581",
+      "role": "Historical r4 seed/reference",
+      "notes": "See r4 REPORT plus root executed regression evidence; edit candidate copy only."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-supervisor-r4-20261029/author-delivery/control/windows/vbslike/manager/permit-enforcement.mjs",
+      "sha256": "a0a694619d8074c49da4e69caa1d443a9f332f4eb1ab664b73397221e7a97de6",
+      "role": "Historical r4 seed/reference",
+      "notes": "See r4 REPORT plus root executed regression evidence; edit candidate copy only."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-supervisor-r4-20261029/author-delivery/control/windows/vbslike/router/control.mjs",
+      "sha256": "e2bf6ea711d9894aba92fbfb77048adeac0cbdeba135b72f71c7ebc3796424cf",
+      "role": "Historical r4 seed/reference",
+      "notes": "See r4 REPORT plus root executed regression evidence; edit candidate copy only."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-supervisor-r4-20261029/author-delivery/test/windows-permit/r4-supervisor-chain.test.mjs",
+      "sha256": "d40b3aca19de5a448ae894878959d5cadb4d7ba40fafbe0f6b1f667768869742",
+      "role": "Historical r4 seed/reference",
+      "notes": "See r4 REPORT plus root executed regression evidence; edit candidate copy only."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/node/host.mjs",
+      "sha256": "963eb018d5d85d26af04a7cf6ef73d600afb8e3135d397176246d9c494f0be60",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/node/isolation-lifecycle.mjs",
+      "sha256": "72c758d087f04e6a1072c7298c5ccac12a17158c7bf0c068e9a7a4e8f3974cdd",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/node/protected-supervisor.mjs",
+      "sha256": "85ad3ecc210e3c970c3d3e0d6b65836de2c4df91c94194fbece1d3ddce285d19",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/node/protected-isolation.mjs",
+      "sha256": "0bdff2511a78a9f766b727ea6c629906301ed24505db10224d571638116cfe7c",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/vbslike/manager/main.mjs",
+      "sha256": "cd19d935f76fa589ebec35147699750b1c04e8e50d3c0804f44f95851f039343",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/vbslike/manager/compose.mjs",
+      "sha256": "226f438c30ef2747539df3d19893191665e987f89d30cf2d58d07af272b109a8",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/vbslike/manager/permit-enforcement.mjs",
+      "sha256": "b9736bec104fffbe96a68e826bf2c17495199576b8d6dfa2ba6974fe80d239ff",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/vbslike/manager/permit-journal.mjs",
+      "sha256": "fba96d522f1f4972c91f0d1df2aeba1ba8a76961d04d89a283822b093fe2288b",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/vbslike/manager/win-durable.mjs",
+      "sha256": "cac3cb1e78658ed37d93d1da96a03806ec477c0a327f6d5ad522b843587dd556",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/vbslike/manager/protected-manager.mjs",
+      "sha256": "deea3d61f537f0a7c3d54e70ce4e0c0f4f93d9775b59e05090d0a6e23eb932e5",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/vbslike/router/control.mjs",
+      "sha256": "6e1a760732f3b4e3d9830d7a06bfc190b3324c5e5f109e600a4666ce75c5df48",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/vbslike/router/io.mjs",
+      "sha256": "443cea7957df60696ababca7387f399ce6e0c9998f90c95cc9c591b0bdfa7807",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/network/deployment-isolation-runtime.mjs",
+      "sha256": "6309c386deefaec230045f0dadad30a1fb86b384be7693f68ce7bbc0a1e8e8f7",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/network/deployment-permit-gate.mjs",
+      "sha256": "2ee846d462354874eb704ef0a4cf6492536428497fa8f2fa93f654d411ad235a",
+      "role": "Historical r5 materialized interface; current r7 seed supersedes this",
+      "notes": "Historical reference only. Use the current165 corrected root r6 interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/node/host.mjs",
+      "sha256": "963eb018d5d85d26af04a7cf6ef73d600afb8e3135d397176246d9c494f0be60",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/node/isolation-lifecycle.mjs",
+      "sha256": "72c758d087f04e6a1072c7298c5ccac12a17158c7bf0c068e9a7a4e8f3974cdd",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/node/protected-supervisor.mjs",
+      "sha256": "ffbdc2480cfba233fa9d89bcb5f730efcc8d6018d31f1c1ebf9d6b0d4d737ac4",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/node/protected-isolation.mjs",
+      "sha256": "665659d0b34038e1ab6c0cd9b5c6e4d6d9a008d3013424ec79c52bc571c4eeb2",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/manager/main.mjs",
+      "sha256": "eacd28d75b6397ca7890f832e654ee476a482b2018660f21473e9d4e5f0d1ea7",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/manager/compose.mjs",
+      "sha256": "25cf15600e8708543c3284061f0250af7f37514c48f477bf9be7b1248f6c9d77",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/manager/protected-manager.mjs",
+      "sha256": "3a8c5ed8361668f9f9e8f23e96462a1136cdf13a07595fe667e7d67fa107434a",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/manager/control.mjs",
+      "sha256": "f982c0655f3b08963586f61e0dfaf48fc74987da6c641ae78c37fe0a2eaacc88",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/manager/permit-enforcement.mjs",
+      "sha256": "b9736bec104fffbe96a68e826bf2c17495199576b8d6dfa2ba6974fe80d239ff",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/manager/permit-journal.mjs",
+      "sha256": "fba96d522f1f4972c91f0d1df2aeba1ba8a76961d04d89a283822b093fe2288b",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/manager/win-durable.mjs",
+      "sha256": "cac3cb1e78658ed37d93d1da96a03806ec477c0a327f6d5ad522b843587dd556",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/router/main.mjs",
+      "sha256": "9411ead170b2c4744ae3dafdd5e641322f9de7eb3b45edc373176413fb04735f",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/router/control.mjs",
+      "sha256": "22f362e1b4d9e8d5792484bee616dcf43e6a65b56a68509a57b85d8488bdc52b",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/router/io.mjs",
+      "sha256": "4d6e72cd3156280f2f5d49706d9fc5d3b6dc12324173af53f4b8b179b5db1dc8",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/router/attest.mjs",
+      "sha256": "509ca326269636c47637f398d6e99ab29675d0ebfcb00f2f87e3d0ce2e4654b7",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/network/deployment-isolation-runtime.mjs",
+      "sha256": "8ea318efe5186655260e4332a7908f7787ea76f8e1bf2d81001fe8644ba3dd5b",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/network/deployment-permit-gate.mjs",
+      "sha256": "c0035eff009686a37ef8262f2d7c93456d252876f0867eb4e09feecc2c87bd49",
+      "role": "Historical corrected root r6 interface; current169 r7 seed supersedes this",
+      "notes": "Historical reference. Use the current169 frozen interfaces below."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/node/host.mjs",
+      "sha256": "963eb018d5d85d26af04a7cf6ef73d600afb8e3135d397176246d9c494f0be60",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/node/isolation-lifecycle.mjs",
+      "sha256": "72c758d087f04e6a1072c7298c5ccac12a17158c7bf0c068e9a7a4e8f3974cdd",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/node/protected-supervisor.mjs",
+      "sha256": "2b3bff00ba5768033361eca308ed182fff50f721dab4888e658a74abcf9146f7",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/node/protected-isolation.mjs",
+      "sha256": "e835894722272f533acd789ece194daad02ad833ec8ee79430fc79db1786c459",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/vbslike/manager/main.mjs",
+      "sha256": "eacd28d75b6397ca7890f832e654ee476a482b2018660f21473e9d4e5f0d1ea7",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/vbslike/manager/compose.mjs",
+      "sha256": "25cf15600e8708543c3284061f0250af7f37514c48f477bf9be7b1248f6c9d77",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/vbslike/manager/protected-manager.mjs",
+      "sha256": "3a8c5ed8361668f9f9e8f23e96462a1136cdf13a07595fe667e7d67fa107434a",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/vbslike/manager/control.mjs",
+      "sha256": "f982c0655f3b08963586f61e0dfaf48fc74987da6c641ae78c37fe0a2eaacc88",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/vbslike/manager/permit-enforcement.mjs",
+      "sha256": "b9736bec104fffbe96a68e826bf2c17495199576b8d6dfa2ba6974fe80d239ff",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/vbslike/manager/permit-journal.mjs",
+      "sha256": "fba96d522f1f4972c91f0d1df2aeba1ba8a76961d04d89a283822b093fe2288b",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/vbslike/manager/win-durable.mjs",
+      "sha256": "cac3cb1e78658ed37d93d1da96a03806ec477c0a327f6d5ad522b843587dd556",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/vbslike/router/main.mjs",
+      "sha256": "9411ead170b2c4744ae3dafdd5e641322f9de7eb3b45edc373176413fb04735f",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/vbslike/router/control.mjs",
+      "sha256": "22f362e1b4d9e8d5792484bee616dcf43e6a65b56a68509a57b85d8488bdc52b",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/vbslike/router/io.mjs",
+      "sha256": "4d6e72cd3156280f2f5d49706d9fc5d3b6dc12324173af53f4b8b179b5db1dc8",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/windows/vbslike/router/attest.mjs",
+      "sha256": "509ca326269636c47637f398d6e99ab29675d0ebfcb00f2f87e3d0ce2e4654b7",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/network/deployment-isolation-runtime.mjs",
+      "sha256": "21140a534e83494b7f282763d4b54fd6fe40133f1a2335a0eb5d43d79d55f65e",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/control/network/deployment-permit-gate.mjs",
+      "sha256": "c0035eff009686a37ef8262f2d7c93456d252876f0867eb4e09feecc2c87bd49",
+      "role": "Current169 root r7 frozen actual interface",
+      "notes": "Exact r8 seed. Edit only candidate copy. Passing corrected composite is external fixture evidence; permit-response and unknown-stage owner-loss are reproduced failures. Production factory/native/full workloads still unfinished."
+    }
+  ]
+}
