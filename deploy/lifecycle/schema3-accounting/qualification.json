@@ -1,0 +1,29 @@
+{
+  "qualification": "local source size, actual EVM integration and mock code-pin tests only; NOT production deployed",
+  "tests": {
+    "actualExecutions": 63,
+    "uniqueActualScenarios": 47,
+    "actualFailures": 0,
+    "actualSkips": 0,
+    "mockPinTests": 15,
+    "mockPinFailures": 0,
+    "mockPinSkips": 0
+  },
+  "packagingChanges": [
+    "builder filesystem roots only; virtual source names and compiler input source bytes match qualified bundle",
+    "portable Foundry remapping roots; use explicit pinned solc path for reproduction"
+  ],
+  "sourceHashes": {
+    "candidate/test-js/lifecycle-linked-artifacts.test.mjs": "e2dcb7d9671c1d28fada5f92fc750d2bdfad1e257fcbf3e657dc207a2b96cff9",
+    "candidate/test/AccountingConservation.t.sol": "901f869c2eb2741bf341587af5966af558cf6f065df3f6402ee6886b30a427c5",
+    "candidate/test/Lifecycle.t.sol": "cde216383e0c179ad5fdd9059f800a3fa1c78f63447ac7e085bfdfab74feccb1",
+    "candidate/test/LifecycleProofOfTime.t.sol": "12f912897de976010d1338253c576a4d6c52e5dedadeeda7f26883e522c35c2f",
+    "candidate/test/LifecycleCutoff.t.sol": "928a59450dbe51663b45c89cd74a440bbb4994cef79e0ba28023360ab42a96c6",
+    "candidate/deploy/EnclaveProofOfTime.sol": "946f0b90db1597ee95316029f467b8c7588e962c72168e78da77d3886f72eec5",
+    "candidate/deploy/EnclaveDeployments.sol": "c720f1bfe021abcc4f080a5646d756c60a14cd2be8b746d995e3d1ba8b21da15",
+    "candidate/network/lifecycle-linked-artifacts.mjs": "d9ad52648cf5bda505d2ccebb8a6ea49fb3bc682a7fd0d431d1f5def372808cf",
+    "candidate/scripts/build-lifecycle-linked-artifacts.mjs": "4c2953b97a85aa189536aeb8fada42ac6806d6c1b3b8f362fab1154f6c35ffa1"
+  },
+  "compilerInputsMatched": true,
+  "libraryDeployedPin": "NOT supplied; recorded Forge code is local test evidence only"
+}

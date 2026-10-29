@@ -16,10 +16,14 @@ reserve; payment rejection cannot undo the offline record.
 Root validation reproduced two reserve failures in the original draft, then
 passed all 32 tests (18 distinct scenarios) after correction. The controller
 runtime is 17,253 bytes. These tests use an explicitly limited mock ledger.
-The prototype requires a schema-3 paired ledger and rejects schema 2. The real
-ledger/prover integration, full Base fee reimbursement, independent sender,
-host registry offline mechanism and production boundary integration are still
-pending. The artifacts and implementation described below remain schema 2.
+The prototype requires a schema-3 paired ledger and rejects schema 2. The separate [schema-3 accounting package](schema3-accounting/README.md) now
+passes 63 real integration test executions (47 distinct scenarios) plus 15
+code-link/mock-snapshot tests. Its ledger fits EIP170 at 24,149 bytes through an
+immutable accounting library. These are local results, not production activation.
+Full Base fee reimbursement, independent sender, host-registry offline reporting,
+explicit schema-3 adapter/recursive code-pin integration and independent-profile
+policy remain pending. The artifacts and implementation described below remain
+schema 2; they are not silently replaced by this separately qualified package.
 
 ## Behavior implemented
 

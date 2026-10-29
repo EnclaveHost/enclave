@@ -1,0 +1,43 @@
+--- linked-artifacts-before-self-review.mjs.txt
++++ candidate/network/lifecycle-linked-artifacts.mjs
+@@ -46,16 +46,21 @@
+  const runtimeKeys=[...new Set(flat(artifact.runtimeLinks).map(x=>x.key))];
+  let body=linkTemplate(artifact.runtimeTemplate,artifact.runtimeLinks,subset(runtimeKeys,libraries)).slice(2);
+  const used=new Set(flat(artifact.runtimeLinks).flatMap(x=>Array.from({length:x.length},(_,i)=>x.start+i)));
+- const ranges=artifact.immutableReferences||{};
++ const ranges={...(artifact.immutableReferences||{})};
++ let selfSlots=[];
++ if(artifact.kind==='library'){
++  const self=artifact.librarySelfAddress;
++  if(self?.format!=='solc-viair-library-immutable32'||self.immutableId!=='library_deploy_address'||!Array.isArray(ranges[self.immutableId])||!ranges[self.immutableId].length)throw Error('unsupported Solidity library self binding');
++  selfSlots=ranges[self.immutableId];
++  for(const slot of selfSlots)if(slot.length!==32||!Number.isSafeInteger(slot.start)||slot.start<0||artifact.runtimeTemplate.slice(2+slot.start*2,2+(slot.start+32)*2)!=='00'.repeat(32))throw Error('invalid library self range');
++  delete ranges[self.immutableId];
++ }else if(artifact.librarySelfAddress||ranges.library_deploy_address)throw Error('unexpected self binding');
+  if(JSON.stringify(Object.keys(ranges).sort())!==JSON.stringify(Object.keys(immutables).sort()))throw Error('missing or extra immutable binding');
+  for(const [id,slots] of Object.entries(ranges)){
+   if(!Array.isArray(slots)||!slots.length)throw Error('empty immutable range');
+   for(const {start,length} of slots)body=patch(body,start,length,immutables[id],used);
+  }
+- if(artifact.kind==='library'){
+-  if(!artifact.librarySelfAddress||artifact.librarySelfAddress.start!==1||artifact.librarySelfAddress.length!==20||!artifact.runtimeTemplate.startsWith('0x73'+'00'.repeat(20)))throw Error('unsupported Solidity library self binding');
+-  body=patch(body,1,20,address(deployedAddress),used);
+- }else if(artifact.librarySelfAddress)throw Error('unexpected self binding');
++ for(const {start,length} of selfSlots)body=patch(body,start,length,'0x'+'00'.repeat(12)+address(deployedAddress).slice(2),used);
+  return '0x'+body;
+ }
+ const abi=parseAbi([
+--- builder-before-self-review.mjs.txt
++++ candidate/scripts/build-lifecycle-linked-artifacts.mjs
+@@ -50,8 +50,9 @@
+  if(runtimeBytes===0||runtimeBytes>24576)throw Error(name+': empty or oversized runtime ('+runtimeBytes+')');
+  if(kind==='library'){
+   if(dependencies(a).length)throw Error('nested libraries require separate review');
+-  if(!a.runtimeTemplate.startsWith('0x73'+'00'.repeat(20)))throw Error('unsupported Solidity library prefix');
+-  a.librarySelfAddress={start:1,length:20};
++  const slots=a.immutableReferences.library_deploy_address;
++  if(!Array.isArray(slots)||!slots.length||slots.some(x=>x.length!==32||!Number.isSafeInteger(x.start)||x.start<0||a.runtimeTemplate.slice(2+x.start*2,2+(x.start+32)*2)!=='00'.repeat(32)))throw Error('unsupported Solidity library self immutable');
++  a.librarySelfAddress={format:'solc-viair-library-immutable32',immutableId:'library_deploy_address'};
+  }
+  // Validate all compiler link ranges, without treating these dummy-filled bytes
+  // as deployment artifacts, linked success or an actual code hash.

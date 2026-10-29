@@ -1,0 +1,99 @@
+{
+  "capturedAtUtc": "2026-10-29T06:41:15.305616+00:00",
+  "qualification": "compiler source templates only; NOT linked/deployed code pins",
+  "exitCode": 1,
+  "testsExecuted": false,
+  "sourceHashes": {
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/candidate/test/AccountingConservation.t.sol": "42faec0c794bae9056e6f8697132cf27c34215dd4aee279a68357875d13a6656",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/candidate/test/Lifecycle.t.sol": "ab938a43c2e596aa2d20f3578ec42dd92e75a2dce5942c1592b4ecc3f40b937d",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/candidate/test/LifecycleProofOfTime.t.sol": "ed9f381c6fd68eac64d61751263837f9e325620a301452276deb5f7d3de479a0",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/candidate/test/LifecycleCutoff.t.sol": "928a59450dbe51663b45c89cd74a440bbb4994cef79e0ba28023360ab42a96c6",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/candidate/deploy/EnclaveProofOfTime.sol": "946f0b90db1597ee95316029f467b8c7588e962c72168e78da77d3886f72eec5",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/candidate/deploy/EnclaveDeployments.sol": "b7e491be515854fac0cf1618e40a0e40bc9b7dada2826957723970e33c0b14fb",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/candidate/test-js/lifecycle-linked-artifacts.test.mjs": "e6101fc010ee39fdc1ae0893c99a0abff50bc43a89bc4c4d3bec47c397aec1ab",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/candidate/network/lifecycle-linked-artifacts.mjs": "bc45ffaf735d870f6df3ed98a9f3cc8306f621e227c87288d3fa1ef521602de1",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/candidate/scripts/build-lifecycle-linked-artifacts.mjs": "e12ecd579326c56393e8948fe56c60655093495832ae5c7494697ab9d75dfb45",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/library_size_validation.py": "fb1ab57cd522fc58c446db9dde79fa0a7dbd73aeb7e15ad08192b4a4df98098f",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-emergency-offline-r1/candidate/contracts/EnclaveDeploymentLifecycleEmergency.sol": "ac4023b9ccac9b6b48536f78f07282e8a08e6669bd983bb292bbe1ea8a8ea677",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/EnclaveSelfHostingIdentity.sol": "f8dae9aba6c6ada4e92f9327fbb8801ae4bd15c645b0cea9a448a7f1bb1682e2"
+  },
+  "sourcesUnchanged": true,
+  "sizes": {
+    "candidate/deploy/EnclaveDeployments.sol:EnclaveDeployments": {
+      "runtimeBytes": 24763,
+      "fitsEIP170": false,
+      "runtimeLinkReferences": {
+        "candidate/deploy/EnclaveDeployments.sol": {
+          "EnclaveLifecycleAccounting": [
+            {
+              "length": 20,
+              "start": 6543
+            },
+            {
+              "length": 20,
+              "start": 21156
+            },
+            {
+              "length": 20,
+              "start": 23419
+            }
+          ]
+        }
+      },
+      "creationLinkReferences": {
+        "candidate/deploy/EnclaveDeployments.sol": {
+          "EnclaveLifecycleAccounting": [
+            {
+              "length": 20,
+              "start": 7411
+            },
+            {
+              "length": 20,
+              "start": 22024
+            },
+            {
+              "length": 20,
+              "start": 24287
+            }
+          ]
+        }
+      }
+    },
+    "candidate/deploy/EnclaveDeployments.sol:EnclaveLifecycleAccounting": {
+      "runtimeBytes": 1980,
+      "fitsEIP170": true,
+      "runtimeLinkReferences": {},
+      "creationLinkReferences": {}
+    },
+    "candidate/deploy/EnclaveProofOfTime.sol:EnclaveProofOfTime": {
+      "runtimeBytes": 7115,
+      "fitsEIP170": true,
+      "runtimeLinkReferences": {},
+      "creationLinkReferences": {}
+    },
+    "contracts/EnclaveDeploymentLifecycleEmergency.sol:EnclaveDeploymentLifecycleEmergency": {
+      "runtimeBytes": 17253,
+      "fitsEIP170": true,
+      "runtimeLinkReferences": {},
+      "creationLinkReferences": {}
+    },
+    "contracts/EnclaveDeploymentLifecycleEmergency.sol:LifecycleSettlementAck": {
+      "runtimeBytes": 57,
+      "fitsEIP170": true,
+      "runtimeLinkReferences": {},
+      "creationLinkReferences": {}
+    },
+    "contracts/EnclaveSelfHostingIdentity.sol:EnclaveSelfHostingIdentity": {
+      "runtimeBytes": 942,
+      "fitsEIP170": true,
+      "runtimeLinkReferences": {},
+      "creationLinkReferences": {}
+    }
+  },
+  "command": [
+    "node",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/candidate/scripts/build-lifecycle-linked-artifacts.mjs",
+    "/home/steven/.local/share/svm/0.8.35/solc-0.8.35",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/library-size-feedback/compiler"
+  ]
+}

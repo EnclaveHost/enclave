@@ -1,0 +1,110 @@
+--- validated-v2-prover
++++ schema3-cutoff-prover
+@@ -36,6 +36,7 @@
+     function lifecycleSchema() external view returns (uint256);
+     function deploymentsSchema() external view returns (uint256);
+     function registry() external view returns (address);
++    function lifecycleController() external view returns (address);
+     function proofRequired() external view returns (bool);
+     /// The single write this contract is allowed. Prover-gated there.
+     function creditProven(bytes32 id, uint64 upto) external;
+@@ -58,6 +59,12 @@
+     function get(bytes32 id) external view returns (Enclave memory);
+ }
+ 
++interface IProofLifecycle {
++    function ledger() external view returns (address);
++    function offline(bytes32 id) external view returns (uint64 generation, uint64 cutoff,
++        bool stopped, bool pending, bytes32 host, address operator);
++}
++
+ contract EnclaveProofOfTime {
+     /// @dev Struct-shape/feature revision, sniffed by consumers the way
+     ///      deploymentsSchema and registrySchema are. Rev 1 clamped a
+@@ -70,6 +77,7 @@
+ 
+     IEnclaveDeployments public immutable deployments;
+     IEnclaveRegistry    public immutable registry;
++    IProofLifecycle public immutable lifecycle;
+ 
+     address public owner;
+     address public pendingOwner;
+@@ -84,7 +92,7 @@
+     ///         does not determine how long an assignment may run.
+     uint64 public proofWindowSec;
+     uint64 public immutable maxProofWindowSec;
+-    uint256 public constant lifecycleProofSchema = 1;
++    uint256 public constant lifecycleProofSchema = 2;
+ 
+     /// @notice Per-deployment proof record. Purely observational — the money
+     ///         lives in the ledger's watermark — but it is the honest answer to
+@@ -130,8 +138,12 @@
+     constructor(address _deployments, address _registry, uint64 initialWindowSec, uint64 maximumWindowSec) {
+         require(_deployments.code.length != 0 && _registry.code.length != 0, "authority code missing");
+         IEnclaveDeployments ledger = IEnclaveDeployments(_deployments);
+-        require(ledger.lifecycleSchema() == 2 && ledger.deploymentsSchema() == 17, "not lifecycle ledger");
++        require(ledger.lifecycleSchema() == 3 && ledger.deploymentsSchema() == 17, "not lifecycle ledger");
+         require(ledger.registry() == _registry, "registry differs");
++        address controller = ledger.lifecycleController();
++        require(controller.code.length != 0 && IProofLifecycle(controller).ledger() == _deployments,
++            "controller differs");
++        lifecycle = IProofLifecycle(controller);
+         // Preserve the old permitted upper-bound range without treating it as
+         // a lease length. No call to the removed leaseSec selector is made.
+         require(maximumWindowSec > 60 && maximumWindowSec <= 1 days, "maximum window range");
+@@ -212,8 +224,7 @@
+         // under, and never more than one window past what was already proven.
+         // The ledger re-applies the first two on the money; the window is this
+         // contract's own rule, and the one that makes time incompressible.
+-        uint64 ceiling = uint64(block.timestamp);
+-        if (ceiling > d.leaseUntil) ceiling = d.leaseUntil;
++        uint64 ceiling = _ceiling(id, d);
+         if (upto > ceiling) upto = ceiling;
+         uint64 base = deployments.provenUntil(id);
+         if (base == 0) {
+@@ -245,12 +256,16 @@
+ 
+         deployments.creditProven(id, upto);   // the ledger re-clamps, then pays
+ 
+-        uint64 proven = upto - base;
++        // The paired ledger is the accounting authority. Never report seconds
++        // from a requested watermark that the ledger did not actually accept.
++        uint64 accepted = deployments.provenUntil(id);
++        require(accepted > base && accepted <= upto, "invalid accepted watermark");
++        uint64 proven = accepted - base;
+         r.lastProofAt = uint64(block.timestamp);
+         r.provenSec  += proven;
+         r.proofs     += 1;
+         hostedSec[d.runnerOperator] += proven;
+-        emit Checkpointed(id, enclaveId, d.runnerOperator, upto, proven, anchorBlock);
++        emit Checkpointed(id, enclaveId, d.runnerOperator, accepted, proven, anchorBlock);
+     }
+ 
+     /// @dev One proof, as a batch element. A struct rather than six parallel
+@@ -328,10 +343,24 @@
+     function unprovenSec(bytes32 id) public view returns (uint64) {
+         IEnclaveDeployments.Deployment memory d = deployments.get(id);
+         if (d.runner == bytes32(0)) return 0;
+-        uint64 upto = uint64(block.timestamp);
+-        if (upto > d.leaseUntil) upto = d.leaseUntil;
++        uint64 upto = _ceiling(id, d);
+         uint64 proven = deployments.provenUntil(id);
+         return upto > proven ? upto - proven : 0;
++    }
++
++    /// @dev Views share the same pending cutoff ceiling as checkpoint requests.
++    /// The ledger validates its private generation/start on creditProven; this
++    /// view binds only the public runner tuple and timestamp, not that private
++    /// generation. A failed controller read fails closed.
++    function _ceiling(bytes32 id, IEnclaveDeployments.Deployment memory d) private view returns (uint64 end) {
++        end = uint64(block.timestamp);
++        (, uint64 cutoff,, bool pending, bytes32 host, address operator) = lifecycle.offline(id);
++        if (pending) {
++            require(host == d.runner && operator != address(0) && operator == d.runnerOperator
++                && cutoff <= end, "invalid offline record");
++            end = cutoff;
++        }
++        if (end > d.leaseUntil) end = d.leaseUntil;
+     }
+ 
+     /// @notice Everything a client needs to render "is this host doing its job"

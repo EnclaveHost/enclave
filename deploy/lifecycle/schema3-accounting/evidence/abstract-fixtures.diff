@@ -1,0 +1,22 @@
+--- first-fixtures/Lifecycle.t.sol
++++ abstract-fixtures/Lifecycle.t.sol
+@@ -19,7 +19,7 @@
+         v = address(new TestVault(o)); isVault[v] = true; vaultFor[o] = v;
+     }
+ }
+-contract LifecycleTest is Test {
++abstract contract LifecycleTest is Test {
+     Lifecycle lc;
+     Ledger ledger;
+     EnclaveRegistry registry;
+--- first-fixtures/LifecycleProofOfTime.t.sol
++++ abstract-fixtures/LifecycleProofOfTime.t.sol
+@@ -12,7 +12,7 @@
+ 
+ /// Prepared source only. Uses the actual lifecycle ledger/controller/identity
+ /// and registry fixture; no lease getter is added to a stand-in to hide failure.
+-contract LifecycleProofOfTimeTest is LifecycleTest {
++abstract contract LifecycleProofOfTimeTest is LifecycleTest {
+     uint256 internal proofKey = uint256(keccak256("lifecycle paid proof test key"));
+     function _installProof() internal returns(Proof p) {
+         p = new Proof(address(ledger), address(registry), 900, 1800);
