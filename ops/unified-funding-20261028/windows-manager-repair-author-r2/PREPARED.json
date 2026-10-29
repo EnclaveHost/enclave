@@ -1,0 +1,29 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "seedEntries": 145,
+  "readonlyInputPins": 586,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write"
+  ],
+  "turnLimit": 55,
+  "childTimeoutSec": 1800,
+  "outerTimeoutSec": 2100,
+  "queueMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-repair-r2-20261029/owned-tmp",
+  "hashes": {
+    "TASK.txt": "2c74084b574d6be6a381c70adb6621ce56997dd6a7f6095a85cb49432756695a",
+    "REVIEW-STATUS.txt": "4e7e218063a0dce7bf69e941ef596f4b631ccad4a0b346680f48e12fd6d0d74c",
+    "run.py": "6711ce5dfbb380f1603bd14a9bf18c0222a8f843902012817002fa72b57cf4b0",
+    "launch-command.txt": "fe591e2fe8fea1214bea3cc16d434e53437f011c16750dd878a0ea38c942f5d2",
+    "input-pins.json": "acaeab91997da74ea985860a6ef93147b7e2c3d8f300acd0a36a1270e9d92b79",
+    "seed-pins.json": "0f129402d04fcb85acae45b2208712305555041c95f293743b8a9cd034c049a6",
+    "seed-provenance.json": "5d4d7cf0bdb55b24ec13fea25d51b5b78079dba624e0e702043c8b8552166013"
+  }
+}
