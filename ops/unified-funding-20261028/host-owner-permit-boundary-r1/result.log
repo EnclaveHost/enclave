@@ -1,0 +1,95 @@
+TAP version 13
+# Subtest: control: real signed permit grants serving while its writer remains owned
+ok 1 - control: real signed permit grants serving while its writer remains owned
+  ---
+  duration_ms: 110.788425
+  type: 'test'
+  ...
+# Subtest: released writer must invalidate its already-installed signed gate grant
+not ok 2 - released writer must invalidate its already-installed signed gate grant
+  ---
+  duration_ms: 92.041065
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r2/test/owner-release.test.mjs:86:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception: installed grant must not survive owner release'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r2/test/owner-release.test.mjs:91:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: released writer must withdraw resources tracked by the actual runtime/gate
+not ok 3 - released writer must withdraw resources tracked by the actual runtime/gate
+  ---
+  duration_ms: 72.336363
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r2/test/owner-release.test.mjs:93:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    tracked resource cancellation must accompany owner release
+
+    0 !== 1
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r2/test/owner-release.test.mjs:97:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: released writer must remove the manager instance tracked by the actual runtime
+not ok 4 - released writer must remove the manager instance tracked by the actual runtime
+  ---
+  duration_ms: 50.358828
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r2/test/owner-release.test.mjs:100:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the runtime tracked instance must be withdrawn before owner release completes
+
+    1 !== 0
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r2/test/owner-release.test.mjs:103:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: owner release during real witness verification must prevent signature release
+not ok 5 - owner release during real witness verification must prevent signature release
+  ---
+  duration_ms: 22.273483
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r2/test/owner-release.test.mjs:105:1'
+  failureType: 'testCodeFailure'
+  error: 'released witness owner must not return a valid signature'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r2/test/owner-release.test.mjs:119:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 1
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 625.074489
