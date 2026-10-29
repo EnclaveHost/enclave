@@ -1,4 +1,5 @@
 {
+  "HANDOFF-20261029-1931.md": "bdd8b95252552c4a68f5b40d766aeb31d9749d13bc4285b7d2a7e1a26b7020b4",
   "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
   "operator-source-closure.json": "2cce51b3d2c68cf413e3be2bd6b3051577043ca3fb228386a91b152891f4d009",
   "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8",
@@ -17,6 +18,7 @@
   "evidence-index.json": "6cdb3bac2b54db83ddc9155d94f11bb9b4d8cd9c5585cb1fcce7cf39a98a84b2",
   "root-live-verification.json": "73feee373244d9b0730e1d06a9d2a30290bf09d0b66d9f412c954a1e95de0230",
   "materialization.json": "b016c007a1ac312e16b8186d4b6b727facd67576b6951a75478a8accbfcaa259",
+  "automation-refresh.json": "0ee514cb16b399b1e1c94046c7efe2d4ed207f92b04893f0d4a343be975cc990",
   "run.py": "9040025334d1d018a790854bfcf135e1510292dc621106e0f7a0112a1f4b8803",
   "admission-record.json": "40276eb0ebe6ec5195d7b6cc4e27d4e53657fa8f7e8b956fc2c1294840b5b554"
 }
