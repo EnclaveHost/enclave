@@ -12,6 +12,8 @@ The [complete r4 delivery](../../ops/unified-funding-20261028/operator-windows-w
 
 SYSTEM installation and runtime effects remain explicitly refused with `CutoverUnqualified`. Continuous exclusion of the old writer, effective running NODE_DIR and task/process binding still need implementation and target qualification. Native Windows locking, process-death and resource-admission evidence also remain missing. The current service-only directory creation script is unreachable for SYSTEM. No backend migration or automatic refill is live; this source slice does not change the production frontend or existing app funding.
 
+The [next-step dependency map](../../ops/unified-funding-20261028/operator-windows-wiring-root-review-r4/NEXT-CUTOVER.md) prioritizes native qualification in a disposable domain without production keys, assignments or journals. Existing-domain writer transfer and later per-app VM handoff are separate boundaries; current apps need not be drained to qualify that isolated domain. Fresh admission accounting and bounded independent observation remain prerequisites.
+
 ## Windows operator wiring repair — October 29, r2
 
 The [partial r2 delivery](../../ops/unified-funding-20261028/operator-windows-wiring-delivery-r2/STATUS.md) is committed despite the author timeout. Root completed the review and repaired two omitted trust-input ACL checks in a separate tree. The [combined qualification](../../ops/unified-funding-20261028/operator-windows-wiring-root-review-r2/ROOT-REVIEW.md) passes all 102 checks, including the seven previous independent failures. Original source, failed runs and fixture corrections are retained.
