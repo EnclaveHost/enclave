@@ -300,5 +300,6 @@
   "repaired/test/windows-permit/helpers/od-r1-owner-child.mjs": "8129643b109a93d19824c87d881c7c643e5910ce7c4aeba1d47d507e69c32b4f",
   "repaired/test/windows-permit/helpers/ow-fixture.mjs": "65bfcf6e2c90acf332d183d26b21594b49bc0a95d1f240ec74f07d13c6695767",
   "repaired/test/windows-permit/helpers/world.mjs": "43bfef552410c40629307226b4bdab73f3dd67df03c43c8f392955351848462d",
-  "repaired/test/windows-permit/helpers/manager-child.mjs": "05cde183d45bb49b5f16fb7819cec5a59b4f1a9c56d8742c8a18ef138c4f547a"
+  "repaired/test/windows-permit/helpers/manager-child.mjs": "05cde183d45bb49b5f16fb7819cec5a59b4f1a9c56d8742c8a18ef138c4f547a",
+  "HANDOFF-21-18.md": "1c0f39ae011bcba34cc86d0b9bda3a5f41507c00004fe0461382b79b9cb909b0"
 }
