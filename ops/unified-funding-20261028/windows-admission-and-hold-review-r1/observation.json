@@ -1,0 +1,33 @@
+{
+  "admissible": false,
+  "unknownCommitments": [
+    "future launches not yet in manager inventory",
+    "router pending launch not yet represented in backend inventory",
+    "non-Enclave host memory commitments",
+    "concurrent admissions after this observation"
+  ],
+  "availableMiB": 81684,
+  "schema": "enclave-exlock-admission-observation/1",
+  "note": "Metrics only. Unknown commitments are not zero. Coordinator must supply bounded, justified commitments for every unknown category and prevent overlapping admission; otherwise do not run.",
+  "managers": [
+    {
+      "port": 8091,
+      "startingReservedMiB": 0,
+      "unattributedCount": 0,
+      "allocatedMiB": 5166,
+      "startingCount": 0,
+      "epochStable": true,
+      "physicalPoolMiB": 84992
+    },
+    {
+      "port": 8095,
+      "startingReservedMiB": 0,
+      "unattributedCount": 0,
+      "allocatedMiB": 0,
+      "startingCount": 0,
+      "epochStable": true,
+      "physicalPoolMiB": 84992
+    }
+  ],
+  "checkedAt": "2026-10-29T13:35:26.1274661Z"
+}
