@@ -202,7 +202,8 @@ async function renderExecutions(e, owner) {
     const runtime = await f.verifyRuntime({ pins: FUNDING_RUNTIME, rpc, relay, owner, now: nowS() });
     const r = await f.reconcileGasExecution({ runtime, store: FL.guardGasStore(store, g), rpc, relay: FL.guardRelayFn(relay, g),
       relayBase: relayRoot(), id: el.dataset.exec });
-    return `Payment ${r.status}: ${r.verdict}${r.why ? ` (${r.why})` : ""}`;
+    const v = f.executionStatusView(r.status);
+    return `Payment ${r.status}: ${r.verdict}${r.why ? ` (${r.why})` : ""}${v.text ? ` · ${v.text}` : ""}`;
   })));
 }
 async function setActive(newSid, oldSid) {

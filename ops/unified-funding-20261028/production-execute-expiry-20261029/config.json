@@ -1,0 +1,95 @@
+{
+  "schema": "enclave-funding-addon-config-cutover-r1",
+  "release": "enabled",
+  "reviewed": true,
+  "note": "Actual browser plan reviewed: exact existing30, samelegacykey/explicitwildcard/APIauthority, finite8+2gas scopes. Signature prompts enabled for this exact termsHash; no owner signature assumed.",
+  "overrides": [],
+  "acceptLegacy": [],
+  "humanApproval": null,
+  "funding": {
+    "FUNDING_RUNTIME": {
+      "schema": "enclave-funding-browser-runtime-r1",
+      "chainId": 8453,
+      "factory": "0x83616b7fA62F8a43cfc634a25c0aCFb0CCAB76e8",
+      "implementation": "0x9a869B2BA0D6FB4F297Eb140406478f0aed55F96",
+      "gasAdapter": "0xE5198b7BA033612C45c720d204C469D9ECe77D9e",
+      "legacyFactory": "0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C",
+      "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "feeTiers": [
+        100,
+        500,
+        3000
+      ],
+      "codehashes": {
+        "factory": "0xcea778eb9622f6423e8a2159c83ae5b696e81e5f22e87e8c285516e663b87e0f",
+        "implementation": "0x94c41042068ffe6b08f43b6cb9546b4b725c81a60010a201fc0c428382cb3a95",
+        "gasAdapter": "0xe3cb6aeac87a81b82653f71327fb517a30b23285907ea47a4049cec5a432cf10"
+      },
+      "source": {
+        "kind": "deployed-receipts",
+        "deployTxs": [
+          "0x91da584b22366f81b1174d8b73571bd6a34ba54f721b8476b2e25fcf420ce6b6",
+          "0xa394688c44c411a5129fd94fe590957214431fee1c95f54959ce5073c0407160",
+          "0xc9ab30f239ceffac08344577b6238a4c16e65fcf36a59dde6c714abc098efc29",
+          "0x9c0328c93b8c28c6c78a5bf94a9b7482aa5eca7034469a78634ff88ae60dbaad"
+        ],
+        "reviewedBy": "root: four deployed receipts verified; public live funding runtime pins verified 2026-10-29T01:57:05Z"
+      }
+    },
+    "FUNDING_MIGRATION_PROPOSAL": {
+      "schema": "enclave-funding-migration-proposal-r1",
+      "chainId": 8453,
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "oldSid": "0x3aaf56fd65c168ba3e99e204ede06e2f2e8f1ff544ecd28f9ef8a4a011312227",
+      "legacy6": "24000000",
+      "gas": [
+        {
+          "name": "nucbox",
+          "budget6": "4800000",
+          "opsPerPeriod": "16",
+          "appIds": [
+            "0x093fa91736c2639e93867b76074c6c4dbc5e49150faf4e8618bdf45e30d275c6",
+            "0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7",
+            "0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc",
+            "0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06",
+            "0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef",
+            "0xcdc1fa941d248411e49f922e0bc7adfe8cc343712ca4fe4dfb24fab3ef6c70ce",
+            "0xf1897f065ed94bc096d351b831514311e08b30702148c639cbaf8d0deb74d03a",
+            "0xfd420627abb04e52e7d12e3a535e2df94a048ba51c0b0fec173e9e7de2e24b28"
+          ]
+        },
+        {
+          "name": "metal",
+          "budget6": "1200000",
+          "opsPerPeriod": "4",
+          "appIds": [
+            "0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737",
+            "0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6"
+          ]
+        }
+      ],
+      "deploymentIds": [
+        "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+        "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+        "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+        "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+        "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+        "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+        "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+        "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+        "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+        "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c"
+      ]
+    },
+    "FUNDING_MIGRATION_APPROVAL": {
+      "schema": "enclave-funding-migration-approval-r1",
+      "rootReviewed": true,
+      "termsHash": "0xaf133ffff73469d57b6289676dfa2247fa3abb9bddf368dabacde29827b14a02",
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "chainId": 8453,
+      "oldSid": "0x3aaf56fd65c168ba3e99e204ede06e2f2e8f1ff544ecd28f9ef8a4a011312227"
+    },
+    "FUNDING_MIGRATION_CUTOVER": null,
+    "FUNDING_CUTOVER_ACTIVATION": null
+  }
+}

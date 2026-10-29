@@ -1,5 +1,6 @@
-// UNREVIEWED SOURCE, NOT RUN (client-execution-recovery-r1). Successor gas.fund EXECUTION + durable RECOVERY for the
-// funding client. Everything else stays the unchanged client-repair-r4 core (imported, never copied or edited here).
+// UNREVIEWED SOURCE, NOT RUN (execute-expiry-recovery-r1, on the canonical client-execution-recovery-r1 source). Successor
+// gas.fund EXECUTION + durable RECOVERY for the funding client. Everything else stays the unchanged client-repair-r4 core
+// (imported, never copied or edited here).
 //
 // Replaces r4 confirmGasFund / quoteGasFund (r4 keeps its originals; the successor browser entry re-exports these names
 // explicitly). Root's three regressions (root-regression.test.mjs) show r4 journaling `refused` for a body lost after
@@ -29,9 +30,23 @@
 //      unchanged receiptFinality. Canonical is not final: "observed" blocks until a later reconcile proves finality, and a
 //      receipt that is no longer canonical moves the entry back to "unknown" with its evidence kept in history.
 //   6. Quote gate: any unresolved execution of the session blocks quoteGasFund; only final settlements, final proven
-//      supersession, definitive refusals and provably undispatched admissions clear.
-import { decodeFunctionData } from "viem";
-import { ACTION_GAS_FUND, SESSION_OP_EVENT, SESSION_OP_TOPIC, buildGasFundCall, keyHashOf } from "./funding-codec.mjs";
+//      supersession, definitive refusals, provably undispatched admissions and proven expired-unused calls clear.
+//   7. execute-expiry-recovery-r1. "expired_unused" (proveExpiredUnused) is a CHAIN proof, never an inference from
+//      silence, logs or a 5xx: the node's FINALIZED Base header, re-read by number (same number, hash, timestamp), has a
+//      timestamp strictly after BOTH the call deadline and the intent deadline (execute reverts Expired once
+//      block.timestamp > deadline, and every later block is later still); at that pinned block the vault's code is the
+//      exact EIP-1167 clone of the verified implementation, the implementation's code hash is the verified pin, and
+//      vault.seqOf(sid, nonce >> 64) equals the stored sequence (nonce & 2^64-1), i.e. the nonce is unconsumed; the
+//      pinned header and the finalized head are re-checked afterwards. latest / pending / safe / head and "no logs" are
+//      never used. Any missing, malformed, zero, non-canonical or inconsistent fact fails closed (status unchanged).
+//      The proven call can never execute, so a USER-requested new quote may carry the SAME on-chain nonce: confirmGasFund
+//      re-proves the expiry FRESH (and re-checks the stored proof's header) before it CAS-replaces the entry with the new
+//      intent, which keeps every earlier attempt verbatim (public intent, intentHash, outcome, evidence, history) in a
+//      bounded, hash-bound `predecessors` list. Only expired_unused / refused / never_dispatched / abandoned_before_send
+//      entries can be replaced, each only with that fresh proof; settled, superseded and every unresolved status never.
+//      A digest already attempted for that nonce is refused. Nothing here loads, retries, signs or sends on its own.
+import { decodeFunctionData, encodeFunctionData, keccak256 } from "viem";
+import { ACTION_GAS_FUND, SESSION_OP_EVENT, SESSION_OP_TOPIC, buildGasFundCall, keyHashOf, predictVault } from "./funding-codec.mjs";
 import { canon, fail, hashOf, lower, sameAddr } from "./util.mjs";
 import { signerFor } from "./v2-store.mjs";
 import { canonicalReceipt, eventsOf, receiptFinality } from "./chain-proof.mjs";
@@ -40,6 +55,7 @@ import { RelayError, pinBlock, quoteGasFund as quoteGasFundR4, verifySettlement 
 export const EXEC_SCHEMA = "enclave-funding-gas-execute-r2";
 export const MAX_DISCOVERY_BLOCKS = 600n;     // one eth_getLogs window from the persisted anchor (>= 900 s of Base blocks)
 export const MAX_CANDIDATES = 16;             // candidate transactions examined per reconcile
+export const MAX_PREDECESSORS = 4;            // earlier attempts kept per (sid, nonce); one more re-admission is refused
 
 /** (HTTP status -> codes) raised by relay-owner-r2 and activation-r1 funding-route execute() BEFORE simulateAndSend.
  *  Deliberately absent: "revert" (the host's simulateAndSend also uses it for an on-chain revert after send),
@@ -53,9 +69,16 @@ export const DEFINITIVE_REFUSALS = Object.freeze({
 });
 /** Statuses that no longer reserve the session. Everything else (admitted, dispatching, unknown, pending,
  *  reverted_observed, observed, superseded_observed, ...) blocks the next quote and confirmation. */
-export const CLEARED = Object.freeze(["settled", "superseded", "refused", "never_dispatched", "abandoned_before_send"]);
+export const CLEARED = Object.freeze(["settled", "superseded", "refused", "never_dispatched", "abandoned_before_send", "expired_unused"]);
+/** Unresolved statuses a read-only reconcile may move to expired_unused (with the full chain proof only). */
+export const EXPIRABLE = Object.freeze(["dispatching", "unknown", "pending", "reverted_observed"]);
+/** Cleared statuses whose (sid, nonce) entry a NEW user-confirmed call may replace, each only after a fresh expiry proof. */
+export const RELEASABLE = Object.freeze(["expired_unused", "refused", "never_dispatched", "abandoned_before_send"]);
 
 const H32 = /^0x[0-9a-f]{64}$/;
+const QTY = /^0x(0|[1-9a-f][0-9a-f]*)$/;
+const DEC = /^(0|[1-9][0-9]*)$/;
+const MASK64 = (1n << 64n) - 1n;
 const isHash = (h) => typeof h === "string" && H32.test(lower(h)) && !/^0x0{64}$/.test(lower(h));
 const normRelay = (r) => String(r ?? "").replace(/\/+$/, "");
 const toQty = (n) => `0x${BigInt(n).toString(16)}`;
@@ -66,6 +89,11 @@ const EXECUTE_ABI = Object.freeze([{ type: "function", name: "execute", stateMut
     { name: "args", type: "bytes" }, { name: "fee", type: "uint256" }, { name: "deadline", type: "uint64" },
     { name: "x", type: "uint256" }, { name: "y", type: "uint256" }, { name: "r", type: "bytes32" }, { name: "sv", type: "bytes32" }],
   outputs: [{ name: "result", type: "bytes" }] }]);
+/** SessionVault: mapping(bytes32 => mapping(uint192 => uint64)) public seqOf; execute checks seqOf[sid][uint192(nonce >> 64)] == uint64(nonce). */
+const SEQ_ABI = Object.freeze([{ type: "function", name: "seqOf", stateMutability: "view",
+  inputs: [{ name: "", type: "bytes32" }, { name: "", type: "uint192" }], outputs: [{ name: "", type: "uint64" }] }]);
+/** EIP-1167 runtime of FundingSessionVaultFactory's clone (the codec's predictVault init code minus its 10-byte constructor). */
+const cloneRuntime = (impl) => `0x363d3d373d3d3d363d73${lower(impl).slice(2)}5af43d82803e903d91602b57fd5bf3`;
 
 // =====================================================================================================================
 // Identities and binding
@@ -196,7 +224,7 @@ async function transition(store, id, from, mutate) {
 const addHints = (e, hs) => { e.hints = { txHashes: [...new Set([...(e.hints?.txHashes ?? []), ...hs])].slice(0, MAX_CANDIDATES) }; };
 
 // =====================================================================================================================
-// confirmGasFund (successor): bind -> anchor -> CAS admit -> re-check -> sign -> CAS dispatching -> POST -> classify
+// confirmGasFund (successor): bind -> [release proof] -> anchor -> CAS admit -> re-check -> sign -> CAS dispatching -> POST
 // =====================================================================================================================
 
 /** dispatchGuard (optional): the page's synchronous guard check, run immediately before the dispatching marker. */
@@ -209,13 +237,25 @@ export async function confirmGasFund({ runtime, store, record, review, relay, re
   if (signer.keyHash !== lower(record.keyHash)) fail("key_mismatch", "record key hash mismatch");
   const before = executionBlockers(await store.listJournal(), record);
   if (before.length) fail("unreconciled_execute", "an earlier gas.fund of this session is not resolved; reconcile it first (never resent)", { ids: before.map((x) => x.id) });
-  const anchor = await pinBlock(rpc, now);                       // read BEFORE send: the bounded discovery anchor
   const id = execId(record.sid, e.nonce);
+  const prior = await store.getJournal(id);
+  const release = prior ? await releasePrior(prior, { runtime, store, rpc, relayBase, call }) : null;   // read-only; throws unless proven
+  const anchor = await pinBlock(rpc, now);                       // read BEFORE send: the bounded discovery anchor
   const body = intentOf({ runtime, record, relayBase, call, now, anchor });
   const entry = { id, kind: "gas-execute", schema: EXEC_SCHEMA, status: "admitted", rev: 1, at: Number(now), ...body,
     intentHash: hashOf(body), hints: { txHashes: [] }, evidence: null, outcome: null, lastReconcile: null, history: [] };
+  if (release) {
+    entry.rev = Number(release.prior.rev) + 1;
+    entry.predecessors = [...(release.prior.predecessors ?? []), predecessorOf(release.prior, release.proof)];
+    entry.predecessorsHash = hashOf(entry.predecessors);
+  }
   const admitted = await store.casJournal(id, (cur) => {
-    if (cur) fail("execute_exists", `${id} already exists (${cur.status}); never overwritten`);
+    if (!cur && !release) return entry;
+    const p = release?.prior;
+    if (!cur || !p || cur.schema !== EXEC_SCHEMA || cur.status !== p.status || cur.intentHash !== p.intentHash
+      || Number(cur.rev) !== Number(p.rev) || (cur.predecessorsHash ?? null) !== (p.predecessorsHash ?? null)) {
+      fail("execute_exists", `${id} already exists (${cur?.status ?? "changed"}); never overwritten`);
+    }
     return entry;
   });
   const abandon = async (reason) => transition(store, id, admitted, (cur) => { cur.status = "abandoned_before_send"; cur.outcome = { reason }; });
@@ -258,6 +298,31 @@ export async function confirmGasFund({ runtime, store, record, review, relay, re
   }
   return { pending: false, txHash: res.txHash, id, final: res.final, status: cur.status,
     settlement: { actual: { usdcSpent6: BigInt(res.actual.usdcSpent6), fee6: BigInt(res.actual.fee6), totalDebit6: BigInt(res.actual.totalDebit6) } } };
+}
+
+/** The existing (sid, nonce) entry may be replaced by a NEW call only when it is a verified r2 entry in RELEASABLE, the
+ *  bounded history has room, the new digest was never attempted for this nonce, a stored expired_unused proof is still
+ *  canonical and final, and a FRESH proof at the current finalized head shows the old call can never execute. */
+async function releasePrior(prior, { runtime, store, rpc, relayBase, call }) {
+  if (prior.schema !== EXEC_SCHEMA || !RELEASABLE.includes(prior.status)) {
+    fail("execute_exists", `${prior.id} already exists (${prior.status}); never overwritten`);
+  }
+  await verifyStoredIntent(prior, { runtime, store, relayBase });
+  const preds = prior.predecessors ?? [];
+  if (preds.length >= MAX_PREDECESSORS) {
+    fail("predecessor_history_full", `${prior.id} already holds ${preds.length} earlier attempts; this nonce cannot be re-admitted again`);
+  }
+  if ([prior.call.digest, ...preds.map((p) => p.call.digest)].includes(lower(call.digest))) {
+    fail("digest_reused", "this exact signed call was already attempted for this nonce; a new quote is required");
+  }
+  if (prior.status === "expired_unused") await recheckStoredExpiry(prior, rpc);
+  const proof = await proveExpiredUnused(prior, runtime, rpc);
+  return { prior, proof };
+}
+/** The complete public prior entry (minus its own flattened history list) plus the fresh release proof. */
+function predecessorOf(prior, proof) {
+  const { predecessors: _p, predecessorsHash: _h, ...rest } = prior;
+  return { ...rest, release: proof };
 }
 
 // =====================================================================================================================
@@ -345,6 +410,115 @@ function applySuperseding(c, res) {
 }
 
 // =====================================================================================================================
+// Expired-unused proof (READ-ONLY): finalized header past both deadlines + verified vault code + seqOf unconsumed
+// =====================================================================================================================
+
+const notProven = (reason, message, extra) => fail("expiry_not_proven", `expired-unused not proven: ${message}`, { reason, ...extra });
+
+/** A header with canonical non-zero number, non-zero 32-byte hash and canonical non-zero timestamp; anything else refuses. */
+function headerOf(b, name) {
+  if (!b || typeof b !== "object" || Array.isArray(b)) notProven("header_missing", `no ${name} header`);
+  const n = typeof b.number === "string" ? b.number.toLowerCase() : "";
+  const h = typeof b.hash === "string" ? b.hash.toLowerCase() : "";
+  const t = typeof b.timestamp === "string" ? b.timestamp.toLowerCase() : "";
+  if (!QTY.test(n) || !H32.test(h) || !QTY.test(t)) notProven("header_malformed", `the ${name} header number/hash/timestamp is malformed`);
+  if (BigInt(n) === 0n || !isHash(h) || BigInt(t) === 0n) notProven("header_zero", `the ${name} header identity is zero`);
+  return { number: BigInt(n), hash: h, timestamp: BigInt(t) };
+}
+/** The node's finalized head, re-read by NUMBER: both lookups must agree on number, hash and timestamp. */
+async function finalizedHeader(rpc) {
+  const fin = headerOf(await rpc("eth_getBlockByNumber", ["finalized", false]), "finalized");
+  const at = headerOf(await rpc("eth_getBlockByNumber", [toQty(fin.number), false]), "numbered");
+  if (at.number !== fin.number) notProven("header_number_mismatch", "the header at the finalized number has another number");
+  if (at.hash !== fin.hash || at.timestamp !== fin.timestamp) notProven("header_hash_mismatch", "the finalized head and the header at its number differ");
+  return fin;
+}
+/** The stored entry's own facts the proof depends on, each canonical, non-zero and mutually consistent with this runtime. */
+function expiryTerms(entry, runtime) {
+  const dec = (v, name) => {
+    if (typeof v !== "string" || !DEC.test(v)) notProven("metadata_malformed", `${name} is not a canonical decimal`);
+    return BigInt(v);
+  };
+  const c = entry?.call;
+  if (!c || !entry.runtime || !entry.record || !entry.anchor) notProven("metadata_missing", "the stored call is incomplete");
+  if (entry.runtime.chainId !== "8453" || entry.record.chainId !== "8453" || c.domain?.chainId !== "8453"
+    || Number(runtime?.cfg?.chainId) !== 8453) notProven("wrong_chain", "the stored call or the runtime is not for Base 8453");
+  if (!isHash(entry.sid)) notProven("metadata_malformed", "sid");
+  const nonce = dec(entry.nonce, "nonce");
+  const lane = dec(c.lane, "call.lane");
+  const seq = dec(c.seq, "call.seq");
+  if (dec(c.nonce, "call.nonce") !== nonce || lane !== nonce >> 64n || seq !== (nonce & MASK64)) {
+    notProven("lane_inconsistent", "the stored lane/sequence is not the decomposition (nonce >> 64, nonce & 2^64-1) of the nonce");
+  }
+  if (seq === MASK64) notProven("metadata_malformed", "the sequence is the lane's last value");
+  const deadline = dec(c.deadline, "call.deadline");
+  const intentDeadline = dec(c.intent?.deadline, "call.intent.deadline");
+  if (deadline === 0n || intentDeadline === 0n) notProven("metadata_zero", "a deadline is zero");
+  const anchorNumber = dec(entry.anchor.number, "anchor.number");
+  const vault = lower(runtime.cfg.vault);
+  const impl = lower(runtime.cfg.implementation);
+  if (entry.runtime.vault !== vault || entry.record.vault !== vault || c.domain.verifyingContract !== vault
+    || entry.runtime.implementation !== impl
+    || lower(predictVault(runtime.cfg.factory, runtime.cfg.implementation, runtime.cfg.owner)) !== vault) {
+    notProven("vault_mismatch", "the vault is not the verified factory clone of the verified implementation");
+  }
+  const implCodehash = lower(runtime.pins?.codehashes?.implementation ?? "");
+  if (!isHash(implCodehash)) notProven("runtime_pins_missing", "the verified runtime carries no implementation code hash pin");
+  return { nonce, lane, seq, deadline, intentDeadline, anchorNumber, vault, impl, implCodehash };
+}
+
+/** READ-ONLY. Returns the public proof object or throws `expiry_not_proven` (detail.reason). Never writes. */
+export async function proveExpiredUnused(entry, runtime, rpc) {
+  const t = expiryTerms(entry, runtime);
+  const chainId = await rpc("eth_chainId", []);
+  if (typeof chainId !== "string" || !QTY.test(chainId.toLowerCase()) || BigInt(chainId) !== 8453n) notProven("wrong_chain", "the RPC is not Base 8453");
+  const fin = await finalizedHeader(rpc);
+  if (!(fin.timestamp > t.deadline && fin.timestamp > t.intentDeadline)) {
+    notProven("not_past_deadline", `the finalized header (${fin.timestamp}) is not strictly after both deadlines`, { finalizedTimestamp: String(fin.timestamp) });
+  }
+  if (fin.number <= t.anchorNumber) notProven("not_after_anchor", "the finalized header is not after the pre-send anchor");
+  const tag = toQty(fin.number);
+  const vcode = await rpc("eth_getCode", [t.vault, tag]);
+  if (typeof vcode !== "string" || vcode.toLowerCase() !== cloneRuntime(t.impl)) {
+    notProven("vault_code_mismatch", "the vault's code at the pinned block is not the clone of the verified implementation");
+  }
+  const icode = await rpc("eth_getCode", [t.impl, tag]);
+  if (typeof icode !== "string" || !/^0x([0-9a-f]{2})+$/.test(icode.toLowerCase()) || lower(keccak256(icode.toLowerCase())) !== t.implCodehash) {
+    notProven("implementation_code_mismatch", "the implementation's code at the pinned block differs from its verified pin");
+  }
+  const out = await rpc("eth_call", [{ to: t.vault, data: encodeFunctionData({ abi: SEQ_ABI, functionName: "seqOf", args: [entry.sid, t.lane] }) }, tag]);
+  if (typeof out !== "string" || !H32.test(out.toLowerCase()) || BigInt(out) > MASK64) notProven("seq_malformed", "seqOf returned no uint64 word");
+  const onchain = BigInt(out);
+  if (onchain > t.seq) notProven("nonce_consumed", `seqOf(sid, ${t.lane}) is ${onchain} > ${t.seq}: the nonce was consumed`, { seqOf: String(onchain) });
+  if (onchain !== t.seq) notProven("seq_mismatch", `seqOf(sid, ${t.lane}) is ${onchain}, not the stored ${t.seq}`, { seqOf: String(onchain) });
+  // re-check: the pinned header is still the one at its number, and the finalized head did not move below / off it
+  const again = headerOf(await rpc("eth_getBlockByNumber", [tag, false]), "pinned recheck");
+  if (again.number !== fin.number || again.hash !== fin.hash) notProven("reorged", "the pinned header was replaced while it was read");
+  const fin2 = headerOf(await rpc("eth_getBlockByNumber", ["finalized", false]), "finalized recheck");
+  if (fin2.number < fin.number || (fin2.number === fin.number && fin2.hash !== fin.hash)) notProven("reorged", "the finalized head moved off the pinned header");
+  return { kind: "expired_unused", chainId: "8453", block: fin.number.toString(), blockHash: fin.hash, timestamp: fin.timestamp.toString(),
+    lane: t.lane.toString(), seq: t.seq.toString(), seqOf: onchain.toString(), callDeadline: t.deadline.toString(),
+    intentDeadline: t.intentDeadline.toString(), digest: entry.call.digest, intentHash: entry.intentHash, vault: t.vault,
+    vaultCodehash: lower(keccak256(cloneRuntime(t.impl))), implementationCodehash: t.implCodehash };
+}
+/** READ-ONLY. A stored expired_unused proof is still usable only while its header is canonical at its number and final. */
+async function recheckStoredExpiry(entry, rpc) {
+  const ev = entry.evidence;
+  if (ev?.kind !== "expired_unused" || typeof ev.block !== "string" || !DEC.test(ev.block) || !isHash(ev.blockHash)
+    || ev.intentHash !== entry.intentHash || ev.digest !== entry.call.digest || ev.seq !== entry.call.seq || ev.lane !== entry.call.lane) {
+    notProven("evidence_malformed", "the stored expired-unused evidence is incomplete or not for this call");
+  }
+  const n = BigInt(ev.block);
+  const fin = headerOf(await rpc("eth_getBlockByNumber", ["finalized", false]), "finalized");
+  const at = headerOf(await rpc("eth_getBlockByNumber", [toQty(n), false]), "evidence");
+  if (at.number !== n) notProven("header_number_mismatch", "the header at the evidence number has another number");
+  if (at.hash !== ev.blockHash || fin.number < n || (fin.number === n && fin.hash !== ev.blockHash)) {
+    notProven("evidence_reorged", "the stored expiry header is no longer the finalized canonical header at its number");
+  }
+  return { finalizedNumber: fin.number.toString(), evidenceBlock: ev.block };
+}
+
+// =====================================================================================================================
 // Stored-intent verification and READ-ONLY reconciliation
 // =====================================================================================================================
 
@@ -376,7 +550,25 @@ export async function verifyStoredIntent(entry, { runtime, store, relayBase }) {
     || lower(d.verifyingContract) !== entry.call.domain.verifyingContract || entry.call.nonce !== entry.nonce
     || rebuilt.maximum.totalMaximum6.toString() !== entry.maximum.totalMaximum6) bad("the stored call does not re-derive to its digest/args/domain/maximum");
   if (!/^\d+$/.test(entry.anchor.number) || !isHash(entry.anchor.hash)) bad("malformed anchor");
+  if (entry.predecessors !== undefined || entry.predecessorsHash !== undefined) verifyPredecessors(entry, bad);
   return rebuilt;
+}
+/** Earlier attempts of this (sid, nonce): bounded, hash-bound, each a complete self-consistent public intent that was
+ *  released by an expired-unused proof for exactly that intent, and no signed digest appears twice. */
+function verifyPredecessors(entry, bad) {
+  const ps = entry.predecessors;
+  if (!Array.isArray(ps) || ps.length === 0 || ps.length > MAX_PREDECESSORS) bad("malformed predecessor history");
+  if (entry.predecessorsHash !== hashOf(ps)) bad("predecessor history edited");
+  const seen = new Set([entry.call.digest]);
+  for (const p of ps) {
+    if (!p || p.kind !== "gas-execute" || p.schema !== EXEC_SCHEMA || p.id !== entry.id || p.sid !== entry.sid || p.nonce !== entry.nonce) bad("predecessor identity");
+    for (const k of INTENT_KEYS) if (p[k] === undefined || p[k] === null) bad(`predecessor missing ${k}`);
+    if (hashOf(intentPart(p)) !== p.intentHash) bad("predecessor intentHash mismatch");
+    if (!RELEASABLE.includes(p.status) || p.release?.kind !== "expired_unused" || p.release.intentHash !== p.intentHash
+      || p.release.digest !== p.call.digest) bad("predecessor without its expired-unused release");
+    if (seen.has(p.call.digest)) bad("a signed digest repeats in the predecessor history");
+    seen.add(p.call.digest);
+  }
 }
 
 /** Relay hints: the relay's own session index (GET only). Any failure is "no hint", never a refusal. */
@@ -418,6 +610,18 @@ export async function reconcileGasExecution({ runtime, store, rpc, relay, relayB
   if (entry.schema !== EXEC_SCHEMA) return { verdict: "legacy_unverifiable", status: entry.status, id };
   try { await verifyStoredIntent(entry, { runtime, store, relayBase }); }
   catch (e) { if (e?.code === "intent_invalid") return { verdict: "intent_invalid", status: entry.status, id, why: e.detail?.why }; throw e; }
+  if (entry.status === "expired_unused") {          // freshness: the stored proof's header must still be canonical and final
+    try {
+      const recheck = await recheckStoredExpiry(entry, rpc);
+      return { verdict: "resolved", status: entry.status, id, evidence: entry.evidence, recheck };
+    } catch (e) {
+      if (e?.code !== "expiry_not_proven" || e.detail?.reason !== "evidence_reorged") {
+        return { verdict: "expiry_recheck_failed", status: entry.status, id, why: e?.detail?.reason ?? String(e?.code ?? e?.name ?? "error") };
+      }
+      const back = await transition(store, id, entry, (x) => { keepHistory(x, "expiry_evidence_reorged"); x.status = "unknown"; x.evidence = null; });
+      return reconcileGasExecution({ runtime, store, rpc, relay, relayBase, id: back.id, limits });
+    }
+  }
   if (CLEARED.includes(entry.status)) return { verdict: "resolved", status: entry.status, id };
   if (entry.status === "admitted") {              // the dispatching marker was never written: nothing was sent
     const c = await transition(store, id, entry, (x) => { keepHistory(x, "no_dispatch_marker"); x.status = "never_dispatched"; });
@@ -461,6 +665,16 @@ export async function reconcileGasExecution({ runtime, store, rpc, relay, relayB
     const c = await transition(store, id, entry, (x) => { applySuperseding(x, sup[0]); record(x); });
     return { verdict: c.status === "superseded" ? "resolved" : "observed_not_final", status: c.status, id, evidence: c.evidence };
   }
+  // nothing proven on chain: only the full expired-unused chain proof can release it (any failure keeps it reserved)
+  let proof = null;
+  if (EXPIRABLE.includes(entry.status)) {
+    try { proof = await proveExpiredUnused(entry, runtime, rpc); observation.expiry = { proven: true }; }
+    catch (e) { observation.expiry = { proven: false, reason: e?.code === "expiry_not_proven" ? String(e.detail?.reason) : `error:${String(e?.code ?? e?.name ?? "unknown")}` }; }
+  }
+  if (proof) {
+    const c = await transition(store, id, entry, (x) => { keepHistory(x, "expired_unused_proven"); x.status = "expired_unused"; x.evidence = proof; record(x); });
+    return { verdict: "resolved", status: c.status, id, evidence: c.evidence, observation };
+  }
   const revertedExact = results.some((r) => r.kind === "reverted_exact");
   const c = await transition(store, id, entry, (x) => {
     if (revertedExact && x.status !== "reverted_observed") { keepHistory(x, "exact_call_reverted_on_chain"); x.status = "reverted_observed"; }
@@ -470,16 +684,33 @@ export async function reconcileGasExecution({ runtime, store, rpc, relay, relayB
     why: revertedExact ? "reverted_signature_may_still_be_usable" : found.window.complete ? "no_canonical_operation_found_in_bounded_window" : "window_not_past_deadline" };
 }
 
+/** Display mapping for the page: ONLY a final proven settlement is "funded"; text only for cleared statuses. Pure. */
+const CLEARED_TEXT = Object.freeze({
+  settled: "Funded: the exact payment is final on chain.",
+  superseded: "Not funded by this payment: its nonce was used by another operation (final on chain).",
+  refused: "Not sent: the relay refused it before sending. Nothing was charged.",
+  never_dispatched: "Not sent: it was never dispatched. Nothing was charged.",
+  abandoned_before_send: "Not sent: cancelled before sending. Nothing was charged.",
+  expired_unused: "Expired unused, never funded: a finalized Base block after its deadline shows its nonce unused, so it can never execute and charged nothing. A new quote and a new signature are needed to pay.",
+});
+export function executionStatusView(status) {
+  const cleared = CLEARED.includes(status);
+  return Object.freeze({ status: String(status), cleared, funded: status === "settled", text: cleared ? CLEARED_TEXT[status] : null });
+}
+
 /** Executions of THIS gas record (exact record id + sid), for the page's recovery view. Pure. */
 export function listGasExecutions(entries, record) {
   return (entries || []).filter((e) => e?.kind === "gas-execute" && lower(e.sid) === lower(record.sid)
     && (e.schema !== EXEC_SCHEMA || e.record?.id === String(record.id)))
     .map((e) => ({ id: e.id, status: e.status, blocking: isBlocking(e), schema: e.schema ?? "r4", nonce: e.schema === EXEC_SCHEMA ? e.nonce : String(e.nonce ?? ""),
-      deployment: e.deployment ?? null, maximum: e.maximum ?? null, evidence: e.evidence ?? null, hints: e.hints?.txHashes ?? e.txHashes ?? [] }));
+      deployment: e.deployment ?? null, maximum: e.maximum ?? null, evidence: e.evidence ?? null, hints: e.hints?.txHashes ?? e.txHashes ?? [],
+      predecessors: Array.isArray(e.predecessors) ? e.predecessors.length : 0,
+      funded: e.schema === EXEC_SCHEMA ? e.status === "settled" : false }));
 }
 
 /** quoteGasFund with the successor gate: any unresolved execution of the session refuses before the relay is asked;
- *  r4's own unresolved check still runs (cleared r2 entries are removed from what it sees). */
+ *  r4's own unresolved check still runs (cleared r2 entries are removed from what it sees). A cleared expired_unused
+ *  entry is re-proven fresh by confirmGasFund before its nonce can be admitted again; quoting itself signs nothing. */
 export async function quoteGasFund(input) {
   const entries = input.journalEntries ?? [];
   const blockers = executionBlockers(entries, input.record);

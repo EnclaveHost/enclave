@@ -1,0 +1,43 @@
+{
+  "cid": "bafybeib5sztqg7jh6l5dattcrc4pd7kihydn2zuxn7zslv7f5hzrsr3gmy",
+  "activeCid": "bafybeihlkkgon5gdwozoklu6adjigqiipraghyfthnibfdkleqjltkd664",
+  "artifactProvenanceSha256": "8d137ef03d453189dd1bafdbb499f2c1f7f85a2e90c495cfdc9d553e9106c870",
+  "edges": [
+    {
+      "host": "us-west",
+      "beforeCaddyfileSha256": "f01aed3a3fc20eb88cfd39313393fb513b7af661ee6ec323492471a40e4f73fa",
+      "afterCaddyfileSha256": "13ecf60dda05f167fd221abac1fb9a5d9b11e2515900a00596a998b67f4e739a",
+      "exactSemanticChanges": [
+        "apps/http/servers/srv1/errors/routes/0/handle/0/routes/0/handle/0/routes/0/handle/0/root",
+        "apps/http/servers/srv1/routes/4/handle/0/routes/4/handle/0/routes/0/handle/0/root"
+      ]
+    },
+    {
+      "host": "ca-east",
+      "beforeCaddyfileSha256": "5f72f8a4be729236f87b76beb18bf32e8618676b77eaf2b267e56e0dfc947ccc",
+      "afterCaddyfileSha256": "2308bf343c343c24b9be7c2b95363a31e8414de419168ea0a38c8cb1c0f0a1d5",
+      "exactSemanticChanges": [
+        "apps/http/servers/srv1/errors/routes/0/handle/0/routes/0/handle/0/routes/0/handle/0/root",
+        "apps/http/servers/srv1/routes/4/handle/0/routes/4/handle/0/routes/0/handle/0/root"
+      ]
+    },
+    {
+      "host": "ap-southeast",
+      "beforeCaddyfileSha256": "02b3dac9a81cf765bf9186da30475462ae3e3e1b49443d9f0741fa48ce6e7d92",
+      "afterCaddyfileSha256": "2ead8860a6302f489ab2abad30afd4b8d3e079f4bbdbc0cd37f34bf1d9865892",
+      "exactSemanticChanges": [
+        "apps/http/servers/srv1/errors/routes/0/handle/0/routes/0/handle/0/routes/0/handle/0/root",
+        "apps/http/servers/srv1/routes/4/handle/0/routes/4/handle/0/routes/0/handle/0/root"
+      ]
+    },
+    {
+      "host": "eu-central",
+      "beforeCaddyfileSha256": "1ec330f8d85f80dfe85e419345fd213f4f634c81d2b2f9a4bab4702ccf300ac3",
+      "afterCaddyfileSha256": "56f0079705b5b697cd32fba47af03397cb3245c0181c65ed90f2274972c18f27",
+      "exactSemanticChanges": [
+        "apps/http/servers/srv1/errors/routes/0/handle/0/routes/0/handle/0/routes/0/handle/0/root",
+        "apps/http/servers/srv1/routes/4/handle/0/routes/4/handle/0/routes/0/handle/0/root"
+      ]
+    }
+  ]
+}

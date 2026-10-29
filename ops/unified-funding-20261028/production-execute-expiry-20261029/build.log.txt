@@ -1,0 +1,15 @@
+[queue] START available=92617MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+[funding-cutover-addon] REFUSED: site/js/pages/funding.js: 05cc347aff2313f3822911dd2f74ba9158bd1d19d34dce89b43288a3d1bf55a9 is not the qualified/tested 635cdcc1737f827badd2c7b5fcd878df7af0080a2a487f19f2fc6644fbab3fc1
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/funding-expiry-page-r1/build.py", line 5, in <module>
+    subprocess.run(['node',str(a/'build.mjs'),'--propose-pins',*common,'--pins-out',str(p/'pins-proposed.json')],check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['node', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-cutover-addon-root-review-r1/build.mjs', '--propose-pins', '--source', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/funding-expiry-page-r1/overlay', '--config', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/funding-expiry-page-r1/config.json', '--existing-paths', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-site-addon-r2/existing-live-paths.txt', '--pins-out', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/funding-expiry-page-r1/pins-proposed.json']' returned non-zero exit status 1.
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

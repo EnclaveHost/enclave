@@ -305,3 +305,12 @@ targetRules = ["generic-api-key"]
 paths = ['^ops/unified-funding-20261028/migration-cutover-site-review-r1/(generator/generate_site(\.author)?\.py|author-final/generator/generate_site\.py|candidate/sdk/funding/funding-client\.mjs|candidate/site/vendor/funding\.js)$']
 regexTarget = "secret"
 regexes = ['^pre-funding-api-404-r1$']
+
+# Same public preparation-mode enum in the byte-preserved production SDK evidence.
+[[allowlists]]
+description = "Public preparation-mode enum in reviewed expired-execution SDK snapshot"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['^ops/unified-funding-20261028/production-execute-expiry-20261029/production-sdk/funding/funding-client\.mjs$']
+regexTarget = "secret"
+regexes = ['^pre-funding-api-404-r1$']

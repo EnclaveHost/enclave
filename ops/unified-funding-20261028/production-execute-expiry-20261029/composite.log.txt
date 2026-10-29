@@ -1,0 +1,19 @@
+[queue] START available=92667MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+  "out": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/funding-expiry-page-r1/composite",
+  "baseCid": "bafybeifidlcmnobifev33hflaicusmzjpcqgwutobbzilaoc6tgylwlzcm",
+  "newCid": "bafybeib5sztqg7jh6l5dattcrc4pd7kihydn2zuxn7zslv7f5hzrsr3gmy",
+  "files": 1131,
+  "bytes": 75449745,
+  "car": {
+    "sha256": "dfef0c4d12d11bb82d03e49a7e174587856c631d87d65d444714f618724c78a5",
+    "bytes": 51789126
+  },
+  "provenance": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/funding-expiry-page-r1/composite/composite-provenance.json",
+  "provenanceSha256": "8d137ef03d453189dd1bafdbb499f2c1f7f85a2e90c495cfdc9d553e9106c870"
+}
+[memory-guard] exit=0 peakTreeRssMiB=191 minHostAvailableMiB=92523
+[memory-guard] at peak: node:179 python3:12
+[memory-guard] exit=0 peakTreeRssMiB=252 minHostAvailableMiB=92521
+[memory-guard] at peak: node:180 node:60 python3:12
+[queue] EXIT 0

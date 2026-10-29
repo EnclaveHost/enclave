@@ -1,0 +1,27 @@
+Browser tab: 723100957, Title: "TEST ONLY: expired unused payment recovery", URL: "http://127.0.0.1:43337/".
+1 AXWebArea TEST ONLY: expired unused payment recovery, URL: 127.0.0.1:43337/
+	2 heading Owned Anvil / native P256 / TEST funds, Value: 1
+		3 text Owned Anvil / native P256 / TEST funds
+	4 text New isolated TEST database; no wallet or production state.
+	5 button Start TEST failed attempt, ID: start
+	6 button Recover after reload and pay TEST once, ID: recover
+	7 text TEST ready. Explicit buttons only.
+PASS key survived reload
+PASS reloaded key remains nonextractable
+PASS UNKNOWN survived reload
+PASS native finalized expired-unused proof
+PASS expiry reconciliation did not debit
+PASS no owner signature on reconciliation
+PASS reconciliation never resends
+PASS same unused nonce
+PASS fresh signed digest
+PASS IndexedDB CAS admits only one fresh payment
+PASS fresh payment settled on native chain
+PASS complete original public intent preserved
+PASS exactly one mock debit
+PASS one HTTP execute despite concurrent clicks
+PASS no further owner prompts
+ALL TEST PHASES PASS
+
+
+The focused UI element is 6 button Recover after reload and pay TEST once, ID: recover

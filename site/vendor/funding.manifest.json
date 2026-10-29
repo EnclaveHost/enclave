@@ -1,8 +1,8 @@
 {
   "schema": "enclave-funding-vendor-r1",
   "bundle": "funding.js",
-  "bundleSha256": "16629d5c8f1b708b3c9dd1bd7ece00908ae8f1f1a9f34c0284dcc8ed57fa6368",
-  "coreManifestSha256": "6316bb23f0a1255a2151107ccf75f36c3c8b4945cc79d8c716793d6f9d2d31ac",
+  "bundleSha256": "a6242e764b38e1ae8c92345a12432ab41c2b78f05d5e059f1de5472c5b8ce87a",
+  "coreManifestSha256": "9cc6f95a783cbdca60582291c27bf882ce144c87150216b2fade90a118e251a7",
   "packages": [
     "@noble/curves",
     "@noble/hashes",
