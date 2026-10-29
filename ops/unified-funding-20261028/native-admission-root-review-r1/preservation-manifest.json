@@ -1,6 +1,10 @@
 {
   "BUILD-REVIEW.md": "c673c328137408fea42c7974910b0f757e1f7a40e636eef5d1741afd010112c6",
-  "ROOT-REVIEW.md": "417353cd04cb696bbff4b711ce0017ad28fcf03b64d08b70c668549692aee8e0",
+  "HANDOFF-BOUND-ALTERNATIVE.md": "99a66ff89fe8d935b846348fa297a68a9cbd7dee370eba8d8a34c4bfa4f51c13",
+  "HANDOFF-CUTOVER-NOTE.md": "78de6427ca6f65d14253f7ddc013efb918152e46abe3e6760ca792ba2d780bdf",
+  "HANDOFF-LATEST.md": "ad253e8af1f5efb58e430e821d6fd6152cab9c288f7b93e50bbe1b6ef06d3f2d",
+  "ROOT-REVIEW.md": "023feef22beeabdcfe06e576872d5237528df5dd5a62bdf57401dd891e76e460",
+  "SERVING-CUTOVER-CONSTRAINTS.md": "3df8fb925c6338efa3e6239f4187dd4250d86727791878b1c4b3ae44aab47e39",
   "admission-envelope-pe.txt": "c8dff0f48a5f3b3ed52bdb83579e65c3dd464b662c273962a5404e1a93638c9d",
   "artifacts.json": "2e0acfbb14320b7cec349f71ca1d094cb0330971128759b2166aa1f8bf566771",
   "build/admission-envelope.exe": "b29498541c71965a2b56f2ae4df072369590f93dad78383d58a6cecf0ee89713",
@@ -23,6 +27,7 @@
   "candidate/no-crt.c": "7dec90649a90d212f39da082eebc0aacd17eadcad17952b924027e627b4156a2",
   "candidate/owned-job.c": "31fd95ef3f444931bb8e22409ea4064fe018aead90706f5507cf465e57db3eca",
   "candidate/run-contract.json": "a4f9b646dfb4c214cb13546b8f56191d0c611bae72959a6281bceb638c401ff0",
+  "conservative-pool-bound-r1.json": "74ab2b825d59e71978447f5504139e72a9da9b07fcde5d4b08a324f2059ad31c",
   "import-review.json": "d44a1f0767443c03b8606ae147265ece968fbc20c11eea3b834b8f946262d8e5",
   "inner.guard.log": "9f96c37ebf596445f1ce4c5694daf79f2e11c525fcc491a8ab6b1d0ae118d02a",
   "job-probe-pe.txt": "01766b30b360636b3dd1fc32bd12a85003c39c52535ddbf0f7fa661febf5cdb7",
@@ -56,12 +61,9 @@
   "repaired-job-probe-pe.txt": "33fac88f3179f5b1573a0bb6c3801b490476256ca98880834d836a589c0b1a04",
   "repaired-outer.guard.log": "044f212704c9bbd5389a280cb58e03c936863a987ed13b09ea43f3e2fbabb795",
   "repaired-owned-job-pe.txt": "40963b28d86fda98be22825e74bdd8bf44af64683543e5024dcafe833d48da47",
+  "resident-admission-functional-slice-r1.json": "8c003e9ce29b7e3c7ce5027ccb38347a00f7b2c096a3fe86fc35f5c9e441f2f2",
   "root-validation.json": "8dbb6cbe115a437541a672914d4eb807484b9c9db8b95124f171cdff3158ba64",
   "run-build.py": "20e6a43ea118373436dfff944c6a0d0a7406f1def7f791a6ea477eb6559679ad",
   "run-repaired-build.py": "3177296994171ce8d39aef3455bfa60b89dab74fa89ff40e6b930853103171b6",
-  "unit-results.txt": "30869e6968815c05ab9692ea3da1e8b25f890afa533a7f888c23e46d7c5a7d9a",
-  "HANDOFF-LATEST.md": "ad253e8af1f5efb58e430e821d6fd6152cab9c288f7b93e50bbe1b6ef06d3f2d",
-  "SERVING-CUTOVER-CONSTRAINTS.md": "3df8fb925c6338efa3e6239f4187dd4250d86727791878b1c4b3ae44aab47e39",
-  "HANDOFF-CUTOVER-NOTE.md": "78de6427ca6f65d14253f7ddc013efb918152e46abe3e6760ca792ba2d780bdf",
-  "resident-admission-functional-slice-r1.json": "8c003e9ce29b7e3c7ce5027ccb38347a00f7b2c096a3fe86fc35f5c9e441f2f2"
+  "unit-results.txt": "30869e6968815c05ab9692ea3da1e8b25f890afa533a7f888c23e46d7c5a7d9a"
 }

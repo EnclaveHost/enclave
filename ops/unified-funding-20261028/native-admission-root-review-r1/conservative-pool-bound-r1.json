@@ -1,0 +1,127 @@
+{
+  "schema": "enclave-conservative-pool-bound-review/1",
+  "status": "HYPOTHESIS_VALID_IN_PRINCIPLE_NOT_ADMITTED",
+  "at": "2026-10-29T22:46:43.458252+00:00",
+  "conclusion": "A new dynamic shared reservation owner is NOT logically necessary for a first isolated test if a fresh process-bound hard upper envelope of all possible additional physical and commit demand fits for the entire interval. Historical source supplies finite configured VM-memory accounting pools, but not a complete host physical/commit bound. No current fit determination is possible; retain P/E/O unknown.",
+  "formula": {
+    "simple": "For each manager i with verified enforced VM reservation cap C_i, use C_i in full if actual reflected allocation is unknown. With proven same-epoch H_i (all held reservations) and U_i (not-yet-reflected portion), use max(0,C_i-H_i)+U_i; add any outside-ledger/router pending conservatively. This covers inflight plus future admitted VMs, not waiting queue count.",
+    "reflectedEquivalent": "C_i - R_i where R_i is the proven already-reflected part; removals/replacements must preserve the net bound and only release ledger after actual stop. Do not deduct historical health allocations as if all physically reflected.",
+    "physicalRequirement": "Fresh F >= live floor max(18432,higher) + sum VM future/unreflected maxima + independently bounded pre-admission/helper/host/kernel physical demand + actual test/observer/creator/early budgets.",
+    "commitRequirement": "Independent fresh available commit >= proven worst incremental VM/host/helper commit + test/observer/creator/early commitments. Configured VM physical MiB is not itself a verified system-commit upper bound.",
+    "coverage": "Stable source/config/manager incarnation and no uncovered direct/administrative allocators or reconfiguration during the finite interval. Pressure sampling complements, does not establish, the bound."
+  },
+  "historicalFacts": {
+    "wrapper": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/run-manager.cmd",
+      "line": 8,
+      "NODE_VM_RAM_GB": 83,
+      "perManagerVMCapMiB": 84992
+    },
+    "legacyHealth": {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/health-8091.json",
+      "epoch": "6ba9af9a243b9f4754d8091d3de2f415",
+      "appPoolMiB": 98304,
+      "vmPoolMiB": 84992,
+      "heldMiB": 39772,
+      "remainingLedgerMiB": 45220,
+      "fresh": false
+    },
+    "nativeHealth": {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/health-8095-v2.json",
+      "epoch": "f2f175907a6583a43301778b8a5aef9a",
+      "appPoolMiB": 98304,
+      "vmPoolMiB": 84992,
+      "heldMiB": 0,
+      "remainingLedgerMiB": 84992,
+      "fresh": false
+    },
+    "historicalSourceEnforcement": [
+      "server constructor92-94: non-null physical pool must be positive safe integer; nullable general-role pool would remove this bound and must be ruled out by actual effective config.",
+      "server515-540: sum held physical reservations, reject unknown, check remaining, insert record synchronously before backend.start. Covers direct POST as well as router calls. Failed/starting reservations remain; confirmed remove811 releases record.",
+      "No ordinary setter for physicalRamPoolMiB was found; read at construction. Public mutable field is not immutable attestation; source/process/config stability still needed.",
+      "WMI source computes full partition allocation (type1 policy+640 with2048 floor, witness512; desktop has separate policy), passes exact memMiB to New-CustomVM and checks allocation/dynamic-memory state. These are source behavior claims, not fresh native enforcement proof."
+    ],
+    "optionalNativeTightening": {
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/control/windows/vbslike/manager/main.mjs",
+      "lines": [
+        278,
+        283
+      ],
+      "facts": "Historical native wrapper pins one deployment/catalog, cpuShare=.25, gpuShare=.5 and gpuMilli500. With app pool98304 the memory-share rule gives24576 appMiB; desktop special case gives32768 partitionMiB. A single live deployment is refused twice, but failed/stopped-yet-held records also consume budget; two500GPU reservations can coexist before gpuAllocated1000 refuses. Thus <=65536MiB is a possible tighter bound if ALL exact historical constraints and allocation retention are proved resident. Do not assume one32GiB VM is the worst case.",
+      "conditionalVMMaxMiB": 65536,
+      "currentProof": false
+    },
+    "illustrativeOnly": {
+      "rawIndependentPoolSumMiB": 169984,
+      "remainingUsingOptimisticallyReflectedOld39772MiB": 130212,
+      "plusFloor18432AndAggregateTest384MiB": 149028,
+      "thresholdGiB": 145.53515625,
+      "withConditionalNative64GiBRemaining": 110756,
+      "withConditionalNativePlusFloorAndTestMiB": 129572,
+      "withConditionalNativeThresholdGiB": 126.53515625,
+      "excluded": "Other overhead, creator, unqualifiedE/O, commit. Historical observations are not simultaneous/current; this is arithmetic, NOT admission or current impossibility proof."
+    }
+  },
+  "missingHardBounds": [
+    {
+      "path": "control/windows/vbslike/manager/server.mjs",
+      "lines": [
+        858,
+        863,
+        440
+      ],
+      "gap": "Direct HTTP spawn accumulates body chunks without aggregate admission slots/bytes, then fetchComponent occurs before VM pool reservation. Finite VM pools therefore do not bound concurrent host request/fetch memory."
+    },
+    {
+      "path": "control/windows/vbslike/manager/fetchcid.mjs",
+      "lines": [
+        34,
+        49
+      ],
+      "gap": "Per-fetch bytes/timeout/output limits exist, but no aggregate simultaneous fetch/process memory/commit cap is demonstrated. Failure before VM reservation can still consume host resources."
+    },
+    {
+      "path": "control/windows/vbslike/manager/psrun.mjs",
+      "lines": [
+        131,
+        153
+      ],
+      "gap": "PowerShell runner has bounded output/time and honest unresolved child tracking, not Job/RSS/commit cap. VM pool excludes these allocations and potentially unresolved child footprint."
+    },
+    {
+      "path": "control/windows/vbslike/manager/wmiserve-run.mjs",
+      "lines": [
+        70,
+        89
+      ],
+      "gap": "Relay child/process and buffers are not covered by VM physical-memory cap; existing and future helper growth must be independently bounded."
+    },
+    {
+      "gap": "Hyper-V worker/kernel/page-table overhead and relation between configured VM physicalMiB and system commit are not bounded by current historical evidence. Other host processes/admin launch paths are uncovered."
+    },
+    {
+      "gap": "Historical native epoch differs from later Sia observation native epoch eb81408d8b99f58cd715d5c56017258c; neither old config nor free memory may be assumed current."
+    }
+  ],
+  "neededToUseShortcut": [
+    "Fresh independently bound resident source/config for each manager, non-null finite cap and actual native-wrapper constraints; both full inventories and router durable head correlated with OS reflection.",
+    "A hard or otherwise independently justified interval-wide upper bound for every non-VM allocator including direct pre-admission requests/fetches/helper processes, other host work and creator/test E/O; no missing term set to zero.",
+    "Fresh physical AND commit measurements; arithmetic proves the complete potential envelope fits while keeping>=live floor. Current pool figures alone cannot produce this proof.",
+    "If full proven envelope fits, first qualification need not wait for dynamic shared-owner installation. If it does not fit, use an actually effective admission-only allocation boundary or more available capacity; do not stop current serving VMs."
+  ],
+  "preparedFunctionalSlicePreserved": true,
+  "noRemoteReads": true,
+  "noChangesExecutionTestsBuildsLaunchFinance": true,
+  "inputPins": {
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/run-manager.cmd": "561f71c8c16ed8125c1b865f8ae6f5bec43d212f1341730b3dcfa14c4e54c9f8",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/control/windows/vbslike/manager/main.mjs": "e7d05dc1d552c97e556591901d40913ab3521628f9111a012f7b77467f74b10b",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/health-8091.json": "6af0a0631abf2e59628e996a8c20c21e202bef1b14bbaf706c2333ab3d9266ea",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/health-8095-v2.json": "26dafef4a93a3c451ba77a83bf99afd736b0c4ceb70561257e3fe92df6e820ab",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/server.mjs": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/psrun.mjs": "41142d0dc36ccad20941c74aa89c5189bdb9dcc904e267bbc5f79726111732ab",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/fetchcid.mjs": "5f3443c431d36812554202303c4b5596a181727f88c74d95a52a6440cc46cafd",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery/control/windows/vbslike/manager/wmiserve-run.mjs": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/control/windows/vbslike/manager/desktop-memory.mjs": "57787b8591a3f6545b94185d927c8c7c08088663985ec43c108aea1c69af67bb",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/control/windows/vbslike/manager/memory-share.mjs": "a9d8200b8ccd8c89e64aebadced10068e6ed952ca74dd857f0f99a1a637bfc52"
+  }
+}
