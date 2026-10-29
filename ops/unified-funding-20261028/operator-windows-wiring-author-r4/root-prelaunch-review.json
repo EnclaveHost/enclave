@@ -1,0 +1,16 @@
+{
+  "reviewedAt": 1793310061.528083,
+  "preparedHash": "eaf896e64a3439791850c66830d80868a293dc5d931caa7de72f9eaf41f154b1",
+  "readonlyFiles": 15042,
+  "readonlyDrift": 0,
+  "candidateFiles": 249,
+  "candidateDrift": 0,
+  "extraFiles": 0,
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "sourceOnlyOneLaunchApproved": true,
+  "productionOrRemoteQualificationApproved": false
+}

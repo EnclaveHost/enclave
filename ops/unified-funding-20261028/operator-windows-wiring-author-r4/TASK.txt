@@ -1,0 +1,23 @@
+IMPLEMENT NOW: Windows operator SYSTEM identity slice R4, SOURCE ONLY. Write code/tests/report in this run; do not return another plan or ask for scope confirmation. Human authorization is already given. A correct small implementation with an explicit CutoverUnqualified refusal is the requested outcome, not a completed migration.
+
+Work only under /home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate using Read/Grep/Write/Edit. No shell, execution, tests, builds, network, remote actions, wallet actions or delegation. Maximum30agentic turns/900seconds. No other source files may change.
+
+Read these first (not the giant historical interface map):
+- evidence/root-wiring-r2/ROOT-REVIEW.md (exact repaired249 passed102tests; preserve those behaviors).
+- evidence/target-identity/result.json (actual SYSTEM task/process; effective NODE_DIR unknown; ancestry/exclusion unproven).
+- Four editable source/test files:
+  1. control/windows/node/operator-effects-config.mjs
+  2. control/windows/node/install-operator-effects.mjs
+  3. test/windows-permit/helpers/ow-fixture.mjs
+  4. test/windows-permit/ow-r4-system-identity.test.mjs (new focused tests).
+
+CONCRETE IMPLEMENTATION
+Accept explicit SYSTEM identity (canonical NT AUTHORITY\SYSTEM, SID S-1-5-18) paired with a separately specified scheduled-task launcher identity. Launcher TaskPath/TaskName must be exact, bounded and local-owner specified, not a mandatory Enclave-controlled name or approval service. The observed \Enclave\Node is a target example, not the only allowed task. Separate process SID from launcher identity; do not derive SYSTEM identity from a task name or pretend it is an SCM service. Reject mismatched SID, arbitrary users/groups and malformed launcher data. Keep existing NT SERVICE defaults/schema/fixtures working with their existing service identity and least-privilege semantics.
+
+SYSTEM is already a trusted OS writer. Support its actual read grants and SYSTEM/Administrators two-ACE state ACL, with no duplicate SYSTEM service ACE or contradictory requirement that SYSTEM cannot modify trusted configuration. Do not weaken the virtual-service no-write policy or allow broad/nontrusted write access. Reuse existing parser, rights, storage and identity primitives. Minimal additive config/instance representation only; no broad schema or activation redesign.
+
+SYSTEM install and cutover MUST refuse with a specific CutoverUnqualified code while continuous writer exclusion, effective NODE_DIR and task/process ancestry are unproven. This slice does NOT supply any of those proofs: do not invent observations, current/continuous exclusion, ownership tokens, process death, task mutation or transition machinery. Refusal must happen before any new state/config/attempt artifact is written. Actual runtime identity parsing/validation should recognize a well-formed supported SYSTEM binding, but neither a caller Boolean nor this source change may enable unqualified SYSTEM operator effects. Keep the SYSTEM effects path explicitly refused with CutoverUnqualified until a later separately implemented, actually qualified cutover boundary exists. Stop, Offline and read-only diagnostics remain available. Do not change the production account or privileges.
+
+Author focused tests through actual config/installer helpers and runtime construction seam: valid explicit SYSTEM identity; exact local-owner task binding with a second non-Enclave task name; wrong SID/launcher rejection; correct two-ACE SYSTEM state ACL; broad principal denied; NT SERVICE behavior retained; SYSTEM plan/apply/startup refuse CutoverUnqualified before writes/effects and do not invent effective NODE_DIR/ancestry. Use labelled external TEST boundaries; no test execution. Leave the default ow-fixture NT SERVICE so existing root102 assertions retain their meaning. Do not edit prior tests, chain, bundles, host/agent, manager, psrun, durable/EXLOCK primitives or readonly evidence. Preserve root's two trust-file checks and all existing quarantine/transport repairs.
+
+Besides those four source/test files, write only REPORT-OPERATOR-WINDOWS-WIRING-R4.md and RELEASE-CLOSURE-OPERATOR-WINDOWS-WIRING-R4.json. State exact implemented slice, authored/not-run tests, untouched boundaries and explicit CutoverUnqualified limitation; supersede missing r2/r3 reports without rewriting history. No fake hashes, pass counts or Windows qualification. Native execution/EXLOCK/ACL/process-death/resource admission and migration remain separate, unresolved work. Local machine-owner authority suffices; no central Enclave authorization dependency.
