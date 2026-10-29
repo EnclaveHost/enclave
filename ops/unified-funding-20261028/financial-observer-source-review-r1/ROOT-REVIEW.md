@@ -1,0 +1,9 @@
+# Financial shutdown metadata parser and private readback
+
+Source-only production adapter. Root independently reproduced two initial false acceptances: undecoded raw-pointer rename/openat after the observed checkpoint were silently treated as unrelated I/O. The peer fixed required path decoding and added explicit reviewed other-store roles. Root read the final source/proposal and repeated 24 parser/readback checks plus both unchanged independent regressions: all PASS, zero skips. The initial two failures remain. The tests use the privately retained OWNED synthetic trace; raw trace is deliberately not in this package, so these are recorded staging tests, not a portable reproduction claim. Readback death guards are mocked in the offline tests.
+
+The parser proves only a syscall sequence. Successful financial coverage additionally depends on the actual loaded source/handler/ordinary serialization/record-before-delegation/sole-writer profile, complete attach, process identity/death/cgroup evidence, private readback/fsync and nonce prefix/retention tail. The observed rename does not contain an inode observation: post-stop inode binding depends on exact directory and exclusive-writer context. No trace-derived inode equality claim is made.
+
+Earlier conservative raw-trace coverage refusal remains unchanged. No live attach, stop, restart or financial send occurred. No caller-supplied booleans establish acceptance. All parser outputs keep productionAcceptance=false and writeResumptionAllowed=false; unknown transactions still require canonical reconciliation. Actual minimal collector and uninstrumented owned-fixture execution are being prepared separately, not yet qualified or authorized for production.
+
+Packaged console logs have trailing spaces removed only; raw outputs remain in the staging log directory.

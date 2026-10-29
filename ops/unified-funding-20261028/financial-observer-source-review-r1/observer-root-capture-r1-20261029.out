@@ -1,0 +1,29 @@
+[queue] START available=92267MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+FF
+======================================================================
+FAIL: test_raw_open_must_not_bypass_role_mapping (__main__.CaptureTests.test_raw_open_must_not_bypass_role_mapping)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/financial-observer-root-review-r1/test_root_capture.py", line 18, in test_raw_open_must_not_bypass_role_mapping
+    self.assertFalse(r['syscallCheckpoint'],'required path decoding is missing; do not infer unrelated filesystem IO')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false : required path decoding is missing; do not infer unrelated filesystem IO
+
+======================================================================
+FAIL: test_raw_path_mutation_must_not_be_ignored (__main__.CaptureTests.test_raw_path_mutation_must_not_be_ignored)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/financial-observer-root-review-r1/test_root_capture.py", line 13, in test_raw_path_mutation_must_not_be_ignored
+    self.assertFalse(r['syscallCheckpoint'],'raw rename can target the journal; capture format must refuse it')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false : raw rename can target the journal; capture format must refuse it
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+FAILED (failures=2)
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak:
+[queue] EXIT 1

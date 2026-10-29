@@ -1,0 +1,24 @@
+{
+  "sourceOnlyProductionAdapter": true,
+  "liveAttachPerformed": false,
+  "tests": {
+    "offlinePassed": 24,
+    "remoteRuns": 0,
+    "deathGuardMockedInReadbackTests": true
+  },
+  "sha256": {
+    "financial_trace_normalizer.py": "3485f2a1e16bcbcc88eccf805c6c3f9bd14c1c3e8daf1230b0b7a37fa1cd1da4",
+    "financial_private_checkpoint.py": "f848180540a0e0b54f79b96b7e9eca7e93377dac6325774b5e6737cd7930c6fd",
+    "test_financial_trace_normalizer.py": "0010ad7158d5bccd8f2de96b21794bed3af57fc373a80dd7adef5f83a0c503f9",
+    "test_financial_private_checkpoint.py": "3b96a6cf47ee05df8bb35faba46ee908158e46f93f08677a10fbb1d1f26d60ed",
+    "financial-observer-source-proposal.txt": "ffc9f7a678a60c2374bd6ef208d7aeadaf0da17ad0ab3b1c25d82f78f4e14732",
+    "financial-parser-offline-report.json": "7f11752cb676c331eed06fd9705a5bed4eceb55a38474be13612f79b40a70bab",
+    "observer_fixture_child_PROPOSED.mjs": "b12a7ffda67907a67d953f6b4871dda2c67a72ac3bce06dc8b62134c1eea4838",
+    "financial-store-role-inventory-PROPOSED.json": "7836faab306467c391891b38ed03098671aa52a2a52a44808b18d480c5f32cae"
+  },
+  "productionAcceptance": false,
+  "rootReviewFailuresFixed": [
+    "raw-pointer rename accepted after checkpoint",
+    "raw-pointer openat accepted after checkpoint"
+  ]
+}

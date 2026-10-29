@@ -1,0 +1,106 @@
+SOURCE CANDIDATE ONLY — no live attach, stop, restart, key access or send.
+
+financial_trace_normalizer.py now implements a bounded raw-strace metadata
+normalizer and stdin/pipe sink. It pairs unfinished/resumed calls by TID, tracks
+the exact journal open/write/close/rename, requires a main-thread SIGTERM from
+the known coordinator, one successful final attempt and every original task's
+clean exit. It records counts, pointers only transiently, syscall names/returns,
+and line positions; normalized output contains neither paths nor buffer data.
+Decoded unexpected strings or paths fail without echo. Missing required path
+decoding (raw-pointer open/rename, even after finalrename) also refuses. Optional
+otherStores maps reviewed role -> exact absolute journal/.tmp pair, rejects
+collisions and overlap with active journal checkpoint, and outputs roles only.
+No production command is supplied.
+
+Key distinction: syscallCheckpoint is only an observed syscall sequence.
+It is NOT, by itself, proof that the JS SIGTERM callback ran. Source-backed
+attribution requires exact actual store12157d8c, sessions457e8647, api481f0041,
+Node93956de2 and audited local/dependency closure. The loaded runtime profile
+must establish: runtime exit(0) only from the store signal callback; ordinary
+JSON journal with no custom serializer; no alternative financial worker or
+exit callback; exactly one journal instance/writer; each same-signer financial
+delegation registers before async RPC. CLI-only exit0 branches must be shown
+inactive under exact argv/import graph. Direct SIGTERM delivery to the main
+thread is required; elsewhere is refused rather than guessed.
+
+With that exact profile, the handler must attempt this journal's synchronous
+flush before exit0; serialization cannot yield or execute a financial callback.
+A timer flush followed by the real handler makes two journal attempts and is
+conservatively refused. Failed final open/write/close/rename is refused even
+when an earlier successful checkpoint has identical bytes. Missing/no-attempt
+or nonzero/signal death refuses. Do not infer JS signal attribution from a
+signal line plus a matching old file alone. Allocation failure/observer loss
+cannot be converted into success.
+
+Unrelated raw I/O after rename is retained in metadata, not classified as a
+fresh financial delegation. Already registered RPC work can complete after
+death. Outcomes remain UNKNOWN and writeResumptionAllowed always false.
+The previous conservative trace decision remains REFUSE, unchanged. A separate
+offline parser exercise on that same trace establishes only the mechanically
+visible successful sequence (7 exits,104 bytes), not revised historical coverage.
+
+Required external collector evidence (hashed private artifacts, not UI booleans):
+* Exact PID/startTicks/Node/source pins before attach and after death; complete
+  initial task roster and attach acknowledgments before signal; no profile-
+  changing clone/exec or unexplained task; successful tracer and bounded sink.
+* Sole journal writer and agreed external sender freeze. Sponsor key differs
+  from session signer per root's equality-only audit; provisioner EOA differs.
+  This is same-signer scope, not a claim of no other financial services.
+* Source/handler registration/ordinary serialization profile above.
+* Exact private directory identity before/after, successful temp FD lifetime
+  and target rename, no alternate writer/replacement. After all writers die,
+  O_NOFOLLOW-open the exact target, fstat regular+single-link, compare byte count
+  to observed writes, read privately under an8MiB cap, fstat again for unchanged
+  dev/inode/size/mtime/ctime, fsync file and parent. The syscall trace does NOT
+  contain a prior inode observation; binding this poststop inode to the observed
+  rename depends on the exact directory and exclusive-writer/no-replacement
+  context. Do not claim trace-derived inode equality. Save exclusive0600 private
+  checkpoint+manifest, fsync both+checkpoint directory, then chmod0400. Report
+  only hashes/counts; do not dump journal. A poststop hash alone is inadequate.
+* PID/startTicks absent and dedicated service cgroup empty, independent of
+  tracer exit. No hidden child/alternate signer may remain.
+* Prefix+retained archive covers all nonce families pruned by500-record limit;
+  no-hash/failed/stuck is UNKNOWN until canonical reconciliation. All missing
+  evidence keeps quarantine, regardless of wait time or latest=pending equality.
+
+Remaining operational work, deliberately NOT claimed complete:
+financial_private_checkpoint.py supplies the SOURCE-ONLY post-death readback,
+file/parent fsync and exclusive private checkpoint implementation. It has no CLI,
+does not stop anything, and must not be invoked against production before review.
+The live collector adapter, activation of known-other-store path mapping, readback
+qualification and evidence builder still need review/qualification.
+normalize_stream has no stop/attach capability and emits no acceptance bit.
+There is no authenticated evidence format for arbitrary user-supplied facts;
+evaluate consumes reviewer-owned references and always prohibits write resume.
+
+Representative owned fixture proposal ONLY, not authorized/executed:
+Use exact installed TxQueue/JsonStore with public TEST key, isolated loopback
+mock RPC holding one delegated nonce; no test fs wrapper in tracee. Existing
+financial fixture source has a TEST rename wrapper and is NOT suitable unchanged.
+observer_fixture_child_PROPOSED.mjs supplies a new uninstrumented child with
+exact-store before/after dummy stores; no custom signal/exit/fs instrumentation.
+Parent must verify every imported source pin BEFORE spawning, and hold the
+public-TEST raw transaction only in memory; persist nonce/count, never raw bytes.
+Build the separately reviewed collector using this normalizer,
+one fresh network namespace, exact exclusive output dir/unit, no production PID.
+Before proposing execution supply all new source hashes and exact argv, run
+offline parser fault tests first. Bounds: local shared256MiB+inner220MiB,
+27648MiB local floor; remote test256MiB+independent64MiB guard/noSwap,
+4480MiB admit/4096MiB floor, Tasks64, wall30s, trace16MiB, logs64KiB,
+private journal8MiB. One launch, no retry/cap increase. Source closure and Node
+pins same as reviewed financial suite. A future fixture must prove inode/fsync
+and owned cleanup, never infer them from source. Do not execute from this note.
+
+Collector proposal, not an approved production attach:
+Use existing qualified strace28f957c2 and Node93956de2; owned Popen child PID only,
+pidfd identity, all-thread SIGSTOP/attach acknowledgments before resume. One
+combined -f -ttt -T trace, trace=all, raw=!open,openat,rename,renameat,renameat2,
+signal=all, string cap256, no read/write dumps, no -yy/stack/environment dump.
+Route strace output to a private FIFO held by the bounded metadata sink; never
+save decoded raw output for a production candidate. Owned fixture may preserve
+raw synthetic trace privately for secrecy qualification. Guard independently
+bounds FIFO/sink lifetime and owns only test unit. After full task/tracer death,
+independent guard verifies empty dedicated child cgroup, then private readback
+code runs outside that empty cgroup. Do not call preserve() while parent/tracer
+still inhabit the checked cgroup. Source-only harness adaptation and exact new
+unit/path/source manifest still required before any execution proposal.
