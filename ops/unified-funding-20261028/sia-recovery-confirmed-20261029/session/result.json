@@ -1,0 +1,64 @@
+{
+  "readOnly": true,
+  "capturedAt": "2026-10-29T19:45:36.636Z",
+  "scope": "One known successful funding receipt, exact vault event attribution and current session counters. No signing, submissions or provider retries.",
+  "snapshot": {
+    "value": {
+      "receipt": {
+        "hash": "0x9d58496d32380bcefa54082e079ad01c9e342e86b740106d297c95a47a982dfa",
+        "status": "success",
+        "blockNumber": "53256630",
+        "blockHash": "0xb008f910e107be215e96b9bb299d9f1188fa6f7395774a4d31c29bac87ed6e71"
+      },
+      "vault": "0x86960ed815ca5500e6cfcdbbb32b221c2acf055a",
+      "events": [
+        {
+          "name": "GasFunded",
+          "args": {
+            "sid": "0x0e6374283afed13378259e0572b9a9e9e2830128c5197c3bcfdc6592248a4ed5",
+            "deployment": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+            "holder": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+            "ethOut": "200000000000000",
+            "usdcSpent6": "466777",
+            "maxUsdcIn6": "471388",
+            "relayer": "0xf4B78D91911e1c064A02E4D28C69E2De6056bE57",
+            "fee6": "67217"
+          }
+        },
+        {
+          "name": "SessionOp",
+          "args": {
+            "sid": "0x0e6374283afed13378259e0572b9a9e9e2830128c5197c3bcfdc6592248a4ed5",
+            "action": 10,
+            "nonce": "1",
+            "argsHash": "0x10419a34db52b28a44b20acd255b0309679e74cfcd0a11f8635f41fef7b74639",
+            "amount6": "466777",
+            "fee6": "67217",
+            "result": "0x0000000000000000000000000000000000000000000000000000000000071f590000000000000000000000000000000000000000000000000000000000001203"
+          }
+        }
+      ],
+      "session": {
+        "sid": "0x0e6374283afed13378259e0572b9a9e9e2830128c5197c3bcfdc6592248a4ed5",
+        "live": true,
+        "balance6": "3738433",
+        "spent6": "1061567",
+        "periodSpent6": "1061567",
+        "periodOps": 2,
+        "actions": "1024",
+        "expiresAt": "1793765924",
+        "lane": "0",
+        "sequence": "2"
+      },
+      "thisDebit6": "533994"
+    },
+    "blockNumber": "53256892",
+    "blockHash": "0x2595a1b79a381da23b812b9f6a6e8a449fbad2ce9f36912aea88af97cba70bd5",
+    "timestamp": 1793303131000,
+    "agreeing": 2,
+    "peers": 3,
+    "failures": [
+      "base.drpc.org: RPC Request failed."
+    ]
+  }
+}
