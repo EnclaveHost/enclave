@@ -197,7 +197,8 @@ async function renderExecutions(e, owner) {
       <button class="btn" data-exec="${esc(x.id)}">Check status on chain (read-only)</button></div>`).join("")}
     ${open.length ? "<p>A new gas payment for those grants is blocked until a check resolves them. A check never signs or resends anything.</p>" : ""}`;
   box.querySelectorAll("[data-exec]").forEach((el) => el.addEventListener("click", act(e, owner, async (g) => {
-    const rpc = f.jsonRpc(APP_CATALOG_RPCS[0]);
+    const cfg = await sessionsConfig().catch(() => null);
+    const rpc = f.jsonRpc(cfg?.rpc || APP_CATALOG_RPCS[0]);
     const relay = f.relayClient(relayRoot());
     const runtime = await f.verifyRuntime({ pins: FUNDING_RUNTIME, rpc, relay, owner, now: nowS() });
     const r = await f.reconcileGasExecution({ runtime, store: FL.guardGasStore(store, g), rpc, relay: FL.guardRelayFn(relay, g),
