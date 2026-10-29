@@ -1,0 +1,582 @@
+{
+  "scope": "Byte-exact existing R18 factory transitive literal imports and eight data files; static inspection, not executable/full host release qualification",
+  "originalFiles": 176,
+  "addedModules": 32,
+  "addedDataFiles": 8,
+  "totalSeedFiles": 216,
+  "existingFilesOverwritten": [],
+  "productEdits": [],
+  "files": [
+    {
+      "path": "control/abi/dependencies-34a3c0d6.json",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/lifecycle-chain-adapter-stage/r6/abi/dependencies-34a3c0d6.json",
+      "sha256": "8cb57fbd2b324cad7bed4ce6b5a0f6ad4f3249df41ca8bf44e92e1fd5232f47d"
+    },
+    {
+      "path": "control/abi/dependencies-r1.json",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/lifecycle-chain-adapter-stage/r6/abi/dependencies-r1.json",
+      "sha256": "9f8f9426cd934c28bf1b893d9958a6927eba6d17679b31ae3caff0f572e96f57"
+    },
+    {
+      "path": "control/deploy/lifecycle/artifacts/EnclaveDeploymentLifecycle.json",
+      "source": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-rollout-20261026/source-r1/deploy/lifecycle/artifacts/EnclaveDeploymentLifecycle.json",
+      "sha256": "69e58010cc4a0510aab5a159cae5f5eeb9af03e2fde210b2f687562d1703bfdf"
+    },
+    {
+      "path": "control/deploy/lifecycle/artifacts/EnclaveDeployments.json",
+      "source": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-rollout-20261026/source-r1/deploy/lifecycle/artifacts/EnclaveDeployments.json",
+      "sha256": "1d5ecd263affa9e272224005047ce6e1f7c8b11dc1aec50aa6eaf166898eaaee"
+    },
+    {
+      "path": "control/deploy/lifecycle/artifacts/EnclaveSelfHostingIdentity.json",
+      "source": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-rollout-20261026/source-r1/deploy/lifecycle/artifacts/EnclaveSelfHostingIdentity.json",
+      "sha256": "bae9dbcb09ca47d73a30aa58a37a06bc7205f60e4fc147f0bf74278125d65b72"
+    },
+    {
+      "path": "control/deploy/lifecycle/host-registry/EnclaveHostLifecycleRegistry.json",
+      "source": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/validation-result-r2/artifacts/EnclaveHostLifecycleRegistry.sol/EnclaveHostLifecycleRegistry.json",
+      "sha256": "e8690734c4fae1f1adfa3525061d5542b314704c997feec2daa09fdecd49f23a"
+    },
+    {
+      "path": "control/deploy/lifecycle/host-registry/EnclaveHostLifecycleRegistry.sol",
+      "source": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol",
+      "sha256": "68310acc3bda76be0c7bf06ad5149ac1b354e3687f8268223bc8589457c071a8"
+    },
+    {
+      "path": "control/deploy/lifecycle/schema3/bundle.json",
+      "source": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/library-import-size-feedback/compiler/bundle.json",
+      "sha256": "bed9c19652edce8ca6f337f691a9909c15763e6755ff237139b07f4d84f3260e"
+    },
+    {
+      "path": "control/network/attested-verifier-brand.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/network/attested-verifier-brand.mjs",
+      "sha256": "5229c8ec4a67632a3c323307e4cf89a657c0799d6589448dac9c77caa9501191"
+    },
+    {
+      "path": "control/network/deployment-chain-adapter.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-chain-adapter.mjs",
+      "sha256": "805cad12078d9cca7a24ce3a64f2debab4051d156bd59c0849158b00e42ff328"
+    },
+    {
+      "path": "control/network/deployment-host-authority-journal.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-host-authority-journal.mjs",
+      "sha256": "dba7e3a31abcccf5fbc42526147af8ae822f6c50a2bf50d42bea93661ccc31db"
+    },
+    {
+      "path": "control/network/deployment-lifecycle-journal.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-lifecycle-journal.mjs",
+      "sha256": "3258481cbf178668c315e88f5184f3e7c4f3efed66c021503ab54bc1fa2496d9"
+    },
+    {
+      "path": "control/network/deployment-lifecycle-runner.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-lifecycle-runner.mjs",
+      "sha256": "75590c8e4be2095b9011ea3b482ceef90a1d21f92ad676dba41578093e7db668"
+    },
+    {
+      "path": "control/network/deployment-lifecycle-witness.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-lifecycle-witness.mjs",
+      "sha256": "dce432df758b12b9dd8c83e2627febe88a36444ad74ce5dc1911e26edb7149c6"
+    },
+    {
+      "path": "control/network/deployment-permit-collector.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-permit-collector.mjs",
+      "sha256": "2c2f3fc6d444300c5e15da5b54f393a72d8fb86d519c70cd7419c640a3091dba"
+    },
+    {
+      "path": "control/network/deployment-restart-policy.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-restart-policy.mjs",
+      "sha256": "15f42274a6edc861b7afc1aeb9167d4028f855e8c8b99d8fbc3738eb1151204c"
+    },
+    {
+      "path": "control/network/deployment-transition-intent.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-transition-intent.mjs",
+      "sha256": "1932ad2ef522df9260c061a6ce18ca1f2e09ef850c2850b57d46186bbca3f210"
+    },
+    {
+      "path": "control/network/derived-reader/vendor/anchor-bootstrap.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/derived-reader/vendor/anchor-bootstrap.mjs",
+      "sha256": "90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8"
+    },
+    {
+      "path": "control/network/host-admission-policy.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/host-admission-policy.mjs",
+      "sha256": "a15c05ea4dfd963ba72be60af03f0a712f39974423abe4b1abc80cbfabc145e0"
+    },
+    {
+      "path": "control/network/lease-release-journal.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lease-release-journal.mjs",
+      "sha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6"
+    },
+    {
+      "path": "control/network/lifecycle-finality-bridge.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-finality-bridge.mjs",
+      "sha256": "a719bece74e0b7d198bd36b35e361bcb4d9e9e155ce366f15185b4e37f91c197"
+    },
+    {
+      "path": "control/network/lifecycle-host-authority.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-authority.mjs",
+      "sha256": "76f5be11c3e07d17e86842815e567fa327772a5aa2c12407342b3f00056ffce1"
+    },
+    {
+      "path": "control/network/lifecycle-host-dispatch.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-dispatch.mjs",
+      "sha256": "ac2cf3016b263406f495b33801e961aeb8ccd4700bfee20eb9381509369927a3"
+    },
+    {
+      "path": "control/network/lifecycle-host-incarnation-journal.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-incarnation-journal.mjs",
+      "sha256": "488298539e71fe66b508e5ed52f47ed104b5235fa46deb1d40839acfae93ac25"
+    },
+    {
+      "path": "control/network/lifecycle-host-owned-authority.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-owned-authority.mjs",
+      "sha256": "ee1f93c8ab968ab6b26e3f38a18cf66604d476b87acd37acd7e9cb09ea6c302c"
+    },
+    {
+      "path": "control/network/lifecycle-host-profile.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-profile.mjs",
+      "sha256": "ae53da9f520e7f66e5a88c850226f96a7294708e2f5dad27c178138096f4bc94"
+    },
+    {
+      "path": "control/network/lifecycle-host-registry-profile.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-registry-profile.mjs",
+      "sha256": "4816316ef9ced6fca3a4d135c64f7fd41f99b55bb737a7c10f4e6428c113b1b9"
+    },
+    {
+      "path": "control/network/lifecycle-independent-admission.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-independent-admission.mjs",
+      "sha256": "9ec46b88e4be5550e6072bc9f6bc566c553edf36e6231b9da4f718f2bbb04db9"
+    },
+    {
+      "path": "control/network/lifecycle-linked-artifacts.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-linked-artifacts.mjs",
+      "sha256": "d9ad52648cf5bda505d2ccebb8a6ea49fb3bc682a7fd0d431d1f5def372808cf"
+    },
+    {
+      "path": "control/network/lifecycle-schema3-profile.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-schema3-profile.mjs",
+      "sha256": "e10f460866be7c30f71e0bc482929818b3003065f46ef5d53feb73d2f8134083"
+    },
+    {
+      "path": "control/network/network-policy-core.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/network-policy-core.mjs",
+      "sha256": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064"
+    },
+    {
+      "path": "control/network/network-policy.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/network-policy.mjs",
+      "sha256": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f"
+    },
+    {
+      "path": "control/network/op-receipts-root.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/op-receipts-root.mjs",
+      "sha256": "36c34dad228224a56bf559a6fe6ff6ee65c40738a54a18076b4abd2b1e26afe3"
+    },
+    {
+      "path": "control/network/owned-durable-state.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/owned-durable-state.mjs",
+      "sha256": "2bfe43b939a979dba3c9bfa42c2157c20968e7c85b191559eb8e8181d65ce1d1"
+    },
+    {
+      "path": "control/network/provider-qualification.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/provider-qualification.mjs",
+      "sha256": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9"
+    },
+    {
+      "path": "control/network/route-record.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/route-record.mjs",
+      "sha256": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1"
+    },
+    {
+      "path": "control/network/runtime-lock.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/runtime-lock.mjs",
+      "sha256": "256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a"
+    },
+    {
+      "path": "control/network/verified-chain.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/network/verified-chain.mjs",
+      "sha256": "010a4e9e3b5e06baff0daed49dc39680f3bba56a992596c79559bcdffb23b94c"
+    },
+    {
+      "path": "control/relay/net-guard.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/net-guard.mjs",
+      "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af"
+    },
+    {
+      "path": "control/site/js/core/catalog-policy.js",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/site/js/core/catalog-policy.js",
+      "sha256": "58806185a5ed3fe70163d9ec04ba129399b2557d67270538e2efb0aea949b6f5"
+    }
+  ],
+  "literalEdges": [
+    {
+      "from": "control/network/verified-chain.mjs",
+      "specifier": "./attested-verifier-brand.mjs",
+      "target": "control/network/attested-verifier-brand.mjs"
+    },
+    {
+      "from": "control/network/verified-chain.mjs",
+      "specifier": "./rpc-identity.mjs",
+      "target": "control/network/rpc-identity.mjs"
+    },
+    {
+      "from": "control/network/deployment-lifecycle-journal.mjs",
+      "specifier": "./lease-release-journal.mjs",
+      "target": "control/network/lease-release-journal.mjs"
+    },
+    {
+      "from": "control/network/deployment-lifecycle-journal.mjs",
+      "specifier": "./deployment-restart-policy.mjs",
+      "target": "control/network/deployment-restart-policy.mjs"
+    },
+    {
+      "from": "control/network/owned-durable-state.mjs",
+      "specifier": "./runtime-lock.mjs",
+      "target": "control/network/runtime-lock.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-independent-admission.mjs",
+      "specifier": "./host-admission-policy.mjs",
+      "target": "control/network/host-admission-policy.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-independent-admission.mjs",
+      "specifier": "../site/js/core/catalog-policy.js",
+      "target": "control/site/js/core/catalog-policy.js"
+    },
+    {
+      "from": "control/network/host-admission-policy.mjs",
+      "specifier": "./route-record.mjs",
+      "target": "control/network/route-record.mjs"
+    },
+    {
+      "from": "control/network/host-admission-policy.mjs",
+      "specifier": "../site/js/core/catalog-policy.js",
+      "target": "control/site/js/core/catalog-policy.js"
+    },
+    {
+      "from": "control/network/route-record.mjs",
+      "specifier": "./canonical.mjs",
+      "target": "control/network/canonical.mjs"
+    },
+    {
+      "from": "control/network/route-record.mjs",
+      "specifier": "../relay/net-guard.mjs",
+      "target": "control/relay/net-guard.mjs"
+    },
+    {
+      "from": "control/network/route-record.mjs",
+      "specifier": "./provider-qualification.mjs",
+      "target": "control/network/provider-qualification.mjs"
+    },
+    {
+      "from": "control/network/route-record.mjs",
+      "specifier": "./network-policy.mjs",
+      "target": "control/network/network-policy.mjs"
+    },
+    {
+      "from": "control/network/network-policy.mjs",
+      "specifier": "./route-record.mjs",
+      "target": "control/network/route-record.mjs"
+    },
+    {
+      "from": "control/network/network-policy.mjs",
+      "specifier": "./network-policy-core.mjs",
+      "target": "control/network/network-policy-core.mjs"
+    },
+    {
+      "from": "control/network/network-policy.mjs",
+      "specifier": "./network-policy-core.mjs",
+      "target": "control/network/network-policy-core.mjs"
+    },
+    {
+      "from": "control/network/network-policy-core.mjs",
+      "specifier": "./canonical.mjs",
+      "target": "control/network/canonical.mjs"
+    },
+    {
+      "from": "control/network/provider-qualification.mjs",
+      "specifier": "../relay/net-guard.mjs",
+      "target": "control/relay/net-guard.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-schema3-profile.mjs",
+      "specifier": "./lifecycle-linked-artifacts.mjs",
+      "target": "control/network/lifecycle-linked-artifacts.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-schema3-profile.mjs",
+      "specifier": "../deploy/lifecycle/schema3/bundle.json",
+      "target": "control/deploy/lifecycle/schema3/bundle.json"
+    },
+    {
+      "from": "control/network/lifecycle-host-registry-profile.mjs",
+      "specifier": "../deploy/lifecycle/host-registry/EnclaveHostLifecycleRegistry.json",
+      "target": "control/deploy/lifecycle/host-registry/EnclaveHostLifecycleRegistry.json"
+    },
+    {
+      "from": "control/network/lifecycle-host-registry-profile.mjs",
+      "specifier": "../deploy/lifecycle/host-registry/EnclaveHostLifecycleRegistry.sol",
+      "target": "control/deploy/lifecycle/host-registry/EnclaveHostLifecycleRegistry.sol"
+    },
+    {
+      "from": "control/network/lifecycle-host-dispatch.mjs",
+      "specifier": "./deployment-lifecycle-runner.mjs",
+      "target": "control/network/deployment-lifecycle-runner.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-dispatch.mjs",
+      "specifier": "./lifecycle-host-profile.mjs",
+      "target": "control/network/lifecycle-host-profile.mjs"
+    },
+    {
+      "from": "control/network/deployment-lifecycle-runner.mjs",
+      "specifier": "./deployment-generation-certificate.mjs",
+      "target": "control/network/deployment-generation-certificate.mjs"
+    },
+    {
+      "from": "control/network/deployment-lifecycle-runner.mjs",
+      "specifier": "./deployment-authority-window.mjs",
+      "target": "control/network/deployment-authority-window.mjs"
+    },
+    {
+      "from": "control/network/deployment-generation-certificate.mjs",
+      "specifier": "./deployment-authority-window.mjs",
+      "target": "control/network/deployment-authority-window.mjs"
+    },
+    {
+      "from": "control/network/deployment-lifecycle-witness.mjs",
+      "specifier": "./deployment-serving-permit.mjs",
+      "target": "control/network/deployment-serving-permit.mjs"
+    },
+    {
+      "from": "control/network/deployment-lifecycle-witness.mjs",
+      "specifier": "./deployment-generation-certificate.mjs",
+      "target": "control/network/deployment-generation-certificate.mjs"
+    },
+    {
+      "from": "control/network/deployment-lifecycle-witness.mjs",
+      "specifier": "./deployment-transition-intent.mjs",
+      "target": "control/network/deployment-transition-intent.mjs"
+    },
+    {
+      "from": "control/network/deployment-lifecycle-witness.mjs",
+      "specifier": "./deployment-authority-window.mjs",
+      "target": "control/network/deployment-authority-window.mjs"
+    },
+    {
+      "from": "control/network/deployment-lifecycle-witness.mjs",
+      "specifier": "./deployment-host-authority.mjs",
+      "target": "control/network/deployment-host-authority.mjs"
+    },
+    {
+      "from": "control/network/deployment-serving-permit.mjs",
+      "specifier": "./deployment-generation-certificate.mjs",
+      "target": "control/network/deployment-generation-certificate.mjs"
+    },
+    {
+      "from": "control/network/deployment-serving-permit.mjs",
+      "specifier": "./deployment-authority-window.mjs",
+      "target": "control/network/deployment-authority-window.mjs"
+    },
+    {
+      "from": "control/network/deployment-serving-permit.mjs",
+      "specifier": "./deployment-host-authority.mjs",
+      "target": "control/network/deployment-host-authority.mjs"
+    },
+    {
+      "from": "control/network/deployment-host-authority-journal.mjs",
+      "specifier": "./deployment-host-authority.mjs",
+      "target": "control/network/deployment-host-authority.mjs"
+    },
+    {
+      "from": "control/network/deployment-host-authority-journal.mjs",
+      "specifier": "./owned-durable-state.mjs",
+      "target": "control/network/owned-durable-state.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-incarnation-journal.mjs",
+      "specifier": "./lifecycle-host-profile.mjs",
+      "target": "control/network/lifecycle-host-profile.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-incarnation-journal.mjs",
+      "specifier": "./owned-durable-state.mjs",
+      "target": "control/network/owned-durable-state.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-authority.mjs",
+      "specifier": "./lifecycle-host-profile.mjs",
+      "target": "control/network/lifecycle-host-profile.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-authority.mjs",
+      "specifier": "./host-admission-policy.mjs",
+      "target": "control/network/host-admission-policy.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-authority.mjs",
+      "specifier": "./lifecycle-independent-admission.mjs",
+      "target": "control/network/lifecycle-independent-admission.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-authority.mjs",
+      "specifier": "./lifecycle-host-dispatch.mjs",
+      "target": "control/network/lifecycle-host-dispatch.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-finality-bridge.mjs",
+      "specifier": "./verified-chain.mjs",
+      "target": "control/network/verified-chain.mjs"
+    },
+    {
+      "from": "control/network/deployment-permit-collector.mjs",
+      "specifier": "./deployment-serving-permit.mjs",
+      "target": "control/network/deployment-serving-permit.mjs"
+    },
+    {
+      "from": "control/network/deployment-permit-collector.mjs",
+      "specifier": "./deployment-generation-certificate.mjs",
+      "target": "control/network/deployment-generation-certificate.mjs"
+    },
+    {
+      "from": "control/network/deployment-permit-collector.mjs",
+      "specifier": "./deployment-transition-intent.mjs",
+      "target": "control/network/deployment-transition-intent.mjs"
+    },
+    {
+      "from": "control/network/deployment-chain-adapter.mjs",
+      "specifier": "./deployment-transition-intent.mjs",
+      "target": "control/network/deployment-transition-intent.mjs"
+    },
+    {
+      "from": "control/network/deployment-chain-adapter.mjs",
+      "specifier": "./deployment-generation-certificate.mjs",
+      "target": "control/network/deployment-generation-certificate.mjs"
+    },
+    {
+      "from": "control/network/deployment-chain-adapter.mjs",
+      "specifier": "./op-receipts-root.mjs",
+      "target": "control/network/op-receipts-root.mjs"
+    },
+    {
+      "from": "control/network/deployment-chain-adapter.mjs",
+      "specifier": "./derived-reader/vendor/anchor-bootstrap.mjs",
+      "target": "control/network/derived-reader/vendor/anchor-bootstrap.mjs"
+    },
+    {
+      "from": "control/network/deployment-chain-adapter.mjs",
+      "specifier": "../site/js/core/catalog-policy.js",
+      "target": "control/site/js/core/catalog-policy.js"
+    },
+    {
+      "from": "control/network/deployment-chain-adapter.mjs",
+      "specifier": "./host-admission-policy.mjs",
+      "target": "control/network/host-admission-policy.mjs"
+    },
+    {
+      "from": "control/network/deployment-chain-adapter.mjs",
+      "specifier": "./lifecycle-independent-admission.mjs",
+      "target": "control/network/lifecycle-independent-admission.mjs"
+    },
+    {
+      "from": "control/network/deployment-chain-adapter.mjs",
+      "specifier": "./lifecycle-schema3-profile.mjs",
+      "target": "control/network/lifecycle-schema3-profile.mjs"
+    },
+    {
+      "from": "control/network/deployment-chain-adapter.mjs",
+      "specifier": "./lifecycle-host-registry-profile.mjs",
+      "target": "control/network/lifecycle-host-registry-profile.mjs"
+    },
+    {
+      "from": "control/network/deployment-chain-adapter.mjs",
+      "specifier": "./deployment-host-authority.mjs",
+      "target": "control/network/deployment-host-authority.mjs"
+    },
+    {
+      "from": "control/network/deployment-chain-adapter.mjs",
+      "specifier": "../abi/dependencies-34a3c0d6.json",
+      "target": "control/abi/dependencies-34a3c0d6.json"
+    },
+    {
+      "from": "control/network/deployment-chain-adapter.mjs",
+      "specifier": "../abi/dependencies-r1.json",
+      "target": "control/abi/dependencies-r1.json"
+    },
+    {
+      "from": "control/network/lifecycle-host-owned-authority.mjs",
+      "specifier": "./lifecycle-host-incarnation-journal.mjs",
+      "target": "control/network/lifecycle-host-incarnation-journal.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-owned-authority.mjs",
+      "specifier": "./deployment-host-authority-journal.mjs",
+      "target": "control/network/deployment-host-authority-journal.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-owned-authority.mjs",
+      "specifier": "./owned-durable-state.mjs",
+      "target": "control/network/owned-durable-state.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-owned-authority.mjs",
+      "specifier": "./deployment-permit-gate.mjs",
+      "target": "control/network/deployment-permit-gate.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-owned-authority.mjs",
+      "specifier": "./deployment-lifecycle-witness.mjs",
+      "target": "control/network/deployment-lifecycle-witness.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-owned-authority.mjs",
+      "specifier": "./deployment-isolation-runtime.mjs",
+      "target": "control/network/deployment-isolation-runtime.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-owned-authority.mjs",
+      "specifier": "./lifecycle-host-authority.mjs",
+      "target": "control/network/lifecycle-host-authority.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-owned-authority.mjs",
+      "specifier": "./deployment-host-authority.mjs",
+      "target": "control/network/deployment-host-authority.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-owned-authority.mjs",
+      "specifier": "./lease-release-journal.mjs",
+      "target": "control/network/lease-release-journal.mjs"
+    },
+    {
+      "from": "control/network/lifecycle-host-owned-authority.mjs",
+      "specifier": "./deployment-lifecycle-journal.mjs",
+      "target": "control/network/deployment-lifecycle-journal.mjs"
+    },
+    {
+      "from": "control/network/deployment-isolation-runtime.mjs",
+      "specifier": "./deployment-host-authority.mjs",
+      "target": "control/network/deployment-host-authority.mjs"
+    },
+    {
+      "from": "control/network/deployment-permit-gate.mjs",
+      "specifier": "./deployment-serving-permit.mjs",
+      "target": "control/network/deployment-serving-permit.mjs"
+    },
+    {
+      "from": "control/network/deployment-permit-gate.mjs",
+      "specifier": "./deployment-host-authority.mjs",
+      "target": "control/network/deployment-host-authority.mjs"
+    }
+  ],
+  "bareImports": [
+    "viem"
+  ],
+  "dynamicDataExplicitlyIncluded": [
+    "control/deploy/lifecycle/artifacts/EnclaveDeploymentLifecycle.json",
+    "control/deploy/lifecycle/artifacts/EnclaveDeployments.json",
+    "control/deploy/lifecycle/artifacts/EnclaveSelfHostingIdentity.json"
+  ],
+  "limits": "No candidate code, tests, builds, compiler, network, package install or author run. Bare viem resolved by existing lock evidence, whose ws discrepancy still needs repair. Literal scan is not a claim that all dynamic host imports or OS workloads are complete."
+}

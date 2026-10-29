@@ -1,0 +1,25 @@
+{
+  "unit": "ActiveState=active\nSubState=running\nInvocationID=1afdc6b42f36447197fe68cdde2cbc9d\nMainPID=1695331\n",
+  "processes": [
+    {
+      "pid": 1695346,
+      "ppid": 1695339,
+      "start": "159815773",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven"
+    },
+    {
+      "pid": 1695356,
+      "ppid": 1695346,
+      "start": "159815829",
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029"
+    }
+  ],
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "rootAuthorizedOneLaunch": true
+}
