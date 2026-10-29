@@ -1,0 +1,41 @@
+{
+  "status": "PREPARED_ONLY_NOT_EXECUTED",
+  "scope": "One read-only minipc SSH observation: two exact scheduled task principals/actions, sanitized known NODE_DIR assignments, port9600 owner SID/process stability, exact matching/named services. No raw environment/config/commandline/arguments or credentials. No apps restarted/stopped.",
+  "sourceConnection": "../sia-readonly-recovery-20261029/host-read.py and ../router-admission-observation-proposal-20261029/run.py",
+  "hashes": {
+    "probe.ps1": "54f0629ce7a03d5e40c7e00e3651698eb290d68227c92b09316a8268ae2571df",
+    "run.py": "d4d8a995de83b70c9f4686c22ef139548e8fb2b92180e78deabc141544237dcb",
+    "input-pins.json": "f5e1d3dd4227ddfacc90278af691705a01fa93784ae0f486cf447126271512ed",
+    "launch-command.txt": "e4fc1bae8863c79ce52a7187ef211e4fe6b0819f7bfed37735fac034d48bfa3b"
+  },
+  "guardPins": {
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py": "969d9273e53c79abf8604c363daa58b41a462bc4b7f3d03d813980edb771f6f4",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6"
+  },
+  "limits": {
+    "localHardMiB": 512,
+    "localRssMiB": 450,
+    "localAvailableFloorMiB": 27648,
+    "cpu": 1,
+    "swapMiB": 0,
+    "outerSec": 60,
+    "sshConnectSec": 6,
+    "transportDeadlineSec": 45,
+    "cimOperationTimeoutSec": 4,
+    "combinedOutputBytes": 32768,
+    "remoteSerializedOutputBytes": 24576,
+    "perConfigReadBytes": 65536,
+    "attempts": 1
+  },
+  "noExecution": true,
+  "noTestsBuilds": true,
+  "nativeQualification": false,
+  "limitations": [
+    "Local SSH termination does not confirm remote PowerShell exit; timeout remains unknown/no automatic retry.",
+    "CIM per-operation timeout is not a remote whole-job/RSS guarantee; root must decide bounded read-only observation admission. No new launcher or job qualification claimed.",
+    "Task principal/configuration plus matching listener owner do not alone establish exact task-process ancestry.",
+    "Literal NODE_DIR assignments are reported with known config calls; effective process NODE_DIR remains unknown if expansion/inherited environment/launcher shape prevents proof. No environment dump.",
+    "Exact task names sourced from existing install-host/install-node code; service identity on actual target remains UNKNOWN until observed.",
+    "No native EXLOCK/ACL/guard/reboot/admission/migration proof."
+  ]
+}
