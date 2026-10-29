@@ -1,0 +1,10 @@
+{
+  "knownProcessesExist": {
+    "mainPid": false,
+    "runnerPid": false,
+    "claudePid": false
+  },
+  "sameExecutableTreeProcesses": [],
+  "unknownSameExecutableCwd": [],
+  "terminalProcessAuditClear": true
+}

@@ -1,0 +1,257 @@
+TAP version 13
+# Subtest: ROOT-repaired: an invalid MAC is refused BEFORE any latch and nothing is forwarded
+ok 1 - ROOT-repaired: an invalid MAC is refused BEFORE any latch and nothing is forwarded
+  ---
+  duration_ms: 112.252901
+  type: 'test'
+  ...
+# Subtest: ROOT-repaired: held original -> exact authenticated cancellation resolves ONLY its own reservation -> late original refused
+ok 2 - ROOT-repaired: held original -> exact authenticated cancellation resolves ONLY its own reservation -> late original refused
+  ---
+  duration_ms: 140.782074
+  type: 'test'
+  ...
+# Subtest: r6 NEGATIVE: cancel of ANOTHER operation, a replayed cancel, or an in-progress operation never clears the reservation
+ok 3 - r6 NEGATIVE: cancel of ANOTHER operation, a replayed cancel, or an in-progress operation never clears the reservation
+  ---
+  duration_ms: 121.649903
+  type: 'test'
+  ...
+# Subtest: r6 NEGATIVE: no router key -> protected stage refused with nothing latched; a client x-router-mac is stripped
+ok 4 - r6 NEGATIVE: no router key -> protected stage refused with nothing latched; a client x-router-mac is stripped
+  ---
+  duration_ms: 81.617231
+  type: 'test'
+  ...
+# Subtest: r6 POSITIVE: accounted successful stage clears only from the exact confirmed reservation (DIAGNOSTIC snapshot)
+ok 5 - r6 POSITIVE: accounted successful stage clears only from the exact confirmed reservation (DIAGNOSTIC snapshot)
+  ---
+  duration_ms: 125.757417
+  type: 'test'
+  ...
+# Subtest: r6 obligations: cold replay restores the exact unknown operation; concurrent owner refused; missing log never fresh
+ok 6 - r6 obligations: cold replay restores the exact unknown operation; concurrent owner refused; missing log never fresh
+  ---
+  duration_ms: 10.415306
+  type: 'test'
+  ...
+# Subtest: r6 obligations: torn tail and released owner refuse; nothing is sent without a durable obligation
+ok 7 - r6 obligations: torn tail and released owner refuse; nothing is sent without a durable obligation
+  ---
+  duration_ms: 6.103042
+  type: 'test'
+  ...
+# Subtest: r6 obligations: a late ACCEPTED completion binds exactly; a cancelled one discharges only after the durable cancel
+ok 8 - r6 obligations: a late ACCEPTED completion binds exactly; a cancelled one discharges only after the durable cancel
+  ---
+  duration_ms: 7.779241
+  type: 'test'
+  ...
+# Subtest: r7 COMPOSITE: both managers + router accounting + supervisor: queued readiness -> Running permit/renewal -> TCP I/O -> Stop -> exact removal
+not ok 9 - r7 COMPOSITE: both managers + router accounting + supervisor: queued readiness -> Running permit/renewal -> TCP I/O -> Stop -> exact removal
+  ---
+  duration_ms: 372.169092
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/test/windows-permit/r7-composite.test.mjs:144:1'
+  failureType: 'testCodeFailure'
+  error: 'renewal installed the newer exact permit'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '0x6a97e017b135b79a08d38e4fbc9bc649d62b5b3fcd7b2c8207a3ecf16563c86e'
+  actual: '0x6a97e017b135b79a08d38e4fbc9bc649d62b5b3fcd7b2c8207a3ecf16563c86e'
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate/test/windows-permit/r7-composite.test.mjs:181:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT (extended, root r6 0/1): owner released after the actual accepted stage -> no usable success, exact retirement, cold recovery discharges
+ok 10 - ROOT (extended, root r6 0/1): owner released after the actual accepted stage -> no usable success, exact retirement, cold recovery discharges
+  ---
+  duration_ms: 118.89081
+  type: 'test'
+  ...
+# Subtest: r7 owner lost WHILE the raw stage is pending: the late 202 never recreates owner authority
+ok 11 - r7 owner lost WHILE the raw stage is pending: the late 202 never recreates owner authority
+  ---
+  duration_ms: 104.663318
+  type: 'test'
+  ...
+# Subtest: r7 a FAILED owned write after stage latches: no permit is sent, the loss is reported, retirement of the bound instance is the gate's
+ok 12 - r7 a FAILED owned write after stage latches: no permit is sent, the loss is reported, retirement of the bound instance is the gate's
+  ---
+  duration_ms: 114.174809
+  type: 'test'
+  ...
+# Subtest: ROOT (carried, root r6 0/1) supervisor observes a stopped assignment and retires existing staged compute
+ok 13 - ROOT (carried, root r6 0/1) supervisor observes a stopped assignment and retires existing staged compute
+  ---
+  duration_ms: 140.270956
+  type: 'test'
+  ...
+# Subtest: r7 Stop is consumed even when the manager capability (new-work admission) is unavailable
+ok 14 - r7 Stop is consumed even when the manager capability (new-work admission) is unavailable
+  ---
+  duration_ms: 135.090388
+  type: 'test'
+  ...
+# Subtest: r7 canonical Offline (proof-verified, this host) retires staged compute through the actual supervisor
+ok 15 - r7 canonical Offline (proof-verified, this host) retires staged compute through the actual supervisor
+  ---
+  duration_ms: 155.953228
+  type: 'test'
+  ...
+# Subtest: r7 unknown authority FENCES and keeps the staged obligation (no invented Stop); restored authority reuses the SAME instance
+ok 16 - r7 unknown authority FENCES and keeps the staged obligation (no invented Stop); restored authority reuses the SAME instance
+  ---
+  duration_ms: 141.958445
+  type: 'test'
+  ...
+# Subtest: r7 late raw stage: a Stop observed while the owned stage is in flight waits for it, withdraws it, and only then acknowledges
+ok 17 - r7 late raw stage: a Stop observed while the owned stage is in flight waits for it, withdraws it, and only then acknowledges
+  ---
+  duration_ms: 222.639273
+  type: 'test'
+  ...
+# Subtest: ROOT r6 late spawn (carried, root r6 0/1): revokeHostAuthority resolves only after the late instance is withdrawn and the hold acknowledged
+ok 18 - ROOT r6 late spawn (carried, root r6 0/1): revokeHostAuthority resolves only after the late instance is withdrawn and the hold acknowledged
+  ---
+  duration_ms: 141.601528
+  type: 'test'
+  ...
+# Subtest: ROOT actual entry validator accepts explicit absolute router attestation key while preserving old config
+ok 19 - ROOT actual entry validator accepts explicit absolute router attestation key while preserving old config
+  ---
+  duration_ms: 0.256569
+  type: 'test'
+  ...
+# Subtest: ROOT actual entry validator refuses unknown config and relative router key
+ok 20 - ROOT actual entry validator refuses unknown config and relative router key
+  ---
+  duration_ms: 0.116509
+  type: 'test'
+  ...
+# Subtest: R4 DIRECT: host lifecycle -> supervisor -> r18 runtime -> GuestdControl -> manager: stage, readiness, permit, I/O, Stop, removal
+ok 21 - R4 DIRECT: host lifecycle -> supervisor -> r18 runtime -> GuestdControl -> manager: stage, readiness, permit, I/O, Stop, removal
+  ---
+  duration_ms: 486.266369
+  type: 'test'
+  ...
+# Subtest: R4 legacy neighbour: an unenrolled deployment keeps the legacy path (no protected stage)
+ok 22 - R4 legacy neighbour: an unenrolled deployment keeps the legacy path (no protected stage)
+  ---
+  duration_ms: 102.045304
+  type: 'test'
+  ...
+# Subtest: R4 native role keeps its pins on the protected stage; general role never gets them
+ok 23 - R4 native role keeps its pins on the protected stage; general role never gets them
+  ---
+  duration_ms: 97.912909
+  type: 'test'
+  ...
+# Subtest: R4 DELETE through an unreadable journal withdraws first and answers 500 (actual MAC/TCP)
+ok 24 - R4 DELETE through an unreadable journal withdraws first and answers 500 (actual MAC/TCP)
+  ---
+  duration_ms: 124.760842
+  type: 'test'
+  ...
+# Subtest: R5 DIRECT: repeated queued reconcile keeps the SAME staged instance through readiness, then Running permit, I/O, Stop
+ok 25 - R5 DIRECT: repeated queued reconcile keeps the SAME staged instance through readiness, then Running permit, I/O, Stop
+  ---
+  duration_ms: 635.749326
+  type: 'test'
+  ...
+# Subtest: R5 changed client origin: an enrolled deployment never reaches legacy lookup; it reaches the policy's protected owner
+ok 26 - R5 changed client origin: an enrolled deployment never reaches legacy lookup; it reaches the policy's protected owner
+  ---
+  duration_ms: 199.882123
+  type: 'test'
+  ...
+# Subtest: R5 host identity mismatch holds enrolled deployments; unenrolled neighbours stay legacy
+ok 27 - R5 host identity mismatch holds enrolled deployments; unenrolled neighbours stay legacy
+  ---
+  duration_ms: 96.07934
+  type: 'test'
+  ...
+# Subtest: R5 lost stage (actual MAC/TCP, TEST held transport): owned until the exact outcome; cancel refuses the late signed request
+ok 28 - R5 lost stage (actual MAC/TCP, TEST held transport): owned until the exact outcome; cancel refuses the late signed request
+  ---
+  duration_ms: 94.62638
+  type: 'test'
+  ...
+# Subtest: R5 inventory: a terminal row never masks an unmapped live protected VM
+ok 29 - R5 inventory: a terminal row never masks an unmapped live protected VM
+  ---
+  duration_ms: 122.455917
+  type: 'test'
+  ...
+# Subtest: R5 unsigned protected mutation aliases are refused without disturbing state; legacy routes unchanged
+ok 30 - R5 unsigned protected mutation aliases are refused without disturbing state; legacy routes unchanged
+  ---
+  duration_ms: 126.299462
+  type: 'test'
+  ...
+# Subtest: ROOT processed permit response loss reconciles exact manager-bound authority without resend
+ok 31 - ROOT processed permit response loss reconciles exact manager-bound authority without resend
+  ---
+  duration_ms: 428.356438
+  type: 'test'
+  ...
+# Subtest: ROOT owner release after actual accepted stage cannot return an owned success
+ok 32 - ROOT owner release after actual accepted stage cannot return an owned success
+  ---
+  duration_ms: 102.320901
+  type: 'test'
+  ...
+# Subtest: r6 POSITIVE: repeated queued readiness keeps ONE staged instance (routine fence is nondestructive)
+ok 33 - r6 POSITIVE: repeated queued readiness keeps ONE staged instance (routine fence is nondestructive)
+  ---
+  duration_ms: 158.104303
+  type: 'test'
+  ...
+# Subtest: ROOT (carried, r5 evidence 0/1) explicit authority revocation withdraws an owned ready staged instance promptly
+ok 34 - ROOT (carried, r5 evidence 0/1) explicit authority revocation withdraws an owned ready staged instance promptly
+  ---
+  duration_ms: 142.64789
+  type: 'test'
+  ...
+# Subtest: r6 NEGATIVE: a HUNG boundary acknowledgment never delays staged compute retirement; the revocation still reports it
+ok 35 - r6 NEGATIVE: a HUNG boundary acknowledgment never delays staged compute retirement; the revocation still reports it
+  ---
+  duration_ms: 3125.787971
+  type: 'test'
+  ...
+# Subtest: r6 NEGATIVE: a LATE spawn that completes after revocation is withdrawn before the revocation confirms absence
+ok 36 - r6 NEGATIVE: a LATE spawn that completes after revocation is withdrawn before the revocation confirms absence
+  ---
+  duration_ms: 153.747389
+  type: 'test'
+  ...
+# Subtest: ROOT another manager epoch cannot discharge pending old-epoch operation
+ok 37 - ROOT another manager epoch cannot discharge pending old-epoch operation
+  ---
+  duration_ms: 93.530816
+  type: 'test'
+  ...
+# Subtest: ROOT explicit authority revocation withdraws an owned ready staged instance promptly
+ok 38 - ROOT explicit authority revocation withdraws an owned ready staged instance promptly
+  ---
+  duration_ms: 894.036782
+  type: 'test'
+  ...
+# Subtest: ROOT supervisor observes a stopped assignment and retires existing staged compute
+ok 39 - ROOT supervisor observes a stopped assignment and retires existing staged compute
+  ---
+  duration_ms: 668.843718
+  type: 'test'
+  ...
+1..39
+# tests 39
+# suites 0
+# pass 38
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10489.502725

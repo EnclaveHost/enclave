@@ -1,0 +1,40 @@
+{
+  "changes": {
+    "REPORT-WINDOWS-PERMIT-R7.md": {
+      "seedSha256": null,
+      "finalSha256": "368bac6c86bedad08e87bf8af40d9f20623fd181532e9c1743ef6f483729689d",
+      "kind": "new"
+    },
+    "control/network/deployment-isolation-runtime.mjs": {
+      "seedSha256": "8ea318efe5186655260e4332a7908f7787ea76f8e1bf2d81001fe8644ba3dd5b",
+      "finalSha256": "21140a534e83494b7f282763d4b54fd6fe40133f1a2335a0eb5d43d79d55f65e",
+      "kind": "modified"
+    },
+    "control/windows/node/protected-isolation.mjs": {
+      "seedSha256": "665659d0b34038e1ab6c0cd9b5c6e4d6d9a008d3013424ec79c52bc571c4eeb2",
+      "finalSha256": "e835894722272f533acd789ece194daad02ad833ec8ee79430fc79db1786c459",
+      "kind": "modified"
+    },
+    "control/windows/node/protected-supervisor.mjs": {
+      "seedSha256": "ffbdc2480cfba233fa9d89bcb5f730efcc8d6018d31f1c1ebf9d6b0d4d737ac4",
+      "finalSha256": "2b3bff00ba5768033361eca308ed182fff50f721dab4888e658a74abcf9146f7",
+      "kind": "modified"
+    },
+    "test/windows-permit/r7-composite.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "6be395f877221d4ddb5dcc83874a895f546478b7ffc935fc46f23866a5a2a5da",
+      "kind": "new"
+    },
+    "test/windows-permit/r7-owner-lifetime.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "65a765e1616a86a56896a2f6266696b5ca0037b7c07138c746018fb83f2f4000",
+      "kind": "new"
+    },
+    "test/windows-permit/r7-supervisor-withdrawal.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "c48262f065d754a979948711987033ec295ec656727a122177072a2d2ff4bcdd",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}

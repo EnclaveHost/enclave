@@ -1,18 +1,18 @@
 # Decentralized lifecycle, admission and gas funding
 
-## Current rollout status — October 29, r6 review
+## Current rollout status — October 29, r7 review
 
 This feature is not activated on the new lifecycle protocol. The sections below retain the evidence history; a later passing review supersedes only the exact failures it covers.
 
 | Area | Established evidence | Remaining before production |
 | --- | --- | --- |
 | Event-driven lifecycle and host Offline | Linked local-chain contract/adapter tests, canonical registry fixtures and owned host recovery checks | Live independently authenticated authority, actual runtime composition, funded independent Offline submitter and fenced migration |
-| Windows permit enforcement | Deadline/storage repairs and authenticated hold behavior pass local real-module tests; actual permit expiry closes TCP and removes TEST compute | Supervisor Stop/Offline dispatch, late-spawn withdrawal acknowledgement, journal owner lifetime, real authority composition, positive composite/native wiring, Windows exclusion and supported-workload qualification |
+| Windows permit enforcement | Deadline/storage repairs and authenticated hold behavior pass local real-module tests; actual permit expiry closes TCP and removes TEST compute | Owner loss across permit responses and unknown-stage cleanup, production authority composition, native protected wiring, Windows exclusion and supported-workload qualification |
 | Capacity and joining-host gas | Required attestation/test-before-listing rules documented; protected-budget contract fixtures | Zero-gas bootstrap test producer, fresh measured capacity consumers, sponsor selection and liability-safe provisioner fallback |
 | Automatic gas funding / self-host Top up | Existing finite grants produced two confirmed recovery payments under the legacy reserve | New-protocol authorization and ordinary-reserve refill, protected Offline separation and app-card integration |
 | Censorship resistance | Independent-owner policy and local recovery cases pass for pinned candidates | End-to-end cold recovery, new-user deployment, storage endpoint failure and continued hosting under Enclave refusal |
 
-The current [Windows r6 review](../../ops/unified-funding-20261028/windows-manager-review-r6/ROOT-REVIEW.md) passes26 of28 focused checks after two small root fixes to entry configuration and manager-incarnation reconciliation. Explicit staged revocation and authenticated router cancellation now pass; actual supervisor Stop dispatch and late-spawn withdrawal acknowledgement still fail. A separate actual HTTP/MAC test also fails because accepted-stage success can be returned after journal ownership is released. These are remaining implementation defects, not production results. Existing direct supervisor/runtime/TCP tests remain passing with labeled TEST authority and hardware. Full positive composite/native operation, real authority and ownership lifetime, supported workloads and Windows qualification remain unfinished. No candidate was installed and no additional app recovery or payment is claimed.
+The current [Windows r7 review](../../ops/unified-funding-20261028/windows-manager-review-r7/ROOT-REVIEW.md) passes the previous Stop, late-launch and accepted-stage ownership regressions. Its actual two-manager control and router TCP test passes after correcting the test's split sequence journals, with real router capacity checks and labeled TEST authority/hardware. New tests still fail for owner loss during a processed permit response and cleanup after a lost processed-stage response. Production authority wiring, native protected workloads, remaining workload boundaries and Windows ownership qualification are unfinished. No candidate was installed and no additional app recovery or payment is claimed.
 
 ## Qualified ownership baseline
 
