@@ -1,0 +1,10 @@
+{
+  "id": "finish-enclave-rpc-production-rollout",
+  "status": "ACTIVE",
+  "promptSha256": "6bd8cb9fdc6ea75b46c9ec0efd6a91938be9f35135357398f78829e67fa687e2",
+  "changedFields": [
+    "prompt",
+    "updated_at"
+  ],
+  "scheduleAndThreadPreserved": true
+}
