@@ -10,7 +10,7 @@
 //  - Online gates (admission, new work, capacity, legacy release hold) refuse STARTS and SERVING only. They never
 //    stop the runner from reading authenticated state, reconciling a journaled intent or preparing a revocation
 //    (queue/stop) intent. A local restriction fences immediately and the runner then records it on the ledger.
-//  - The old ledger / old address book matter only until a route is activated by finalized quiescence evidence.
+//  - The exact old ledger is proof-bound at handoff; a mutable old address book is never handoff authority.
 //
 // Routes are a LOCAL ROUTING DECISION, not chain authority. They are fixed at
 // construction (frozen, finite, exact) and keyed by deployment AND old/new ledger.
@@ -34,7 +34,7 @@ const RUNTIME_FNS = ['fence', 'stop', 'health', 'ensureStaged', 'serve'];
 // Every journal method DeploymentLifecycleRunner calls.
 const JOURNAL_FNS = ['read', 'observeAssignment', 'restoreDenial', 'deny', 'settleMined', 'archiveMined', 'settleTransition',
   'prepareTransition', 'healthy', 'unhealthy', 'failure', 'decision'];
-const HOST_FNS = ['legacyLedger', 'legacyHold', 'ownerRestriction', 'platformService', 'platformNewWork', 'legacyActivity', 'capacity', 'record', 'log'];
+const HOST_FNS = ['legacyHold', 'ownerRestriction', 'platformService', 'platformNewWork', 'legacyActivity', 'capacity', 'record', 'log'];
 const PROOF_TIERS = ['finalized', 'l1-finalized-derived'];
 // Revocation targets: never blocked by an online denial (admission, new work, capacity, platform outage).
 const REVOCATIONS = new Set(['queued', 'stopped']);
@@ -304,7 +304,7 @@ export function createLifecycleDispatch({ routes, chain, runtime, journal, pins,
     /**
      * Verify each not-yet-activated route once. Activation is the handoff: it binds the EXACT legacy ledger, an empty
      * legacy release journal entry (never cleared here), no legacy work in this process and finalized quiescence
-     * evidence. After it, the old ledger/address book is not consulted again for this route.
+     * evidence. The mutable address book is not consulted, even on a cold restart.
      */
     activate() {
       if (!host) return Promise.reject(Error('lifecycle dispatch is not attached to a host'));
@@ -313,7 +313,8 @@ export function createLifecycleDispatch({ routes, chain, runtime, journal, pins,
           if (activated.has(id)) continue;
           if (blocked.length) { heldWhy.set(id, `lifecycle adapters missing: ${blocked.join(', ')}`); continue; }
           const local = () => {
-            if (String(host.legacyLedger() || '').toLowerCase() !== r.oldLedger) return 'legacy ledger is not this route\'s old ledger';
+            // The explicit route and its authenticated old-ledger proof bind the source ledger.
+            // A mutable discovery/address-book choice is not handoff authority, including after restart.
             const hold = host.legacyHold(id); if (hold) return `legacy release intent unresolved (retained): ${hold}`;
             const busy = host.legacyActivity(id); if (!Array.isArray(busy)) return 'legacy activity unknown';
             return busy.length ? `legacy work in this process: ${busy.join(', ')}` : null;

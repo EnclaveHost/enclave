@@ -4,7 +4,7 @@
 
 ## Verified source changes
 
-The generated candidate host separates its local owner's controls from the Enclave platform policy, applies the latter only to authenticated platform-owned hosts, and preserves old behavior for unrouted apps. It removes the legacy address-book dependency from the dispatch after its handoff. The admission helper makes central catalog moderation optional under the host owner's committed policy. These changes do not yet remove central dependencies inside the actual r6 chain adapter or platform ingress/custody paths.
+The generated candidate host separates its local owner's controls from the Enclave platform policy, applies the latter only to authenticated platform-owned hosts, and preserves old behavior for unrouted apps. After the additional root correction below, the dispatch handoff binds the explicit old ledger without requiring the mutable legacy address book, including on a cold restart. The admission helper makes central catalog moderation optional under the host owner's committed policy. These changes do not yet remove central dependencies inside the actual r6 chain adapter or platform ingress/custody paths.
 
 All 60 delivered author tests passed, zero skipped. They exercise the real candidate host/runner and existing admission helpers against fake loopback RPC and mock authority/runtime/transactions. They are not live Base, host attestation, financial or production independence evidence.
 
@@ -25,3 +25,11 @@ The combined candidate suite after that change is **61 pass, 1 fail, 0 skipped**
 Each run used the shared small 256 MiB/no-swap allocation, inner RSS cap 220 MiB, floor 27648 MiB, one CPU and bounded timeout. Author suite outer peak235 MiB/minavailable34166; fixed suite+proof regressions outer peak233/minavailable34407; publisher tests outer peak195/minavailable34273. All owned test processes ended; fake RPC listeners were closed by their fixture cleanup. No production file, relay, controller, browser key, journal or payment was changed.
 
 Logs retain the exact author baseline, combined fixed suite, separate runner/proof regressions and the two publisher failures. `review-pins.json` records the final staged source and baseline dependencies. Next source task `lifecycle-independent-composition-r3-20261029` is prepared but not started; the peer's actual ledger/prover author and one bounded compile take the shared main lane first.
+
+## Cold handoff correction
+
+A new root regression uses the real durable lifecycle journal, reopened from disk, and the real dispatch/runner with mock finalized handoff and runtime. The initial positive control serves. Changing only the legacy address book while the process is down then prevents activation after restart. `cold-handoff-before.log` preserves that intended failure; it is not a production cold-recovery result.
+
+The root fix removes current `legacyLedger()` equality from dispatch activation and from required host functions. The explicit route's old-ledger address remains bound to the exact authenticated finalized source proof. Both pre-await and post-await legacy activity/release-hold checks remain. The updated author tests retain wrong-source-proof rejection and a late arriving release hold; only the obsolete global book expectation changed. The new cold-restart regression passes.
+
+The final full candidate suite is **62 pass, 3 fail, 0 skipped**, 65 checks (`cold-fixed-final.log`, exit 1). Remaining failures are recovered capacity and the two publisher veto tests described above. The intermediate 61-pass/4-fail run is retained: its additional author test expected the old book veto and was corrected to test actual source-proof binding instead. Earlier 61/1 and separate 26 proof results are historical, not the current full count. Final small-lane peak234 MiB/minavailable34192 MiB; no production mutation.

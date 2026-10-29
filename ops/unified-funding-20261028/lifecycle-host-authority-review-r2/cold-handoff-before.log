@@ -1,0 +1,32 @@
+TAP version 13
+# Subtest: cold restart after finalized handoff does not restore the old global address-book veto
+not ok 1 - cold restart after finalized handoff does not restore the old global address-book veto
+  ---
+  duration_ms: 13.466943
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-review-r2/test/root-cold-handoff.test.mjs:11:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    a restart must not restore authority to the old global address book
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-review-r2/test/root-cold-handoff.test.mjs:25:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 211.416139

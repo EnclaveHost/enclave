@@ -97,7 +97,7 @@ test('activation requires proof-qualified evidence binding exactly this route', 
   }
 });
 
-test('BEFORE handoff: a legacy release intent, legacy activity or another legacy ledger keeps the route held; the intent is retained', async () => {
+test('handoff binds the old-ledger proof and retained local intents, not the mutable legacy address book', async () => {
   const { f, d } = make();
   f.V.holds.set(A, 'sponsored release may still land');
   await d.activate(); assert.match(d.state()[0].held, /release intent/); assert.equal(f.calls.quiescence.length, 0);
@@ -105,10 +105,11 @@ test('BEFORE handoff: a legacy release intent, legacy activity or another legacy
   f.V.holds.delete(A); f.V.activity.set(A, ['a legacy renewal in flight']);
   await d.activate(); assert.match(d.state()[0].held, /legacy work/);
   f.V.activity.delete(A); f.V.ledger = OTHER;
-  await d.activate(); assert.match(d.state()[0].held, /old ledger/);
-  f.V.ledger = OLD; f.S.quiescence = (r) => { f.V.ledger = OTHER; return good(r); };   // moves across the evidence await
+  f.S.quiescence = (r) => { f.V.holds.set(A, 'new unresolved release during proof read'); return good(r); };
   await d.activate(); assert.equal(d.state()[0].activated, false);
-  f.V.ledger = OLD; f.S.quiescence = good;
+  assert.match(d.state()[0].held, /release intent/);
+  assert.equal(f.V.holds.get(A), 'new unresolved release during proof read');
+  f.V.holds.delete(A); f.S.quiescence = good;
   await d.activate(); assert.equal(d.state()[0].activated, true);
   assert.equal(d.state()[0].activated, true); assert.equal(f.calls.read.length, 0);
 });

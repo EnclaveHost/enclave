@@ -106,17 +106,19 @@ test('the owner turning hosting off: the real enforceOff -> #giveUp path stops a
   assert.equal(rpc.chainTx.sent.length, sent0, 'no legacy transaction');
 });
 
-// CHANGED (r2): r1 asserted that a moved address-book ledger holds an ACTIVATED route. It still holds activation; after
-// the finalized handoff the old global book is no longer a runtime dependency of the routed app.
-test('address-book ledger change: holds activation BEFORE handoff; does not disable the routed app AFTER it', async () => {
+// ROOT cold-recovery correction: the exact finalized source-ledger proof is authority, not the mutable book.
+// A proof for another source ledger still refuses activation.
+test('address-book changes cannot veto exact finalized handoff; wrong source-ledger proof still refuses', async () => {
   const f = fixture({ hostId: HOSTID }), d = D.createLifecycleDispatch(f.parts([route(A)]));
   const { h } = await box(Host, d); serve(h);
   const was = chain.addresses.deployments;
   try {
     chain.addresses.deployments = '0x' + 'd1'.repeat(20);
-    await d.activate(); assert.match(d.state()[0].held, /old ledger/); assert.equal(f.calls.quiescence.length, 0);
+    const prove=f.S.quiescence;
+    f.S.quiescence=r=>({...prove(r),ledger:chain.addresses.deployments});
+    await d.activate(); assert.match(d.state()[0].held, /does not bind/); assert.equal(f.calls.quiescence.length, 1);
     assert.equal((await d.reconcile(A)).status, 'held'); assert.equal(f.calls.read.length, 0);
-    chain.addresses.deployments = was;
+    f.S.quiescence=prove;
     await d.activate(); assert.equal(d.state()[0].activated, true);
     for (const moved of ['0x' + 'd1'.repeat(20), '0x' + 'd2'.repeat(20)]) {
       chain.addresses.deployments = moved;

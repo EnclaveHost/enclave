@@ -2,7 +2,7 @@
   "source": {
     "src/network/deployment-lifecycle-runner.mjs": "75590c8e4be2095b9011ea3b482ceef90a1d21f92ad676dba41578093e7db668",
     "src/network/lifecycle-host-authority.mjs": "434219168149fd3a7d5af404c27217b7426832d94e3d03e6d1cc81ef608a8582",
-    "src/network/lifecycle-host-dispatch.mjs": "3e39df7451893a987c05fb4725627d61fe9c9e93c51bb418c254aaf5cfda6cef",
+    "src/network/lifecycle-host-dispatch.mjs": "9c9324d51f64b4eb3f1ad5777a03a840ca1aead3ba7ba402eff057d566c631aa",
     "src/tools/generate-lifecycle-host-candidate.mjs": "845fd5833295aab9715665800e31af90460e72d740b069fc6f0cb9a55607eabf"
   },
   "baseline": {
@@ -12,5 +12,11 @@
     "network/deployment-authority-window.mjs": "b852076f53e6ed357b9731f2c2eca6f15f6de32ae7c84e83081bbec1e0ab2c96",
     "network/deployment-lifecycle-journal.mjs": "c4db54b3509f7a318b938dbfe11abdf565742611ffe6e8898d465b6fa005f601",
     "network/deployment-isolation-runtime.mjs": "40333d5bc08796f2881650331022746abc0b93051b48351c89f84d62a4462fd9"
+  },
+  "reviewTests": {
+    "test/root-cold-handoff.test.mjs": "2903a8d0e2a58945e3bf04322473f2c27e0f02294f1fcdabf8d39fa9fbbaec8a",
+    "test/root-composition.test.mjs": "c659e1153bb58c002d6a697cd784485c346f34e00dc786acea9dd46c57622cc6",
+    "test/root-dispatch-regressions.test.mjs": "4bd47fc24715b325795573d3cf7776cf7884d93963e9e71cf254248653e9cf73",
+    "test/root-publisher-veto.test.mjs": "6211c978e3019e4d347085a28965efd588b442794c335473617eb204e6e5b566"
   }
 }
