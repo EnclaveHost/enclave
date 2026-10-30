@@ -1,0 +1,1 @@
+Frozen source only, UNVALIDATED. Same invocation24fba5f4e5134d92a8f3358dba2c627f terminal rc0; collector already ran ONCE. Root verified all129 hashes/exactpaths.294 readonly pins unchanged,9 changes, no removals or replay/outside issues. Author reports independent catalog read unfinished. Root review/testing is separate; no deployment/transaction.
