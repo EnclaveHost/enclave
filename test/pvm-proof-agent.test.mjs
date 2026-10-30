@@ -507,6 +507,7 @@ test("reorganizations: a receipt reorganized away is rebroadcast while its ancho
     agent.close();
     // (2) the anchor itself is reorganized away: snapshot BEFORE the anchor block exists
     const sd = path.join(S.dir, "reorg2");
+    const provenBeforeReorg = await S.chain.provenUntil(S.D);
     snap = await S.chain.snapshot(); reorged = false;
     await S.chain.mine(2);
     const holder = { snap };
@@ -523,7 +524,18 @@ test("reorganizations: a receipt reorganized away is rebroadcast while its ancho
     await S.later();
     S.clock.mineOnSleep = true;
     const b = await agent.tick();
-    assert.ok(["stuck", "reorged-out", "nonce-consumed"].includes(b.kind), JSON.stringify(b));
+    // Anvil may mine the orphaned transaction again before the agent observes
+    // its removal. The contract must then revert it; no orphaned proof can count.
+    assert.ok(["stuck", "reorged-out", "nonce-consumed", "reverted"].includes(b.kind), JSON.stringify(b));
+    const orphan = S.journal(sd).find(e => e.ev === "signed").checkpoint;
+    const canonicalAnchor = await S.chain.publicClient.getBlock({ blockNumber: BigInt(orphan.anchorBlock) });
+    assert.notEqual(canonicalAnchor.hash, orphan.anchorHash, "the signed anchor was actually reorganized away");
+    assert.equal(await S.chain.provenUntil(S.D), provenBeforeReorg, "an orphaned proof contributes no proven time");
+    if (b.kind === "reverted") {
+      const receipt = await S.chain.publicClient.getTransactionReceipt({ hash: b.hash });
+      assert.equal(receipt.status, "reverted");
+      assert.deepEqual(receipt.logs, [], "the reverted proof produced no checkpoint event");
+    }
     if (b.kind === "stuck") assert.equal(b.fresh, true, "a proof whose anchor is gone can only be replaced by a fresh one");
     await S.later(900);   // evm_revert also rewinds chain time: move past the upto the VM already signed
     const c = await agent.tick();

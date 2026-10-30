@@ -260,7 +260,8 @@ test('the privacy agent switch: a ban DURING the first startup stops it at once;
   // explicit fresh admit: a NEW transport, never the stopped one
   refusal = null; await judge();
   const h2 = env.current(); assert.ok(h2 && h2 !== h1);
-  await until(() => h2.circuits.size === 1, 30_000, 'the fresh transport\'s circuit');
+  await until(() => h2.circuits.size === 1, 30_000, 'the fresh transport\'s circuit')
+    .catch(e => { throw new Error(e.message + '\n' + w.logs.join('\n'), { cause: e }); });
   assert.match(await w.visit([...h2.circuits.values()][0]), /^directory-replica /);
   assert.equal(w.servicePeers().length, 1, 'exactly the fresh transport\'s peer at the exit');
   await h1.close();                                          // a late close of the old one changes nothing
