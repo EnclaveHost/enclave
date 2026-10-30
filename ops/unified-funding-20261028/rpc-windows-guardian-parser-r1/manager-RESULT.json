@@ -1,0 +1,26 @@
+{
+  "at": 1793396371.586028,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 222,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "schema": "owned-rpc-parser-only/1",
+    "sourceSha256": "b3f4972b9f3e921595a4cc56552a2be6f0b5836ab03cea6e510261881e2a892a",
+    "powershellVersion": "5.1.26100.9711",
+    "functions": [
+      "Get-RpcMonotonicMilliseconds",
+      "Assert-RpcProtectedPath",
+      "Read-RpcOwnedContract",
+      "Get-RpcOwnedVm",
+      "Get-RpcOwnedVmObservation",
+      "Invoke-RpcOwnedStopRequest",
+      "Get-RpcOwnedStopEvidence"
+    ],
+    "errors": [],
+    "imported": false,
+    "executed": false
+  }
+}
