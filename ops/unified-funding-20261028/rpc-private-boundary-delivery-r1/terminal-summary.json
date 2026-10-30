@@ -1,0 +1,82 @@
+{
+  "admission": {
+    "unit": "enclave-rpc-private-boundary-r1-20261030-author.service",
+    "invocationId": "ae5d504f538347abbb3c14aa159d288d",
+    "mainPid": 2506179,
+    "runnerPid": 2506201,
+    "claudePid": 2506211,
+    "identities": [
+      {
+        "pid": 2506179,
+        "startTicks": "165536234",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "cpuAffinity": [
+          1
+        ]
+      },
+      {
+        "pid": 2506201,
+        "startTicks": "165536245",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "cpuAffinity": [
+          1
+        ]
+      },
+      {
+        "pid": 2506211,
+        "startTicks": "165536282",
+        "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+        "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-private-boundary-author-r1-20261030",
+        "cpuAffinity": [
+          1
+        ]
+      }
+    ],
+    "capturedAt": 1793350267.6651273,
+    "executableSha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1",
+    "preparedSha256": "584d1563ee37f0a0400587b77e4e502a9a07f2d21ef2ae899d43fad03c2b527f",
+    "sourceOnly": true,
+    "rootAccountVerified": true,
+    "runnerAccount": {
+      "loggedIn": true,
+      "email": "steven.r.batchelor@gmail.com",
+      "subscriptionType": "max"
+    }
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 124,
+    "finishedAt": 1793351149.12644,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "2489571a-329a-4c5f-b06b-ab4689422b9e",
+  "duration_ms": null,
+  "num_turns": null,
+  "configuredMaxAgenticTurns": 20,
+  "distinctAssistantMessageIds": 8,
+  "transcriptUserRows": 24,
+  "turnMetricNote": "Raw success-result num_turns is a different user-message counter from max-agentic/API-turn limit; retain without conflating. See pinned turn-metric-investigation.json.",
+  "is_error": true,
+  "outputParseFailed": true,
+  "files": 12,
+  "changedFiles": 2,
+  "removedFiles": [],
+  "manifestSha256": "9cfa288981c63d20acb192bd19b23867578e0597718f1a285510a7dc3d99b3aa",
+  "firstMutations": 2,
+  "firstMutationManifestSha256": "30cbf029a92e742a742c6fed1c960cd75650eee48d898b2c473b6ffd7ce226d6",
+  "currentInvocationTools": {
+    "Read": 11,
+    "Grep": 1,
+    "Edit": 10,
+    "Write": 1
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [],
+  "mutationAuditSha256": "a2c2171e968de0a350e06f978789cbba20ed0993a568809a62d098a9960531ab",
+  "innerGuard": "[memory-guard] exit=124 peakTreeRssMiB=266 minHostAvailableMiB=28987\n",
+  "outerGuard": "[memory-guard] exit=124 peakTreeRssMiB=352 minHostAvailableMiB=28987\n"
+}
