@@ -1,0 +1,1 @@
+Read-only current boot/state nonce/service invocation/cgroup identity bound. At16:56:51 exact EL service205a20e90fe34de19c0b348d24c0d6fd/Main306528 active, memory1696837632/peak1696915456 and allOOMevents0. No journal markers returned; do not infer completed recovery/RPC/zero I/O from absence. Main native remains sole writer, no signals/restarts/config edits.

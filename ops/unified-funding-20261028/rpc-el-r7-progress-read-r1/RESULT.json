@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.7065672930330038,
+  "stdout": "{\"at\": 1793379411.0629694, \"sameInvocation\": true, \"unit\": {\"MainPID\": \"306528\", \"ActiveState\": \"active\", \"SubState\": \"running\", \"InvocationID\": \"205a20e90fe34de19c0b348d24c0d6fd\"}, \"memory\": {\"memory.current\": \"1696837632\", \"memory.peak\": \"1696915456\", \"memory.events\": \"low 0\\nhigh 0\\nmax 0\\noom 0\\noom_kill 0\\noom_group_kill 0\"}, \"markers\": [], \"readOnly\": true}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 366,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 8208,
+  "stdinBytesRequested": 8208,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

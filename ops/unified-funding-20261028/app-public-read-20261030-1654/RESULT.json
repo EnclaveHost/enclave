@@ -1,0 +1,18 @@
+[
+  {
+    "host": "59f1273d.app.enclave.host",
+    "at": 1793379196.9929786,
+    "method": "GET",
+    "readOnly": true,
+    "error": "URLError",
+    "detail": "<urlopen error [Errno -3] Temporary failure in name resolution>"
+  },
+  {
+    "host": "9a28642b.app.enclave.host",
+    "at": 1793379198.3030913,
+    "method": "GET",
+    "readOnly": true,
+    "error": "URLError",
+    "detail": "<urlopen error [Errno -3] Temporary failure in name resolution>"
+  }
+]

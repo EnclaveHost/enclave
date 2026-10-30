@@ -1,0 +1,54 @@
+[
+  {
+    "host": "59f1273d.app.enclave.host",
+    "edge": "us-west",
+    "ip": "134.199.235.187",
+    "at": 1793379283.350606,
+    "readOnly": true,
+    "method": "HEAD",
+    "tlsVerified": true,
+    "rc": 35,
+    "headers": "",
+    "stderr": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n",
+    "truncated": false
+  },
+  {
+    "host": "59f1273d.app.enclave.host",
+    "edge": "eu-central",
+    "ip": "134.209.248.172",
+    "at": 1793379283.663207,
+    "readOnly": true,
+    "method": "HEAD",
+    "tlsVerified": true,
+    "rc": 35,
+    "headers": "",
+    "stderr": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n",
+    "truncated": false
+  },
+  {
+    "host": "9a28642b.app.enclave.host",
+    "edge": "us-west",
+    "ip": "134.199.235.187",
+    "at": 1793379283.7925217,
+    "readOnly": true,
+    "method": "HEAD",
+    "tlsVerified": true,
+    "rc": 35,
+    "headers": "",
+    "stderr": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n",
+    "truncated": false
+  },
+  {
+    "host": "9a28642b.app.enclave.host",
+    "edge": "eu-central",
+    "ip": "134.209.248.172",
+    "at": 1793379284.1056852,
+    "readOnly": true,
+    "method": "HEAD",
+    "tlsVerified": true,
+    "rc": 35,
+    "headers": "",
+    "stderr": "curl: (35) TLS connect error: error:0A000126:SSL routines::unexpected eof while reading\n",
+    "truncated": false
+  }
+]

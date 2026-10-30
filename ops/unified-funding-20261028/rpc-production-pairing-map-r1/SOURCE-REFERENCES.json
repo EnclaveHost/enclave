@@ -1,0 +1,62 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r8/source/trial-chain-service.py",
+    "sha256": "8a63286b97fd2b7ef01f64386680ba7f554382d56e976cd50c274a633ff4b3d2"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r8/source/client-main.py",
+    "sha256": "9876d46e774f132d7470e320f9a0fe73648ffe779bb4169eebcc1e3ffa2f5758"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r8/source/client-operations.py",
+    "sha256": "d863d0cb7097024f1f602d4b17060621773c43bffa7273f590b3162c162b2b51"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r8/source/run-body.py",
+    "sha256": "5a75181e70c4fa7d3b4c35fd5665c861db52bfe5e920baf0b8e8b4fbaec8bb7b"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r7-repaired-r2/source/trial-chain-service.py",
+    "sha256": "b8a4c8559e34e038b550a75ae1666a1b2f1d9914a78dd4b8404777099f4f3c86"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r7-repaired-r2/source/client-main.py",
+    "sha256": "776caa33c891828c3be6a707d3035c84dd749c2b4654f032e8e0dc85c7b47305"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r7-repaired-r2/source/run-body.py",
+    "sha256": "c7eb7c8c3ff82543014d95bc9def5923893e809d79da075bbc7d25df18db5f8d"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-current-wrapper-r1/candidate/chain_service.py",
+    "sha256": "9b8c4c71bb3ad8d28de370922f35c49b92c0c03d527eb504520173d488727b94"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/install.sh",
+    "sha256": "411f589ace4fba19eb9f7931bf7f1aad9736b5e5589e5275817003f5f7f80dd7"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/units/enclave-l1-el.service",
+    "sha256": "be00a7d9542f79515658f09d49bc3ad546d3d80de3f30a531a4ee5d1fd72086d"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/units/enclave-l1-cl.service",
+    "sha256": "54791e1a9ac7e27d4e12ce7630d903363ba1069f9fb3529acade709a4a8bb547"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/node-payload-v4/units/enclave-base-holder.service",
+    "sha256": "3d305f2ef091af5ee7edec61bcd47607c7e969e64873dec66d021db34f5955ef"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/coverage-stage/coverage_gate.py",
+    "sha256": "b4f6d639c3f9b12f73938d5993ce0897fe56dcbec1ada3123c4ad80d0ff3854b"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-activation-plan-stage/PLAN.md",
+    "sha256": "01c183a4bfaceb7919bda78bad4fad19b63bd5a665a5cc54f03726e85e2a66a2"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/rpc/README.md",
+    "sha256": "5ba93fb7a0151e928f0680c272cca1c5f6fcea28f42c507c7917f34083508b15"
+  }
+]
