@@ -1,0 +1,41 @@
+{
+  "readOnly": true,
+  "diagnosticOnly": true,
+  "originalManifestSha256": "f288608127311221c37eaed6a311b30b7046a0946290d23464a2eae70f45252e",
+  "originalExpired": true,
+  "explicitDiagnosticSubstitutions": [
+    "fresh diagnostic clock and current timer observation",
+    "exact self/ancestor identities only; not native approval"
+  ],
+  "guard": {
+    "type": "AssertionError",
+    "message": "new-unclassified-workload"
+  },
+  "diagnosticAncestors": [
+    {
+      "pid": 470059,
+      "exe": "/usr/bin/python3.12",
+      "identity": "470059:1073421359:/usr/bin/python3.12"
+    }
+  ],
+  "budgetGroups": [
+    {
+      "name": "enclavenantrialn1.slice",
+      "exists": false,
+      "max": null,
+      "current": 0
+    },
+    {
+      "name": "enclavenanattachn1.slice",
+      "exists": true,
+      "max": "134217728",
+      "current": "131072"
+    },
+    {
+      "name": "enclavenanguardn1.slice",
+      "exists": true,
+      "max": "max",
+      "current": "0"
+    }
+  ]
+}

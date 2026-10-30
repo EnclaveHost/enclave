@@ -1,0 +1,20 @@
+{
+  "rc": 1,
+  "reason": null,
+  "elapsedSeconds": 2.807397966971621,
+  "stdout": "",
+  "stderr": "Traceback (most recent call last):\n  File \"<stdin>\", line 155, in <module>\n  File \"observed-fresh_nan_policy\", line 50\n    raw=(q/'cmdline').read_bytes();argv=[x.decode() for x in raw.split(b'\\0') if x]\n    ^\nIndentationError: expected an indented block after 'if' statement on line 49\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 286
+  },
+  "stdinBytesWritten": 10428,
+  "stdinBytesRequested": 10428,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

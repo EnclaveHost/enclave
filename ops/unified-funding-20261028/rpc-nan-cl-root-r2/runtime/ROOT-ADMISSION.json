@@ -1,0 +1,10 @@
+{
+  "authorized": true,
+  "at": 1793373329.7815373,
+  "scope": "actual-nan-cl-bounded-client-n2",
+  "pinsSha256": "02e32d5fd3bfe19abf8acf09a36a36fa65be37c0b2203b47fc070cde0fe25de6",
+  "admissionSha256": "81034dbfcb4876657cb72c6c0cbd464d7b372cd63a9ce797b55b6122e3521c4b",
+  "sourceTests": 23,
+  "sourceReview": "ROOT-REVIEW.md; peer readonly review; own cap preservation and original image OFD guard",
+  "noProductionConsumerChange": true
+}
