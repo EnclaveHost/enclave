@@ -7,13 +7,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { haveOpenssl, tmpdir, makeCa, AUTH } from "./fixtures/avf-synthetic.mjs";
 import { startFakeVm } from "./fixtures/pvm-fake-vm.mjs";
 import { createWebCarrier } from "../shielded/anchor/avf/cpu/web-carrier.mjs";
 
-const chromium = (() => { for (const b of ["chromium", "chromium-browser", "google-chrome"]) { try { execFileSync("which", [b], { stdio: "pipe" }); return b; } catch {} } return null; })();
+const chromium = (() => { try { const { chromium } = createRequire(new URL("../e2e/package.json", import.meta.url))("playwright"); const bin = chromium.executablePath(); if (fs.existsSync(bin)) return bin; } catch {} for (const b of ["google-chrome", "chromium", "chromium-browser"]) { try { execFileSync("which", [b], { stdio: "pipe" }); return b; } catch {} } return null; })();
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const up = (srv) => new Promise((r) => (srv.listening ? r(srv.address().port) : srv.on("listening", () => r(srv.address().port))));
 
@@ -34,14 +35,15 @@ test("a real browser verifies the (fake) VM, seals its request, and refuses anot
   const run = async (label, extra = "") => {
     const prof = fs.mkdtempSync(path.join(dir, "prof-"));
     const b = spawn(chromium, ["--headless=new", "--no-first-run", "--no-default-browser-check", "--disable-gpu", "--disable-extensions", `--user-data-dir=${prof}`,
-      `${siteUrl}?relay=${encodeURIComponent(relay)}&label=${label}&path=${encodeURIComponent("/?graph=g&steps=3")}${extra}`], { detached: true, stdio: "ignore" });
+      `${siteUrl}?relay=${encodeURIComponent(relay)}&label=${label}&path=${encodeURIComponent("/?graph=g&steps=3")}${extra}`], { detached: true, stdio: ["ignore", "ignore", "pipe"] });
+    let browserError = ""; b.stderr.on("data", data => { browserError = (browserError + data).slice(-4000); });
     try {
       for (let i = 0; i < 300; i++) {
         const got = fs.existsSync(results) && fs.readFileSync(results, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)).find((r) => r.label === label);
         if (got) return got;
         await wait(100);
       }
-      throw new Error(`no result for ${label}`);
+      throw new Error(`no result for ${label}: ${browserError}`);
     } finally { try { process.kill(-b.pid, "SIGKILL"); } catch {} }
   };
   try {

@@ -23,6 +23,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { linkBytecode } from "../../site/js/lib/contract-linker.js";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ANVIL = [process.env.ANVIL, path.join(os.homedir(), ".foundry/bin/anvil"), "anvil"].find((p) => p && (p === "anvil" || fs.existsSync(p)));
@@ -38,17 +39,17 @@ export async function compileContracts() {
   const cacheDir = path.join(os.homedir(), ".cache", "enclave-lease-chain"); fs.mkdirSync(cacheDir, { recursive: true });
   for (const [name, file, viaIR, runs] of DEFS) {
     const source = fs.readFileSync(path.join(REPO, file), "utf8");
-    const key = createHash("sha256").update(`${solc.version()}\n${viaIR}\n${runs}\n${source}`).digest("hex").slice(0, 24);
+    const key = createHash("sha256").update(`linked-v2\n${solc.version()}\n${viaIR}\n${runs}\n${source}`).digest("hex").slice(0, 24);
     const cache = path.join(cacheDir, `${name}-${key}.json`);
     if (fs.existsSync(cache)) { out[name] = JSON.parse(fs.readFileSync(cache, "utf8")); continue; }
     const base = path.basename(file);
     const input = { language: "Solidity", sources: { [base]: { content: source } },
-      settings: { optimizer: { enabled: true, runs }, ...(viaIR ? { viaIR: true } : {}), outputSelection: { "*": { [name]: ["abi", "evm.bytecode.object"] } } } };
+      settings: { optimizer: { enabled: true, runs }, ...(viaIR ? { viaIR: true } : {}), outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", "evm.bytecode.linkReferences"] } } } };
     const res = JSON.parse(solc.compile(JSON.stringify(input)));
     const errs = (res.errors || []).filter((e) => e.severity === "error");
     if (errs.length) throw new Error(`solc ${name}: ${errs.map((e) => e.formattedMessage).join("\n")}`);
     const c = res.contracts[base][name];
-    out[name] = { abi: c.abi, bytecode: "0x" + c.evm.bytecode.object };
+    out[name] = { abi: c.abi, bytecode: "0x" + c.evm.bytecode.object, linkReferences: c.evm.bytecode.linkReferences, contracts: res.contracts };
     fs.writeFileSync(cache, JSON.stringify(out[name]));
   }
   return out;
@@ -67,10 +68,27 @@ export async function startLeaseChain({ port = 18545 + Math.floor(Math.random() 
   const operator = operatorAccount || unlockedOperator, operatorAddress = operatorAccount ? operatorAccount.address : unlockedOperator;
   if (operatorAccount) await pub.request({ method: "anvil_setBalance", params: [operatorAccount.address, "0x56bc75e2d63100000"] });   // 100 test ETH
   const w = (account) => V.createWalletClient({ chain, transport: V.http(rpc), account });
-  const deploy = async (name, args) => {
-    const hash = await w(deployer).deployContract({ abi: C[name].abi, bytecode: C[name].bytecode, args });
-    return (await pub.waitForTransactionReceipt({ hash })).contractAddress;
+  const libraries = new Map();
+  const deployArtifact = async (artifact, args = []) => {
+    const links = {};
+    for (const [file, refs] of Object.entries(artifact.linkReferences || {})) {
+      for (const name of Object.keys(refs)) {
+        const key = `${file}:${name}`;
+        if (!libraries.has(key)) {
+          const lib = artifact.contracts[file][name];
+          libraries.set(key, await deployArtifact({ abi: lib.abi, bytecode: "0x" + lib.evm.bytecode.object,
+            linkReferences: lib.evm.bytecode.linkReferences, contracts: artifact.contracts }));
+        }
+        links[key] = libraries.get(key);
+      }
+    }
+    const bytecode = Object.keys(links).length ? linkBytecode(artifact.bytecode, artifact.linkReferences, links) : artifact.bytecode;
+    const hash = await w(deployer).deployContract({ abi: artifact.abi, bytecode, args });
+    const receipt = await pub.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") throw new Error("fixture contract deployment reverted");
+    return receipt.contractAddress;
   };
+  const deploy = (name, args) => deployArtifact(C[name], args);
   const send = async (from, address, name, fn, args) => {
     const hash = await w(from).writeContract({ address, abi: C[name].abi, functionName: fn, args });
     const r = await pub.waitForTransactionReceipt({ hash });

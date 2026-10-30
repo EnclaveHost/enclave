@@ -407,7 +407,7 @@ test("encvol is local; host declare-payout, status and fund use the schema-4 reg
     const x = await cli(["host", sub]);
     assert.equal(x.code, 1); assert.match(x.err, /--dir HOST_DIR is required/);
   }
-  for (const [cmd, re] of [["move", /registry host id.*no host names/], ["secrets", /custody v2/]]) {
+  for (const [cmd, re] of [["move", /registry host id.*no host names/], ["secrets", /usage: enclave.*secrets ls <id>/]]) {
     const x = await cli([cmd, "0x" + "11".repeat(32), "x"]);
     assert.equal(x.code, 1); assert.match(x.err, re);
   }

@@ -79,7 +79,7 @@ this inventory must not be used to claim every historical experiment is qualifie
 ## Validation and completion
 
 PR 8 is the integration record. CI checks the complete root/network/wallet unit
-suite in four shards, contracts, browser flows, native manager/guest source and
+suite in eight shards, contracts, browser flows, native manager/guest source and
 full site build. Scanner checks remain enabled. `security-review.json` records
 reviewed false positives: public source identifiers, protocol strings, run IDs,
 loopback test data and dependency-file digests independently rehashed from their

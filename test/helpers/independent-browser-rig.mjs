@@ -70,7 +70,7 @@ export async function startRig({ log = () => {}, legacySessionFactory = false, p
   try {
     // ---- chain + contracts ----
     const anvilPort = await freePort();
-    const anvil = spawn("anvil", ["--port", String(anvilPort), "--chain-id", "8453", "--silent", "--base-fee", "0", "--gas-price", "0",
+    const anvil = spawn("anvil", ["--port", String(anvilPort), "--chain-id", "8453", "--hardfork", "osaka", "--silent", "--base-fee", "0", "--gas-price", "0",
       ...(pastSec > 0 ? ["--timestamp", String(Math.floor(Date.now() / 1000) - pastSec)] : [])], { stdio: "ignore" });
     stops.push(() => anvil.kill("SIGKILL"));
     const rpc = `http://127.0.0.1:${anvilPort}`;

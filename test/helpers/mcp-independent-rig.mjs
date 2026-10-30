@@ -34,7 +34,7 @@ export async function startOriginalRig() {
   const closeServer = (srv) => () => new Promise((ok) => { srv.closeAllConnections?.(); srv.close(() => ok()); });
   try {
     const anvilPort = await freePort();
-    const anvil = spawn("anvil", ["--port", String(anvilPort), "--chain-id", "8453", "--silent", "--base-fee", "0", "--gas-price", "0"], { stdio: "ignore" });
+    const anvil = spawn("anvil", ["--port", String(anvilPort), "--chain-id", "8453", "--hardfork", "osaka", "--silent", "--base-fee", "0", "--gas-price", "0"], { stdio: "ignore" });
     const killAnvil = () => { try { anvil.kill("SIGKILL"); } catch {} };
     process.once("exit", killAnvil);
     stops.push(() => { process.removeListener("exit", killAnvil); killAnvil(); });

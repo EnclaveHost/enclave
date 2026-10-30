@@ -49,7 +49,7 @@ async function relay(t, env = {}, rpcOpts = {}, { dir = RELAY_DIR, enclaves = "h
     start: (p) => spawn(process.execPath, [path.join(dir, "api-relay.js")], { stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ENCLAVES: enclaves, API_RELAY_PORT: String(p), API_RELAY_BIND: "127.0.0.1", BASE_RPC: `http://127.0.0.1:${rpc.address().port}`,
              RPC_FALLBACKS: "0", DEPLOYMENTS_ADDRESS: "0x" + "12".repeat(20), FEATURED_VIEWS_FILE: path.join(os.tmpdir(), `feat-views-${p}.json`),
-             PVM_SERVING: "", PVM_APP_IDS: "", PVM_APP_RUNTIME_IDS: "", METAL_AVF_CODE_HASHES: "", METAL_AVF_AUTHORITY_HASHES: "", PVM_CPU_CODE_HASHES: "", PVM_CPU_MODELS: "", ...env } }),
+             PVM_SERVING: "", PVM_APP_IDS: "", PVM_APP_RUNTIME_IDS: "", METAL_AVF_CODE_HASHES: "", METAL_AVF_AUTHORITY_HASHES: "", PVM_CPU_CODE_HASHES: "", PVM_CPU_RUNTIME_IDS: "", PVM_CPU_MODELS: "", ...env } }),
     claimed: (l, p) => l.includes(`[api-relay] :${p}`), ready: async (p) => (await fetch(`http://127.0.0.1:${p}/health`)).ok,
   });
   t.after(() => { child.kill("SIGKILL"); });
@@ -60,7 +60,7 @@ const req = (port, method, p, body = "", headers = {}) => new Promise((resolve) 
   q.on("error", () => resolve({ status: 0, body: "", headers: {} })); q.end(body);
 });
 const CONFIGURED = { PVM_SERVING: "1", METAL_AVF_CODE_HASHES: "aa".repeat(32), METAL_AVF_AUTHORITY_HASHES: "cd".repeat(64), PVM_CPU_CODE_HASHES: "bb".repeat(32),
-  PVM_CPU_MODELS: JSON.stringify([{ sha256: "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", name: "m", selftestSha256: "dd".repeat(32), minDecodeTokS: 10 }]),
+  PVM_CPU_RUNTIME_IDS: "d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba",
   PVM_APP_IDS: "ee".repeat(32), PVM_APP_RUNTIME_IDS: "d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba" };
 // an ordinary (non-pVM) enclave that owns deployment 66 on the ledger (runner = keccak256(its endpoint), the registry's id
 // rule) and answers every /x path with what it received -- so a test sees exactly what the relay forwarded
@@ -92,24 +92,27 @@ test("PVM_SERVING OFF (the default): /x/<id>/pvm/* is an ordinary /x path -- sam
   const { port, log } = await relay(t, {}, {}, { enclaves: app.endpoint });
   const auth = { authorization: "Bearer should-be-stripped", "x-test": "1" };
   const pvm = await req(port, "POST", `/x/${ID("66")}/pvm/evidence`, "EVIDENCE x\n", auth), other = await req(port, "POST", `/x/${ID("66")}/pvm-lookalike`, "EVIDENCE x\n", auth);
-  assert.equal(pvm.status, 200); assert.equal(JSON.parse(pvm.body).app, "OWN RESPONSE", "OFF: the app's own path is the app's");
-  assert.deepEqual(JSON.parse(pvm.body).headers, JSON.parse(other.body).headers, "the relay forwarded the same headers on both paths");
+  // hosted /x is retired: OFF, the pVM path is retired exactly as any other /x path, and no app sees either
+  assert.equal(pvm.status, 410); assert.equal(JSON.parse(pvm.body).error, "application_transport_moved");
+  assert.equal(other.status, 410); assert.equal(pvm.body, other.body);
   assert.ok(same(pvm.headers, other.headers), `the same response headers: ${JSON.stringify(pvm.headers)} vs ${JSON.stringify(other.headers)}`);
-  // U7 reads the ledger afresh at most once per 5 s: each pair is compared from the same state (the cooldown waited out
-  // before each request), and the answer's updatedAt stamp is the relay's poll clock, not the route's
+  assert.ok(!app.seen.some((u) => u.includes("/x/")), `no app saw a hosted /x request: ${JSON.stringify(app.seen)}`);
+  // Retired routes answer consistently without reading the ledger or forwarding to the app.
   const noStamp = (b) => { try { const o = JSON.parse(b); delete o.updatedAt; return JSON.stringify(o); } catch { return b; } };
   for (const id of [ID("33"), ID("99")]) {
-    await new Promise((r) => setTimeout(r, 5200)); const a = await req(port, "POST", `/x/${id}/pvm/evidence`, "x");
-    await new Promise((r) => setTimeout(r, 5200)); const b = await req(port, "POST", `/x/${id}/some/app/path`, "x");
+    const a = await req(port, "POST", `/x/${id}/pvm/evidence`, "x");
+    const b = await req(port, "POST", `/x/${id}/some/app/path`, "x");
     assert.equal(a.status, b.status, id); assert.equal(noStamp(a.body), noStamp(b.body)); assert.ok(same(a.headers, b.headers));
   }
   const up = await upgrade(port, `/x/${ID("66")}/pvm/evidence`);
-  assert.equal(up.status, 101); assert.match(up.head, /x-app: own/); assert.ok(app.seen.includes(`UPGRADE /x/${ID("66")}/pvm/evidence`), "a WebSocket upgrade there is the app's");
+  assert.equal(up.status, 410); assert.ok(!app.seen.some((u) => u.startsWith("UPGRADE")), "a WebSocket upgrade there is retired, never the app's");
   assert.doesNotMatch(log(), /\[pvm-serving\]/);
   for (const v of ["0", "false", "off", "no", "enabled", " "]) {
     const r = await relay(t, { PVM_SERVING: v }, {}, { enclaves: app.endpoint });
-    assert.equal(JSON.parse((await req(r.port, "POST", `/x/${ID("66")}/pvm/evidence`, "x")).body).app, "OWN RESPONSE", `PVM_SERVING=${JSON.stringify(v)} is OFF`);
+    const x = await req(r.port, "POST", `/x/${ID("66")}/pvm/evidence`, "x");
+    assert.equal(x.status, 410, `PVM_SERVING=${JSON.stringify(v)} is OFF`); assert.equal(JSON.parse(x.body).error, "application_transport_moved");
   }
+  assert.ok(!app.seen.some((u) => u.includes("/x/")), "no OFF relay forwarded a hosted /x request");
   LEDGER = [LEDGER[0]];
 });
 
@@ -139,7 +142,8 @@ test("PVM_SERVING ON without its configuration: both pVM routes answer the same 
   { const r = await req(bare.port, "GET", `/x/${ID("99")}/pvm/evidence`); assert.equal(r.type, "application/json", JSON.stringify(r)); assert.ok(JSON.parse(r.body).error);
     assert.notEqual(r.headers["content-security-policy"], "sandbox; default-src 'none'"); }
   assert.equal((await req(bare.port, "GET", "/health")).status, 200);
-  assert.equal(JSON.parse((await req(bare.port, "POST", `/x/${ID("66")}/other`, "x")).body).app, "OWN RESPONSE", "the ordinary /x path serves");
+  { const r = await req(bare.port, "POST", `/x/${ID("66")}/other`, "x"); assert.equal(r.status, 410, "the ordinary /x path stays retired");
+    assert.equal(JSON.parse(r.body).error, "application_transport_moved"); }
   // every other route answers exactly as an OFF relay does (a stub ledger answers only some views: the property is equality)
   const off = await relay(t, {}, {}, { enclaves: app.endpoint });
   for (const p of ["/health", "/v1/deployments", `/v1/deployments/${ID("66")}`, `/v1/deployments/${ID("33")}`, "/v1/enclaves", "/nope"]) {
@@ -168,25 +172,22 @@ test("PVM_SERVING ON and configured: the ledger runner only -- an ordinary app's
   // the reservation: deployment 66 runs an ordinary app on a live https enclave; its runner is not a pVM tunnel
   const shadow = await post(ID("66"));
   assert.equal(shadow.status, 404); assert.equal(shadow.body, ""); assert.ok(!app.seen.some((u) => u.includes("/pvm/")), "the app never saw the request");
-  // a PREFIX is not the carrier's (exact canonical ids only): it is the relay's ordinary /x path, judged by U7 -- for this
-  // eligible app host the app's own
+  // A prefix is not the carrier's (exact canonical ids only); ordinary hosted /x stays retired.
   const lookalike = await post(ID("66").slice(0, 10));
-  assert.equal(lookalike.status, 200); assert.equal(JSON.parse(lookalike.body).app, "OWN RESPONSE", "a prefix falls through to the relay's /x routing (U7)");
-  app.seen.length = 0;
-  assert.equal(JSON.parse((await req(port, "POST", `/x/${ID("66")}/other`, "x")).body).app, "OWN RESPONSE", "its other paths are untouched");
-  // the app's OWN origin (its subdomain) is never the carrier: the same path there is the app's, whatever it names
+  assert.equal(lookalike.status, 410); assert.equal(JSON.parse(lookalike.body).error, "application_transport_moved", "a prefix is not the carrier's: it stays retired");
+  { const r = await req(port, "POST", `/x/${ID("66")}/other`, "x"); assert.equal(r.status, 410, "its other /x paths stay retired"); }
+  // the app's OWN origin (its subdomain) is never the carrier: tenant subdomains are retired on the relay, whatever the path
   for (const p of ["/pvm/evidence", `/x/${ID("66")}/pvm/evidence`, `/x/${ID("33")}/pvm/sealed`]) {
     const own = await req(port, "POST", p, "x", { host: `${ID("66").slice(2, 10)}.app.test` });
-    assert.equal(own.status, 200, p); assert.equal(JSON.parse(own.body).app, "OWN RESPONSE", `the subdomain's ${p} is the app's`);
+    assert.equal(own.status, 410, p); assert.notEqual(own.headers["content-security-policy"], "sandbox; default-src 'none'", `the subdomain's ${p} is not the carrier's`);
   }
-  assert.ok(app.seen.some((u) => u.endsWith(`/x/${ID("33")}/pvm/sealed`) && u.startsWith(`/x/${ID("66").slice(0, 10)}`)), `carried under the app's own /x path: ${JSON.stringify(app.seen)}`);
-  app.seen.length = 0;
+  assert.ok(!app.seen.some(u => u.includes("/x/") || u.includes("/pvm/")), `no app saw a hosted request: ${JSON.stringify(app.seen)}`);
   for (const id of [ID("99"), ID("33")]) { const r = await post(id); assert.equal(r.status, 404, id); assert.equal(r.body, ""); }
-  // WebSocket upgrades are NOT reserved: one on the same path takes the ordinary /x upgrade path to the app, as OFF
+  // WebSocket upgrades are NOT the carrier's: one on the same path is retired, never the app's
   const up = await upgrade(port, `/x/${ID("66")}/pvm/evidence`);
-  assert.equal(up.status, 101); assert.match(up.head, /x-app: own/); assert.ok(app.seen.includes(`UPGRADE /x/${ID("66")}/pvm/evidence`), "the app answered the handshake itself");
-  // a GET is not the carrier's either: the relay's ordinary /x answer (U7: deployment 33's lease holder is not attached)
-  const g = await req(port, "GET", `/x/${ID("33")}/pvm/evidence`); assert.equal(g.status, 503, JSON.stringify(g)); assert.equal(JSON.parse(g.body).error, "runner_unreachable");
+  assert.equal(up.status, 410); assert.ok(!app.seen.some((u) => u.startsWith("UPGRADE")), "no app answered the handshake");
+  // a GET is not the carrier's either: the relay's /x retirement
+  const g = await req(port, "GET", `/x/${ID("33")}/pvm/evidence`); assert.equal(g.status, 410, JSON.stringify(g)); assert.equal(JSON.parse(g.body).error, "application_transport_moved");
   assert.equal((await req(port, "GET", "/health")).status, 200, "the next request is served");
   // the BOOTSTRAP route /t/<name>/pvm/evidence is claimed ONLY for a name attached as a pVM (AVF) tunnel: a token-attached box's
   // path of that name falls through to the relay's /t/ handling unchanged -- under U7 a token tunnel is not eligible, so only

@@ -179,7 +179,7 @@ test("a wallet that changes, re-encodes or re-addresses what it signs is refused
     fee: (m) => m.method === "eth_signTransaction" ? call(walletRpc, m.method, [{ ...m.params[0], maxFeePerGas: "0x77359400" }]) : forward(walletRpc)(m),
     trailing: async (m) => { const r = await forward(walletRpc)(m); return m.method === "eth_signTransaction" ? { result: r.result + "00" } : r; },
     sender: (m) => m.method === "eth_signTransaction" ? call(walletRpc, m.method, [{ ...m.params[0], from: A1.address }]) : forward(walletRpc)(m),
-    legacy: (m) => { if (m.method !== "eth_signTransaction") return forward(walletRpc)(m); const { maxFeePerGas, maxPriorityFeePerGas, ...p } = m.params[0]; return call(walletRpc, m.method, [{ ...p, type: "0x0", gasPrice: maxFeePerGas }]); },
+    legacy: (m) => { if (m.method !== "eth_signTransaction") return forward(walletRpc)(m); const { maxFeePerGas, maxPriorityFeePerGas, ...p } = m.params[0]; return A0.signTransaction({ type: "legacy", chainId: Number(BigInt(p.chainId)), nonce: Number(BigInt(p.nonce)), gas: BigInt(p.gas), gasPrice: BigInt(maxFeePerGas), to: p.to, value: BigInt(p.value || "0x0"), data: p.data || "0x" }).then(result => ({ result })); },
   };
   const before = await nonceOf(A0.address);
   for (const [name, h] of Object.entries(cases)) {

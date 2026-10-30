@@ -29,6 +29,6 @@ if (storage) {
     readdirSync(dir).filter(f => f.endsWith('.test.mjs')).map(f => `${dir}/${f}`)).filter(f => !external.has(f) && f !== 'test/storage-indexer-host.test.mjs').sort();
   console.error(`Running ${files.length} source test files; ${external.size} native RPC qualification files plus storage-indexer-host (test:storage-qualification) are outside this run. RPC files require npm run test:rpc-qualification (not covered by this run).`);
 }
-const result = spawnSync(process.execPath, ['--test', storage ? '--test-timeout=900000' : '--test-timeout=120000', '--test-concurrency=2', ...args, ...files], { stdio: 'inherit' });
+const result = spawnSync(process.execPath, ['--test', storage ? '--test-timeout=900000' : '--test-timeout=600000', '--test-concurrency=2', ...args, ...files], { stdio: 'inherit' });
 if (result.error) throw result.error;
 process.exit(result.status ?? 1);

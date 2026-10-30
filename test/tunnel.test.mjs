@@ -855,7 +855,7 @@ test("pvm-app (lab): ABI/2 over the hub's own fresh nonce verifies once; replay,
   const APP = createHash("sha256").update("ggml-probe").digest("hex"), OTHER_APP = "e".repeat(64);
   const TUPLE = "exec_pages=refused:EACCES wx=clean maps=1 scope=self";
   const policy = pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")],
-    models: [{ sha256: "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", name: "m", selftestSha256: "d".repeat(64), minDecodeTokS: 10 }] });
+    runtimeIds: [RID.toString("hex")] });
   const h = await hubServer({ attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")], rootPins: [ca.rootPin] },
                                        pvmCpu: policy, pvmApp: { appIds: [APP, OTHER_APP], runtimeIds: [RID.toString("hex")] } } });
   const attach = async (name, key) => {
@@ -965,7 +965,7 @@ test("pvm-app (lab): ABI/2 over the hub's own fresh nonce verifies once; replay,
 // first live attach from a Pixel (shielded/anchor/avf/results/pvm-cpu-live-attach).
 test("pvm-cpu: a relay with no v1 AVF list still opens the attest handshake for pvm-cpu or pad builds; nothing configured stays shut", async () => {
   const policy = pvmCpuPolicy({ codeHashes: [createHash("sha256").update("pvm-cpu protected build").digest("hex")], authorityHashes: [AUTH.toString("hex")],
-    models: [{ sha256: "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", name: "m", selftestSha256: "d".repeat(64), minDecodeTokS: 10 }] });
+    runtimeIds: ["d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba"] });
   const hPvm = await hubServer({ attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")] }, pvmCpu: policy } });
   const hPad = await hubServer({ attest: { avf: avfPolicyFromEnv({ METAL_AVF_PAD_CODE_HASHES: "a".repeat(64), METAL_AVF_AUTHORITY_HASHES: AUTH.toString("hex") }) } });
   const hNone = await hubServer({ attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")] } } });

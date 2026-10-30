@@ -217,7 +217,7 @@ async function realHub(pvmApp) {
   const vm = await startFakeVm({ dir, ca, code: Buffer.from(CODE, "hex"), appId: APP });
   const PVMCODE = createHash("sha256").update("pvm-cpu protected build").digest();
   const hub = createTunnelHub({ allow: [], attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")], rootPins: [ca.rootPin] },
-    pvmCpu: pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")] }),
+    pvmCpu: pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")], runtimeIds: [vm.rid] }),
     ...(pvmApp ? { pvmApp } : {}) } });
   const hubSrv = http.createServer((_q, s) => s.end("ok")); hubSrv.on("upgrade", (q, sock, head) => hub.handleUpgrade(q, sock, head));
   await new Promise((r) => hubSrv.listen(0, "127.0.0.1", r));

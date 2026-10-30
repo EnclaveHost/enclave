@@ -35,7 +35,7 @@ async function host(id, leaseUntil, { dir, ...opts }) {
   const h = await startActualHost(r, { id, owner: ownerAddress, dir, token: TOKEN, leaseUntil, appRef, script: SUPERVISOR, claim: true,
     ...opts, env: { RELEASE_POLL_MS: "500", ...(opts.env || {}) } });
   live.push(h);
-  await h.waitLog(/\[registry\] registered/, 30000);
+  await h.waitLog(/\[registry\] (?:registered|adopted the existing registration)/, 30000);
   return h;
 }
 const persisted = (file, id) => { const s = JSON.parse(fs.readFileSync(file, "utf8")); return (s.releaseIntents || []).find((i) => i.id === id) || null; };

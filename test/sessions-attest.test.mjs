@@ -134,9 +134,9 @@ async function newKey() {
 const evidenceFor = (signer, over = {}) => ({ type: "sev-snp",
   report: snpReport({ reportData: sdk.sessionKeyReportData(CHAIN_ID, signer.x, signer.y), ...over }) });
 /** a refusal that must leave the chain untouched */
-async function refused(promise, code, keyHash, re) {
+async function refused(action, code, keyHash, re) {
   const n0 = await relayerNonce();
-  await assert.rejects(promise, (e) => {
+  await assert.rejects(action, (e) => {
     assert.equal(e.code, code, `${e.code}: ${e.message}`);
     if (re) assert.match(e.message, re);
     return true;
@@ -265,29 +265,29 @@ test("refusals: report_data, guest policy, VMPL, signing key, length, evidence t
   const calls = stub.calls;
   const kh = signer.keyHash;
   // report_data for another chain, for another key, and not bound at all
-  await refused(ask({ type: "sev-snp", report: snpReport({ reportData: sdk.sessionKeyReportData(8453, signer.x, signer.y) }) }),
+  await refused(() => ask({ type: "sev-snp", report: snpReport({ reportData: sdk.sessionKeyReportData(8453, signer.x, signer.y) }) }),
     "report_data_mismatch", kh);
   const other = await newKey();
-  await refused(ask({ type: "sev-snp", report: snpReport({ reportData: sdk.sessionKeyReportData(CHAIN_ID, other.signer.x, other.signer.y) }) }),
+  await refused(() => ask({ type: "sev-snp", report: snpReport({ reportData: sdk.sessionKeyReportData(CHAIN_ID, other.signer.x, other.signer.y) }) }),
     "report_data_mismatch", kh);
-  await refused(ask({ type: "sev-snp", report: snpReport({ reportData: Buffer.alloc(64) }) }), "report_data_mismatch", kh);
+  await refused(() => ask({ type: "sev-snp", report: snpReport({ reportData: Buffer.alloc(64) }) }), "report_data_mismatch", kh);
   // a DEBUG guest (the host can read the key), a migratable one, another VMPL, a VLEK-signed report
-  await refused(ask(evidenceFor(signer, { policy: 0x30000n | (1n << 19n) })), "policy_refused", kh, /DEBUG/);
-  await refused(ask(evidenceFor(signer, { policy: 0x30000n | (1n << 18n) })), "policy_refused", kh, /MIGRATE_MA/);
-  await refused(ask(evidenceFor(signer, { vmpl: 2 })), "vmpl_mismatch", kh);
-  await refused(ask(evidenceFor(signer, { signingKey: 1 })), "not_vcek_signed", kh);
-  await refused(ask(evidenceFor(signer, { version: 1 })), "bad_report", kh);
+  await refused(() => ask(evidenceFor(signer, { policy: 0x30000n | (1n << 19n) })), "policy_refused", kh, /DEBUG/);
+  await refused(() => ask(evidenceFor(signer, { policy: 0x30000n | (1n << 18n) })), "policy_refused", kh, /MIGRATE_MA/);
+  await refused(() => ask(evidenceFor(signer, { vmpl: 2 })), "vmpl_mismatch", kh);
+  await refused(() => ask(evidenceFor(signer, { signingKey: 1 })), "not_vcek_signed", kh);
+  await refused(() => ask(evidenceFor(signer, { version: 1 })), "bad_report", kh);
   assert.equal(stub.calls, calls, "none of those reached the verifier (no KDS fetch for a report that cannot pass)");
   // malformed input
   const ev = evidenceFor(signer);
-  await refused(ask({ ...ev, report: Buffer.concat([ev.report, Buffer.alloc(1)]) }), "bad_report", kh);
-  await refused(ask({ ...ev, report: ev.report.subarray(0, 0x330) }), "bad_report", kh);
-  await refused(ask({ ...ev, type: "tdx" }), "unsupported_evidence", kh);
-  await refused(ask({ ...ev, vcek: "garbage" }), "bad_vcek", kh);
-  await refused(relayClient.request("POST", "/attest", { x: signer.x, y: signer.y + 1n, evidence: { type: "sev-snp", report: "0x" + ev.report.toString("hex") } }),
+  await refused(() => ask({ ...ev, report: Buffer.concat([ev.report, Buffer.alloc(1)]) }), "bad_report", kh);
+  await refused(() => ask({ ...ev, report: ev.report.subarray(0, 0x330) }), "bad_report", kh);
+  await refused(() => ask({ ...ev, type: "tdx" }), "unsupported_evidence", kh);
+  await refused(() => ask({ ...ev, vcek: "garbage" }), "bad_vcek", kh);
+  await refused(() => relayClient.request("POST", "/attest", { x: signer.x, y: signer.y + 1n, evidence: { type: "sev-snp", report: "0x" + ev.report.toString("hex") } }),
     "bad_key");
-  await refused(relayClient.request("POST", "/attest", { x: signer.x, y: signer.y }), "bad_request", kh);
-  await refused(relayClient.request("POST", "/attest", { x: "nope", y: signer.y, evidence: ev }), "bad_request", kh);
+  await refused(() => relayClient.request("POST", "/attest", { x: signer.x, y: signer.y }), "bad_request", kh);
+  await refused(() => relayClient.request("POST", "/attest", { x: "nope", y: signer.y, evidence: ev }), "bad_request", kh);
   assert.equal(stub.calls, calls);
 });
 
@@ -296,18 +296,18 @@ test("refusals from the verdict: a bad signature, no VCEK, an unjudged TCB, a ve
   const ask = () => sdk.requestAttestation(relayClient, { x: signer.x, y: signer.y, evidence: evidenceFor(signer) });
   try {
     stub.mode = "badsig";
-    await refused(ask(), "evidence_refused", signer.keyHash, /signature over the report is invalid/);
+    await refused(() => ask(), "evidence_refused", signer.keyHash, /signature over the report is invalid/);
     stub.mode = "no-vcek";
-    await refused(ask(), "evidence_refused", signer.keyHash, /VCEK/);
+    await refused(() => ask(), "evidence_refused", signer.keyHash, /VCEK/);
     stub.mode = "tcb-unjudged";
-    await refused(ask(), "evidence_refused", signer.keyHash, /TCB/);
+    await refused(() => ask(), "evidence_refused", signer.keyHash, /TCB/);
     stub.mode = "other-measurement";
-    await refused(ask(), "evidence_refused", signer.keyHash, /measurement/);
+    await refused(() => ask(), "evidence_refused", signer.keyHash, /measurement/);
     stub.mode = "other-vmpl";
-    await refused(ask(), "evidence_refused", signer.keyHash, /VMPL/);
+    await refused(() => ask(), "evidence_refused", signer.keyHash, /VMPL/);
     // and a masked CHIP_ID proves no chip, whatever the verdict says
     stub.mode = "pass";
-    await refused(sdk.requestAttestation(relayClient, { x: signer.x, y: signer.y, evidence: evidenceFor(signer, { chip: Buffer.alloc(64) }) }),
+    await refused(() => sdk.requestAttestation(relayClient, { x: signer.x, y: signer.y, evidence: evidenceFor(signer, { chip: Buffer.alloc(64) }) }),
       "evidence_refused", signer.keyHash, /VCEK/);
   } finally { stub.mode = "pass"; }
 });
@@ -327,7 +327,7 @@ test("a key belongs to one image: a second measurement is refused, and so is any
   try {
     const k = await newKey();
     const rc = new sdk.RelayClient(s.url);
-    await refused(sdk.requestAttestation(rc, { x: k.signer.x, y: k.signer.y, evidence: evidenceFor(k.signer) }),
+    await refused(() => sdk.requestAttestation(rc, { x: k.signer.x, y: k.signer.y, evidence: evidenceFor(k.signer) }),
       "measurement_not_allowed", k.signer.keyHash);
     const ok = await sdk.requestAttestation(rc, { x: k.signer.x, y: k.signer.y, evidence: evidenceFor(k.signer, { measurement: MEAS2 }) });
     assert.equal(ok.measurement, relayMeasurement(MEAS2));
@@ -347,7 +347,7 @@ test("the route is off without a complete attestor config, and refuses when the 
   ]) {
     const s = await serve(service(attestor, name));
     try {
-      await refused(sdk.requestAttestation(new sdk.RelayClient(s.url), { x: signer.x, y: signer.y, evidence: ev }),
+      await refused(() => sdk.requestAttestation(new sdk.RelayClient(s.url), { x: signer.x, y: signer.y, evidence: ev }),
         "attest_disabled", signer.keyHash, re);
     } finally { s.srv.close(); }
   }
@@ -385,14 +385,14 @@ test("the default verifier refuses a report not signed by AMD, a report altered 
       return r;
     };
     const ask = (report, extra = { vcek: pem }) => sdk.requestAttestation(rc, { x: signer.x, y: signer.y, evidence: { type: "sev-snp", report, ...extra } });
-    await refused(ask(signed()), "evidence_refused", signer.keyHash, /VCEK does not chain to ASK/);
+    await refused(() => ask(signed()), "evidence_refused", signer.keyHash, /VCEK does not chain to ASK/);
     const tampered = signed(); tampered[0x10] ^= 1;
-    await refused(ask(tampered), "evidence_refused", signer.keyHash, /signature over the report is invalid/);
+    await refused(() => ask(tampered), "evidence_refused", signer.keyHash, /signature over the report is invalid/);
     // the same, handed over as the guest's own certificate table
     const aux = vcekAuxblob(pem);
-    await refused(ask(signed(), { auxblob: "0x" + aux.toString("hex") }), "evidence_refused", signer.keyHash, /VCEK does not chain to ASK/);
+    await refused(() => ask(signed(), { auxblob: "0x" + aux.toString("hex") }), "evidence_refused", signer.keyHash, /VCEK does not chain to ASK/);
     // no VCEK and KDS off: unverifiable, so refused (never "measurement only")
-    await refused(ask(signed(), {}), "evidence_refused", signer.keyHash, /no VCEK available/);
+    await refused(() => ask(signed(), {}), "evidence_refused", signer.keyHash, /no VCEK available/);
     // a seeded chain whose root is not AMD's never gets in
     assert.throws(() => service({ address: ka, minTcb: MIN_TCB, vmpl: 0, measurements: "*", kds: false, certChains: { Milan: pem } }, "fake-root"),
       /not AMD's pinned root/);

@@ -615,11 +615,11 @@ test("records the WALLET holds: a session acts on them only once the owner lets 
   assert.equal((await ledgerGet(id)).active, true);
   await session.terminate();
 
-  // support is read off the code: main's undeployed rev 16 ledger has no setDelegate, so a client never
-  // reads slot 23 there; neither does a contract without it, nor an address with no code
+  // Support is read off the code: the maintained rev 16d ledger now includes setDelegate.
+  // Contracts without that selector, and addresses without code, remain unsupported.
   const rev16 = JSON.parse(fs.readFileSync(new URL("../contracts/foundry/out/EnclaveDeployments.sol/EnclaveDeployments.json", import.meta.url)));
-  assert.equal(codeHasDelegation(rev16.deployedBytecode.object), false);
-  assert.equal(sdk.codeHasDelegation(rev16.deployedBytecode.object), false);
+  assert.equal(codeHasDelegation(rev16.deployedBytecode.object), true);
+  assert.equal(sdk.codeHasDelegation(rev16.deployedBytecode.object), true);
   assert.equal(codeHasDelegation(await chain.pc.getCode({ address: P.ledger })), true);
   assert.deepEqual(await sdk.delegationStatus(chain.pc, P.catalog, owner.address, vault), { supported: false, granted: false });
   assert.deepEqual(await sdk.delegationStatus(chain.pc, "0x00000000000000000000000000000000000d0d0d", owner.address, vault),

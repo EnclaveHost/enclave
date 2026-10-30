@@ -104,7 +104,7 @@ async function spawnRelay(t, { preload, chainPort, labRoot, rid, app, dir }) {
     APP_DOMAIN: "app.test", APP_ZONE: "app.test", FEATURED_VIEWS_FILE: path.join(dir, "featured.json"), AUTH_DATA_DIR: dir, STATE_DIRECTORY: dir,
     CERTS_KEY: "c1".repeat(32), DNS_API: "http://127.0.0.1:1", DNS_TXT_KEY: "d1".repeat(32), SECRETS_KEY: "5e".repeat(32),
     PVM_SERVING: "1", METAL_AVF_CODE_HASHES: PVMCODE.toString("hex"), METAL_AVF_AUTHORITY_HASHES: AUTH.toString("hex"), PVM_CPU_CODE_HASHES: PVMCODE.toString("hex"),
-    PVM_CPU_MODELS: JSON.stringify(MODELS), PVM_APP_IDS: APP, PVM_APP_RUNTIME_IDS: rid, METAL_TUNNEL_TOKENS: "box1:lab-box-attach",
+    PVM_CPU_RUNTIME_IDS: rid, PVM_APP_IDS: APP, PVM_APP_RUNTIME_IDS: rid, METAL_TUNNEL_TOKENS: "box1:lab-box-attach",
     ...(preload ? { TEST_AVF_LAB_ROOT_PIN: labRoot } : {}) };
   const { child, port, log } = await bootDaemon({ tries: 2,
     start: (p) => spawn(process.execPath, [...(preload ? ["--import", PRELOAD] : []), path.join(RELAY_DIR, "api-relay.js")], { cwd: dir, stdio: ["ignore", "pipe", "pipe"], env: { ...env, API_RELAY_PORT: String(p) } }),
@@ -261,7 +261,7 @@ test("the pVM carrier inside U7, through the REAL api-relay: authorized paths wo
 
   // ---- the phone row gets NOTHING else: every other path, method, host, upgrade and plane is U7's ----
   const reqs0 = A.rec.reqs.length, s1 = A.rec.streams.length, lbl = DP.slice(2, 10);
-  const u7 = (r, what) => { assert.ok(!isCarrier(r), `${what}: not the carrier`); assert.ok(r.status === 503 || r.status === 404 || r.status === 403, `${what}: ${r.status} ${r.body.slice(0, 160)}`); };
+  const u7 = (r, what) => { assert.ok(!isCarrier(r), `${what}: not the carrier`); assert.ok(r.status === 503 || r.status === 404 || r.status === 403 || r.status === 410, `${what}: ${r.status} ${r.body.slice(0, 160)}`); };
   for (const [m, p] of [["GET", `/x/${DP}/`], ["POST", `/x/${DP}/v1/chat`], ["GET", `/x/${DP}/pvm/evidence`], ["PUT", `/x/${DP}/pvm/sealed`],
                         ["POST", `/x/${DP}/pvm/evidence/`], ["POST", `/x/${DP}/pvm/evidence/x`], ["POST", `/X/${DP}/pvm/evidence`], ["POST", `/x/${DP}/PVM/evidence`],
                         ["POST", `/x/${DP}/pvm/..%2Fevidence`], ["POST", `/x/${DP}/pvm%252Fevidence`], ["POST", `/x/${DP}//pvm/evidence`], ["POST", `/x/${DP}/./pvm/evidence`],
@@ -270,8 +270,8 @@ test("the pVM carrier inside U7, through the REAL api-relay: authorized paths wo
                         ["POST", "/t/pixel-a/PVM/evidence"], ["POST", "/t/pixel-a/pvm/%65vidence"], ["POST", "/t/pixel-a/pvm/evidence?x"], ["GET", "/t/pixel-a/pvm/evidence"]]) {
     const r = await req(port, m, p, m === "GET" ? "" : `EVIDENCE3 ${"ab".repeat(32)}\n`, hdrs); u7(r, `${m} ${p}`);
   }
-  // a NON-ledger id (no 0x) is U7's probe over ELIGIBLE hosts only: here the eligible app host answers it, never the phone
-  { const r = await req(port, "POST", `/x/${lbl}/pvm/evidence`, "x", hdrs); assert.ok(!isCarrier(r)); assert.equal(r.status, 200); assert.equal(JSON.parse(r.body).servedBy, "app"); }
+  // A non-ledger id is not the carrier's: ordinary hosted /x is retired, even for an eligible host.
+  { const r = await req(port, "POST", `/x/${lbl}/pvm/evidence`, "x", hdrs); assert.ok(!isCarrier(r)); assert.equal(r.status, 410); assert.equal(JSON.parse(r.body).error, "application_transport_moved"); }
   for (const [m, p] of [["GET", "/"], ["POST", "/pvm/evidence"], ["POST", "/v1/chat"]]) {
     const r = await req(port, m, p, m === "GET" ? "" : "x", { ...hdrs, host: `${lbl}.app.test` }); u7(r, `the app subdomain ${m} ${p}`);
   }

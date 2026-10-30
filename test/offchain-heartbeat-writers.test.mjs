@@ -43,7 +43,7 @@ test("the REAL supervisor sends no periodic registry transaction; real drift is 
   skip ? { skip } : { timeout: 900000 }, async (t) => {
   const r = await startRig(); t.after(() => r.stop());
   const dir = tmp(); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const host = await startActualHost(r, { id: "0x" + "00".repeat(32), owner: r.owner, dir, token: "t".repeat(40), leaseUntil: 0, claim: true, seed: false,
+  const host = await startActualHost(r, { id: "0x" + "00".repeat(32), owner: r.owner, dir, token: "ab".repeat(32), leaseUntil: 0, claim: true, seed: false,
     env: { REGISTRY_RECONCILE_SEC: "60" } });
   // The rig registers this endpoint with the operator key before the host boots (cli-independent-rig.mjs: register(...,
   // proofKey 0)), so the REAL supervisor adopts that row with setProofKey (supervisor.js bootRegistration: only the per-boot
@@ -95,7 +95,7 @@ test("negative control: the base supervisor DOES heartbeat on the same rig (the 
   skip || !BASE_SUPERVISOR ? { skip: skip || "set OFFCHAIN_HEARTBEAT_BASE_SUPERVISOR to the base supervisor.js (a file in the repository root)" } : { timeout: 300000 }, async (t) => {
   const r = await startRig(); t.after(() => r.stop());
   const dir = tmp(); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const host = await startActualHost(r, { id: "0x" + "00".repeat(32), owner: r.owner, dir, token: "t".repeat(40), leaseUntil: 0, claim: true, seed: false,
+  const host = await startActualHost(r, { id: "0x" + "00".repeat(32), owner: r.owner, dir, token: "ab".repeat(32), leaseUntil: 0, claim: true, seed: false,
     script: BASE_SUPERVISOR, env: { REGISTRY_HEARTBEAT_SEC: "60" } });
   await host.waitLog(/\[registry\] registered/, 60000);
   await host.waitLog(/\[registry\] heartbeat tx=/, 90000);

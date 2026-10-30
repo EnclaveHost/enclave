@@ -2877,7 +2877,15 @@ function handleRequest(req, res) {
     return deploymentExists(id).then((ok) => { res.writeHead(ok ? 200 : 404); res.end(); });
   }
 
-  if (depFromHost(routingHost(req)) || domainDeployment(routingHost(req))
+  // pVM deployment carrier (PVM_SERVING; OFF by default: pvmServe is null and nothing here runs). The ONE exception to the
+  // /x retirement below: the raw, exact POST /x/<id>/pvm/{evidence,sealed} (carrierRoute; anything else returns false and is
+  // retired), on the API host only -- never an app subdomain, a custom domain, the MCP host or a box host. Ordinary /x is
+  // never forwarded.
+  const rHost = routingHost(req);
+  if (pvmServe && String(req.url || "").startsWith("/x/") && !depFromHost(rHost) && !domainDeployment(rHost)
+      && !isMcpHost(rHost) && !boxLabelOfHost(rHost) && pvmServe(req, res)) return;
+
+  if (depFromHost(rHost) || domainDeployment(rHost)
       || /^\/(?:t\/[^/]+\/)?x(?:\/|$)/.test(canonicalBoxPath(u.pathname) || ""))
     return json(res, 410, {error: "application_transport_moved", message: "Use the application's own hostname."}, req);
 
@@ -3166,11 +3174,6 @@ function handleRequest(req, res) {
     if (refused) return json(res, refused.status, { error: refused.error, message: refused.message }, req);
     return proxyTo(origin, req, res, { path: (tm[2] || "/") + (u.search || ""), setCors: true, publicOnly: !tunnelEligible(origin) });
   }
-
-  // pVM deployment carrier (PVM_SERVING; OFF by default: pvmServe is null and nothing here runs). Here, and only here: a
-  // sub-route of the /x gateway on the API host. App subdomains, custom domains, the MCP host, box hosts and /t/ were all
-  // dispatched above, so an app's own origin never reaches it.
-  if (pvmServe && pvmServe(req, res)) return;
 
   // API gateway: fleet-aware routing (see the header) — placement on create,
   // owner affinity on deployment-scoped calls, fan-out merge on list, fleet

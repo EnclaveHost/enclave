@@ -38,9 +38,9 @@ test("ACTUAL supervisor + real ledger: the owner's setConfig changes a SERVING p
   const row = await getRow(r, id);
   assert.equal(row.isPublic, false);
 
-  const h = await startActualHost(r, { id, owner: ownerAddress, dir: fs.mkdtempSync(path.join(tmp, "h-")), token: "t".repeat(40),
+  const h = await startActualHost(r, { id, owner: ownerAddress, dir: fs.mkdtempSync(path.join(tmp, "h-")), token: "ab".repeat(32),
     leaseUntil: row.leaseUntil, appRef, claim: true });
-  await h.waitLog(/\[registry\] registered/, 30000);
+  await h.waitLog(/\[registry\] (?:registered|adopted the existing registration)/, 30000);
   await h.waitLog(/\[ledger\] full pass/, 30000);
   const bounce = async () => {
     const res = await fetch(`${h.upstream}/x/${id}/inbox`, { headers: { "sec-fetch-dest": "document" }, redirect: "manual" });

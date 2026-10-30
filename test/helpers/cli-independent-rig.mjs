@@ -90,7 +90,7 @@ export async function startRig() {
           "--http.api", "eth,net,web3,debug", "--disable-discovery", "--ipcdisable", "--port", "0", "--authrpc.port", String(await freePort()),
           // reth serves eth_getProof only at the tip by default (window 0); a verifier reads confirmed blocks behind it
           "--rpc.eth-proof-window", "1024"], { stdio: "ignore" })
-      : spawn("anvil", ["--port", String(anvilPort), "--chain-id", "8453", "--silent", "--base-fee", "0", "--gas-price", "0"], { stdio: "ignore" });
+      : spawn("anvil", ["--port", String(anvilPort), "--chain-id", "8453", "--hardfork", "osaka", "--silent", "--base-fee", "0", "--gas-price", "0"], { stdio: "ignore" });
     const killAnvil = () => { try { anvil.kill("SIGKILL"); } catch {} };
     process.once("exit", killAnvil);   // even a crashed test process leaves no chain behind
     stops.push(() => { process.removeListener("exit", killAnvil); killAnvil(); });
@@ -456,7 +456,7 @@ export async function startActualHost(r, { id, owner, dir, token, host = { key: 
   const child = spawn(process.execPath, ["--import", preload, script], {
     cwd: REPO, stdio: ["ignore", "pipe", "pipe"],
     env: { PATH: process.env.PATH, HOME: dir, SECRET: "move-fixture-secret", PORT: String(port), ENABLE_MPS: "0", STATE_FILE: stateFile, GPU_COUNT: "0",
-      PROVISION_BACKEND: "vm", VMMGR_URL: `http://127.0.0.1:${manager.address().port}`, BASE_RPC: rpc, ENCLAVE_CONTRACT_PINS_FILE: pinFile,
+      PROVISION_BACKEND: "vm", VMMGR_URL: `http://127.0.0.1:${manager.address().port}`, BASE_RPC: rpc, BASE_RPCS: rpc, ENCLAVE_CONTRACT_PINS_FILE: pinFile,
       ADDRESS_BOOK_ADDRESS: "", PUBLIC_URL: host.endpoint, REGISTRY_PRIVATE_KEY: host.key, MANAGEMENT_GATEWAY: "1", MANAGEMENT_GATEWAY_TOKEN: token,
       MOVE_HOLDOFF_SEC: "30", SECRETS_API: "", DOMAINS_API: "", CERTS_API: "", DNS_API: "", APP_CERT_DOMAIN: "",
       ...(claim ? { CLAIM_ENABLED: "1", REGISTRY_ENABLED: "1", ENCLAVE_REPO: "independent/host", CLAIM_POLL_SEC: "2", ATTESTATION_URL: attestation,

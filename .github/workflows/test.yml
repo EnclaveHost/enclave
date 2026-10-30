@@ -24,9 +24,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
@@ -58,6 +58,10 @@ jobs:
           npm ci --no-audit --no-fund
           (cd relay && npm ci --no-audit --no-fund)
           (cd network && npm ci --ignore-scripts --no-audit --no-fund)
+      - name: Install source browser fixtures
+        run: |
+          (cd e2e && npm ci --no-audit --no-fund && npx playwright install --with-deps chromium)
+          npx playwright install --with-deps chromium
       - name: Install CPU worker test dependency
         # Public-cache tests exercise the real worker's tensor arithmetic and
         # C-client reconnects. Use a CPU wheel in a venv; keep distro numpy and
@@ -80,7 +84,7 @@ jobs:
         # npm test verbatim but with CI headroom on the per-file timeout:
         # Compilation fixtures need headroom on small runners; cap file concurrency
         # so independent compiler/browser processes do not exhaust runner memory.
-        run: node scripts/test-source.mjs --test-shard=${{ matrix.shard }}/4
+        run: node scripts/test-source.mjs --test-shard=${{ matrix.shard }}/8
 
   contracts:
     runs-on: ubuntu-latest
