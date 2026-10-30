@@ -1,0 +1,62 @@
+[
+    {
+        "name":  "compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "entry-compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "entry-compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "inert.out",
+        "bytes":  9983,
+        "included":  true
+    },
+    {
+        "name":  "inert.err",
+        "bytes":  188,
+        "included":  true
+    },
+    {
+        "name":  "process-results.json",
+        "bytes":  810,
+        "included":  true
+    },
+    {
+        "name":  "pins.json",
+        "bytes":  1834,
+        "included":  true
+    },
+    {
+        "name":  "artifact.json",
+        "bytes":  211,
+        "included":  true
+    },
+    {
+        "name":  "entry-artifact.json",
+        "bytes":  208,
+        "included":  true
+    },
+    {
+        "name":  "worker-harness.exe",
+        "bytes":  84480,
+        "included":  true
+    },
+    {
+        "name":  "owned-entry.exe",
+        "bytes":  39424,
+        "included":  true
+    }
+]

@@ -11,6 +11,7 @@ using System.Web.Script.Serialization;
 using Enclave.OwnedRpc;
 
 static partial class Harness {
+    static readonly List<string> TaskDiagnostics=new List<string>();
     static readonly SecurityIdentifier Admin=new SecurityIdentifier("S-1-5-32-544"),SystemUser=new SecurityIdentifier("S-1-5-18");
     static void SecureDirectory(string path) {
         var sd=new DirectorySecurity();sd.SetOwner(Admin);sd.SetAccessRuleProtection(true,false);
@@ -51,13 +52,21 @@ static partial class Harness {
         task.Settings.Enabled=true;task.Settings.AllowDemandStart=true;task.Settings.StartWhenAvailable=false;
         task.Settings.ExecutionTimeLimit="PT30S";task.Settings.MultipleInstances=2;
         task.Settings.DisallowStartIfOnBatteries=false;task.Settings.StopIfGoingOnBatteries=false;
-        dynamic action=task.Actions.Create(0);action.Path=executable;action.Arguments=arguments;action.WorkingDirectory=Path.GetDirectoryName(executable);
+        // CI-only bounded diagnostic transport. Production entry has no shell path.
+        string output=Path.Combine(Path.GetDirectoryName(executable),name+".out"),error=Path.Combine(Path.GetDirectoryName(executable),name+".err");
+        foreach(string value in new[]{executable,arguments,output,error})
+            if(value.IndexOfAny(new[]{'&','|','<','>','^','%','!','\r','\n'})>=0)throw new ArgumentException("CI shell metacharacter refused");
+        TaskDiagnostics.Add(output);TaskDiagnostics.Add(error);
+        dynamic action=task.Actions.Create(0);action.Path=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"cmd.exe");
+        action.Arguments="/d /s /c \""+Quote(executable)+" "+arguments+" 1>"+Quote(output)+" 2>"+Quote(error)+"\"";
+        action.WorkingDirectory=Path.GetDirectoryName(executable);
         // TASK_CREATE only. Record exact unique name before possibly ambiguous COM return.
         ownedTasks.Add(name);dynamic registered=folder.RegisterTaskDefinition(name,task,2,"SYSTEM",null,5,null);
         registered.Run(null);return name;
     }
     static Process SystemIdentity(string path,long deadline) {
-        Await(path,deadline);string[] value=Get(path).Split(',');
+        long identityDeadline=Math.Min(deadline,BoundedWorker.MonotonicMilliseconds()+4000);
+        Await(path,identityDeadline);string[] value=Get(path).Split(',');
         var p=Process.GetProcessById(Int32.Parse(value[0]));IntPtr handle=p.Handle;
         if(p.StartTime.ToUniversalTime().ToFileTimeUtc()!=Int64.Parse(value[1]) || p.HasExited){p.Dispose();throw new Exception("Exact SYSTEM task incarnation unavailable");}
         return p;
@@ -143,7 +152,23 @@ static partial class Harness {
             if(checks.Count!=6)throw new Exception("Incomplete SYSTEM negative qualification");
             foreach(var pair in checks)Check(pair.Key,pair.Value,new {exactProbeDeath=probeDead,pid=probe.Id});
         } finally {
-            try {Clean(observer);}finally {try {Clean(owner);}finally {try {Clean(probe);}finally {DeleteOwnedTasks(tasks);}}}
+            try {
+                var diagnosticFailures=new List<Exception>();
+                foreach(string path in TaskDiagnostics) {
+                    try {
+                        if(!File.Exists(path))continue;
+                        using(var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.ReadWrite)) {
+                            var bytes=new byte[4097];int count=0;
+                            while(count<bytes.Length){int n=stream.Read(bytes,count,bytes.Length-count);if(n==0)break;count+=n;}
+                            Console.Error.WriteLine("CI task diagnostic (possibly incomplete) "+Path.GetFileName(path)+": "+Encoding.UTF8.GetString(bytes,0,Math.Min(count,4096)));
+                            if(count>4096)throw new Exception("CI task diagnostic exceeded collection bound");
+                        }
+                    }catch(Exception e){Console.Error.WriteLine("CI diagnostic unavailable: "+Path.GetFileName(path)+": "+e.GetType().Name);diagnosticFailures.Add(e);}
+                }
+                if(diagnosticFailures.Count>0)throw new AggregateException("CI diagnostic collection incomplete",diagnosticFailures);
+            } finally {
+                try {Clean(observer);}finally {try {Clean(owner);}finally {try {Clean(probe);}finally {DeleteOwnedTasks(tasks);}}}
+            }
         }
     }
 }

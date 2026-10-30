@@ -1,0 +1,42 @@
+[
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "309A68AB3A4326C3819997C3ABAE4E4FE38307E98BB54B31B246CE61A9A63A99",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\BoundedWorker.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "59D15DC8BA06CD739D7BF920FDA4CCA86D235B962CCCEF1BAE27C0173FBEDC80",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\OwnerObserver.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "A949BD2ACBE11D73A83542FD8FA0D9176009AD4C94ADFA0D916A9B447E4E33C7",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProtectedAttempt.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "452ABC5EDBCF8FB6DE4AE64E44034D5F514671B3C4F9795185DC85599815D5EF",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\InertEntry.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "6D4A84CF80502B100C52EB9BD2457AFA4F4BF213D576FCFDA69A1D43C32EE2C2",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\test\\rpc-windows-worker\\SystemHarness.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "C927A36D95425A2AA4B521A57AD9A24BAF28FAAEC2D43754D9F2621815DFD85E",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\test\\rpc-windows-worker\\ObserverHarness.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "5189F7544649F79E1F0EF3D40664E067C725A818990C45C035274FCC47012799",
+        "Path":  "D:\\a\\enclave\\enclave\\source-closure\\test\\rpc-windows-worker\\Harness.cs"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "46809206887326D2D24DB1EFF1F3064DE972C3451ABE766B49111450A5E08E00",
+        "Path":  "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"
+    }
+]

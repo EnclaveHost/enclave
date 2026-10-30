@@ -1,0 +1,5 @@
+# Protected SYSTEM entry first qualification failure
+
+Run41145887043 at8231fda2b41d61ca73034fff92053113c8b03997 TERMINAL FAILURE. Both compiles succeeded (harness1725ms, entry241ms). All seven compiled source hashes match frozen admission. Original23 cases PASS again; no protected SYSTEM case completed. Harness was terminated by the unchanged30000ms outer deadline at30050ms/exit-1. Two exact newly registered SYSTEM tasks reported diagnostic LastTaskResult1, but entry failure stderr was not collected. No exact entry process handles were obtained, so task state does NOT prove their deaths. Disposable runner boundary only; no target host action or admission.
+
+This is an unresolved early SYSTEM entry refusal, not successful namespace/role/boot qualification. Root must add bounded CI-only task stderr transport and earlier failure collection before one separate diagnostic attempt. Do not rerun this consumed workflow. Production entry bytes are not yet repaired; no guessed ACL weakening, permission bypass or native retry. Existing original23 results and failure artifacts preserved.

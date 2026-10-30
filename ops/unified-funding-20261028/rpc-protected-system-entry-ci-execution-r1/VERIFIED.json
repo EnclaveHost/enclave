@@ -1,0 +1,14 @@
+{
+  "run": 41145887043,
+  "head": "8231fda2b41d61ca73034fff92053113c8b03997",
+  "compiledSourcePinsMatch": true,
+  "priorCasesPassed": 23,
+  "systemCasesCompleted": 0,
+  "harnessDeadlineMs": 30000,
+  "observedElapsedMs": 30050,
+  "binarySha256": {
+    "worker-harness.exe": "821ceda2bbd29817257ee4fb9e3d86ec39c62ced280053a5d23331a6dbf67203",
+    "owned-entry.exe": "a38ac0a098854c86a740a9a4fcf42f259fa5d687376aeb42f0ba9ab75d9fd3f3"
+  },
+  "executedLocally": false
+}

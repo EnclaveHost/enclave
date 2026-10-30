@@ -121,6 +121,7 @@ static partial class Harness {
             try { BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024); }
             catch(InvalidOperationException) { repeatRefused=true; }
             Check("supervisor-envelope-one-shot",repeatRefused,null);
+            if(args[0]=="--system-only") {SystemCases(Path.GetFullPath(args[1]));return 0;}
             string dir=Path.GetFullPath(args[0]); Directory.CreateDirectory(dir);
             var invalidEnvelope=Run("invalid-envelope",Path.Combine(dir,"invalid-envelope"),3000);
             Check("invalid-envelope-poisons-work",Dead(invalidEnvelope) && invalidEnvelope.ExitCode==71 &&

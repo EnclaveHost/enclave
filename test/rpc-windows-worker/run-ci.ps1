@@ -57,10 +57,10 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
 try{
     Invoke-FiniteProcess $csc @('/nologo','/target:exe','/platform:x64','/main:Harness','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll',('/out:'+$exe),(Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs'),(Join-Path $PSScriptRoot 'SystemHarness.cs'),(Join-Path $PSScriptRoot 'ObserverHarness.cs'),(Join-Path $PSScriptRoot 'Harness.cs')) 20000 'compile'
     Invoke-FiniteProcess $csc @('/nologo','/target:exe','/platform:x64','/main:Enclave.OwnedRpc.InertEntry',('/out:'+$entry),(Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\InertEntry.cs')) 20000 'entry-compile'
-    Invoke-FiniteProcess $exe @((Join-Path $work 'identities'),$entry) 30000 'inert'
+    Invoke-FiniteProcess $exe @('--system-only',$entry) 30000 'inert'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'inert.out'))
     $results=@($lines|ForEach-Object{$_|ConvertFrom-Json})
-    if($results.Count -ne 30 -or @($results|Where-Object{-not $_.passed}).Count){throw 'Incomplete inert qualification'}
+    if($results.Count -ne 9 -or @($results|Where-Object{-not $_.passed}).Count){throw 'Incomplete inert qualification'}
     $results|ConvertTo-Json -Depth 8
 }finally{
     # Helpers have no unbounded loop: sleeps <=5s, allocation <=192MiB. These
