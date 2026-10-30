@@ -1,0 +1,1 @@
+One readonly installed-binary/systemd observation; no client/start/restart/keys/env/custody/finance changes. Remote64MiB swap0 CPU25% tasks16 runtime15; own startup checks actual seven service caps and residual>=1600MiB. Local256/220floor27648CPU1swap0. Read exactly three public binaries, current boot and memory/cgroup counters; output<=16KiB. No automatic retry.

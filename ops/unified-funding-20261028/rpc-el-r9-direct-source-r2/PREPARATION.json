@@ -1,0 +1,7 @@
+{
+  "status": "SOURCE_ONLY_NOT_NATIVE_ADMITTED",
+  "base": "r8 frozen37 seed; original preserved",
+  "author": "root direct after Claude OAuth API failure",
+  "nonce": "e7f723a0-5e37-4a1c-a249-d017e68ae83f",
+  "productionReady": false
+}

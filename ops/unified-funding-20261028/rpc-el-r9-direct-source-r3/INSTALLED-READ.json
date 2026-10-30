@@ -1,0 +1,45 @@
+{
+  "at": 1793385488.7001336,
+  "boot": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+  "availableBytes": 7293423616,
+  "remainingServiceGrowthBytes": 2394746880,
+  "OSResidualBytes": 4898676736,
+  "binaries": [
+    {
+      "path": "/usr/bin/timeout",
+      "realpath": "/usr/bin/timeout",
+      "device": 2049,
+      "inode": 1964,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 39880,
+      "sha256": "12690a043dfd555a6c14ccc1564f5649c18f1762c0d6ff66729948130898ec52"
+    },
+    {
+      "path": "/usr/bin/systemctl",
+      "realpath": "/usr/bin/systemctl",
+      "device": 2049,
+      "inode": 2019,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 1501304,
+      "sha256": "37ec607113f55f1b385b4fa75588a43402aec0de57927500763b267713f10f63"
+    },
+    {
+      "path": "/usr/bin/python3",
+      "realpath": "/usr/bin/python3.12",
+      "device": 2049,
+      "inode": 2113,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "bytes": 8020928,
+      "sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f"
+    }
+  ],
+  "systemdVersion": "systemd 255 (255.4-1ubuntu8.18)\n+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified\n",
+  "readOnly": true,
+  "clientStarted": false
+}

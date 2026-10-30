@@ -1,0 +1,7 @@
+{
+  "sourceChecks": "composition, exactRethAST/TOML/payload/mountbindings",
+  "rpcCases": 10,
+  "ownProcDiagnosticCases": 4,
+  "inputDrift": [],
+  "native": false
+}

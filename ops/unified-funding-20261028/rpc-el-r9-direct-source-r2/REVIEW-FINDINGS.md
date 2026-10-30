@@ -1,0 +1,1 @@
+R1 passed82sourcefixtures but peer review found saved PID/cgroup death checks were caught as optional exit evidence. R2 must make original PID-incarnation/cgroup emptiness mandatory before detaching storage. Original r1 remains unchanged with its test evidence. Native remains unadmitted.

@@ -1,0 +1,11 @@
+--- repaired-r2/source/payload-manifest.json
++++ r8/source/payload-manifest.json
+@@ -11,7 +11,7 @@
+   },
+   "mounts": {
+     "base": "/srv/enclave-base-holder",
+-    "l1": "/srv/enclave-l1-pair-r7"
++    "l1": "/srv/enclave-l1-pair-r8"
+   },
+   "servingProduction": false,
+   "nvmeCacheBytes": 0
