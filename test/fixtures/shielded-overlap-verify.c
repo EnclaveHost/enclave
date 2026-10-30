@@ -10,9 +10,10 @@
 enum { K = 64, N0 = 17, N1 = 5, MAX_M = 16, DEPTH = 256 };
 enum { HONEST, CORRUPT, WRAP, SHORT_LENGTH, OVERSIZE, REFUSE, TRUNCATE, DISCONNECT,
        EXTREME_POS, EXTREME_NEG, ABOVE_FIELD, BELOW_FIELD };
+enum { SOCKET, RING, SOCKET_FALLBACK, LATE_RING };
 typedef struct {
     int fd, mode, width, rows, count, nodes[2], calls, expected;
-    bool overlap, received, ready;
+    bool overlap, received, ready, late_ring, retried;
     uint8_t *ring;
     const int8_t *weights[2];
     pthread_mutex_t mu;
@@ -50,9 +51,21 @@ static void checked_rhs(const int64_t *x, const int32_t *s, int reps, int64_t n,
 static uint32_t read_u32(const uint8_t *p) {
     return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
 }
+static bool receive_retry(peer *p, const uint8_t *header, const uint8_t *request, size_t size) {
+    uint8_t h[9], req[16 + 3 * MAX_M * K];
+    ssize_t got;
+    do got = read(p->fd, h, 1); while (got < 0 && errno == EINTR);
+    if (got == 0) return false; /* Caller completed using the ring. */
+    assert(got == 1);
+    assert(read_all(p->fd, h + 1, sizeof h - 1, NULL) == SH_OK);
+    assert(memcmp(h, header, sizeof h) == 0);
+    assert(size <= sizeof req && read_all(p->fd, req, size, NULL) == SH_OK);
+    assert(memcmp(req, request, size) == 0); /* Same masked frame, no new pad. */
+    return true;
+}
 static void *serve(void *arg) {
     peer *p = arg;
-    uint8_t h[9], req[16 + 3 * MAX_M * K];
+    uint8_t h[9], request_header[9], req[16 + 3 * MAX_M * K];
     uint64_t seq = 0;
     if (p->ring) {
         while (!(seq = ld_acq(p->ring + SH_RING_OFF_REQ))) sched_yield();
@@ -63,6 +76,7 @@ static void *serve(void *arg) {
     assert(size == hn + 3 * (size_t)p->rows * K && size <= sizeof req);
     if (p->ring) memcpy(req, p->ring + SH_RING_OFF_RQP, size);
     else assert(read_all(p->fd, req, size, NULL) == SH_OK);
+    memcpy(request_header, h, sizeof h);
     assert(read_u32(req) == (uint32_t)p->count && read_u32(req + 4) == (uint32_t)p->rows);
     for (int i = 0; i < p->count; i++) assert(read_u32(req + 8 + 4 * i) == (uint32_t)p->nodes[i]);
     pthread_mutex_lock(&p->mu);
@@ -96,9 +110,22 @@ static void *serve(void *arg) {
     put_u64(h + 1, p->mode == OVERSIZE ? SH_MAX_FRAME + 1 : used - (p->mode == SHORT_LENGTH));
     if (p->ring) {
         assert(p->mode <= WRAP || p->mode >= EXTREME_POS);
+        /* Waiting for the retry forces a late ring reply without relying on
+         * sleeps or scheduler timing. The original reply is still published. */
+        if (p->late_ring) {
+            p->retried = receive_retry(p, request_header, req, size);
+            assert(p->retried);
+        }
         memcpy(p->ring + SH_RING_OFF_RPH, h, sizeof h);
         memcpy(p->ring + SH_RING_OFF_RPP, reply, used);
         st_rel(p->ring + SH_RING_OFF_REP, seq);
+        /* A scheduled-out peer may miss the production ring deadline. Keep
+         * the socket alive until the caller completes or retries this frame. */
+        if (!p->late_ring) p->retried = receive_retry(p, request_header, req, size);
+        if (p->retried) {
+            send_bytes(p->fd, h, sizeof h);
+            send_bytes(p->fd, reply, used);
+        }
     } else if (p->mode != DISCONNECT) {
         send_bytes(p->fd, h, sizeof h);
         if (p->mode != OVERSIZE)
@@ -111,6 +138,7 @@ static void *serve(void *arg) {
 static void exchange(sh_link *l, const int8_t *w0, const int8_t *w1, int width, int m, int mode, int count, bool reverse, int ring_mode) {
     peer p = { .mode = mode, .width = ring_mode ? 4 : width, .rows = m, .count = count,
         .nodes = {reverse ? 1 : 0, reverse ? 0 : 1}, .expected = l->verify ? count * m : 0,
+        .late_ring = ring_mode == LATE_RING,
         .overlap = l->verify && l->overlap_verify && !ring_mode, .weights = {w0, w1} };
     pthread_mutex_init(&p.mu, NULL); pthread_cond_init(&p.cv, NULL);
     int sockets[2]; assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
@@ -120,9 +148,9 @@ static void exchange(sh_link *l, const int8_t *w0, const int8_t *w1, int width, 
         l->pipe->map = mmap(NULL, SH_RING_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         assert(l->pipe->map != MAP_FAILED);
         l->pipe->map_len = SH_RING_BYTES; l->pipe->ring = l->pipe->map;
-        if (ring_mode == 1) p.ring = l->pipe->ring;
-        /* mode 2 leaves the ring unanswered, forcing a same-frame socket
-         * retry. Even that exchange must retain the synchronous RHS path. */
+        if (ring_mode == RING || ring_mode == LATE_RING) p.ring = l->pipe->ring;
+        /* SOCKET_FALLBACK leaves the ring unanswered, forcing a same-frame socket
+         * retry. Even that exchange must run the RHS exactly once. */
     }
     l->ywidth = width; p.fd = sockets[1]; active = &p;
     pthread_t thread; assert(pthread_create(&thread, NULL, serve, &p) == 0);
@@ -137,13 +165,19 @@ static void exchange(sh_link *l, const int8_t *w0, const int8_t *w1, int width, 
     sh_link_profile profile_before, profile_after;
     sh_link_profile_snapshot(l, &profile_before);
     int rc = sh_link_gemm(l, p.nodes, count, x, m, out);
+    if (p.ring) assert(shutdown(l->pipe->fd, SHUT_RDWR) == 0);
     pthread_join(thread, NULL);
+    if (p.late_ring) assert(p.retried);
     assert(l->groups[0].held == 0 && l->groups[0].count == before - m);
     assert(l->groups[0].head == (head + m) % DEPTH && l->pads_used == used_before + m);
     if (p.overlap) assert(p.calls == p.expected && p.ready);
+    if (p.ring && l->overlap_verify) assert(p.calls == p.expected);
     int expected_rc = mode == HONEST ? SH_OK :
         (mode == CORRUPT || mode == WRAP) ? SH_ERR_VERIFY :
         (mode == TRUNCATE || mode == DISCONNECT) ? SH_ERR_IO : SH_ERR_VIOLATION;
+    if (rc != expected_rc) fprintf(stderr,
+        "exchange mode=%d ring=%d width=%d rows=%d rc=%d expected=%d pipe=%s\n",
+        mode, ring_mode, width, m, rc, expected_rc, l->pipe->err);
     assert(rc == expected_rc);
     sh_link_profile_snapshot(l, &profile_after);
     assert(profile_after.used_pads == profile_before.used_pads + (uint64_t)m);
@@ -246,7 +280,8 @@ static void run_case(int enabled, bool verify, int width, int ring_mode, int fin
         exchange(l, w0, w1, width, widths[i], HONEST, i == 4 ? 1 : 2, i % 2 != 0, ring_mode);
     // Transport failures leave the link retryable. Integrity failures are
     // terminal, so each such case below starts with a fresh link/challenges.
-    if (verify && ring_mode != 1) for (int mode = SHORT_LENGTH; mode <= DISCONNECT; mode++)
+    if (verify && (ring_mode == SOCKET || ring_mode == SOCKET_FALLBACK))
+      for (int mode = SHORT_LENGTH; mode <= DISCONNECT; mode++)
         exchange(l, w0, w1, width, 3, mode, 2, mode % 2 != 0, ring_mode);
     if (width == 4 || ring_mode) for (int mode = EXTREME_POS; mode <= BELOW_FIELD; mode++)
         exchange(l, w0, w1, width, 3, mode, 2, mode % 2 != 0, ring_mode);
@@ -433,11 +468,13 @@ int main(void) {
     }
     for (int failure = CORRUPT; failure <= WRAP; failure++) {
       for (int width = 3; width <= 4; width++) {
-        for (int enabled = -1; enabled <= 1; enabled++) run_case(enabled, true, width, 0, failure);
-        run_case(1, false, width, 0, failure);
+        for (int enabled = -1; enabled <= 1; enabled++) run_case(enabled, true, width, SOCKET, failure);
+        run_case(1, false, width, SOCKET, failure);
       }
-      run_case(1, true, 3, 1, failure);
-      run_case(1, true, 3, 2, failure);
+      run_case(1, true, 3, RING, failure);
+      run_case(1, true, 3, SOCKET_FALLBACK, failure);
+      run_case(1, true, 3, LATE_RING, failure);
     }
+    run_case(1, false, 3, LATE_RING, HONEST);
     ring_refusal_case();
 }

@@ -33,6 +33,63 @@ static tensors make(ggml_context *ctx, int m = 4, bool reshape = false, bool rev
     return t;
 }
 
+static void same_pattern(const sh_fusion_pattern &a, const sh_fusion_pattern &b) {
+    assert(a.first == b.first && a.residual == b.residual && a.add == b.add &&
+        a.norm == b.norm && a.scaled == b.scaled && a.next == b.next && a.eps == b.eps);
+}
+
+static void same_local(const tensors &t) {
+    for (auto *node : {t.add, t.norm, t.scaled}) {
+        sh_fusion_pattern owned, borrowed;
+        const bool expected = sh_fusion_match(node, spec, owned);
+        assert(sh_fusion_match_local(node, borrowed) == expected);
+        if (expected) same_pattern(owned, borrowed);
+    }
+}
+
+static void local_names() {
+    ggml_init_params ip = {1 << 20, nullptr, true};
+    auto *ctx = ggml_init(ip); assert(ctx);
+    auto t = make(ctx);
+    struct names { const char *first, *norm; bool prefix, scaled; };
+    const names cases[] = {
+        {"blk.3.attn_output.weight", "blk.3.post_attention_norm.weight", true, true},
+        {"blk.3.ssm_out.weight", "blk.3.post_attention_norm.weight", true, true},
+        {"blk.003.attn_output.weight", "blk.003.post_attention_norm.weight", true, true},
+        {"blk.named.ssm_out.weight", "blk.named.post_attention_norm.weight", true, true},
+        {"blk..attn_output.weight", "blk..post_attention_norm.weight", true, true},
+        {"blk.3.attn_output.weight", "blk.30.post_attention_norm.weight", true, false},
+        {"blk.3.attn_output.weight", "blk.3.post_attention_norm.weight.extra", true, false},
+        {"blk.3.attn_output.weight", "blk.3.post_attention_norm.weigh", true, false},
+        {"blk.3.attn_output.weight", "", true, false},
+        {"blk.3.attn_output.weight", "blk", true, false},
+        {"prefix.blk.3.attn_output.weight", "blk.3.post_attention_norm.weight", false, false},
+        {"blk.3.4.attn_output.weight", "blk.3.post_attention_norm.weight", false, false},
+        {"blk.3.attn_output.weight.extra", "blk.3.post_attention_norm.weight", false, false},
+        {"blk.3.attn_output", "blk.3.post_attention_norm.weight", false, false},
+        {"blk.", "blk.post_attention_norm.weight", false, false},
+        {"", "", false, false},
+    };
+    sh_fusion_pattern p;
+    for (const auto &c : cases) {
+        ggml_set_name(t.weight, c.first); ggml_set_name(t.gamma, c.norm);
+        assert(sh_fusion_match_local(t.add, p) == c.prefix);
+        assert(sh_fusion_match_local(t.norm, p) == c.prefix);
+        assert(sh_fusion_match_local(t.scaled, p) == c.scaled);
+        assert(!sh_fusion_match_local(t.gate, p)); // prefix matcher never claims a projection
+    }
+    for (const char *suffix : {".post_attention_norm.weight", ".attn_output.weight"}) {
+        const size_t length = GGML_MAX_NAME - 1 - std::strlen(suffix);
+        const std::string layer = "blk." + std::string(length - 4, '3');
+        const std::string first = layer + ".attn_output.weight", norm = layer + ".post_attention_norm.weight";
+        ggml_set_name(t.weight, first.c_str()); ggml_set_name(t.gamma, norm.c_str());
+        assert(sh_fusion_match_local(t.add, p));
+        assert(sh_fusion_match_local(t.norm, p));
+        assert(sh_fusion_match_local(t.scaled, p) == (norm.size() < GGML_MAX_NAME));
+    }
+    ggml_free(ctx);
+}
+
 /* Compute only the local nodes with real ggml CPU kernels, starting from a
  * synthetic first projection. Compare at EVERY boundary, including allocations
  * that reuse the first projection or residual for the subsequent local ops. */
@@ -107,6 +164,7 @@ int main() {
     sh_fusion_pattern p;
     for (int m : {1, 3, 8, 16}) for (bool reshape : {false, true}) for (bool reverse : {false, true}) {
         auto t = make(ctx, m, reshape, reverse);
+        same_local(t);
         for (auto *node : {t.add, t.norm, t.scaled, t.gate, t.up}) assert(sh_fusion_match(node, spec, p));
         assert(p.first == t.first && p.residual == t.residual && p.add == t.add &&
             p.norm == t.norm && p.scaled == t.scaled && p.next == t.up && p.eps == 1e-6f);
@@ -118,6 +176,7 @@ int main() {
         ggml_reset(ctx);
     }
     auto t = make(ctx);
+    same_local(t);
     assert(!sh_fusion_match(nullptr, spec, p));
     assert(!sh_fusion_match(t.first, spec, p));
     auto wrong = spec; wrong.first_weight = "blk.2.attn_output.weight";
@@ -130,29 +189,29 @@ int main() {
     assert(!sh_fusion_match(t.gate, wrong, p));
     for (float eps : {0.0f, -1.0f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()}) {
         std::memcpy(t.norm->op_params, &eps, sizeof eps);
-        assert(!sh_fusion_match(t.gate, spec, p));
+        assert(!sh_fusion_match(t.gate, spec, p)); same_local(t);
     }
     float eps = 1e-6f; std::memcpy(t.norm->op_params, &eps, sizeof eps);
     auto x = *t.x; x.nb[1] *= 2; t.first->src[1] = &x;
-    assert(!sh_fusion_match(t.gate, spec, p)); t.first->src[1] = t.x;
+    assert(!sh_fusion_match(t.gate, spec, p)); same_local(t); t.first->src[1] = t.x;
     auto weight = *t.weight; weight.type = GGML_TYPE_F16; t.first->src[0] = &weight;
-    assert(!sh_fusion_match(t.gate, spec, p)); t.first->src[0] = t.weight;
+    assert(!sh_fusion_match(t.gate, spec, p)); same_local(t); t.first->src[0] = t.weight;
     auto *old_residual = t.add->src[1];
     t.add->src[1] = ggml_new_tensor_2d(ctx, GGML_TYPE_F32, 32, 1);
-    assert(!sh_fusion_match(t.gate, spec, p)); t.add->src[1] = old_residual;
+    assert(!sh_fusion_match(t.gate, spec, p)); same_local(t); t.add->src[1] = old_residual;
     t.add->src[1] = t.first;
-    assert(!sh_fusion_match(t.gate, spec, p)); t.add->src[1] = old_residual;
+    assert(!sh_fusion_match(t.gate, spec, p)); same_local(t); t.add->src[1] = old_residual;
     auto alias = *t.first; alias.op = GGML_OP_VIEW; alias.src[0] = t.first;
     t.add->src[0] = &alias;
-    assert(!sh_fusion_match(t.gate, spec, p));
+    assert(!sh_fusion_match(t.gate, spec, p)); same_local(t);
     alias.op = GGML_OP_RESHAPE; alias.src[0] = &alias;
-    assert(!sh_fusion_match(t.gate, spec, p)); t.add->src[0] = t.first;
+    assert(!sh_fusion_match(t.gate, spec, p)); same_local(t); t.add->src[0] = t.first;
     // An extra branch/bias after the first projection is not the algebra.
     t.add->src[0] = ggml_add(ctx, t.first, t.residual);
-    assert(!sh_fusion_match(t.gate, spec, p)); t.add->src[0] = t.first;
+    assert(!sh_fusion_match(t.gate, spec, p)); same_local(t); t.add->src[0] = t.first;
     // Gamma must be a public leaf weight, not a runtime-computed multiplier.
     t.gamma->op = GGML_OP_SCALE;
-    assert(!sh_fusion_match(t.gate, spec, p)); t.gamma->op = GGML_OP_NONE;
+    assert(!sh_fusion_match(t.gate, spec, p)); same_local(t); t.gamma->op = GGML_OP_NONE;
     // A residual produced from first matches the local island's shape but
     // cannot be consumed early. The execution-readiness check must reject it.
     t.add->src[1] = ggml_scale(ctx, t.first, 0.5f);
@@ -160,5 +219,6 @@ int main() {
     assert(!sh_fusion_ready(graph(ctx, t.gate), p));
     ggml_free(ctx);
     arithmetic();
+    local_names();
     std::puts("fusion pattern, ordering and CPU arithmetic: ok");
 }
