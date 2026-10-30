@@ -1,5 +1,15 @@
 # Sessions for enclave.host: design spec
 
+## Wallet ownership migration status — October 29, 2026 (America/Phoenix)
+
+The required behavior now supersedes the historical custody choice below: session-created deployments must belong to the controlling wallet, with sessions holding scoped permissions only. The existing immutable v2 vault still creates and funds records under its own address. Production migration controls are deployed, but prepared reviews are not completed transfers; no migration signature or ownership change has yet been confirmed in this rollout.
+
+An additive wallet-owned creation candidate is preserved in [the complete source delivery](../../ops/unified-funding-20261028/wallet-owned-session-create-delivery-r1/ROOT-PRESERVATION.md). It is **not deployed or qualified**. The first [root consumer run](../../ops/unified-funding-20261028/wallet-owned-create-root-tests-r1/ROOT-REVIEW.md) passed seven authored cases and failed three added policy-discovery/chain-identity cases. SDK/open and host startup wiring remain incomplete. Factory configuration alone does not prove a row has no policy; missing configuration must not bypass content authorization. Contract compilation, size, exact deployed-ledger tests and final secret-release policy checks remain required.
+
+New-version grants, delegation and budgets cannot be inferred from old ones. The candidate does not migrate existing funded DNS/KVM escrow or gas reserve ownership. Their [immutable-contract limits](../../ops/unified-funding-20261028/wallet-migration-next-paths-r1/peer-REVIEW.md) remain; refunding and funding again does not preserve their accounting and runtime backing.
+
+## Historical implementation
+
 Status: **implemented** (sessions/spec branch). Decisions D1-D8 were taken as recommended below, and §15 records where the build deviates from this text. §16 adds delegated access to the deployments the owner's wallet holds (ledger rev 15d + vault v2, live on Base since 2026-10-07); it supersedes D2's "sessions can't control wallet-owned deployments".
 Branch: `sessions/spec`, cut from main 405133117.
 Live chain state in §1 was read on 2026-10-06. The ledger has moved since (§16.4).
