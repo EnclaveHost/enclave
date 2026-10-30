@@ -21,8 +21,10 @@ import { connectWallet, disconnectWallet } from "../core/wallet.js";
 import { $, esc, lsGet, on, showToast } from "../core/util.js";
 import { sdk, sessionsConfig, ownerOp, fmtUsd, fmtLeft, relayRoot, versionLabel, vaultOf,
   walletDelegation, setWalletDelegation, openExtendModal } from "../core/sessions.js";
+import { releaseSlot, startWalletRelease } from "../core/wallet-release-view.js";
 
 let rendering = false;
+let releaseUi = null;   // dispose() of the "Move to wallet" controls of the last render: nothing signs or sends after it
 // the ledger's Deployment tuple (stable since schema 2; contracts/EnclaveDeployments.sol)
 const DEPLOYMENT = [["id", "bytes32"], ["owner", "address"], ["appRef", "string"], ["ports", "string"], ["configCid", "string"],
   ["gpuMilli", "uint16"], ["cpuMilli", "uint16"], ["appPort", "uint32"], ["isPublic", "bool"], ["active", "bool"], ["createdAt", "uint64"],
@@ -31,6 +33,7 @@ const DEPLOYMENT = [["id", "bytes32"], ["owner", "address"], ["appRef", "string"
 
 function mount(){
   const body = $("#ssBody"); if (!body) return;
+  if (releaseUi && !rendering){ releaseUi(); releaseUi = null; }
   render(body).catch((e) => { body.innerHTML = '<div class="ss-card"><p class="co-note">' + esc(e.message || String(e)) + "</p></div>"; });
 }
 
@@ -72,6 +75,10 @@ async function render(body){
       (rows.length ? rows.map((r) => card(r, S, now, mine)).join("") : '<div class="ss-card"><p class="co-note">No sessions yet. Sign in to start one, or run <code>enclave session new</code> for an agent.</p></div>') +
       (info.held.length ? heldCard(info.held) : "");
     wire(body, info, S, rows, free);
+    // "Move to wallet": eligibility from fresh pinned chain reads, never from these relay rows
+    if (releaseUi) releaseUi();
+    releaseUi = info.held.length ? startWalletRelease({ body, sdk: S, cfg, provider: Enclave.provider, address: Enclave.address,
+      vault: info.vault, relayRoot: relayRoot() }) : null;
     const m = /^#topup=(0x[0-9a-fA-F]{40}):(0x[0-9a-fA-F]{64}):(\d+)$/.exec(location.hash);
     if (m && m[1].toLowerCase() === info.vault.toLowerCase()) { history.replaceState(null, "", "sessions"); topUp(m[2], Number(m[3]) / 1e6); }
   } finally { rendering = false; }
@@ -134,7 +141,8 @@ function heldCard(held){
     '<p class="co-note">Sessions may change a STAGING deployment\'s version. A PRODUCTION deployment runs only what you promote, and its secrets are released only for that.</p>' +
     held.map((h) => '<dl class="ss-facts" data-dep="' + esc(h.id) + '"><dt>deployment</dt><dd>' + esc(h.id) + "</dd><dt>environment</dt><dd>" +
       (h.env === 2 ? "production" : h.env === 1 ? "staging" : "not adopted") + "</dd><dt>promoted</dt><dd>" +
-      (h.env === 2 ? (h.promoted && !/^0x0+$/.test(h.promoted) ? "yes" : 'no <button class="wp-mini ss-promote" type="button">promote current</button>') : "-") + "</dd></dl>").join("") + "</div>";
+      (h.env === 2 ? (h.promoted && !/^0x0+$/.test(h.promoted) ? "yes" : 'no <button class="wp-mini ss-promote" type="button">promote current</button>') : "-") + "</dd></dl>" +
+      releaseSlot(h)).join("") + "</div>";
 }
 
 function wire(body, info, S, rows, free){

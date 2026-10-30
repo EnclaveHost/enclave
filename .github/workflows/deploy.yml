@@ -35,9 +35,9 @@ name: Deploy
 run-name: Deploy ${{ github.sha }}
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch: {}   # manual catch-up: redeploys everything changed since the last successful run
+  # Source integration must not activate unqualified RPC/lifecycle candidates.
+  # Release the reviewed composition explicitly after its runtime gates pass.
+  workflow_dispatch: {}
 
 concurrency:
   group: deploy-main

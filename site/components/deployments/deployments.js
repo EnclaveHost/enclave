@@ -18,7 +18,7 @@ import {catalogStatus,catalogAdmissionRefusal} from "../../js/core/catalog-polic
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import "../volume-picker/volume-picker.js";   // the Models tab's checklist
 import { $$, esc, hlJson, fmtDur, statusCls, copyText, showToast, lsGet, lsSet } from "../../js/core/util.js";
-import { APP_DOMAIN, DEPLOYMENTS_ADDRESS } from "../../js/core/config.js";
+import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, APP_CATALOG_RPCS } from "../../js/core/config.js";
 import { Enclave, INDEPENDENT_MODE } from "../../js/core/api.js";
 
 /* The API's claim nudge. Hosts sweep the ledger for funded work about once a minute anyway, so independent mode
@@ -44,6 +44,8 @@ import { resourceOverview } from "../../js/core/resource-overview.js";
 import { vspecOf, boxOfEndpoint, verifyBoxInBrowser, verdictBadge, verificationHtml, boxModeOf, boxRowOf, verifyAppInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime, fundingTerms } from "../../js/core/fund.js";
+import { mountSelfHostedGasTopup, topupRoute, apiRatePerSecond } from "./selfhost-gas-topup.js";
+import { hasFundingSession, fundRuntimeFromSession } from "../../js/core/session-funding.js";
 import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
 import { isolationOptions, withIsolationRequirements, hostMeetsTeeRequirements, hostsTakeConfig } from "../../js/core/isolation-options.js";
 import { placementMessage, pinnedHost, withPlacementPin } from "../../js/core/placement-options.js";
@@ -1851,19 +1853,50 @@ class Deployments extends EnclaveElement {
   /* ---- per-row Top up: extend a deployment's runtime in place. One amount,
      the runtime it adds at this deployment's own rate, one gas-free USDC
      signature (EIP-3009 -> fundWithAuthorization; same flow as deploying). ---- */
-  _fund(id, btn) {
+  async _fund(id, btn) {
+    const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-fund"); if (!box) return;
+    if (!box.hidden) { box._gasTopup?.close(); box._fundCleanup?.(); box._fundToken = null; box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
+    const d = (this._list || []).find(x => x.id === id) || {}, via = ctlOf(d) === "vault";
+    if (!/^0x[0-9a-f]{64}$/i.test(id)) return this._fundRuntime(id, btn);
+    const token = {}, at = { owner: Enclave.address, chain: Enclave.chainId, provider: Enclave.provider };
+    box._fundToken = token; box.hidden = false; btn.setAttribute("aria-expanded", "true");
+    box.innerHTML = '<div class="term enc-fund-status" role="status">Checking the current funding rate…</div>';
+    const current = () => box.isConnected && !box.hidden && box._fundToken === token && Enclave.address === at.owner && Enclave.chainId === at.chain && Enclave.provider === at.provider;
+    const changed = () => { if (Enclave.address !== at.owner || Enclave.chainId !== at.chain || Enclave.provider !== at.provider) { box._gasTopup?.close(); box._fundToken = null; box._fundCleanup?.(); box.innerHTML = '<div class="term enc-fund-status">Wallet or network changed. Close and reopen Top up.</div>'; } };
+    for (const e of ["enclave:wallet","enclave:account","enclave:auth"]) window.addEventListener(e, changed);
+    box._fundCleanup = () => { for (const e of ["enclave:wallet","enclave:account","enclave:auth"]) window.removeEventListener(e, changed); };
+    try {
+      const snapshot = await depSnapshot(id); if (!current()) return;
+      const route = topupRoute(id, snapshot, via);
+      if (route === "gas") {
+        const S = await import("../../js/core/sessions.js"); if (!current()) return;
+        box._gasTopup = mountSelfHostedGasTopup({box,id,snapshot,esc,paint:paintLine,
+          sessionsConfig:S.sessionsConfig,relayRoot:S.relayRoot,rpcFallback:APP_CATALOG_RPCS[0],
+          live:()=>({owner:Enclave.address,chainId:Enclave.chainId,provider:Enclave.provider}),
+          getSnapshot:()=>depSnapshot(id),isCurrent:current});
+        return;
+      }
+      if (route === "runtime") { box._fundCleanup(); box.hidden = true; return this._fundRuntime(id,btn); }
+      box.innerHTML = '<div class="term enc-fund-status" role="status">' + esc(route === "unsupported"
+        ? "This app has no runtime charge. Account compute credit cannot fund its withdrawable gas reserve through this session."
+        : "The current deployment rate could not be verified. Close and reopen Top up to retry; nothing was paid.") + '</div>';
+    } catch(e) { if (current()) box.innerHTML = '<div class="term enc-fund-status" role="status">' + esc("Could not check Top up: " + (e.message || String(e)) + ". Close and reopen to retry.") + '</div>'; }
+  }
+
+  _fundRuntime(id, btn) {
     const row = btn.closest(".enc-row"), box = row && row.querySelector(".enc-fund"); if (!box) return;
     if (!box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); return; }
     btn.setAttribute("aria-expanded", "true");
     const d = (this._list || []).find(x => x.id === id) || {};
     const via = ctlOf(d) === "vault";   // credit-vault row: passkey-signed, spends account credit
+    const useSession = !via && hasFundingSession();
     const r = d.resources || {};
     const gpuPct = Math.round((r.gpuShare || 0) * 100), cpuPct = Math.round((r.cpuShare != null ? r.cpuShare : (r.share || 0)) * 100);
     // the deployment's own burn rate: the API's live number (the on-chain
     // snapshot) when present; else the CONTRACT's prices; constants only
     // until that read lands
-    let rate = parseFloat(d.ratePerSecondUsdc) || shareRates(gpuPct, cpuPct).rate;
-    if (!parseFloat(d.ratePerSecondUsdc))
+    let rate = apiRatePerSecond(d.ratePerSecondUsdc);
+    if (!Number.isFinite(rate))
       depPrices6().then(pr => { rate = Number(rate6Of(pr, gpuPct * 10, cpuPct * 10)) / 1e6; if (box.isConnected && !box.hidden) upd(); }).catch(() => {});
     box.hidden = false;
     box.innerHTML = '<div class="ap-attbar">top up · ' + esc(id) + '</div>'
@@ -1871,7 +1904,7 @@ class Deployments extends EnclaveElement {
       +   '<label for="efAmt">Add runtime (' + (via ? 'USD' : 'USDC') + ')</label>'
       +   '<input class="ef-amt" id="efAmt" type="number" value="5" min="0.01" step="any" inputmode="decimal" />'
       +   '<span class="ef-est"></span>'
-      +   '<button class="btn btn-sm btn-primary ef-go" type="button">' + (via ? 'Confirm with passkey' : INDEPENDENT_MODE && currentIdentity().kind === "account" ? 'Pay from your account' : 'Sign &amp; pay') + '</button>'
+      +   '<button class="btn btn-sm btn-primary ef-go" type="button">' + (via ? 'Confirm with passkey' : useSession ? 'Pay from session' : INDEPENDENT_MODE && currentIdentity().kind === "account" ? 'Pay from your account' : 'Sign &amp; pay') + '</button>'
       + '</div>'
       + '<div class="term enc-fund-status" role="status" aria-live="polite"></div>';
     const amt = box.querySelector(".ef-amt"), est = box.querySelector(".ef-est");
@@ -1894,6 +1927,14 @@ class Deployments extends EnclaveElement {
     go.addEventListener("click", async () => {
       const usd = parseFloat(amt.value) || 0; if (!(usd >= 0.01)) return;
       go.disabled = true; st.innerHTML = "";
+      if (/^0x[0-9a-f]{64}$/i.test(id)) {
+        const who = Enclave.address, provider = Enclave.provider, chain = Enclave.chainId;
+        try {
+          const fresh = await depSnapshot(id);
+          if (!box.isConnected || box.hidden || who !== Enclave.address || provider !== Enclave.provider || chain !== Enclave.chainId) throw new Error("Wallet or panel changed; reopen Top up.");
+          if (topupRoute(id, fresh, via) !== "runtime") throw new Error("This app no longer has a verified runtime charge. Close and reopen Top up to fund network gas.");
+        } catch(e) { paint("warn", "[x] " + (e.message || String(e))); go.disabled = false; return; }
+      }
       if (via){
         // credit path: the vault owns this deployment on-chain; one passkey
         // tap signs fundDeployment and the balance moves credit -> deployment
@@ -1910,6 +1951,14 @@ class Deployments extends EnclaveElement {
         return;
       }
       try {
+        const funded = await fundRuntimeFromSession(id, usd, { required: useSession });
+        if (funded) {
+          nudge();
+          paint("ok", "[✓] topped up from your session with $" + usd.toFixed(2) + okTail);
+          showToast("topped up " + id.slice(0, 10) + "… from your session");
+          setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; } this.refresh(); }, 3500);
+          return;
+        }
         // no SIWE: the EIP-3009 authorization IS the proof of key ownership
         if (await needsWallet()){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
         await ensureBaseChain();
@@ -2230,21 +2279,35 @@ class Deployments extends EnclaveElement {
       const locked = [...row.querySelectorAll(".enc-tabs button"), ...box.querySelectorAll("input, select, button")].map(el => [el, el.disabled]);
       go.disabled = true;
       let saved = false;
+      const progressLine = document.createElement("span");
+      progressLine.className = "ln info";
+      st.append(progressLine);
+      const progress = (message, { phase = "preparing" } = {}) => {
+        progressLine.textContent = message;
+        go.textContent = ({ preparing: "Preparing…", wallet: "Confirm in wallet…", confirming: "Confirming…", waiting: "Saved · waiting for host…" })[phase] || "Working…";
+      };
       const via = ctlOf((this._list || []).find(x => x.id === id)) === "vault";
       const doneWord = verChange ? "switched to " + app.slug + ":" + r.v.version + (resized ? " at " + (t.gpuMilli / 10) + "% GPU / " + (t.cpuMilli / 10) + "% CPU" : "")
                                  : "resized to " + (t.gpuMilli / 10) + "% GPU / " + (t.cpuMilli / 10) + "% CPU";
       try {
         box.dataset.busy = "true";
         locked.forEach(([el]) => { el.disabled = true; });
-        if (sharesOnly) {
-          const latest = await depGet(id), current = leaseHostOf(latest, fleet);
+        progress("Checking the deployment and host…");
+        if (sharesOnly || resized) {
+          const [latest, liveFleet] = await Promise.all([depGet(id), Enclave.getEnclaves()]);
+          const current = leaseHostOf(latest, liveFleet);
           if (latest.active === false || !current || current.row.id !== hw.row.id)
             throw new Error('The app’s host changed. Reopen Resources to size its current allocation.');
         }
         if (restartResize && (resized || d.active === false)) {
           if (!via) await needPayer();
           if (!via) await ensureBaseChain();
-          const walletTx = async data => { const hash = await sendTx(DEPLOYMENTS_ADDRESS, data); await waitReceipt(hash); };
+          const walletTx = async data => {
+            const hash = await sendTx(DEPLOYMENTS_ADDRESS, data, undefined, undefined,
+              { onProgress: (phase, message) => progress(message, { phase }) });
+            progress("Transaction sent: " + hash + " · waiting for confirmation…", { phase: "confirming" });
+            await waitReceipt(hash);
+          };
           const activeCall = active => encCall(DEP_SEL.setActive, [{ t: "bytes32", v: id }, { t: "bool", v: active }]);
           const sharesCall = encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: t.gpuMilli }, { t: "uint", v: t.cpuMilli }]);
           const vault = via ? (await import("../../js/core/vault.js")).vaultOp : null;
@@ -2253,10 +2316,15 @@ class Deployments extends EnclaveElement {
             saved: ({ active }) => {
               // Keep the same panel retryable after cancellation/RPC trouble.
               // The chain already retains these shares across reloads.
-              Object.assign(bought, t); Object.assign(d, t, { active });
+              Object.assign(bought, t); Object.assign(d, t, { active, appRef: nextRef });
+              const allocation = row.querySelector(".enc-allocation");
+              if (allocation) allocation.textContent = (t.cpuMilli / 10) + "% CPU" + (t.gpuMilli ? " · " + (t.gpuMilli / 10) + "% GPU" : "") + " · saved";
+              const badge = row.querySelector(".enc-main > .ap-badge");
+              if (badge) { badge.textContent = active ? "queued" : "suspended"; badge.className = "ap-badge " + statusCls(active ? "queued" : "stopped"); }
+              if (verChange) saved = true; // a partial upgrade continues through Resume, never a second version write
             },
             resume: () => via ? vault("control", { id, action: "resume" }) : walletTx(activeCall(true)),
-            progress: message => paint("info", message),
+            progress,
             apply: async ({ active }) => {
               if (via) {
                 await vault("control", { id, action: "resize", gpuMilli: t.gpuMilli, cpuMilli: t.cpuMilli, active });
@@ -2266,6 +2334,7 @@ class Deployments extends EnclaveElement {
             },
           });
           saved = true;
+          progressLine.remove();
           if (result.resumed) {
             claimHint({ method: "POST", headers: { "content-type": "application/json" },
               body: JSON.stringify({ id, force: true }) }).catch(() => {});
@@ -2308,11 +2377,12 @@ class Deployments extends EnclaveElement {
         showToast(doneWord.replace(/^switched/, "switched " + id.slice(0, 10) + "…").replace(/^resized/, "resized " + id.slice(0, 10) + "…"));
         setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } this.refresh(); }, 3500);
       } catch(e){
+        progressLine.remove();
         const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
         paint("warn", restartResize ? "[x] " + (e.message || String(e))
           : rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
         go.disabled = false;
-      } finally { delete box.dataset.busy; locked.forEach(([el, disabled]) => { el.disabled = disabled; }); if (saved) go.disabled = true; if (!via) refreshWallet(); }
+      } finally { delete box.dataset.busy; locked.forEach(([el, disabled]) => { el.disabled = disabled; }); go.textContent = sharesOnly ? (saved ? "Saved" : "Save") : "Change version"; if (saved) go.disabled = true; if (!via) refreshWallet(); }
     });
     // ---- the hourly ceiling: which enclaves may run this deployment --------
     // Enclaves price their own hardware, so this line decides where the work

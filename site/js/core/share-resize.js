@@ -27,16 +27,21 @@ export async function resizeAfterStop({ expected, target, read, apply, resume, p
   let committed = false;
   try {
     if (leaseAvailable(d)) {
-      progress("Confirm the new shares and re-queue in your wallet.");
+      progress("Confirm the new shares and re-queue in your wallet.", { phase: "preparing" });
       await apply({ active: true });
       saved({ active: true });
       return { resumed: true };
     }
-    progress("Confirm the new shares and stop in one transaction. Then confirm re-queue when the old lease clears.");
+    progress("Preparing the allocation and stop transaction…", { phase: "preparing" });
     await apply({ active: false });
     committed = true;
     saved({ active: false });
-    progress("New shares saved. Waiting for the old host lease to clear before re-queuing…");
+    const waiting = snapshot => {
+      const seconds = Math.max(0, Number(snapshot.leaseUntil) - Number(snapshot.blockTimestamp) + 1);
+      const time = `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+      progress(`Allocation saved. The app is suspended while its previous host lease clears (up to ${time}). No wallet request is pending yet. Keep this page open for the resume request; you can also close it and use Resume later.`, { phase: "waiting" });
+    };
+    waiting(d);
     // Leases can outlive the old fixed three-minute UI timeout. Allow the
     // current lease's remaining lifetime plus settlement/read propagation.
     const remainingMs = Math.max(0, Number(d.leaseUntil) - Number(d.blockTimestamp)) * 1000;
@@ -57,6 +62,7 @@ export async function resizeAfterStop({ expected, target, read, apply, resume, p
           observed = true;
           if (Number.isSafeInteger(block)) lastBlock = block;
           if (leaseAvailable(d)) break;
+          waiting(d);
         } else if (observed || !matches(d, expected)) {
           throw new Error("The deployment changed elsewhere during resize. No further transaction was sent.");
         }
@@ -64,7 +70,7 @@ export async function resizeAfterStop({ expected, target, read, apply, resume, p
       if (now() >= deadline) throw new Error("The old lease has not cleared yet.");
       await sleep(3000);
     }
-    progress("New shares saved. Confirm re-queue in your wallet to start the resized app.");
+    progress("Allocation saved. Preparing the resume transaction…", { phase: "preparing" });
     await resume();
     return { resumed: true };
   } catch (e) {

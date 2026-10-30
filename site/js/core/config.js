@@ -182,7 +182,7 @@ export function __applyAddresses(map){
 if (ADDRESS_BOOK_ADDRESS && !IND_ANY){
   try { __applyAddresses(JSON.parse(sessionStorage.getItem("enclave_addrbook") || "null")); } catch(e){}
 }
-export const APP_CATALOG_RPC     = "https://base-rpc.publicnode.com";  // preferred read endpoint (CORS-enabled; browsing needs no wallet). NOTE: deploy-app-catalog.mjs rewrites this to mainnet.base.org on every catalog deploy - restore publicnode after (it rate-limits hard enough to trip one catalog load; kept in the pool as last resort)
+export const APP_CATALOG_RPC     = "https://api.enclave.host/rpc/base"; // private Alchemy upstream and shared read cache
 /* Failover pool: reads are stateless, and every public Base RPC rate-limits by
    IP - the official mainnet.base.org hard enough that one catalog load can
    trip "over rate limit". Calls start on the last endpoint that worked and
@@ -190,7 +190,7 @@ export const APP_CATALOG_RPC     = "https://base-rpc.publicnode.com";  // prefer
    production; the e2e suite seeds it) points every read at one endpoint, which
    is exactly why it is loopback-origin only - see devOverride above. */
 const _rpc = IND_ANY ? null : devOverride("enclave_rpc");
-const LEGACY_READ_RPCS = [APP_CATALOG_RPC, "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
+const LEGACY_READ_RPCS = [APP_CATALOG_RPC, "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
 /* The release read authority (js/core/read-authority.js): LEGACY (the pool above, or the loopback dev override) unless
    the build embedded an "own-rpc" authority - then ONLY its endpoints, with no public pool and no dev override; an
    invalid one leaves the pool EMPTY so every read refuses (chain.js baseRpc). A self-hosted transport, not a proof. */

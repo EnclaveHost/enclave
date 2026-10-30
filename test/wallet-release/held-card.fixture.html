@@ -1,0 +1,122 @@
+<!doctype html>
+<!-- Root's bounded browser DOM test for the "Move to wallet" slot. Serve candidate/enclave/ with any
+     local static server rooted there and open /test/wallet-release/held-card.fixture.html.
+     Everything is INERT: fake chain reader, fake EIP-1193 provider, fake relay - no network, no wallet, no chain.
+     ?store=idb uses the REAL browser IndexedDB journal (database "enclave-wallet-release-fixture"); default is MemoryJournal (mock).
+     Expected:
+       row A (promoted PROD + fixture-qualified policy): enabled "Move to wallet" -> review (full id, vault, fixed destination,
+         9.500000 USDC kept, Release signature, no widening, no input field) -> "Sign release with wallet" -> journal "Submitted"
+         then "Included" after "Check the chain again".
+       row B (staging): disabled button with staging + continuity blockers; its "promote current"-style facts untouched.
+       ?store=idb, sign, reload: row A shows the journal state, no enabled Move button, provider sign count stays 0 on reload.
+       ?relay=timeout: row A ends "may still land" (uncertain); "Check the chain again" finds it by nonce; no second prompt. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>wallet release fixture</title></head>
+<body>
+<div id="ssBody">
+  <div class="ss-card"><h3>Deployments your vault holds</h3><div id="heldRows"></div></div>
+</div>
+<pre id="log" aria-label="fixture log"></pre>
+<script type="module">
+import { releaseSlot, startWalletRelease } from "../../site/js/core/wallet-release-view.js";
+import { MemoryJournal, IdbJournal } from "../../site/js/core/wallet-release-store.js";
+import { PINS, promotedHash, releaseCalldata, TOPIC_VAULT_RELEASED, TOPIC_TRANSFERRED } from "../../site/js/core/wallet-release-chain.js";
+
+const q = new URLSearchParams(location.search);
+const W = "0x0b2d009c0c9af05b12100d77f3c815fea822ee61", V = "0xb794c4dd0e1c5e6b72281799f282bfde7654345d";
+const A = "0xcab8fb59882d976bf4005448701149d734b0dab536d9bf46f2b5159b0b0819e9", B = "0xa62e13de22559ee9a6ce1798891ab3506ac8e1b1eca296ff749cfcd7ab4fc640";
+const Z32 = "0x" + "0".repeat(64), Z20 = "0x" + "0".repeat(40), REF = "catalog://0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06/0";
+const pad = (a) => "0x" + a.slice(2).padStart(64, "0");
+const log = (s) => { document.getElementById("log").textContent += s + "\n"; };
+const now = () => Math.floor(Date.now() / 1000);
+const zr = { balanceWei: 0n, maxPerOpWei: 0n, epochCapWei: 0n, enabled: false, claimPolicy: 0, sponsorRelease: false, renewWindow: 0, minExtension: 0,
+  claimCooldown: 0, epochSec: 0, maxGasPrice: 0n, maxClaimsPerEpoch: 0, epochIndex: 0, epochSpentWei: 0n, epochClaims: 0, lastClaimAt: 0n, lastClaimOperator: Z20 };
+const mkRow = (id) => ({ id, owner: V, appRef: REF, ports: "http:8000", configCid: "", gpuMilli: 0, cpuMilli: 40, appPort: 8000, isPublic: true, active: false,
+  createdAt: 1n, rate: 1n, balance6: 9500000n, spent6: 0n, runner: Z32, runnerOperator: Z20, leaseUntil: 0n });
+// a fixture chain; with ?store=idb the "chain" is reset on reload but the journal is not - recovery then reads "pending"
+const chain = { block: 100n, rows: { [A]: mkRow(A), [B]: mkRow(B) }, held: { [A]: [2, promotedHash(REF, ""), Z32], [B]: [1, Z32, Z32] },
+  released: {}, txs: new Map(), receipts: new Map(), logs: [] };
+const after = (id, b) => chain.released[id] != null && BigInt(b) >= chain.released[id];
+const reader = {
+  chainId: async () => 8453,
+  latestBlock: async () => ({ number: chain.block, hash: "0x" + "aa".repeat(32), timestamp: BigInt(now()) }),
+  blockByNumber: async (n) => n === "finalized" ? null : { number: BigInt(n), hash: "0x" + "aa".repeat(32), timestamp: BigInt(now()) },
+  codeHash: async (a) => ({ [PINS.factory]: PINS.factoryCodeHash, [V]: PINS.vaultCodeHash, [PINS.ledger]: PINS.ledgerCodeHash, [PINS.reserve]: PINS.reserveCodeHash })[a.toLowerCase()],
+  storageAt: async () => Z32,
+  simulate: async () => ({ data: "0x" }),
+  read: async (_a, _abi, fn, args, b) => {
+    const id = args && String(args[0]).toLowerCase(), rel = after(id, b);
+    switch (fn){
+      case "factory": return PINS.factory;
+      case "owner": return W;
+      case "book": return PINS.book;
+      case "isVault": return true;
+      case "vaultFor": return V;
+      case "addr": return PINS.ledger;
+      case "deploymentsSchema": return 16n;
+      case "ledger": return PINS.ledger;
+      case "get": return rel ? { ...chain.rows[id], owner: W } : chain.rows[id];
+      case "ownerEscrow6": return 0n;
+      case "earnOf": return [0n, 0n, 0n];
+      case "capOf": return 1n;
+      case "feeOf": return [Z20, 0n];
+      case "held": return rel ? [0, Z32, Z32] : chain.held[id];
+      case "ownerNonceUsed": return rel;
+      case "reserveOf": return zr;
+    }
+    throw new Error("unexpected read " + fn);
+  },
+  receipt: async (h) => chain.receipts.get(h) || null,
+  tx: async (h) => chain.txs.get(h) || null,
+  logs: async (f) => chain.logs.filter((l) => l.topics[1] === f.topics[1] && l.blockNumber >= BigInt(f.fromBlock) && l.blockNumber <= BigInt(f.toBlock)),
+};
+const provider = { signs: 0, listeners: {},
+  on(ev, fn){ this.listeners[ev] = fn; }, removeListener(ev){ delete this.listeners[ev]; },
+  async request({ method }){
+    log("provider " + method);
+    if (method === "eth_chainId") return "0x2105";
+    if (method === "eth_accounts") return [W];
+    if (method === "eth_signTypedData_v4"){ this.signs++; return "0x" + "11".repeat(64) + "1b"; }
+    throw new Error("fixture provider refuses " + method);
+  } };
+const relay = { posts: 0, async request(m, p, body){
+  relay.posts++; log("relay " + m + " " + p + " #" + relay.posts);
+  const id = body.args.deployment.toLowerCase(), R = chain.block + 2n, h = "0x" + "cd".repeat(32);
+  chain.txs.set(h, { to: V, input: releaseCalldata(id, W, body.args.opNonce, BigInt(body.args.signBefore), body.sig) });
+  chain.receipts.set(h, { status: "success", blockNumber: R, blockHash: "0x" + "aa".repeat(32), logs: [
+    { address: V, topics: [TOPIC_VAULT_RELEASED, id], data: pad(W) },
+    { address: PINS.ledger, topics: [TOPIC_TRANSFERRED, id, pad(V), pad(W)], data: "0x" }] });
+  chain.logs.push({ topics: [TOPIC_VAULT_RELEASED, id], blockNumber: R, transactionHash: h });
+  chain.released[id] = R; chain.block = R + 1n;
+  if (q.get("relay") === "timeout") throw new Error("fixture relay timeout after accepting");
+  return { txHash: h };
+} };
+// fixture-only continuity qualification for row A; production ships ROOT_QUALIFIED_CONTINUITY empty
+const continuity = [{ deployment: A, vault: V, wallet: W, appRef: REF, configCid: "", promoted: promotedHash(REF, ""), delegationGranted: false, evidence: "fixture" }];
+const sdk = { ownerFromProvider: (pv, address) => ({ address, signTypedData: (td) => pv.request({ method: "eth_signTypedData_v4", params: [address, JSON.stringify(td, (_k, v) => typeof v === "bigint" ? String(v) : v)] }) }),
+  async ownerOperation(p){
+    const opNonce = "0x" + Array.from(crypto.getRandomValues(new Uint8Array(32)), (x) => x.toString(16).padStart(2, "0")).join("");
+    const { op, ...fields } = p.op, message = { ...fields, opNonce, signBefore: BigInt(now() + 600) };
+    const td = { domain: { name: "Enclave Sessions", version: "1", chainId: p.chainId, verifyingContract: p.vault },
+      types: { Release: [{ name: "deployment", type: "bytes32" }, { name: "to", type: "address" }, { name: "opNonce", type: "bytes32" }, { name: "signBefore", type: "uint64" }] },
+      primaryType: "Release", message };
+    const sig = await p.owner.signTypedData(td);
+    return p.relay.request("POST", "/owner", { owner: p.owner.address, vault: p.vault, op, args: message, sig });
+  } };
+
+// the same held-card markup sessions.js heldCard renders (promote button included), plus the release slot
+document.getElementById("heldRows").innerHTML = [[A, 2, true], [B, 1, false]].map(([id, env, promoted]) =>
+  '<dl class="ss-facts" data-dep="' + id + '"><dt>deployment</dt><dd>' + id + "</dd><dt>environment</dt><dd>" + (env === 2 ? "production" : "staging") +
+  "</dd><dt>promoted</dt><dd>" + (env === 2 ? (promoted ? "yes" : 'no <button class="wp-mini ss-promote" type="button">promote current</button>') : "-") + "</dd></dl>" +
+  releaseSlot({ id })).join("");
+const journal = q.get("store") === "idb" ? new IdbJournal(indexedDB, "enclave-wallet-release-fixture") : new MemoryJournal();
+log("journal: " + (q.get("store") === "idb" ? "REAL IndexedDB" : "MemoryJournal (mock)"));
+window.__wr = { provider, relay, chain, journal, dispose: null };
+// startWalletRelease builds its own controllers; continuity is injected only through this fixture's deps hook
+import("../../site/js/core/wallet-release-controller.js").then(({ createReleaseController }) => {
+  const deps = { reader, journal, relay, makeController: (o) => createReleaseController({ ...o, continuity }) };
+  window.__wr.dispose = startWalletRelease({ body: document.getElementById("ssBody"), sdk, cfg: { chainId: 8453 }, provider, address: W, vault: V, relayRoot: "", deps });
+});
+</script>
+</body>
+</html>

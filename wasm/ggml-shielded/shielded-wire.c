@@ -550,7 +550,7 @@ int sh_pipe_exchange_work(sh_pipe *p, const sh_frame *frames, size_t n, sh_reply
         }
         used += (size_t)size;
     }
-    p->last_socket_ms = wire_now_ms();
+    if (p->ring) p->last_socket_ms = wire_now_ms();
     used = 0;
     for (size_t i = 0; i < n; i++) { out[i].data = out[i].len ? p->rbuf + used : NULL; used += out[i].len; }
     if (profile) {
@@ -711,6 +711,7 @@ int sh_pipe_shm_attach(sh_pipe *p, const char *path, int index, size_t bytes) {
     struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
     p->seq = (((uint64_t)ts.tv_sec << 24) | ((uint64_t)ts.tv_nsec >> 6)) & 0x3fffffffffffffffULL;
     p->misses = 0;
+    p->last_socket_ms = wire_now_ms();
     p->stream_load = 0;
 #if defined(__x86_64__) || defined(__i386__)
     const char *stream = getenv("SHIELDED_SHM_STREAM_LOAD");

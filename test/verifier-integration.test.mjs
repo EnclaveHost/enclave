@@ -31,13 +31,15 @@ test("the pin is explicit: a full commit, an entry, blob hashes, and a worktree-
   assert.ok(pin.mustMatchWorktree.includes("relay/avf-verify.mjs"));
 });
 test("resolve: the pinned commit materialises exactly the pinned bytes into an isolated directory with a manifest", { skip: !havePinned && "pinned commit not in this repository (fetch origin pvm-cpu/portable-runtime)" }, () => {
+  const trackedEntry=path.join(REPO,"relay/pvm-app-attest.mjs");
+  const before=fs.existsSync(trackedEntry)?fs.readFileSync(trackedEntry):null;
   const r = node("verifier/integration/resolve.mjs", ["--dir", tmp, "--no-fetch", "--json"]);
   assert.equal(r.status, 0, r.stderr);
   const m = JSON.parse(r.stdout.trim().split("\n").pop());
   assert.equal(m.commit, pin.commit); assert.ok(fs.existsSync(m.entry));
   for (const [rel, want] of Object.entries(pin.files)) assert.equal(createHash("sha256").update(fs.readFileSync(path.join(path.dirname(m.entry), "..", rel))).digest("hex"), want, rel);
   assert.ok(m.entry.startsWith(path.join(tmp, "pvm-app-attest-" + pin.commit.slice(0, 12))), "isolated under the given dir, never in the tree");
-  assert.equal(fs.existsSync(path.join(REPO, "relay/pvm-app-attest.mjs")), false, "nothing was written into the tracked tree");
+  assert.deepEqual(fs.existsSync(trackedEntry)?fs.readFileSync(trackedEntry):null,before,"nothing was written into the tracked tree");
 });
 // An isolated root that resolve.mjs treats as the repository: its own copy of the script and pins, .git pointing at
 // this repository (so the pinned commit is readable), and a REAL relay/ directory whose avf-verify.mjs bytes are
@@ -100,8 +102,8 @@ test("strict mode: a missing or wrong module FAILS the acceptance suites instead
   assert.equal(r.status, 2); assert.match(r.stderr, /could not materialise|NOT resolved/);
 });
 test("non-strict, module absent: the acceptance cases skip with a stated reason and the suite still passes", () => {
-  const r = node("test/verifier-pvm-device.test.mjs", [], { ENCLAVE_PVM_MODULE: "", ENCLAVE_STRICT_INTEGRATION: "" });
-  assert.equal(r.status, 0, r.stderr); assert.match(r.stdout, /# SKIP owner module absent/);
+  const r = node("test/verifier-pvm-device.test.mjs", [], { ENCLAVE_PVM_MODULE: path.join(tmp,"absent.mjs"), ENCLAVE_STRICT_INTEGRATION: "" });
+  assert.equal(r.status, 0, r.stderr); assert.match(r.stdout, /# SKIP owner module absent/); assert.match(r.stdout, /# pass 0/);
 });
 // over a minute end to end (it runs every acceptance suite): behind an explicit switch so a plain `node --test` run of the
 // whole tree stays under the per-file limit; the strict command itself is the acceptance path and runs every suite anyway

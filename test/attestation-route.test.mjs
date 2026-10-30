@@ -44,7 +44,7 @@ test("no other source spells the alias; the supervisor and the relay take the pa
   assert.match(sup, /attestationEndpoint: \(origin \|\| ""\) \+ ADVERTISED_RAD_PATH,/);
   assert.match(relay, /^import \{ RAD_PATHS \} from "\.\/attestation-paths\.mjs";$/m);
   assert.match(relay, /"\/v1\/attestation", \.\.\.RAD_PATHS, "\/v1\/host\/capacity"\]\);/);
-  assert.doesNotMatch(sup + relay, /Cloud Provider-attestation|\bRAD_PATH\b/);
+  assert.doesNotMatch(sup + relay, /tinfoil-attestation|\bRAD_PATH\b/);
   // the published supervisor image ships the module beside net-guard (test/supervisor-image-closure.test.mjs checks the rest)
   assert.match(fs.readFileSync(path.join(REPO, "Dockerfile"), "utf8"), /^COPY relay\/net-guard\.mjs relay\/attestation-paths\.mjs \.\/relay\/$/m);
 });

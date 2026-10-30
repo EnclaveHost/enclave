@@ -241,7 +241,6 @@ const bootOut = Object.keys(outs).find(f => outs[f].entryPoint && outs[f].entryP
 // Returning browsers can retain the stable entry URL after a deploy. Bind its
 // URL to these bytes so fresh HTML always imports this build's chunk graph.
 const bootVersion = createHash("sha256").update(fs.readFileSync(path.join(DIST, "js/boot.js"))).digest("hex").slice(0, 16);
-const PAGE_HTML = { overview: "index.html", apps: "apps.html", develop: "develop.html", dashboard: "dashboard.html", admin: "admin.html", terms: "terms.html", checkout: "checkout.html", link: "link.html", host: "host.html", architecture: "architecture.html", authorize: "authorize.html", "sso-authorize": "sso/authorize.html", grant: "grant.html", sessions: "sessions.html" };   // deploy.html is a redirect stub now
 const PAGE_HTML = { overview: "index.html", apps: "apps.html", develop: "develop.html", dashboard: "dashboard.html", admin: "admin.html", terms: "terms.html", checkout: "checkout.html", link: "link.html", host: "host.html", architecture: "architecture.html", authorize: "authorize.html", "sso-authorize": "sso/authorize.html", grant: "grant.html", sessions: "sessions.html", funding: "funding.html" };   // deploy.html is a redirect stub now
 const preloads = {};
 for (const [outFile, o] of Object.entries(outs)) {
@@ -267,7 +266,7 @@ for (const f of ["index.html", "deploy.html", "apps.html", "develop.html", "dash
   if (f.endsWith(".html")) s = s.replace(/src="((?:\.\.\/)?js\/boot\.js)"/g, `src="$1?v=${bootVersion}"`);
   fs.writeFileSync(path.join(DIST, f), s);
 }
-for (const d of ["assets", "vendor", ".well-known"])
+for (const d of ["assets", "vendor", ".well-known", "wallet-release"])
   fs.cpSync(path.join(SITE, d), path.join(DIST, d), { recursive: true });
 // every same-origin module the recovery and credit pages load at runtime must be in this build
 for (const [name, result] of [["recover/recover.js", recoverResult], ["credit/credit.js", creditResult]])

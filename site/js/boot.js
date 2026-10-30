@@ -1,3 +1,4 @@
+import "../components/code/code.js"; // Preserve the live Host code-copy release.
 import "../components/cinematic-scene/cinematic-scene.js";
 import "./hex-background.js";
 import "./core/deployment-search-clear.js";

@@ -388,8 +388,8 @@
   },
   {
    "path": "relay/snp-verify.mjs",
-   "bytes": 25976,
-   "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91"
+   "bytes": 25983,
+   "sha256": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046"
   },
   {
    "path": "relay/vbs-app-core.mjs",
@@ -423,8 +423,8 @@
   },
   {
    "path": "verifier/metal-box.mjs",
-   "bytes": 7626,
-   "sha256": "6bcbb136b320ed01add947626d7a19d44a9e6db9606744cc8c0e667bc89abef2"
+   "bytes": 7633,
+   "sha256": "a9187601753d42065601dac32f6b88a0a5914475dfe48a3be57a18cb438676b3"
   },
   {
    "path": "verifier/snp.mjs",

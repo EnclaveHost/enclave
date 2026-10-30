@@ -54,7 +54,7 @@ test("the supervisor's rule is pinned: every tier supervisor this clone holds, a
   const here = fs.existsSync("supervisor.js") ? P.supervisorRuleSha256(fs.readFileSync("supervisor.js", "utf8")) : null;
   // the working tree carries the CURRENT rule, the Shield one (caa47a0c8, the per-app tier metal0 serves); the older rule is
   // pinned by the tier supervisors above
-  if (here !== null) { assert.equal(here, P.SHIELD_SUPERVISOR_RULE_SHA256, "the working tree's supervisor.js carries another rule"); checked++; }
+  if (here !== null) { assert.equal(here, P.CURRENT_SUPERVISOR_RULE_SHA256, "the working tree's supervisor.js carries another rule"); checked++; }
   if (!checked) t.skip("no tier supervisor in this clone");
 });
 
@@ -739,4 +739,18 @@ test("a release that fails does not hold the others back while they are measured
   const r = await p.expectedFor(REF);
   assert.equal(r.ok, false); assert.equal(r.code, "prediction_failed"); assert.match(r.reason, /synthetic failure/);
   assert.deepEqual(measured(tools.calls), [R3, R2, R1], "R2 and R1 were measured after R3 failed");
+});
+
+// Exercise the current functions as well as the historical release pin.
+test("current supervisor and predictor agree for every supported Shield model", () => {
+ const src=fs.readFileSync("supervisor.js", "utf8");
+ const fn=n=>{const i=src.indexOf(`function ${n}(`);assert.ok(i>=0);return src.slice(i,src.indexOf("\n}\n",i)+2)};
+ const sup=vm.runInNewContext(["isolationPolicyFor","isolationPortsOf","isolationHttpPortOf","isolationDerivation"].map(fn).join("\n")+"\n({isolationPolicyFor,isolationPortsOf,isolationDerivation})");
+ const ref=`catalog://0x${"ab".repeat(32)}/4`,rid="49".repeat(32);
+ for(const model of ["qwen2.5-0.5b-q8-gguf","qwen3.8-27b-mtp-q4-vl-gguf","z-image-turbo-q4km-sd"]) for(const gpuMilli of [500,1000]) for(const ports of ["","http:8000","http:8000,tcp:2222"]) {
+  const inference={model,gpuMilli},v={cid:"bafkreicomponent",memMb:128,ports};
+  const parsed=sup.isolationPortsOf(ports);
+  const theirs=sup.isolationDerivation(ref,"ipfs://"+v.cid,sup.isolationPolicyFor(v),rid,parsed.http,parsed.ports,inference);
+  assert.equal(P.canonical(P.derivationRecord(ref,v,rid,inference)),P.canonical(theirs));
+ }
 });

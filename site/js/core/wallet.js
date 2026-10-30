@@ -38,6 +38,7 @@ const addChainRpcs = () => INDEPENDENT.state !== "off"
   : ["https://mainnet.base.org"];
 import { Enclave, EnclaveError } from "./api.js";
 import { baseRpc } from "./chain.js";
+import { walletRead } from "./wallet-preflight.js";
 // Measured from what Base actually includes (3,569 txs / 30 blocks: largest
 // per-tx gas limit 15.0M, nothing over 16M). Asking for more is accepted by
 // some RPCs and then never mined.
@@ -129,7 +130,7 @@ function wcProvider(){
       projectId: WALLETCONNECT_PROJECT_ID,
       chains: [BASE_CHAIN],            // Base only: this site signs nothing else
       showQrModal: false,              // we render the pairing code ourselves (qr.js)
-      rpcMap: { [BASE_CHAIN]: "https://mainnet.base.org" },
+      rpcMap: { [BASE_CHAIN]: "https://api.enclave.host/rpc/base" },
       metadata: {
         name: "Enclave",
         description: "Verifiable confidential compute",
@@ -742,12 +743,13 @@ export async function ensureBaseChain(){
   // no wallet, and a passkey account that pays its own gas through its bundler (independent mode): nothing to switch
   if (!Enclave.provider && INDEPENDENT.state === "on" && await import("./account-transport.js").then((m) => m.accountPaysOwnGas()).catch(() => false)) return;
   let cur;
-  try { cur = await Enclave.provider.request({ method: "eth_chainId" }); } catch { cur = null; }
+  try { cur = await walletRead(() => Enclave.provider.request({ method: "eth_chainId" })); } catch (e) { if (/preparation timed out/.test(e.message || "")) throw e; cur = null; }
   if (cur && String(cur).toLowerCase() === BASE_CHAIN_HEX) return;
   try { await Enclave.provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: BASE_CHAIN_HEX }] }); }
   catch(e){ throw new EnclaveError("Switch your wallet to Base to pay.", 0); }
 }
-export async function sendTx(to, data, value, gasLimit){
+export async function sendTx(to, data, value, gasLimit, { onProgress = () => {} } = {}){
+  onProgress("preparing", "Estimating transaction gas…");
   await (await import("./platform-addresses.js")).assertPlatformTransactionCurrent(to, data);
   const tx = { from: Enclave.address, data, value: value || "0x0" };
   if (to) tx.to = to; // omitted = contract creation
@@ -775,21 +777,25 @@ export async function sendTx(to, data, value, gasLimit){
     // own cap, and then the caller's number stands.
     let use = BigInt(gasLimit);
     try {
-      const est = await baseRpc("eth_estimateGas", [{ ...tx, from: tx.from }]);
+      const est = await walletRead(() => baseRpc("eth_estimateGas", [{ ...tx, from: tx.from }]));
       if (est) use = BigInt(est);
     } catch(_){ /* over the estimator's cap, or unreachable: keep the estimate */ }
     use = use + use / 4n;                       // 25% headroom on a measured number
     if (use > MAX_TX_GAS) use = MAX_TX_GAS;     // never ask for more than the chain includes
     tx.gas = "0x" + use.toString(16);
     wcNudge();
+    onProgress("wallet", "Confirm the transaction in your wallet.");
     return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
   }
   // Otherwise: estimate (provider first, public Base RPC as fallback) and pad
   // 25% so a wallet that trusts our limit never under-provisions. A failed
   // estimate falls through - the wallet estimates for itself.
   let est = null;
-  try { est = await Enclave.provider.request({ method: "eth_estimateGas", params: [tx] }); }
-  catch(_){ try { est = await baseRpc("eth_estimateGas", [tx]); } catch(_2){} }
+  try { est = await walletRead(() => Enclave.provider.request({ method: "eth_estimateGas", params: [tx] })); }
+  catch(_){
+    onProgress("preparing", "Wallet gas estimate unavailable; checking the network…");
+    try { est = await walletRead(() => baseRpc("eth_estimateGas", [tx])); } catch(_2){}
+  }
   if (est) tx.gas = "0x" + (BigInt(est) + BigInt(est) / 4n).toString(16);
   else {
     // Both estimators refused a tx we have no calibrated number for. On this
@@ -803,12 +809,13 @@ export async function sendTx(to, data, value, gasLimit){
     // same payload: a revert throws its actual reason here instead; only a tx
     // that calls clean (the estimators were just unreachable) still falls
     // through to the wallet's estimator.
-    try { await baseRpc("eth_call", [tx, "latest"]); }
+    try { await walletRead(() => baseRpc("eth_call", [tx, "latest"])); }
     catch(e){
-      throw new EnclaveError("this transaction would revert - nothing was sent ("
+      throw new EnclaveError("Could not verify the transaction; nothing was sent ("
         + ((e && e.message) || e) + ")", 0);
     }
   }
   wcNudge();
+  onProgress("wallet", "Confirm the transaction in your wallet.");
   return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
 }

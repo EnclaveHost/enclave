@@ -273,7 +273,7 @@ export async function revOwner(){ const r = await revCall("0x" + REV_SEL.owner);
    REVERT), so under the flag an empty result rotates like any transport
    error; if every endpoint agrees it throws, and callers keep their
    error paths instead of caching a zero. */
-let _rpcIdx = 0;
+
 export async function baseRpc(method, params, opts){
   // independent mode with an unconfirmed or invalid profile pins no RPC at all: refuse, never fall back
   // ... and a release read authority that is invalid pins none either (js/core/read-authority.js): refuse, never fall back
@@ -282,6 +282,7 @@ export async function baseRpc(method, params, opts){
     : INDEPENDENT.state !== "off" ? "Confirm the independent profile in Settings before reading the chain."
     : "This site release's chain read authority is invalid (" + (READ_AUTHORITY && READ_AUTHORITY.error) + "): reads are refused, never sent to another server.", 0);
   let lastErr = null;
+  let _rpcIdx = 0; // Every call starts with the cached Alchemy gateway.
   for (let attempt = 0; attempt < APP_CATALOG_RPCS.length * 2; attempt++){
     const url = APP_CATALOG_RPCS[_rpcIdx % APP_CATALOG_RPCS.length];
     try {

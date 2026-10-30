@@ -73,6 +73,8 @@ export function versionRefusal(app, v, forPrivate = false) {
 // the working tree's) carries another rule, so the predictor is changed with it.
 export const SHIELD_SUPERVISOR_COMMIT = "caa47a0c8";
 export const SHIELD_SUPERVISOR_RULE_SHA256 = "0c05967041f871e641720f29658a5ffd85fcddef0719ab4e649ee5eb2c163dcf";
+// Current source adds the Z-Image resource policy; historical releases retain their own pin.
+export const CURRENT_SUPERVISOR_RULE_SHA256 = "2ab8d6780c54aa2221f2479246056a355018346aff452ed23adac29ab83f3a4e";
 export const SUPERVISOR_RULE_SHA256 = "2ad995d42e42988151b95f0c1dd70c57130ed9f245d49da7167b6a076664796a";
 export function supervisorRuleSha256(src) {
   const parts = ["isolationPolicyFor", "isolationHttpPortOf", "isolationDerivation"].map((n) => {

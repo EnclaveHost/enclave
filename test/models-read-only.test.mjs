@@ -13,6 +13,7 @@ const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 function fixture({ available = false, rev = 13, envelope = '', config = {volumes:['qwen-image-2512-sd']}, configCid = '', fetchConfig = async () => null } = {}) {
   const stock = JSON.stringify(config);
   const deps = {
+    hostsTakeConfig,
     depSchemaRev: async () => rev,
     depGet: async () => ({configCid:envelope, appRef:'catalog://app/42', leaseUntil:0}),
     loadCatalog: async () => {},
