@@ -206,13 +206,6 @@ rewinds.
 The cheap knobs are exhausted. What is left needs an idea, not a sweep. In
 rough order of how much I would bet on them:
 
-1. **Dealt pads.** The 8 refill threads exist only because the enclave mints
-   its own pads (`u = W·r` is a matmul). The architecture for pads minted by a
-   separate user-trusted dealer and shipped in **already exists** (P1-P4a
-   built, GPU mint path exists) and was never wired up for this model. If it
-   works, half the machine's committed cores come back for decode. This is the
-   largest structural lever I did not get to. Note the constraint: a dealer is
-   allowed, the untrusted host is not.
 2. **Cut the serial field arithmetic.** `C` is serial, and the box has idle
    cores. Parallelising the elementwise mask/encode across helper threads
    failed on dispatch overhead -- but the diagnosis was dispatch, not the idea.

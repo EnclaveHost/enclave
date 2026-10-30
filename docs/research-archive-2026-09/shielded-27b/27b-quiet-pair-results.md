@@ -38,5 +38,4 @@ These are the rates the two cycles measured. Read the per-condition rows first: 
 - The overall rate and the steady rate are different measurements and are reported separately; neither is a sustained production rate.
 - A NOT_RUN leg is an absent cycle and an INVALID leg is a failed one. Neither is a zero, a baseline or a result.
 - The APK installed_path and the verification command timings are observations, never identity; identity is the recorded status, manifest and APK digests, version code, calibration bytes and digest, and serial.
-- Quiet admission describes the observed body markers of that run and carries its own limitation text; it is not proof the pads port was silent.
 - GPU memory is a device peak across the whole cycle from the verified own worker, not decode-only utilisation.

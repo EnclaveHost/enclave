@@ -96,21 +96,6 @@ Remaining gaps, stated rather than closed:
    redeployed, the relay-side rule (mode `vbs` not eligible) is what keeps it out of the serving
    set. Its owner-only scope keeps working either way.
 4. **The develop guide's WASIp3 Rust sample** was not recompiled against the wasip3 0.7 line.
-5. **The pVM CPU tier's admission is wired but nothing is admitted yet.** The pVM session's verifier
-   (`relay/pvm-cpu-tier.mjs`, 785ef92a) is called by the hub on one `{t:"caps", report, sig}` frame
-   per AVF attach (`relay/tunnel.js`); an eligible verdict sets the hub-owned tier `pvm-cpu`, the
-   relay exposes it as `lane: "pvm-cpu"` (an inference lane, never app-compute eligibility), and the
-   fleet panel shows the amber `pvm cpu` badge only for hub-tiered rows. The VM does not emit the
-   caps frame yet, and no relay carries a `PVM_CPU_*` policy yet, so every report is refused by the
-   verifier's first rule. The pvm-cpu build attaches on the v2 (pad-binding) transcript because its
-   VM mints a pad key, so the hub admits a v2 attach on a `PVM_CPU_CODE_HASHES` code hash for
-   ROUTING ONLY: unless that hash is also an admitted pad build, the pad key is not retained, the
-   pads ledger never lists the phone as a consumer and never issues it a seed, and a build in
-   neither list is refused. Tested in `test/tunnel.test.mjs` (admit / bad signature / foreign nonce
-   / no policy / token box; v2 routing-only vs a pad build vs a stranger, through the real pads
-   ledger) and `test/tenant-compute-eligibility.test.mjs`. Two pre-existing failures in
-   `test/pad-ack-receiver.test.mjs` and `test/pad-seed-open.test.mjs` (native C compile errors) fail
-   identically on main and do not involve the hub.
 
 ## Brand: Enclave Shield (naming record, 2026-09-23)
 

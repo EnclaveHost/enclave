@@ -25,7 +25,6 @@ The optimized path is now named `read_reply()`; it falls back to `read_all()` wh
 2. **Receive reply body:** The call receives the remaining bytes. It includes VSOCK delivery, wakeup and scheduling delays; its caller CPU clock is much smaller.
 3. **Send masked request:** The write can wait for transport space. Header and body already use one vectored write.
 4. **Restore outliers and scale output:** The production timer covers the member/row loop, including outlier_add, descale and accounting. It does not separate those callees.
-5. **Acquire pads and mask input:** The production timer also covers dealt_wait, take_pads and request packing. Actual pad-wait counters were zero in all four trials.
 6. **Unmask and verify output side:** Packed replies are unmasked and their Freivalds left-hand terms computed in one pass.
 7. **Encode activations and separate outliers:** The production timer covers checked encoding, scratch capacity and outlier extraction.
 8. **Verify input side:** The production counter covers Freivalds input terms, including the overlap callback when selected. Do not add a nested overlap timer twice.
