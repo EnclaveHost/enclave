@@ -1,0 +1,9 @@
+# Nan read: observation succeeded; runtime placement not admitted
+
+Root b520b37e901b4806a806b081ce69c1b9 terminated0/MainPID0. Remote observer invocation28b2e1c2a4ed468caecfa1b8183ec780 reported its exact128MiB/noSwap/CPU1 cap during the read; SSH/systemd-run returned0 in4.05s with167397 stdout bytes, no timeout/truncation/capture/cleanup error. All four content pins unchanged. No install, module load, mount, RPC process, account or production change.
+
+Nan has7301680KiB available of7937252KiB, no swap,50 observed cgroups and144 process entries. Kernel6.8.0-106-generic/x86_64; only DNS-resolver andSSH TCP listeners observed. The NBD kernel module is present but unloaded; nbd-client is absent. Read-only package query returned1 because requested nbd-client is absent; raw stderr and alias results retained. Existing libc/libnl/glib/ssl packages observed; this is not a full executable dependency qualification.
+
+All ordinary services have unbounded memory.max, so their remaining commitment is not zero and this snapshot does not admit a client cap. Rootfs free15745994752 bytes. Forwarding is allowed by global sshd configuration; per-connection Match/authorized-key restrictions are not qualified by this read. No control-VM account reuse on Nan: UID995/GID986 belong to enclave-checker, UID997 to systemd-timesync andGID987 to caddy. Those identities must not acquire access to chain files or JWT. No account changes or recursive chown/idmapped mount experiment authorized by this result.
+
+Root selected the smaller next changed experiment for preparation: same control VM and2304MiB shared cap, LH source-supported cache reductions2/1/1 plus individual client memory samples and exact reuse of dedicated r2-created accounts. This is preparation only; independent review and fresh admission are required. Split placement remains an option requiring a separate safe identity mapping and resource design.

@@ -1,0 +1,194 @@
+{
+  "remoteBoot": "4b84b9bd-a89d-4b37-94cb-26334dbf4666",
+  "memAvailableKiB": 7301680,
+  "cgroups": 50,
+  "processes": 144,
+  "serviceRows": [
+    {
+      "Id": "atd.service",
+      "MainPID": "2899682",
+      "MemoryCurrent": "274432",
+      "MemoryPeak": "1581056",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/atd.service"
+    },
+    {
+      "Id": "cron.service",
+      "MainPID": "2899684",
+      "MemoryCurrent": "1114112",
+      "MemoryPeak": "5861376",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/cron.service"
+    },
+    {
+      "Id": "dbus.service",
+      "MainPID": "896",
+      "MemoryCurrent": "1765376",
+      "MemoryPeak": "4046848",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/dbus.service"
+    },
+    {
+      "Id": "enclave-rpc-nan-placement-read-r1.service",
+      "MainPID": "464825",
+      "MemoryCurrent": "9240576",
+      "MemoryPeak": "9240576",
+      "MemoryMax": "134217728",
+      "ControlGroup": "/system.slice/enclave-rpc-nan-placement-read-r1.service"
+    },
+    {
+      "Id": "getty@tty1.service",
+      "MainPID": "64816",
+      "MemoryCurrent": "225280",
+      "MemoryPeak": "745472",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/system-getty.slice/getty@tty1.service"
+    },
+    {
+      "Id": "multipathd.service",
+      "MainPID": "4163604",
+      "MemoryCurrent": "19718144",
+      "MemoryPeak": "19861504",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/multipathd.service"
+    },
+    {
+      "Id": "polkit.service",
+      "MainPID": "127005",
+      "MemoryCurrent": "1462272",
+      "MemoryPeak": "2244608",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/polkit.service"
+    },
+    {
+      "Id": "qemu-guest-agent.service",
+      "MainPID": "580695",
+      "MemoryCurrent": "647168",
+      "MemoryPeak": "1466368",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/qemu-guest-agent.service"
+    },
+    {
+      "Id": "rsyslog.service",
+      "MainPID": "127021",
+      "MemoryCurrent": "31657984",
+      "MemoryPeak": "31916032",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/rsyslog.service"
+    },
+    {
+      "Id": "serial-getty@ttyS0.service",
+      "MainPID": "948",
+      "MemoryCurrent": "290816",
+      "MemoryPeak": "614400",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/system-serial\\x2dgetty.slice/serial-getty@ttyS0.service"
+    },
+    {
+      "Id": "ssh.service",
+      "MainPID": "127007",
+      "MemoryCurrent": "37752832",
+      "MemoryPeak": "66744320",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/ssh.service"
+    },
+    {
+      "Id": "systemd-journald.service",
+      "MainPID": "4163601",
+      "MemoryCurrent": "249176064",
+      "MemoryPeak": "249561088",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/systemd-journald.service"
+    },
+    {
+      "Id": "systemd-logind.service",
+      "MainPID": "913",
+      "MemoryCurrent": "3489792",
+      "MemoryPeak": "4288512",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/systemd-logind.service"
+    },
+    {
+      "Id": "systemd-networkd.service",
+      "MainPID": "4163645",
+      "MemoryCurrent": "2314240",
+      "MemoryPeak": "2838528",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/systemd-networkd.service"
+    },
+    {
+      "Id": "systemd-resolved.service",
+      "MainPID": "4163614",
+      "MemoryCurrent": "2834432",
+      "MemoryPeak": "3653632",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/systemd-resolved.service"
+    },
+    {
+      "Id": "systemd-timesyncd.service",
+      "MainPID": "4163616",
+      "MemoryCurrent": "1474560",
+      "MemoryPeak": "1994752",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/systemd-timesyncd.service"
+    },
+    {
+      "Id": "systemd-udevd.service",
+      "MainPID": "4163619",
+      "MemoryCurrent": "2543616",
+      "MemoryPeak": "2961408",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/systemd-udevd.service"
+    },
+    {
+      "Id": "unattended-upgrades.service",
+      "MainPID": "941",
+      "MemoryCurrent": "10244096",
+      "MemoryPeak": "12099584",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/system.slice/unattended-upgrades.service"
+    },
+    {
+      "Id": "user@0.service",
+      "MainPID": "1261589",
+      "MemoryCurrent": "3125248",
+      "MemoryPeak": "6225920",
+      "MemoryMax": "infinity",
+      "ControlGroup": "/user.slice/user-0.slice/user@0.service"
+    }
+  ],
+  "identities": {
+    "groups": [
+      {
+        "gid": 987,
+        "members": [],
+        "name": "caddy"
+      },
+      {
+        "gid": 986,
+        "members": [],
+        "name": "enclave-checker"
+      }
+    ],
+    "users": [
+      {
+        "gid": 997,
+        "name": "systemd-timesync",
+        "uid": 997
+      },
+      {
+        "gid": 986,
+        "name": "enclave-checker",
+        "uid": 995
+      }
+    ]
+  },
+  "observationErrors": [
+    "packages"
+  ],
+  "pendingCommitments": "UNKNOWN",
+  "allInputPinsUnchanged": true,
+  "capacityAdmitted": false,
+  "nbdInstalled": false,
+  "nbdModuleLoaded": false
+}
