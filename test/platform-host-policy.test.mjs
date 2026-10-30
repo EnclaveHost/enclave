@@ -27,11 +27,12 @@ const ABI=[
  {type:'function',name:'isValidSignature',stateMutability:'view',inputs:[{type:'bytes32'},{type:'bytes'}],outputs:[{type:'bytes4'}]},
  {type:'function',name:'get',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'tuple',components:[{name:'endpoint',type:'string'},{name:'repo',type:'string'},
    {name:'measurement',type:'bytes32'},{name:'operator',type:'address'},{name:'registeredAt',type:'uint64'},{name:'lastSeen',type:'uint64'},{name:'active',type:'bool'}]}]}];
-function chainState(){return {owner:admin.address.toLowerCase(),ownerCode:'0x',valid1271:new Set(),hi:ZA,lo:ZA,
+function chainState(){return {owner:admin.address.toLowerCase(),ownerCode:'0x',valid1271:new Set(),hi:ZA,lo:ZA,blockTimestamp:BigInt(Math.floor(Date.now()/1000)),
  hosts:{[H.bad]:{operator:OP.bad,owner:'0x'+'aa'.repeat(20)},[H.good]:{operator:OP.good,owner:'0x'+'bb'.repeat(20)},[H.fresh]:{operator:OP.fresh,owner:'0x'+'cc'.repeat(20)}}};}
 function client(state,poison={}){
  const s=()=>({...state,...poison});
- return {getBlockNumber:async()=>10n,getBlock:async({blockNumber})=>({number:blockNumber,hash:'0x'+'ab'.repeat(32),timestamp:BigInt(Math.floor(Date.now()/1000))}),
+ // A fixed block hash must keep the same timestamp across reads and clients.
+ return {getBlockNumber:async()=>10n,getBlock:async({blockNumber})=>({number:blockNumber,hash:'0x'+'ab'.repeat(32),timestamp:state.blockTimestamp}),
   async request({method,params}){
    const st=s();
    if(method==='eth_getCode')return params[0].toLowerCase()===st.owner?st.ownerCode:'0x';
