@@ -1,0 +1,11 @@
+# Windows adapter r2: contained, not activation ready
+
+The candidate measures observation age from before contract opening, rejects aggregate windows over two seconds, and revalidates VM identity/state at the end. Every mutation entry currently throws before opening a contract or submitting a VM operation because the independent bounded worker remains unqualified.
+
+Contract bytes and ACL are read through a held file handle denying writer/delete sharing. Ancestor ACL pins require a separate reviewed qualification; no actual namespace qualification exists yet. Stop requests are tied to an in-process attempt and exact job object, explicitly nondurable. Wrapper completion cannot release reservations or prove a Hyper-V late-start fence.
+
+Root fixed an overescaped fixed-root regex. Actual Windows PowerShell 5.1 parser accepted nine functions with zero parse errors in invocation bee5bd181e6c46c88d62ccfc5bda3788. No import or function execution occurred. First r2 parser transport failed rc255 with no result; its encoded command was 48,082 characters. Separate r3 transport compressed the identical public source to a 17,822-character command and succeeded. The first failure cause is not independently established. Both original results remain preserved.
+
+Missing: durable protected intent/provider-job journal, independently bounded mutation worker and guardian, exact late-start fencing across controller death, qualified ancestor namespace, VM creation/start, boot seed, storage attachment, resource admission and RPC readiness. No production change or new VM occurred.
+
+Peer narrow source review confirms containment of all three findings. The two-second aggregate check only rejects late results after calls return; an independent bounded observation worker is also required so the guardian cannot block on a hung ACL/CIM/Get-VM call. Ancestor qualification digest validates shape only; contract generation must establish actual authority and delete-child/rename semantics. Native start intent and operation association must be durable before acknowledgment. Lost submission returns remain ambiguous and held; task/job cancellation, job disappearance, one Off sample, or wrapper completion do not establish native terminality. No execution delegated.

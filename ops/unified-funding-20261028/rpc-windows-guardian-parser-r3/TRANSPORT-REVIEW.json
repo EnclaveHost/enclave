@@ -1,0 +1,7 @@
+{
+  "originalEncodedCommandCharacters": 48082,
+  "newEncodedCommandCharacters": 17822,
+  "sourceSha256": "b8e1bdeee22a2fe36f830652fb73bd4fdbd73829a01c0d03505ecb471af1581a",
+  "failureCause": "Unconfirmed: prior transport rc255; oversized command is a concrete transport defect.",
+  "mutation": false
+}

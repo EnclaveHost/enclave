@@ -1,0 +1,9 @@
+{
+  "at": 1793396837.932573,
+  "readOnly": true,
+  "rc": 255,
+  "failure": "invalid-json",
+  "stderrBytes": 256,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false
+}
