@@ -13,6 +13,7 @@ class Socket:
         self.sent = bytearray()
         self.commands = []
         self.wrong_reply = False
+        self.error_description = None
     def settimeout(self, value):
         pass
     def connect(self, path):
@@ -35,6 +36,9 @@ class Socket:
             request = json.loads(line)
             self.commands.append(request)
             response = {'return': {'status': 'prelaunch'}, 'id': 'wrong-response' if self.wrong_reply else request.get('id')}
+            if self.error_description is not None:
+                response = {'error': {'class': 'GenericError', 'desc': self.error_description},
+                            'id': request.get('id')}
             self.parts.append(json.dumps(response).encode() + b'\n')
         return len(data)
     def sendall(self, data):
@@ -72,6 +76,19 @@ class RootTransport(unittest.TestCase):
                 sock.wrong_reply = True
                 with self.assertRaises(Exception):
                     q.cmd('cont')
+                self.assertEqual(sum(x['execute'] == 'cont' for x in sock.commands), 1)
+            finally:
+                sock.close()
+
+    def test_peer_error_description_is_not_copied_to_public_error(self):
+        sock = Socket()
+        with patch.object(M.socket, 'socket', return_value=sock):
+            q = M.QMP('/fixture-only/no-socket')
+            try:
+                sock.error_description = 'PRIVATE_FIXTURE_PAYLOAD_DO_NOT_RECORD'
+                with self.assertRaises(Exception) as caught:
+                    q.cmd('cont')
+                self.assertNotIn(sock.error_description, str(caught.exception))
                 self.assertEqual(sum(x['execute'] == 'cont' for x in sock.commands), 1)
             finally:
                 sock.close()
