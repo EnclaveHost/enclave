@@ -1,0 +1,86 @@
+{
+ "endpoint": "tunnel://pixel10-pvm-cpu",
+ "id": "0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658",
+ "name": "pixel10-pvm-cpu",
+ "repo": "EnclaveHost/enclave",
+ "lastSeen": 1791515265,
+ "tunnel": true,
+ "mode": "avf",
+ "publicUrl": "https://api.enclave.host/t/pixel10-pvm-cpu",
+ "attach": "attestation",
+ "measurement": "769b5947f1ae5b32282cecef6f19501d33b09245bf51060ecf4b197ad9a5e912",
+ "tier": "pvm-cpu",
+ "pvmCpu": {
+  "runtime": "d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba",
+  "device": "",
+  "checkedAt": 1791515178711,
+  "vm": {
+   "threads": 8,
+   "memMib": 1994
+  },
+  "gflops": 1.49
+ },
+ "operator": "0x8179213e3054a29d26011403739a3ab94cdce84e",
+ "payoutWallet": "0x0000000000000000000000000000000000000000",
+ "caps": 0,
+ "region": null,
+ "availability": {
+  "ok": true,
+  "role": "pvm-host",
+  "name": "pixel10-pvm-cpu",
+  "gpu": false,
+  "claimEnabled": true,
+  "fullService": false,
+  "registered": true,
+  "enclaveId": "0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658",
+  "operator": "0x8179213e3054a29d26011403739a3ab94cdce84e",
+  "proofKey": "0x26c1d63d9eca1164d08e0c49eb1ba99743a3cb68",
+  "askCpuPricePerSec6": 2,
+  "askGpuPricePerSec6": 0,
+  "slots": 1,
+  "nodeSlotsFree": 0,
+  "cpuShareFree": 0,
+  "maxAppMemMb": 512,
+  "isolation": "avf-pvm-per-app",
+  "appTls": "in-vm",
+  "appEvidence": "enclave-pvm-app-evidence/v4",
+  "claimScope": "market",
+  "networkOptions": {
+   "transport": [
+    "tuna"
+   ]
+  },
+  "secrets": false,
+  "configOverride": false,
+  "waf": false,
+  "customDomains": false,
+  "apps": [
+   {
+    "id": "0x7f45af3e9e9bf1261048ff24e81d589d91b7fff33f941466db190ca90b30a5fd",
+    "phase": "serving",
+    "appSha256": "29090a8de8d54c47de2ce34661ecaf16c33d488a999e6a8e77b72d75b9e12dc8",
+    "since": "2026-10-09T03:05:36.945Z",
+    "cert": "7f45af3e.app.enclave.host"
+   }
+  ],
+  "nodeVcpus": 8,
+  "nodeRamGb": 1.9,
+  "ramGbFree": 0,
+  "nodeGflops": 1.49,
+  "cpuGflopsFree": 0,
+  "capacitySource": "pvm-capability-report"
+ },
+ "relay": false,
+ "checkedAt": "2026-10-09T03:12:05.781Z",
+ "serving": true,
+ "eligible": true,
+ "appEvidenceRequired": true,
+ "protection": "pkvm-protected-vm",
+ "servesDeployments": [
+  {
+   "id": "0x7f45af3e9e9bf1261048ff24e81d589d91b7fff33f941466db190ca90b30a5fd",
+   "until": 1791515921
+  }
+ ],
+ "lane": "pvm-cpu"
+}

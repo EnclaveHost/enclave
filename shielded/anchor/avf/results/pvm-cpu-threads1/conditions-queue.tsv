@@ -1,0 +1,8 @@
+ts-01	t6		/home/steven/gguf-e2b/tpu/anchor-pvm-cpu-p2.apk
+ts-02	d4	--ei decode_threads 4	/home/steven/gguf-e2b/tpu/anchor-pvm-cpu-p2.apk
+ts-03	d5	--ei decode_threads 5	/home/steven/gguf-e2b/tpu/anchor-pvm-cpu-p2.apk
+ts-04	t4	--ei threads 4	/home/steven/gguf-e2b/tpu/anchor-pvm-cpu-p2.apk
+ts-05	t4	--ei threads 4	/home/steven/gguf-e2b/tpu/anchor-pvm-cpu-p2.apk
+ts-06	d5	--ei decode_threads 5	/home/steven/gguf-e2b/tpu/anchor-pvm-cpu-p2.apk
+ts-07	d4	--ei decode_threads 4	/home/steven/gguf-e2b/tpu/anchor-pvm-cpu-p2.apk
+ts-08	t6		/home/steven/gguf-e2b/tpu/anchor-pvm-cpu-p2.apk

@@ -26,12 +26,24 @@ public class AnchorService extends Service {
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         NotificationManager nm = getSystemService(NotificationManager.class);
-        nm.createNotificationChannel(new NotificationChannel("anchor", "Enclave Anchor", NotificationManager.IMPORTANCE_LOW));
+        nm.createNotificationChannel(new NotificationChannel("anchor", "Hosting", NotificationManager.IMPORTANCE_LOW));
+        final boolean slot = Main.slotIndex() > 0, product = Tier.PVM_CPU.equals(Tier.of(this));
+        // the Enclave mark (res/drawable/ic_stat_enclave), found through the app icon's resource package (a release build renames
+        // the manifest's package, not the resource table's)
+        int mark = 0;
+        try { mark = getResources().getIdentifier("ic_stat_enclave", "drawable", getResources().getResourcePackageName(getApplicationInfo().icon)); } catch (Exception ignored) {}
         Notification n = new Notification.Builder(this, "anchor")
-            .setContentTitle("Enclave anchor VM").setContentText("protected VM running")
-            .setSmallIcon(android.R.drawable.stat_notify_sync).setOngoing(true).build();
-        startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+            .setContentTitle(product ? "Enclave" : "Enclave anchor VM")
+            .setContentText(!product ? "protected VM running" : slot ? "Serving an app" : "Hosting apps")
+            .setSmallIcon(mark != 0 ? mark : android.R.drawable.stat_notify_sync).setOngoing(true)
+            // a tap opens the app's status screen (Status.java): what this phone hosts
+            .setContentIntent(android.app.PendingIntent.getActivity(this, 0, new Intent(this, Main.class).setAction(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_LAUNCHER).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), android.app.PendingIntent.FLAG_IMMUTABLE))
+            .build();
+        startForeground(1 + Main.slotIndex(), n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);   /* a slot's own notification */
         final Main.Plan plan = Main.Plan.from(intent);
+        final String tierWhy = Tier.refusal(Tier.of(this), plan.mode, intent);   /* the same tier refusal as the activity, named first */
+        if (tierWhy != null) plan.configError = "tier " + Tier.of(this) + ": " + tierWhy;
         if (!plan.configError.isEmpty()) { Main.say("HOST FAIL: " + plan.configError); stopSelf(); return START_NOT_STICKY; }   /* an inconsistent plan never runs a VM */
         if (!Main.captureOpen(this, intent)) { Main.say("CAPTURE FAIL: launch refused"); stopSelf(); return START_NOT_STICKY; }   /* a requested capture that cannot open refuses the VM launch */
         Main.say("SERVICE foreground, starting VM");

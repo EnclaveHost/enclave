@@ -1,0 +1,27 @@
+[pvm-serving] ON: the tunnel hub admits 1 app(s) x 1 runtime(s) (any listed app on any listed runtime)
+[api-relay] address book: registry (unset) -> 0x5FbDB2315678afecb367f032d93F642f64180aa3
+[api-relay] address book: deployments (unset) -> 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+[account] enabled - rpID enclave.host, origins https://enclave.host,https://www.enclave.host, 0 accounts
+[sso] SSO_SIGNER_KEY unset - sign-in token mint disabled
+[ofac] cache loaded: 124 EVM addresses (fetched 2026-09-25T11:40:39.429Z)
+[indexer] watching PaymentReceived every 12s (confirmations=3)
+[provisioner] PROVISIONER_PRIVATE_KEY unset - provisioning HELD (paid orders wait in confirmed_provisioning)
+[vault] PROVISIONER_PRIVATE_KEY unset - credit vaults disabled
+[billing] enabled - network base, usdc 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913, router (unset: USDC checkout dark), stripe OFF
+[secrets] disabled (SECRETS_KEY unset) — per-deployment secrets 503
+[domains] enabled — 0 attached, 0 serving (routing target zone app.enclave.host)
+[certs] disabled (CERTS_KEY or SECRETS_KEY, DNS_API, DNS_TXT_KEY, APP_ZONE unset) — /v1/certs/issue 503
+[api-relay] :18443 (127.0.0.1) · EnclaveRegistry 0x5FbDB2315678afecb367f032d93F642f64180aa3 · 0/0 live
+[tunnel] pixel10-pvm-cpu attest REJECTED: pixel10-pvm-cpu is registered on chain; attach must carry operatorSig (personal_sign of "enclave-tunnel-attach:<name>:<nonce b64>") — upgrade the agent
+[ofac] SDN refreshed from https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.XML: 124 EVM addresses (published 09/23/2026)
+[tunnel] pixel10-pvm-cpu attest REJECTED: pixel10-pvm-cpu is registered on chain to 0x0db52145a071bbd2df2fd5672ac4b6c095e380f4, not 0x811d00fcde63bc1d3fbf5b43b87979024aa4fcc7
+[tunnel] pixel10-pvm-cpu attest REJECTED: pixel10-pvm-cpu is registered on chain to 0x0db52145a071bbd2df2fd5672ac4b6c095e380f4, not 0xab178da982e5430296c855b8e2c5650c8044a5b0
+[tunnel] pixel10-pvm-cpu attached via attestation(avf) (1 enclave)
+[tunnel] pixel10-pvm-cpu abi2 VERIFIED: app 29e8942369846359… runtime d3370878afa9d5ee… instance ccd79db14e9f3a22…
+[tunnel] pixel10-pvm-cpu raw pvm-evidence stream 5 closed (closed by the phone): 0 bytes in, 42 out
+[pvm-serving] {"pvm":"evidence","id":"0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2","tunnel":"pixel10-pvm-cpu","bytesIn":74,"bytesOut":42,"ms":15}
+[tunnel] pixel10-pvm-cpu attest REJECTED: attestationChallenge does not match ours
+[tunnel] pixel10-pvm-cpu raw pvm-evidence stream 7 closed (closed by the phone): 75 bytes in, 5092 out
+[pvm-serving] {"pvm":"evidence","id":"0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2","tunnel":"pixel10-pvm-cpu","bytesIn":75,"bytesOut":5092,"ms":668}
+[tunnel] pixel10-pvm-cpu raw pvm-app-sealed stream 8 closed (closed by the phone): 177 bytes in, 1632 out
+[pvm-serving] {"pvm":"sealed","id":"0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2","tunnel":"pixel10-pvm-cpu","bytesIn":177,"bytesOut":1632,"ms":772}

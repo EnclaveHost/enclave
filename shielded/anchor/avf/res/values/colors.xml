@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- the site's icon tile (site/assets/icon.svg) -->
+    <color name="ic_launcher_background">#FF070A0F</color>
+</resources>

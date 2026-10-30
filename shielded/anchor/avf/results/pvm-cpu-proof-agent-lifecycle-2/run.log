@@ -1,0 +1,46 @@
+08:38:17Z local chain 31337: book 0xa513e6e4b8f2a923d98304ec87f64353c4d5c853; deployment 0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2; runner 0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658; operator 0x3c5b2ec32e770ab8fae23859319112f00e7496f5 (fresh key); NOTHING registered or claimed
+08:38:17Z installed APK is already apk.apk (113ca8f8763b59b9bba1f5f064846fa5ca25d280eab723e4ddb43523a0b0563e)
+08:38:19Z == the VM
+08:40:05Z a: the VM serves (102 s)
+08:40:06Z   agent attest
+08:40:06Z start: attested 0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc; nothing registered yet
+08:40:09Z   agent attest
+08:40:13Z   agent done register (new) landed
+08:40:13Z register: lifecycle register (new) landed | proof not-our-lease | kind not-our-lease | lease -1790325612 s left
+08:40:21Z   agent done claim landed
+08:40:25Z   agent done landed
+08:40:25Z claim: lifecycle claim landed | proof landed | kind landed | lease 1794 s left
+08:41:31Z   agent done landed
+08:41:31Z prove-1: lifecycle -  | proof landed | kind landed | lease 1428 s left
+08:42:37Z   agent done heartbeat landed
+08:42:41Z   agent done landed
+08:42:41Z heartbeat: lifecycle heartbeat landed | proof landed | kind landed | lease 895 s left
+08:43:47Z   agent done renew landed
+08:43:50Z   agent done landed
+08:43:50Z renew: lifecycle renew landed | proof landed | kind landed | lease 2352 s left
+08:44:57Z   agent done heartbeat landed
+08:45:01Z   agent done landed
+08:45:01Z approach-0: lifecycle heartbeat landed | proof landed | kind landed | lease 1732 s left
+08:46:07Z   agent done landed
+08:46:07Z approach-1: lifecycle -  | proof landed | kind landed | lease 1116 s left
+08:47:13Z   agent done heartbeat landed
+08:47:17Z   agent done landed
+08:47:17Z approach-2: lifecycle heartbeat landed | proof landed | kind landed | lease 652 s left
+08:48:20Z   agent attest
+08:48:25Z   agent stuck renew stuck: not mined after 0 replacements; kept for the next tick
+08:48:25Z renew-interrupted: lifecycle renew stuck | proof - | kind in-flight | lease 554 s left
+08:48:25Z renew-interrupted: the agent stopped with the renew journaled and never delivered
+08:48:25Z   agent recover renew
+08:48:29Z   agent done renew landed
+08:48:30Z   agent attest
+08:48:30Z renew-recovered: renew landed; tenant balance 99697600 -> 99546400
+08:49:35Z   agent done landed
+08:49:35Z after-renew: lifecycle -  | proof landed | kind landed | lease 2284 s left
+08:50:37Z   agent done landed
+08:50:41Z   agent done release landed
+08:50:41Z release: released (final proof landed)
+08:50:42Z   agent attest
+08:50:45Z   agent done withdrawEarnings landed
+08:50:45Z payout: lifecycle withdrawEarnings landed | proof not-our-lease | kind not-our-lease | lease -1790328924 s left
+08:50:45Z the lab app was stopped by the script (the VM ends with it)
+08:50:45Z the operator key appears nowhere in the results

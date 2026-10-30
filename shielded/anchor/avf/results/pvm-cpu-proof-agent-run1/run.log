@@ -1,0 +1,42 @@
+06:53:10Z local chain 31337: book 0xa513e6e4b8f2a923d98304ec87f64353c4d5c853, prover 0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9; deployment 0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2; runner 0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658; operator 0x459d73540b8df73b03bf0bc0b245b3463c71a098 (fresh key)
+06:53:10Z installed APK is already apk.apk (113ca8f8763b59b9bba1f5f064846fa5ca25d280eab723e4ddb43523a0b0563e)
+06:53:12Z == A: first boot
+06:54:53Z a: the VM serves (97 s)
+06:54:53Z A: the VM logged INSTANCE ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340 and PROOF key 0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc
+06:54:54Z   agent attest
+06:54:54Z start-a: attested
+06:54:54Z unclaimed: not-our-lease
+06:55:02Z owner: registered 0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc and claimed 0x0999ac324ac31bf0…
+06:55:10Z   agent done landed
+06:55:10Z a1: landed
+06:56:12Z replay: checkpoint-refused (the answer is a checkpoint for (1790319305, 81), not the one asked for (1790319371, 114): a replayed or crossed answer)
+06:57:14Z replace: block production paused
+06:57:25Z replace: a replacement was sent; block production resumed
+06:57:30Z   agent done landed
+06:57:30Z replace: landed
+06:58:34Z reorg: block 180 (0x80259bda1a71810f…) holding the proof was reorganized away
+06:58:46Z   agent done landed
+06:58:46Z reorg: landed
+06:59:49Z   agent attest
+06:59:56Z   agent stuck stuck: not mined after 0 replacements; kept for the next tick
+06:59:56Z crash: stuck (not mined after 0 replacements; kept for the next tick)
+06:59:56Z crash: the agent stopped with nonce 5 in flight
+06:59:56Z   agent recover
+07:00:00Z   agent done landed
+07:00:01Z   agent attest
+07:00:01Z recover: landed
+07:01:43Z   agent stuck stuck: not mined, and the anchor is 21 blocks old: only a fresh proof (or a cancel) can use nonce 6 now
+07:01:43Z stuck: stuck (not mined, and the anchor is 21 blocks old: only a fresh proof (or a cancel) can use nonce 6 now)
+07:02:55Z   agent stuck stuck: not mined, and the anchor is 57 blocks old: only a fresh proof (or a cancel) can use nonce 6 now
+07:02:58Z   agent done landed
+07:02:58Z fresh: landed
+07:02:58Z == B: restart (the same pins, a new boot)
+07:04:43Z b: the VM serves (102 s)
+07:04:43Z B: the VM logged INSTANCE ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340 and PROOF key 0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc (SAME)
+07:04:44Z   agent attest
+07:04:44Z start-b: attested
+07:04:52Z   agent done landed
+07:04:52Z b1: landed
+07:04:52Z the lab app was stopped by the script (the VM ends with it)
+07:04:52Z done: provenUntil 1790319873
+07:04:52Z the operator key appears nowhere in the results

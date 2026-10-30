@@ -1,0 +1,14 @@
+[package]
+name = "pvmrt-conformance-hello"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Conformance component for the portable runtime: the same bytes must print the same lines in every domain."
+
+[[bin]]
+name = "hello"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = "s"
+strip = true

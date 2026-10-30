@@ -7,7 +7,8 @@
 #   ./build.sh probe                # the complete trusted half + shielded-probe, static, for the phone
 #   ./build.sh engine               # libggml-shielded.so + ggml-test + shielded-run for the phone (see build-ggml-arm64.sh)
 #   ./build.sh engine-pvm           # the VM-side engine: libengine.so, liblocalengine.so, libggml-tpu.so
-#   ANCHOR_TIER=pvm-cpu ./build.sh anchor   # the pVM CPU product build (PVM-CPU.md): out/anchor-pvm-cpu.apk, CPU engine only
+#   ANCHOR_TIER=pvm-cpu ./build.sh anchor   # the pVM CPU product build (PVM-CPU.md): out/anchor-pvm-cpu.apk, the payload and the
+#                                           # Wasm runtime only: CPU-only components, NO model and no engine
 #
 # The VM-side libraries are built ONLY by engine-pvm; `anchor` packages what it finds and now REFUSES if a
 # source is newer than its library. A run that touches the TPU worker needs both, in order, and the worker
@@ -52,6 +53,17 @@ if [ ! -f "$KS" ]; then
     -keyalg RSA -keysize 2048 -validity 3650 -dname "CN=Enclave Anchor Spike, O=Enclave Host" >/dev/null 2>&1
   echo "generated spike signing key $KS"
 fi
+# A RELEASE build signs with the owner's key instead, whose authorityHash the relay pins (PVM_CPU_AUTHORITY_HASHES):
+# ANCHOR_RELEASE_KEYSTORE=<jks> ANCHOR_RELEASE_PASS_FILE=<file holding its password> [ANCHOR_RELEASE_ALIAS=release]. Both stay
+# outside the repository. The output is <name>-release.apk, so a lab build never overwrites it.
+SIGN_KS="$KS"; SIGN_PASS="pass:anchor123"; SIGN_ALIAS=anchor; REL=""
+if [ -n "${ANCHOR_RELEASE_KEYSTORE:-}" ]; then
+  [ -f "$ANCHOR_RELEASE_KEYSTORE" ] && [ -f "${ANCHOR_RELEASE_PASS_FILE:-}" ] || { echo "ANCHOR_RELEASE_KEYSTORE needs an existing keystore and ANCHOR_RELEASE_PASS_FILE" >&2; exit 2; }
+  SIGN_KS="$ANCHOR_RELEASE_KEYSTORE"; SIGN_PASS="file:$ANCHOR_RELEASE_PASS_FILE"; SIGN_ALIAS="${ANCHOR_RELEASE_ALIAS:-release}"; REL="-release"
+fi
+# ...and installs as its OWN app (another key cannot update the lab app, and uninstalling that would delete its data and VM
+# instances): the release application id, ANCHOR_RELEASE_PACKAGE (default host.enclave.pvmcpu). The classes keep their package.
+RELEASE_PKG="${ANCHOR_RELEASE_PACKAGE:-host.enclave.pvmcpu}"
 
 for t in "$CLANG" "$BT/aapt2" "$BT/apksigner" "$BT/zipalign" "$SDK/platforms/android-$API/android.jar"; do
   [ -e "$t" ] || { echo "missing: $t" >&2; exit 2; }
@@ -153,6 +165,11 @@ case "$NAME" in
            "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm" -D "$E/libggml-shielded.so" | grep -E ' T (sh_pipe_adopt_fd|sh_pipe_open_hook|ggml_backend_shielded_stats)$' | sed 's/^/  /'
            echo "engine-pvm: $E/libggml-shielded.so ($(stat -c %s "$E/libggml-shielded.so") B), libengine.so ($(stat -c %s "$E/libengine.so") B)"; exit 0 ;;
   attest_probe) SRCS=("$HERE/payload/attest_probe.c") ;;
+  jit_probe)    SRCS=("$HERE/payload/jit_probe.c") ;;   # can the pVM payload JIT? (W^X executable pages; PVM-CPU.md, portable runtime)
+  rt_probe)     # the portable runtime (runtime/pvm-rt, built for aarch64-linux-android) running the conformance vectors inside the pVM
+                SRCS=("$HERE/payload/rt_probe.c"); EXTRA_LIBS=("${PVM_RT_LIB:-$HERE/out/pvm-rt-target/aarch64-linux-android/release/libpvm_rt.so}")
+                [ -f "${EXTRA_LIBS[0]}" ] || { echo "rt_probe: build runtime/pvm-rt for aarch64-linux-android first" >&2; exit 2; }
+                RT_ASSETS=("$HERE/runtime/conformance/bundles/hello-v1.wasm:conformance-hello-v1.wasm") ;;
   pvm_probe)    SRCS=("$HERE/payload/pvm_probe.c"); EXTRA_LIBS=("$HOME/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" "${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}/lib/libggml-base.so" "${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}/lib/libggml.so") ;;
   anchor)       # the anchor + the harness's worker client over an fd (wire-fd.c wraps the shipped shielded-wire.c).
                 # shielded-simd.c is built twice, generic and -DSH_SIMD_NEON; the core's refill is pointed at SDOT.
@@ -163,17 +180,18 @@ case "$NAME" in
                 CFLAGS+=(-ffp-contract=off -I"$HERE/../harness" -DAN_REFILL=sh_simd_neon_refill)
                 GA="${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}"; GR="${GGML_ARM64_REPACK:-$HERE/out/ggml-arm64-repack-work/prefix}"
                 if [ "$TIER" = pvm-cpu ]; then
-                  # pVM CPU (PVM-CPU.md): the payload + the CPU engine, NOTHING else -- no split engine (libengine.so,
-                  # libggml-shielded.so, model.calib), no TPU backend (libggml-tpu.so), no TPU worker or Tensor dispatch
-                  # library. The payload is compiled with ANCHOR_TIER_PVM_CPU and refuses every mode but LOCAL.
-                  [ -f "$OUT/engine-pvm/liblocalengine.so" ] && [ -f "$OUT/engine-pvm/libllama-common.so" ] && [ -f "$GR/lib/libggml-cpu.so" ] || {
-                    echo "pvm-cpu: needs build.sh engine-pvm and GGML_CPU_REPACK=ON ./build-ggml-arm64.sh $HERE/out/ggml-arm64-repack-work" >&2; exit 2; }
-                  [ "$HERE/payload/engine_local.cpp" -nt "$OUT/engine-pvm/liblocalengine.so" ] && { echo "STALE: payload/engine_local.cpp is newer than liblocalengine.so. Run ./build.sh engine-pvm first." >&2; exit 2; }
-                  cp "$GR/lib/libggml-cpu.so" "$OUT/engine-pvm/libggml-cpu-repack.so"
-                  EXTRA_LIBS=("$GA/lib/libc++_shared.so" "$GA/lib/libggml-base.so" "$GA/lib/libggml.so" "$GA/lib/libllama.so" "$OUT/engine-pvm/libllama-common.so"
-                              "$OUT/engine-pvm/liblocalengine.so" "$OUT/engine-pvm/libggml-cpu-repack.so")
+                  # pVM CPU (PVM-CPU.md): the payload + the portable Wasm runtime, NOTHING else. CPU-only components, so no
+                  # model and no engine (no llama/ggml, no liblocalengine), no split engine (libengine.so, libggml-shielded.so,
+                  # model.calib), no TPU backend (libggml-tpu.so), no TPU worker or Tensor dispatch library. The payload is
+                  # compiled with ANCHOR_TIER_PVM_CPU and refuses every mode but APP, and any model line.
+                  # the portable app runtime (runtime/pvm-rt, wasmtime -> Pulley; PVM-CPU.md "The app runtime"): the APP line runs a component with it
+                  PVM_RT="${PVM_RT_LIB:-$HERE/out/pvm-rt-target/aarch64-linux-android/release/libpvm_rt.so}"
+                  [ -f "$PVM_RT" ] || { echo "pvm-cpu: build runtime/pvm-rt for aarch64-linux-android first (libpvm_rt.so)" >&2; exit 2; }
+                  EXTRA_LIBS=("$PVM_RT")
+                  # the tier's compute measurement (PVM-CPU.md "Capacity"): flops-probe and its pin, measured with the APK
+                  RT_ASSETS=("$HERE/runtime/conformance/bundles/flops-probe.wasm:flops-probe.wasm")
                   CFLAGS+=(-DANCHOR_TIER_PVM_CPU)
-                  echo "pvm-cpu: bundling the CPU engine only (${#EXTRA_LIBS[@]} libraries); no split engine, no TPU backend or worker"
+                  echo "pvm-cpu: bundling the Wasm runtime only (${#EXTRA_LIBS[@]} library); no model, no engine, no split engine, no TPU backend or worker"
                 # the engine rides along when it has been built (build.sh engine-pvm): six libraries + the calibration
                 elif [ -f "$OUT/engine-pvm/libengine.so" ]; then
                   EXTRA_LIBS=("$GA/lib/libc++_shared.so" "$GA/lib/libggml-base.so" "$GA/lib/libggml.so" "$GA/lib/libggml-cpu.so" "$GA/lib/libllama.so" "$OUT/engine-pvm/libggml-shielded.so" "$OUT/engine-pvm/libengine.so")
@@ -206,24 +224,31 @@ case "$NAME" in
   *) echo "unknown payload $NAME" >&2; exit 2 ;;
 esac
 rm -f "$STAGE"/lib/arm64-v8a/*.so
+# 16 KB pages (PAGE16): Android 15+ checks every library in an APK for 16 KB-aligned LOAD segments and warns on opening a
+# debuggable app that has one that is not; a 16 KB-aligned library loads on 4 KB pages too (Microdroid, the VM's kernel)
+PAGE16="-Wl,-z,max-page-size=16384"
 "$CLANG" "${CFLAGS[@]}" -shared -o "$STAGE/lib/arm64-v8a/lib$NAME.so" "${SRCS[@]}" \
-   -L"$STUB" -lvm_payload -llog -lm -ldl -Wl,-soname,lib$NAME.so
+   -L"$STUB" -lvm_payload -llog -lm -ldl -Wl,-soname,lib$NAME.so $PAGE16
 for x in "${EXTRA_LIBS[@]:-}"; do [ -n "$x" ] && cp "$x" "$STAGE/lib/arm64-v8a/"; done
 # App-side echo diagnostic; no libvm_payload dependency and no inference hook.
 if [ "$NAME" = anchor ] && [ "$TIER" != pvm-cpu ]; then
-  "$CLANG" -O2 -fPIC -shared -Wall -Wextra "$HERE/host/native-echo.c" -o "$STAGE/lib/arm64-v8a/libanchor-echo.so"
-  "$CLANG" -O2 -fPIC -shared -Wall -Wextra "$HERE/host/native-bridge.c" -llog -o "$STAGE/lib/arm64-v8a/libanchor-bridge.so"   # opt-in native worker bridge (--ez nativebridge true)
+  "$CLANG" -O2 -fPIC -shared -Wall -Wextra "$HERE/host/native-echo.c" -o "$STAGE/lib/arm64-v8a/libanchor-echo.so" $PAGE16
+  "$CLANG" -O2 -fPIC -shared -Wall -Wextra "$HERE/host/native-bridge.c" -llog -o "$STAGE/lib/arm64-v8a/libanchor-bridge.so" $PAGE16   # opt-in native worker bridge (--ez nativebridge true)
 fi
 # stripped copies: the dynamic symbol table (what dlopen/dlsym need) stays, the rest of libllama's 40 MB goes
 for x in "$STAGE"/lib/arm64-v8a/*.so; do "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-unneeded "$x"; done
 for x in "${EXTRA_ASSETS[@]:-}"; do [ -n "$x" ] && cp "$x" "$STAGE/assets/model.calib"; done
+rm -f "$STAGE"/assets/conformance-*
+for x in "${RT_ASSETS[@]:-}"; do [ -n "$x" ] || continue; src="${x%%:*}"; dst="${x##*:}"   # the bundle + its pin (measured with the APK)
+  cp "$src" "$STAGE/assets/$dst"; sha256sum "$src" | cut -c1-64 > "$STAGE/assets/${dst%.wasm}.sha256"; done
 # Measured pins (payload/anchor_pins.h): ANCHOR_MODE=dev|protected (default dev) is written to assets/anchor.mode;
 # ANCHOR_LEDGER_PK, ANCHOR_MODEL_SHA256 and ANCHOR_PREFIX_PK name files holding 64 hex each and land as
 # assets/ledger.pk, model.sha256, prefix.pk. A protected build refuses to package without all three.
 MODE="${ANCHOR_MODE:-dev}"; case "$MODE" in dev|protected) ;; *) echo "ANCHOR_MODE must be dev or protected" >&2; exit 2;; esac
 printf '%s\n' "$MODE" > "$STAGE/assets/anchor.mode"
 printf '%s\n' "$TIER" > "$STAGE/assets/tier"   # measured with the APK (codeHash): the app shows the tier from it; the relay admits by codeHash
-if [ "$TIER" = pvm-cpu ]; then for v in ANCHOR_LEDGER_PK ANCHOR_PREFIX_PK ANCHOR_SOURCE_CATALOG_SHA256 ANCHOR_ENCODED_CATALOG_SHA256 ANCHOR_CONVERTER_SHA256 ANCHOR_SOURCE_CATALOG ANCHOR_ENCODED_CATALOG ANCHOR_MASKBENCH_PADS; do
+if [ "$TIER" = pvm-cpu ]; then [ -z "${ANCHOR_MODEL_SHA256:-}" ] || { echo "pvm-cpu: ANCHOR_MODEL_SHA256 is set, but this tier carries no model (the payload would refuse the pin)" >&2; exit 2; }
+  for v in ANCHOR_LEDGER_PK ANCHOR_PREFIX_PK ANCHOR_SOURCE_CATALOG_SHA256 ANCHOR_ENCODED_CATALOG_SHA256 ANCHOR_CONVERTER_SHA256 ANCHOR_SOURCE_CATALOG ANCHOR_ENCODED_CATALOG ANCHOR_MASKBENCH_PADS; do
   [ -z "${!v:-}" ] || { echo "pvm-cpu: $v is split-engine machinery and is not packaged in this tier (the payload would refuse it)" >&2; exit 2; }; done; fi
 # An unset variable REMOVES the staged pin: the stage directory persists between builds, and a dev build
 # after a protected one must not inherit the other's pins (nor a protected build another model's).
@@ -250,7 +275,7 @@ for pair in source-catalog.sha256:model.agcat encoded-catalog.sha256:model.ewcat
     if [ -f "$STAGE/assets/$p" ] && [ "$(sha256sum "$STAGE/assets/$a" | cut -c1-64)" != "$(cat "$STAGE/assets/$p")" ]; then echo "assets/$p is not the digest of the staged assets/$a" >&2; exit 2; fi
 done
 if [ -f "$STAGE/assets/encoded-catalog.sha256" ] && { [ ! -f "$STAGE/assets/source-catalog.sha256" ] || [ ! -f "$STAGE/assets/converter.sha256" ]; }; then echo "an encoded catalog needs the source-catalog and converter pins" >&2; exit 2; fi
-if [ "$MODE" = protected ] && [ "$TIER" = pvm-cpu ]; then [ -f "$STAGE/assets/model.sha256" ] || { echo "protected pvm-cpu build needs assets/model.sha256 (set ANCHOR_MODEL_SHA256)" >&2; exit 2; }
+if [ "$TIER" = pvm-cpu ]; then [ ! -e "$STAGE/assets/model.sha256" ] || { echo "pvm-cpu: assets/model.sha256 is staged, but this tier carries no model" >&2; exit 2; }
 elif [ "$MODE" = protected ]; then for f in ledger.pk model.sha256 prefix.pk; do [ -f "$STAGE/assets/$f" ] || { echo "protected build needs assets/$f (set ANCHOR_LEDGER_PK / ANCHOR_MODEL_SHA256 / ANCHOR_PREFIX_PK)" >&2; exit 2; }; done; fi
 echo "payload: $(stat -c %s "$STAGE/lib/arm64-v8a/lib$NAME.so") bytes"
 "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -d "$STAGE/lib/arm64-v8a/lib$NAME.so" | grep -E 'NEEDED' | sed 's/^/  /'
@@ -258,23 +283,77 @@ echo "payload: $(stat -c %s "$STAGE/lib/arm64-v8a/lib$NAME.so") bytes"
 # --- 3. the host app: one activity, system API via reflection -> classes.dex --
 JAVAC="${JAVAC:-javac}"
 mkdir -p "$STAGE/classes" "$STAGE/dex"
-"$JAVAC" --release 17 -Xlint:-options -cp "$SDK/platforms/android-$API/android.jar" -d "$STAGE/classes" "$HERE"/host/app/*.java
+# the slot services (PVM-CPU.md "Slots by share"): ANCHOR_SLOTS of them, each the same service in its own process, so the
+# phone runs that many protected VMs at once at most -- how many it actually runs is its pool's (CPU share, VM memory)
+SLOTS="${ANCHOR_SLOTS:-32}"
+[[ "$SLOTS" =~ ^[1-9][0-9]?$ ]] && [ "$SLOTS" -le 32 ] || { echo "ANCHOR_SLOTS must be 1..32 (the host agent's ports 17786+10k stay below its own)" >&2; exit 2; }
+rm -rf "$STAGE/gen" && mkdir -p "$STAGE/gen"
+for k in $(seq 1 "$SLOTS"); do
+  printf '/* generated by build.sh: slot %s, its own process (":slot%s") */\npackage host.enclave.anchor.avf;\npublic class AnchorServiceSlot%s extends AnchorService { }\n' "$k" "$k" "$k" > "$STAGE/gen/AnchorServiceSlot$k.java"
+done
+"$JAVAC" --release 17 -Xlint:-options -cp "$SDK/platforms/android-$API/android.jar" -d "$STAGE/classes" "$HERE"/host/app/*.java "$STAGE"/gen/*.java
 "$BT/d8" --min-api 34 --output "$STAGE/dex" "$STAGE"/classes/host/enclave/anchor/avf/*.class 2>&1 | grep -v '^Warning' || true
 [ -f "$STAGE/dex/classes.dex" ] || { echo "d8 produced no classes.dex" >&2; exit 2; }
 echo "dex: $(stat -c %s "$STAGE/dex/classes.dex") bytes"
 
 # --- 4. the APK: manifest via aapt2, dex + native lib stored uncompressed ----
 cd "$STAGE"
-MANIFEST="$HERE/AndroidManifest.xml"
-if [ "$TIER" = pvm-cpu ]; then   # no TPU runtime declaration, its own label; same package, so the provisioned model is kept
-  MANIFEST="$STAGE/AndroidManifest.xml"
-  sed -e '/Shielded-TPU decode: the app-side worker/d' -e '/uses-native-library android:name="libedgetpu_litert.so"/d' \
-      -e 's/android:label="Enclave Anchor (AVF)"/android:label="Enclave pVM CPU"/' "$HERE/AndroidManifest.xml" > "$MANIFEST"
+# the manifest with its slot services written in (one line each, at the SLOT SERVICES marker)
+MANIFEST="$STAGE/AndroidManifest.xml"
+python3 - "$HERE/AndroidManifest.xml" "$MANIFEST" "$SLOTS" <<'PYM'
+import sys
+src, dst, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
+s = open(src).read()
+assert s.count("<!-- SLOT SERVICES -->") == 1, "the manifest has no SLOT SERVICES marker"
+svc = "".join(f'        <service android:name=".AnchorServiceSlot{k}" android:process=":slot{k}" android:exported="true" android:foregroundServiceType="specialUse">'
+              f'<property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="hosts one app\'s protected VM (slot {k})" /></service>\n' for k in range(1, n + 1))
+open(dst, "w").write(s.replace("        <!-- SLOT SERVICES -->\n", svc))
+PYM
+if [ "$TIER" = pvm-cpu ]; then   # no TPU runtime declaration, its own label
+  # the Enclave screen in its own process (":ui"): the host VM's process is then the host VM alone, so ending it (hosting off)
+  # never closes the screen, and Android never brings that process back for the screen with no VM in it
+  sed -i -e '/Shielded-TPU decode: the app-side worker/d' -e '/uses-native-library android:name="libedgetpu_litert.so"/d' \
+      -e 's/android:label="Enclave Anchor (AVF)"/android:label="Enclave"/' \
+      -e 's|<activity android:name=".Main" android:exported="true"|<activity android:name=".Main" android:process=":ui" android:exported="true"|' "$MANIFEST"
   ! grep -q 'libedgetpu\|Anchor (AVF)' "$MANIFEST" || { echo "pvm-cpu: the manifest still names the TPU runtime or the research label" >&2; exit 2; }
+  grep -q 'android:name=".Main" android:process=":ui"' "$MANIFEST" || { echo "pvm-cpu: the Enclave screen is not in its own process" >&2; exit 2; }
 fi
-"$BT/aapt2" link -o unaligned.apk --manifest "$MANIFEST" \
-   -I "$SDK/platforms/android-$API/android.jar" --min-sdk-version 34 --target-sdk-version $API
-# extractNativeLibs=false demands STORED (-0) entries, page-aligned by zipalign -p
+# STANDALONE.md: ANCHOR_STANDALONE=1 builds the phone that hosts on its own -- Node (ANCHOR_NODE, an android-arm64 node) and
+# enclave-wg (ANCHOR_WG, GOOS=android GOARCH=arm64) ship as lib*.so programs (Android runs a shipped program only from the
+# extracted native libraries), the agent's JavaScript (ANCHOR_AGENT_BUNDLE, a dir) as assets/agent/; its VM services are not
+# exported (only its own AgentService starts them), and it is not debuggable (adb could read the operator key), unless
+# ANCHOR_DEBUG=1 for a lab build.
+if [ "${ANCHOR_STANDALONE:-0}" = 1 ]; then
+  [ "$TIER" = pvm-cpu ] || { echo "ANCHOR_STANDALONE=1 is a pvm-cpu build" >&2; exit 2; }
+  # Node's C++ runtime ships beside it (AgentService sets LD_LIBRARY_PATH to the native libraries)
+  ANCHOR_LIBCXX="${ANCHOR_LIBCXX:-$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so}"
+  for v in ANCHOR_NODE ANCHOR_WG ANCHOR_LIBCXX; do [ -f "${!v:-}" ] || { echo "ANCHOR_STANDALONE=1 needs $v (a file)" >&2; exit 2; }; done
+  [ -f "${ANCHOR_AGENT_BUNDLE:-}/standalone.mjs" ] || { echo "ANCHOR_STANDALONE=1 needs ANCHOR_AGENT_BUNDLE, a dir holding standalone.mjs" >&2; exit 2; }
+  cp "$ANCHOR_NODE" "$STAGE/lib/arm64-v8a/libnode.so"; cp "$ANCHOR_WG" "$STAGE/lib/arm64-v8a/libenclavewg.so"; cp "$ANCHOR_LIBCXX" "$STAGE/lib/arm64-v8a/libc++_shared.so"
+  rm -rf "$STAGE/assets/agent" && mkdir -p "$STAGE/assets/agent" && cp "$ANCHOR_AGENT_BUNDLE"/* "$STAGE/assets/agent/"
+  sed -i -e 's/android:extractNativeLibs="false"/android:extractNativeLibs="true"/' \
+      -e 's/\(<service android:name="\.AnchorService[A-Za-z0-9]*"[^>]*\)android:exported="true"/\1android:exported="false"/' "$MANIFEST"
+  [ "${ANCHOR_DEBUG:-0}" = 1 ] || sed -i 's/android:debuggable="true"/android:debuggable="false"/' "$MANIFEST"
+  ! grep -q 'android:name=".AnchorService[A-Za-z0-9]*"[^>]*exported="true"' "$MANIFEST" || { echo "standalone: a VM service is still exported" >&2; exit 2; }
+  grep -q 'extractNativeLibs="true"' "$MANIFEST" || { echo "standalone: native libraries are not extracted" >&2; exit 2; }
+  echo "standalone: node $(stat -c %s "$ANCHOR_NODE") B, enclave-wg $(stat -c %s "$ANCHOR_WG") B, agent bundle $(ls "$STAGE/assets/agent" | wc -l) files$( [ "${ANCHOR_DEBUG:-0}" = 1 ] && echo ', DEBUGGABLE (lab)')"
+else rm -f "$STAGE/lib/arm64-v8a/libnode.so" "$STAGE/lib/arm64-v8a/libenclavewg.so"; rm -rf "$STAGE/assets/agent"
+  [ "$TIER" != pvm-cpu ] || rm -f "$STAGE/lib/arm64-v8a/libc++_shared.so"   # the research tier's VM payload ships its own
+fi
+# the Enclave app's screen (host/app/Status.java): the hosting panel, host-ui -- the repository's host-ui/, the Windows tray's
+# panel too -- every file its index.html loads, as assets/host-ui/
+rm -rf "$STAGE/assets/host-ui"
+if [ "$TIER" = pvm-cpu ]; then
+  UI="$HERE/../../../host-ui"; mkdir -p "$STAGE/assets/host-ui"
+  for f in index.html $(grep -o '\(src\|href\)="[a-z-]*\.\(js\|css\)"' "$UI/index.html" | sed 's/.*="\(.*\)"/\1/'); do
+    cp "$UI/$f" "$STAGE/assets/host-ui/$f" || { echo "host-ui: $f is missing" >&2; exit 2; }; done
+  echo "host-ui: $(ls "$STAGE/assets/host-ui" | tr '\n' ' ')"
+fi
+# the app's resources (res/: the Enclave icon, the site's mark), compiled and linked with the manifest
+rm -f res.zip && "$BT/aapt2" compile --dir "$HERE/res" -o res.zip
+"$BT/aapt2" link -o unaligned.apk --manifest "$MANIFEST" ${REL:+--rename-manifest-package "$RELEASE_PKG"} \
+   -I "$SDK/platforms/android-$API/android.jar" --min-sdk-version 34 --target-sdk-version $API res.zip
+# extractNativeLibs=false demands STORED (-0) entries, page-aligned by zipalign: 16 KB pages (-P 16), as the libraries are
 python3 - "$NAME" <<'PYZ'
 import sys, zipfile
 name = sys.argv[1]
@@ -283,13 +362,18 @@ with zipfile.ZipFile("unaligned.apk", "a", compression=zipfile.ZIP_STORED) as z:
     z.write("dex/classes.dex", "classes.dex", compress_type=zipfile.ZIP_STORED)
     for so in sorted(glob.glob("lib/arm64-v8a/*.so")):
         z.write(so, so, compress_type=zipfile.ZIP_STORED)
-    for a in sorted(glob.glob("assets/*")):
-        z.write(a, a, compress_type=zipfile.ZIP_STORED)
+    for a in sorted(glob.glob("assets/**", recursive=True)):
+        if os.path.isfile(a): z.write(a, a, compress_type=zipfile.ZIP_STORED)
 PYZ
-"$BT/zipalign" -p -f 4 unaligned.apk aligned.apk
-"$BT/apksigner" sign --ks "$HERE/keys/anchor.jks" --ks-pass pass:anchor123 --ks-key-alias anchor \
+"$BT/zipalign" -P 16 -f 4 unaligned.apk aligned.apk
+"$BT/zipalign" -c -P 16 4 aligned.apk || { echo "the APK's libraries are not 16 KB page-aligned" >&2; exit 2; }
+for x in "$STAGE"/lib/arm64-v8a/*.so; do   # every LOAD segment 16 KB-aligned, or the phone warns on opening the app
+  "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -lW "$x" | awk '$1=="LOAD" && $NF!="0x4000" && $NF!="0x10000" {bad=1} END {exit bad}' \
+    || { echo "$(basename "$x") has a LOAD segment not aligned to 16 KB (link it with -Wl,-z,max-page-size=16384)" >&2; exit 2; }
+done
+"$BT/apksigner" sign --ks "$SIGN_KS" --ks-pass "$SIGN_PASS" --ks-key-alias "$SIGN_ALIAS" \
    --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled true \
-   --out "$OUT/$NAME$SUFFIX.apk" aligned.apk
+   --out "$OUT/$NAME$SUFFIX$REL.apk" aligned.apk
 # the v4 signature's Merkle root IS the pVM's codeHash for this apk (pins.py); vm run-app takes the file as its idsig
-"$BT/apksigner" verify --print-certs "$OUT/$NAME$SUFFIX.apk" | grep -E 'SHA-256|Verified' | sed 's/^/  /'
-echo "APK: $OUT/$NAME$SUFFIX.apk ($(stat -c %s "$OUT/$NAME$SUFFIX.apk") bytes, tier $TIER)"
+"$BT/apksigner" verify --print-certs "$OUT/$NAME$SUFFIX$REL.apk" | grep -E 'SHA-256|Verified' | sed 's/^/  /'
+echo "APK: $OUT/$NAME$SUFFIX$REL.apk ($(stat -c %s "$OUT/$NAME$SUFFIX$REL.apk") bytes, tier $TIER${REL:+, RELEASE key})"
