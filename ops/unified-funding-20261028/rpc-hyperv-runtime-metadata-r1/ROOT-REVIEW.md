@@ -1,0 +1,1 @@
+ExactexistingHyperVsettingsandboundednonrecursivepublicruntimefilemetadata only; noVMRScontents/nohash/noVolumechange/VMmutation. ProgramDatarootsfromGetVM, reparsepathsrejected,64files/directory/16VMs. Reportslogicalbytes/attributes notphysicalallocated/futuremax. No newVM ornativeexperiment.40slocalboundnotremotedeath;small256220floor27648CPU1noswap.

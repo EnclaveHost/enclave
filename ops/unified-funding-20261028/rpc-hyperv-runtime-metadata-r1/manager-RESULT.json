@@ -1,0 +1,162 @@
+{
+  "at": 1793394288.201796,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 222,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "files": [
+      {
+        "path": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V\\data.vmcx",
+        "attributes": "Archive, NotContentIndexed",
+        "modifiedUtc": "2026-10-30T18:15:58.6172068Z",
+        "bytes": 49228
+      },
+      {
+        "path": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V\\Virtual Machines\\1B81F648-59A6-4906-B034-86FAAA42DC49.vmcx",
+        "attributes": "Archive, NotContentIndexed",
+        "modifiedUtc": "2026-10-30T18:16:05.0176556Z",
+        "bytes": 57148
+      },
+      {
+        "path": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V\\Virtual Machines\\1B81F648-59A6-4906-B034-86FAAA42DC49.VMRS",
+        "attributes": "Archive, NotContentIndexed",
+        "modifiedUtc": "2026-10-30T18:15:58.6214085Z",
+        "bytes": 16418
+      },
+      {
+        "path": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V\\Virtual Machines\\1CA457D6-17BF-47FA-AD26-72770D74E08B.vmcx",
+        "attributes": "Archive, NotContentIndexed",
+        "modifiedUtc": "2026-10-26T17:18:53.7872721Z",
+        "bytes": 57148
+      },
+      {
+        "path": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V\\Virtual Machines\\1CA457D6-17BF-47FA-AD26-72770D74E08B.VMRS",
+        "attributes": "Archive, NotContentIndexed",
+        "modifiedUtc": "2026-10-26T17:18:50.2892681Z",
+        "bytes": 16418
+      },
+      {
+        "path": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V\\Virtual Machines\\D715126F-2227-428F-80CE-59C14CAA8A90.vmcx",
+        "attributes": "Archive, NotContentIndexed",
+        "modifiedUtc": "2026-10-30T15:45:16.8573332Z",
+        "bytes": 57148
+      },
+      {
+        "path": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V\\Virtual Machines\\D715126F-2227-428F-80CE-59C14CAA8A90.VMRS",
+        "attributes": "Archive, NotContentIndexed",
+        "modifiedUtc": "2026-10-30T15:45:10.6673410Z",
+        "bytes": 16418
+      },
+      {
+        "path": "C:\\ProgramData\\Enclave\\control-vm\\enclave-control\\Virtual Machines\\DD8DF95D-B771-4545-A861-0092E74A40F3.vmcx",
+        "attributes": "Archive, NotContentIndexed",
+        "modifiedUtc": "2026-10-23T08:31:12.3089542Z",
+        "bytes": 73728
+      },
+      {
+        "path": "C:\\ProgramData\\Enclave\\control-vm\\enclave-control\\Virtual Machines\\DD8DF95D-B771-4545-A861-0092E74A40F3.vmgs",
+        "attributes": "Archive, NotContentIndexed",
+        "modifiedUtc": "2026-10-23T08:42:03.2675580Z",
+        "bytes": 4194816
+      },
+      {
+        "path": "C:\\ProgramData\\Enclave\\control-vm\\enclave-control\\Virtual Machines\\DD8DF95D-B771-4545-A861-0092E74A40F3.VMRS",
+        "attributes": "Archive, NotContentIndexed",
+        "modifiedUtc": "2026-10-19T13:00:39.8362613Z",
+        "bytes": 45092
+      },
+      {
+        "path": "C:\\ProgramData\\Enclave\\storage-vm\\enclave-storage\\Virtual Machines\\4A4DDCAC-D06F-4A5C-B96E-E692302DB5C8.vmcx",
+        "attributes": "Archive, NotContentIndexed",
+        "modifiedUtc": "2026-10-23T08:30:42.2907608Z",
+        "bytes": 73728
+      },
+      {
+        "path": "C:\\ProgramData\\Enclave\\storage-vm\\enclave-storage\\Virtual Machines\\4A4DDCAC-D06F-4A5C-B96E-E692302DB5C8.vmgs",
+        "attributes": "Archive, NotContentIndexed",
+        "modifiedUtc": "2026-10-23T08:42:03.2663261Z",
+        "bytes": 4194816
+      },
+      {
+        "path": "C:\\ProgramData\\Enclave\\storage-vm\\enclave-storage\\Virtual Machines\\4A4DDCAC-D06F-4A5C-B96E-E692302DB5C8.VMRS",
+        "attributes": "Archive, NotContentIndexed",
+        "modifiedUtc": "2026-10-19T07:33:19.9113193Z",
+        "bytes": 45092
+      }
+    ],
+    "atUtc": "2026-10-30T21:04:48.1151493Z",
+    "futureMaximumProven": false,
+    "fileContentsRead": false,
+    "readOnly": true,
+    "vms": [
+      {
+        "smartPagingLocation": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V",
+        "path": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V",
+        "id": "1ca457d6-17bf-47fa-ad26-72770d74e08b",
+        "version": "12.0",
+        "memoryAssigned": 536870912,
+        "configLocation": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V",
+        "automaticStop": "TurnOff",
+        "state": "Running",
+        "automaticCheckpoints": true,
+        "checkpointType": "Disabled",
+        "snapshotLocation": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V"
+      },
+      {
+        "smartPagingLocation": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V",
+        "path": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V",
+        "id": "1b81f648-59a6-4906-b034-86faaa42dc49",
+        "version": "12.0",
+        "memoryAssigned": 2147483648,
+        "configLocation": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V",
+        "automaticStop": "TurnOff",
+        "state": "Running",
+        "automaticCheckpoints": true,
+        "checkpointType": "Disabled",
+        "snapshotLocation": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V"
+      },
+      {
+        "smartPagingLocation": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V",
+        "path": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V",
+        "id": "d715126f-2227-428f-80ce-59c14caa8a90",
+        "version": "12.0",
+        "memoryAssigned": 2732589056,
+        "configLocation": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V",
+        "automaticStop": "TurnOff",
+        "state": "Running",
+        "automaticCheckpoints": true,
+        "checkpointType": "Disabled",
+        "snapshotLocation": "C:\\ProgramData\\Microsoft\\Windows\\Hyper-V"
+      },
+      {
+        "smartPagingLocation": "C:\\ProgramData\\Enclave\\control-vm\\enclave-control",
+        "path": "C:\\ProgramData\\Enclave\\control-vm\\enclave-control",
+        "id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+        "version": "12.0",
+        "memoryAssigned": 8589934592,
+        "configLocation": "C:\\ProgramData\\Enclave\\control-vm\\enclave-control",
+        "automaticStop": "ShutDown",
+        "state": "Running",
+        "automaticCheckpoints": true,
+        "checkpointType": "Disabled",
+        "snapshotLocation": "C:\\ProgramData\\Enclave\\control-vm\\enclave-control"
+      },
+      {
+        "smartPagingLocation": "C:\\ProgramData\\Enclave\\storage-vm\\enclave-storage",
+        "path": "C:\\ProgramData\\Enclave\\storage-vm\\enclave-storage",
+        "id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+        "version": "12.0",
+        "memoryAssigned": 4294967296,
+        "configLocation": "C:\\ProgramData\\Enclave\\storage-vm\\enclave-storage",
+        "automaticStop": "ShutDown",
+        "state": "Running",
+        "automaticCheckpoints": true,
+        "checkpointType": "Disabled",
+        "snapshotLocation": "C:\\ProgramData\\Enclave\\storage-vm\\enclave-storage"
+      }
+    ]
+  }
+}
