@@ -29,7 +29,8 @@ def check():
 check()
 with (p / 'ATTEMPT.json').open('x') as f:
     json.dump({'startedAt': time.time(), 'pid': os.getpid()}, f)
-tmp = Path(tempfile.mkdtemp(prefix='qmp-root-offline-', dir=p))
+# AF_UNIX pathname length is small; keep the owned fixture root short.
+tmp = Path(tempfile.mkdtemp(prefix='qmp-root-', dir='/tmp'))
 (p / 'temp-dir.json').write_text(json.dumps({'path': str(tmp), 'owned': True}))
 rc = 1
 try:

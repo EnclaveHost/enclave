@@ -1,0 +1,45 @@
+{
+  "status": "FROZEN_SOURCE_REVIEWED_OFFLINE_TEST_ONLY",
+  "inputs": {
+    "guest_mask.py": {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-maintenance-qmp-author-r1-20261029/author-delivery/guest_mask.py",
+      "sha256": "fe744bde89a985906c9db53130f5a856994d8f3542a576451cbae6c8d5b66d7f"
+    },
+    "maint_boot.py": {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-maintenance-qmp-author-r1-20261029/author-delivery/maint_boot.py",
+      "sha256": "cfd4816b307efb7d64dd6c339ea708eb841880c40539d9df770c62be6fac231b"
+    },
+    "test_maintenance_diagnostics.py": {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-maintenance-qmp-author-r1-20261029/author-delivery/test_maintenance_diagnostics.py",
+      "sha256": "f3f5d07d201388af1ea75b09cae35bd4d73e48c651a0b8c60f8b8a67f80363ec"
+    },
+    "test_qmp_transport.py": {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-maintenance-qmp-author-r1-20261029/author-delivery/test_qmp_transport.py",
+      "sha256": "542fbca5e016b32bb73041b1a7b24ed6bf628d3b3a289f09240c9f46aa24c78b"
+    },
+    "test_root_maintenance.py": {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-maintenance-qmp-author-r1-20261029/author-delivery/test_root_maintenance.py",
+      "sha256": "e35025e3c119b449a558fa1965260c2245107a44d8073fb5ac5bb3a434442951"
+    },
+    "harness.py": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-qmp-root-tests-r1/harness.py",
+      "sha256": "0f2189ba99c7c0c82fb3fb1c5cccc95f1f602e634f9aff380ee00fbcd421bd63"
+    },
+    "test_root_transport_regressions.py": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-qmp-root-tests-r1/test_root_transport_regressions.py",
+      "sha256": "f6e8282281c636b6b8fde7c9862e3522fd8d9efac581211993d93ad4268ad7a3"
+    },
+    "fixture-launcher.py": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-qmp-root-tests-r1/fixture-launcher.py",
+      "sha256": "38f8dc891bfa9f5f74fcd8eb4ba50ea6f5f70342c49e3c7e2944a10c504436d7"
+    },
+    "fixture-manifest.json": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-qmp-root-tests-r1/fixture-manifest.json",
+      "sha256": "a28432151c9a24bd207d9adaab401ca4e24a9cdc39807489f12c3000b0936441"
+    }
+  },
+  "runnerSha256": "db9b0b960ee3f00faa50038f52804a4579c57728924b1523b7f6cb787279ac21",
+  "deliveryManifestSha256": "e24db274b20e979f2432b17963161b6bc01c35828b0a77c22293bad5a94ea4dc",
+  "scope": "Original13+author49+root5; offline fixtures only; known peer-payload regression expected to expose failure; no runtime activation",
+  "resources": "512MiB hard/450RSS/floor27648/CPU1/noSwap/sharedqueue/networknamespace/180s child/300s outer"
+}
