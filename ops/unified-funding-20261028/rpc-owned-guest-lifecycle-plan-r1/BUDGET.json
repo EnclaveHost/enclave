@@ -1,0 +1,25 @@
+{
+  "schema": "owned-rpc-whole-stack-budget/1",
+  "status": "SOURCE_PLAN_NOT_ADMITTED",
+  "guestBytes": 20401094656,
+  "hostSupportBytes": 1073741824,
+  "totalRpcBytes": 21474836480,
+  "decimalPreferenceLimitBytes": 32000000000,
+  "guestComponentCapsBytes": {
+    "l1Execution": 5368709120,
+    "l1Consensus": 7516192768,
+    "baseExecution": 5368709120,
+    "guestOsRollupSupport": 2147483648
+  },
+  "hostFloorBytes": 19327352832,
+  "prospectiveClaimBytes": 41301311488,
+  "additionalHostVariationBytes": 1073741824,
+  "requiredMinipcFreeBeforeRpcBytes": 83177242624,
+  "bootVirtualBytes": 3758096384,
+  "bootVhdFileCapBytes": 4294967296,
+  "guestArtifactAdditionalBytes": 268435456,
+  "hostDiskFloorBytes": 17179869184,
+  "requiredHostDiskFreeBeforeCopyBytes": 21743271936,
+  "startupSeconds": 900,
+  "ready": false
+}
