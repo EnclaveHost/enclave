@@ -521,7 +521,10 @@ test("reorganizations: a receipt reorganized away is rebroadcast while its ancho
         if (holder.snap) {
           // Finish the old-chain mining operation before rolling its anchor back.
           await t.waitForTransactionReceipt({ hash: h, pollingInterval: 50, timeout: 30000 });
-          const s0 = holder.snap; holder.snap = null; await S.chain.revert(s0); await S.chain.setAutomine(false); await S.chain.dropAll(); await S.chain.mine(4); await S.chain.setAutomine(true);
+          const s0 = holder.snap; holder.snap = null; await S.chain.revert(s0); await S.chain.setAutomine(false); await S.chain.dropAll();
+          // Empty blocks can reproduce identical hashes if their timestamps
+          // match. Force a different fork before recreating the anchor height.
+          await S.chain.advance(37); await S.chain.mine(3); await S.chain.setAutomine(true);
         }
         return h;
       };
