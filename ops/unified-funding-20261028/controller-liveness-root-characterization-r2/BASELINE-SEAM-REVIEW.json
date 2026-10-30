@@ -1,0 +1,8 @@
+{
+  "status": "PREPARED-NOT-RUN",
+  "originalSha256": "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951",
+  "newSha256": "0d2b0fb0b12da71e047c1f2d0641b228b4d5ce78e00d0cf8846c4e57500c451c",
+  "onlyChange": "DIRECT_CLAIM_SELFTEST.lifecycle observation/fault harness; production consumers unchanged",
+  "prefixUnchanged": true,
+  "suffixUnchanged": true
+}

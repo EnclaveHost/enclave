@@ -1,0 +1,6 @@
+{
+  "authorized": true,
+  "scope": "source-only-controller-liveness-repair-r3",
+  "deliverySha256": "bde89610024773b08c7ce3a3e9b9d2a31926ef23f80d25bb50ff67c2601431be",
+  "rootPreflightSha256": "26a2488c6b70b914902964010aca3bc7c869fd3b68d523130bf9818ad721e01b"
+}

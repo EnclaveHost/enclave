@@ -1,0 +1,306 @@
+TAP version 13
+# Subtest: own live unresumed leases split out first; everything else keeps ledger order
+ok 1 - own live unresumed leases split out first; everything else keeps ledger order
+  ---
+  duration_ms: 507.33927
+  type: 'test'
+  ...
+# Subtest: no own leases -> nothing to resume, nothing held
+ok 2 - no own leases -> nothing to resume, nothing held
+  ---
+  duration_ms: 512.942771
+  type: 'test'
+  ...
+# Subtest: a deactivated orphan lease does not hold new claims after a restart
+ok 3 - a deactivated orphan lease does not hold new claims after a restart
+  ---
+  duration_ms: 507.27921
+  type: 'test'
+  ...
+# Subtest: unregistered enclave (null id) owns nothing
+ok 4 - unregistered enclave (null id) owns nothing
+  ---
+  duration_ms: 512.092238
+  type: 'test'
+  ...
+# Subtest: on the tier a share is a fraction of the guest pool: a 128 MB app still needs 1%, and 1% of the posted price stays under its cap
+ok 5 - on the tier a share is a fraction of the guest pool: a 128 MB app still needs 1%, and 1% of the posted price stays under its cap
+  ---
+  duration_ms: 1568.197743
+  type: 'test'
+  ...
+# Subtest: a version's guest reserves its unit's ceilings, as guestd admits it
+ok 6 - a version's guest reserves its unit's ceilings, as guestd admits it
+  ---
+  duration_ms: 542.048674
+  type: 'test'
+  ...
+# Subtest: what is free is the pool's room, never more than the share ledger, and nothing unless a smallest guest fits
+ok 7 - what is free is the pool's room, never more than the share ledger, and nothing unless a smallest guest fits
+  ---
+  duration_ms: 4697.843457
+  type: 'test'
+  ...
+# Subtest: a claim is refused when the app's guest does not fit the pool by its reservation, even though its share would
+ok 8 - a claim is refused when the app's guest does not fit the pool by its reservation, even though its share would
+  ---
+  duration_ms: 501.893928
+  type: 'test'
+  ...
+# Subtest: a resume of a guest guestd already holds is judged with the room that guest holds; a new claim on the same full pool is refused
+ok 9 - a resume of a guest guestd already holds is judged with the room that guest holds; a new claim on the same full pool is refused
+  ---
+  duration_ms: 519.002147
+  type: 'test'
+  ...
+# Subtest: an answer without a readable pool clears the mirror: nothing is offered or claimed, and the node keeps the budget last heard
+ok 10 - an answer without a readable pool clears the mirror: nothing is offered or claimed, and the node keeps the budget last heard
+  ---
+  duration_ms: 1086.132261
+  type: 'test'
+  ...
+# Subtest: the budget floor for a 1% app: 12800 MiB is 1%, 12799 MiB is 2%, over a69dcbba's cap
+ok 11 - the budget floor for a 1% app: 12800 MiB is 1%, 12799 MiB is 2%, over a69dcbba's cap
+  ---
+  duration_ms: 1067.324816
+  type: 'test'
+  ...
+# Subtest: the claim path judges the pool with the version's policy and, on a resume, the guest guestd holds (pinned in source)
+ok 12 - the claim path judges the pool with the version's policy and, on a resume, the guest guestd holds (pinned in source)
+  ---
+  duration_ms: 2.879765
+  type: 'test'
+  ...
+# Subtest: the host's live memory floor gates claims and caps the advertised share; without it nothing changes
+ok 13 - the host's live memory floor gates claims and caps the advertised share; without it nothing changes
+  ---
+  duration_ms: 8207.787955
+  type: 'test'
+  ...
+# Subtest: a resume adopting the same record skips the host check; a replacement is credited only its guest's RAM
+ok 14 - a resume adopting the same record skips the host check; a replacement is credited only its guest's RAM
+  ---
+  duration_ms: 1206.118893
+  type: 'test'
+  ...
+# Subtest: a held guest is the same record only when the spawn would send exactly that record
+ok 15 - a held guest is the same record only when the spawn would send exactly that record
+  ---
+  duration_ms: 1803.723339
+  type: 'test'
+  ...
+# Subtest: off the tier nothing of the pool applies: the node is the NODE_* constants and free is the share ledger
+ok 16 - off the tier nothing of the pool applies: the node is the NODE_* constants and free is the share ledger
+  ---
+  duration_ms: 619.157885
+  type: 'test'
+  ...
+# Subtest: isolated claims check pricing shares separately from exact guest reservations
+ok 17 - isolated claims check pricing shares separately from exact guest reservations
+  ---
+  duration_ms: 1192.835891
+  type: 'test'
+  ...
+# Subtest: large pricing share does not block a small reservation that fits; oversized guests still fail
+ok 18 - large pricing share does not block a small reservation that fits; oversized guests still fail
+  ---
+  duration_ms: 595.181106
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (timeout) defers without DELETE/release, then adopts the same guest
+ok 19 - held resume: POST 409 then an unverifiable GET (timeout) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7683.500947
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (401) defers without DELETE/release, then adopts the same guest
+ok 20 - held resume: POST 409 then an unverifiable GET (401) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7644.082406
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (json) defers without DELETE/release, then adopts the same guest
+ok 21 - held resume: POST 409 then an unverifiable GET (json) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7641.043555
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (malformed) defers without DELETE/release, then adopts the same guest
+ok 22 - held resume: POST 409 then an unverifiable GET (malformed) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7637.501068
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (503) defers without DELETE/release, then adopts the same guest
+ok 23 - held resume: POST 409 then an unverifiable GET (503) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7603.729887
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (mismatch) defers without DELETE/release, then adopts the same guest
+ok 24 - held resume: POST 409 then an unverifiable GET (mismatch) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7605.023867
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (wrongname) defers without DELETE/release, then adopts the same guest
+ok 25 - held resume: POST 409 then an unverifiable GET (wrongname) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7605.898882
+  type: 'test'
+  ...
+# Subtest: test/isolation-instance-liveness.test.mjs
+not ok 3 - test/isolation-instance-liveness.test.mjs
+  ---
+  duration_ms: 60005.738918
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/candidate/test/isolation-instance-liveness.test.mjs:1:1'
+  failureType: 'testTimeoutFailure'
+  error: 'test timed out after 60000ms'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed first)
+ok 27 - an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed first)
+  ---
+  duration_ms: 7579.889373
+  type: 'test'
+  ...
+# Subtest: an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed after the orphan)
+ok 28 - an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed after the orphan)
+  ---
+  duration_ms: 7667.670142
+  type: 'test'
+  ...
+# Subtest: a cold boot whose ledger read fails for ~4 minutes, then an unreadable policy past a whole lease TTL: the paid guest survives and is adopted
+ok 29 - a cold boot whose ledger read fails for ~4 minutes, then an unreadable policy past a whole lease TTL: the paid guest survives and is adopted
+  ---
+  duration_ms: 9605.398477
+  type: 'test'
+  ...
+# Subtest: an explicit platform refusal: the host stops vouching, its guests end and nothing is resumed
+ok 30 - an explicit platform refusal: the host stops vouching, its guests end and nothing is resumed
+  ---
+  duration_ms: 7107.282651
+  type: 'test'
+  ...
+# Subtest: a fresh explicit ban at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+ok 31 - a fresh explicit ban at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+  ---
+  duration_ms: 7621.799531
+  type: 'test'
+  ...
+# Subtest: a persisted ban while the policy is unreadable at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+ok 32 - a persisted ban while the policy is unreadable at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+  ---
+  duration_ms: 7628.94818
+  type: 'test'
+  ...
+# Subtest: a deregistration at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+ok 33 - a deregistration at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+  ---
+  duration_ms: 7629.335118
+  type: 'test'
+  ...
+# Subtest: test/isolation-post-adoption-lease.test.mjs
+not ok 4 - test/isolation-post-adoption-lease.test.mjs
+  ---
+  duration_ms: 60008.22978
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/candidate/test/isolation-post-adoption-lease.test.mjs:1:1'
+  failureType: 'testTimeoutFailure'
+  error: 'test timed out after 60000ms'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: a held Z-Image guest is the same record on resume; every other field is a replacement
+ok 35 - a held Z-Image guest is the same record on resume; every other field is a replacement
+  ---
+  duration_ms: 1665.553641
+  type: 'test'
+  ...
+# Subtest: the claim verdict admits Z-Image as production does, and never over capacity or under its RAM
+ok 36 - the claim verdict admits Z-Image as production does, and never over capacity or under its RAM
+  ---
+  duration_ms: 558.66012
+  type: 'test'
+  ...
+# Subtest: the 0.5B and 27B models are judged exactly as before
+ok 37 - the 0.5B and 27B models are judged exactly as before
+  ---
+  duration_ms: 557.663209
+  type: 'test'
+  ...
+# Subtest: evidence: production's own supervisor derives the same records
+ok 38 - evidence: production's own supervisor derives the same records # SKIP
+  ---
+  duration_ms: 0.195368
+  type: 'test'
+  ...
+# Subtest: evidence: the frozen candidate reproduces the refusal
+ok 39 - evidence: the frozen candidate reproduces the refusal # SKIP
+  ---
+  duration_ms: 0.163298
+  type: 'test'
+  ...
+# Subtest: a lapsed lease is reaped while the supervisor is talking
+ok 40 - a lapsed lease is reaped while the supervisor is talking
+  ---
+  duration_ms: 101.765553
+  type: 'test'
+  ...
+# Subtest: a renewed lease is never touched
+ok 41 - a renewed lease is never touched
+  ---
+  duration_ms: 108.702053
+  type: 'test'
+  ...
+# Subtest: INERT until the first heartbeat: an older supervisor cannot mass-reap
+ok 42 - INERT until the first heartbeat: an older supervisor cannot mass-reap
+  ---
+  duration_ms: 95.898356
+  type: 'test'
+  ...
+# Subtest: SILENCE suspends enforcement: a control-plane blip is not an outage
+ok 43 - SILENCE suspends enforcement: a control-plane blip is not an outage
+  ---
+  duration_ms: 203.660437
+  type: 'test'
+  ...
+# Subtest: only live tenants are candidates
+ok 44 - only live tenants are candidates
+  ---
+  duration_ms: 91.133627
+  type: 'test'
+  ...
+# Subtest: a tenant with no lease field at all is reapable (it predates the field)
+ok 45 - a tenant with no lease field at all is reapable (it predates the field)
+  ---
+  duration_ms: 107.92279
+  type: 'test'
+  ...
+# Subtest: terminal records never vouch - that is the original leak
+ok 46 - terminal records never vouch - that is the original leak
+  ---
+  duration_ms: 558.282714
+  type: 'test'
+  ...
+# Subtest: an OFF-LEDGER record does not vouch on a claiming box
+ok 47 - an OFF-LEDGER record does not vouch on a claiming box
+  ---
+  duration_ms: 552.101058
+  type: 'test'
+  ...
+# Subtest: AUTO_PROVISION is the deliberate exception: a pilot box has no chain to appeal to
+ok 48 - AUTO_PROVISION is the deliberate exception: a pilot box has no chain to appeal to
+  ---
+  duration_ms: 546.18346
+  type: 'test'
+  ...
+1..48
+# tests 48
+# suites 0
+# pass 44
+# fail 0
+# cancelled 2
+# skipped 2
+# todo 0
+# duration_ms 151057.91062
