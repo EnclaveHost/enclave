@@ -1,0 +1,20 @@
+[
+  {
+    "path": "nimbus-conf.nim",
+    "url": "https://raw.githubusercontent.com/status-im/nimbus-eth2/v26.10.2/beacon_chain/conf.nim",
+    "bytes": 58283,
+    "sha256": "77ca8dd90dc9a778875859316b705179ac84cb0525f19d90e1e6857a160cf71e"
+  },
+  {
+    "path": "nimbus-rest-beacon.nim",
+    "url": "https://raw.githubusercontent.com/status-im/nimbus-eth2/v26.10.2/beacon_chain/rpc/rest_beacon_api.nim",
+    "bytes": 96289,
+    "sha256": "6bdb75546362930666946ad73c40d8cbdbaa7f478efcf03697155f229ec74fd3"
+  },
+  {
+    "path": "nimbus-rest-node.nim",
+    "url": "https://raw.githubusercontent.com/status-im/nimbus-eth2/v26.10.2/beacon_chain/rpc/rest_node_api.nim",
+    "bytes": 10974,
+    "sha256": "0e09414c9b25f9cb7b006af379b021cc223d55f63c296d4f9faaa3330e6dfd22"
+  }
+]
