@@ -1,0 +1,7 @@
+{
+  "control-client.mjs": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+  "read.py": "2b89e3c9a0f596b3dec2fdb144e7321733babcd84586b0fee8a1e0fac40977b4",
+  "CONFIG.json": "61e9f9aa3c28c5a34d5426659d30a84fb507db160d691abcf293baa8f3f44b83",
+  "COMMAND.json": "bb2eca36590b868a8592c7bc38de2655b82bb93c6f0b9927e98ecbbb83cd5df3",
+  "guestd-read.mjs": "7b2645c19b4c1fa0ecab3dd067e3502348d58e985d5f7d6a16f7a2fbcd5d4e93"
+}

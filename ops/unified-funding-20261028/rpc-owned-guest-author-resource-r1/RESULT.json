@@ -1,0 +1,95 @@
+{
+  "at": 1793395348.1940854,
+  "identity": {
+    "ActiveState": "active",
+    "InvocationID": "6eff6e20ad984adba33c6603b3198ac5",
+    "MainPID": "194657",
+    "startTicks": "148657014",
+    "exe": "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde"
+  },
+  "guestd": {
+    "ok": true,
+    "authenticated": true,
+    "readOnly": true,
+    "at": 1793395348.156,
+    "before": {
+      "budget": {
+        "memMiB": 98304,
+        "cpuPct": 2400
+      },
+      "allocated": {
+        "memMiB": 68249,
+        "cpuPct": 1700
+      },
+      "free": {
+        "memMiB": 30055,
+        "cpuPct": 700
+      },
+      "guests": 2,
+      "overcommitted": false,
+      "host": {
+        "floorMiB": 18432,
+        "memAvailableMiB": 31824,
+        "pendingMiB": 5950,
+        "unreadUnits": 0
+      }
+    },
+    "after": {
+      "budget": {
+        "memMiB": 98304,
+        "cpuPct": 2400
+      },
+      "allocated": {
+        "memMiB": 68249,
+        "cpuPct": 1700
+      },
+      "free": {
+        "memMiB": 30055,
+        "cpuPct": 700
+      },
+      "guests": 2,
+      "overcommitted": false,
+      "host": {
+        "floorMiB": 18432,
+        "memAvailableMiB": 31819,
+        "pendingMiB": 5950,
+        "unreadUnits": 0
+      }
+    },
+    "guests": [
+      {
+        "id": "gd1609283d",
+        "status": "running",
+        "reserved": {
+          "memMiB": 3200,
+          "cpuPct": 100
+        }
+      },
+      {
+        "id": "gd61126785",
+        "status": "running",
+        "reserved": {
+          "memMiB": 65049,
+          "cpuPct": 1600
+        }
+      },
+      {
+        "id": "gd77d87e32",
+        "status": "failed",
+        "reserved": null
+      }
+    ],
+    "reservationsStable": true,
+    "pendingUpperMiB": 5950,
+    "memAvailableLowerMiB": 31819,
+    "rawHealthRetained": false,
+    "nativeAdmitted": false
+  },
+  "availableMiB": 31811,
+  "pendingMiB": 5950,
+  "authorHardMiB": 1664,
+  "residualAfterPendingAuthorMiB": 24197,
+  "operationalFloorMiB": 27648,
+  "fitsKnownEnvelope": false,
+  "admitted": false
+}
