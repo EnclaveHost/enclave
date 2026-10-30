@@ -1,0 +1,30 @@
+{
+  "changes": {
+    "CLOSURE.json": {
+      "seedSha256": null,
+      "finalSha256": "5e15df0fe821a44f597f28e87dfe60ae82f1f9fe134f19b57f626b2c1bcf9a67",
+      "kind": "new"
+    },
+    "REPORT.md": {
+      "seedSha256": null,
+      "finalSha256": "f9f19642e869c9e726abf6877f97b9b86a010c467d523d2f1bf0a241d1736cce",
+      "kind": "new"
+    },
+    "offline_mask.py": {
+      "seedSha256": "5310ec30a9ab75d1f6b09ed6a5e1ce172280f3134cf08d0c9de1aa5be6b4fb2c",
+      "finalSha256": "4a1a96237bbc4180901fe761ff494fe2770903b03ac8ed53c6a0b03a6278e554",
+      "kind": "modified"
+    },
+    "test_exporter_cleanup.py": {
+      "seedSha256": null,
+      "finalSha256": "7d1471f8b951b7d553e134901653d678b7145f668d04121ee865a65b9b7ddc69",
+      "kind": "new"
+    },
+    "test_offline_revalidation.py": {
+      "seedSha256": null,
+      "finalSha256": "7e328c756757ba28a622d9ff199105dee11dac377959d4b65145547d0042540f",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}
