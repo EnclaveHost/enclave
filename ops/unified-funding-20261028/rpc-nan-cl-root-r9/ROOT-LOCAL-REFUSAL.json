@@ -1,0 +1,19 @@
+{
+  "invocation": "946dac34fe9044f5bc3216ef0fe773db",
+  "exit": 2,
+  "reason": "KeyError:admissionSha256",
+  "rootError": true,
+  "beforeTrial": true,
+  "attemptAbsent": true,
+  "overlayAbsent": true,
+  "socketDirectoryAbsent": true,
+  "inputDrift": [],
+  "knownPidsGone": [
+    2953976,
+    2953977,
+    2953984,
+    2953991
+  ],
+  "noRuntimeOrRemoteActions": "load_fresh_admission fails before trial/ATTEMPT; helper source ordering reviewed",
+  "doNotRerunOriginal": true
+}
