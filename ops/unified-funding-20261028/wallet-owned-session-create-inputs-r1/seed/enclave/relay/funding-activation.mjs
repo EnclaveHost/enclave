@@ -1,0 +1,177 @@
+// UNREVIEWED SOURCE (unified-funding activation-r1). Its author executed nothing: no node, no tests, no network.
+// Executable only as the prepare.py copy generated/relay/funding-activation.mjs (its imports are siblings there).
+//
+// The explicit, default-OFF activation loader that initSessions spreads into createSessionsService. Two pieces, each
+// with its own feature flag (exactly "1"; unset or empty is off, anything else is refused and off):
+//
+//   owner controls  SESSIONS_FUNDING_OWNER_CONTROLS=1, SESSIONS_FUNDING_OWNER_MANIFEST, SESSIONS_FUNDING_RELAYER
+//                   -> { fundingOwnerControls }: /funding/owner, /funding/end, the session/owner views and /funding/tx over
+//                   the successor factory, implementation and linked libraries pinned by address and runtime code hash.
+//                   No price and no expiry (deployed code is immutable; every request re-proves the pins on chain).
+//   intake          SESSIONS_FUNDING_INTAKE=1, SESSIONS_FUNDING_MANIFEST, SESSIONS_FUNDING_FEE_POLICY, owner controls ON
+//                   -> { funding, fundingQuotePolicy }: /funding/config, /quote, /execute, /open priced by the reviewed
+//                   v2 gas.fund policy (createGasFundQuotePolicy) reading over the host public client's pc.request.
+//
+// It never throws: a missing, malformed or mismatched new file leaves only the piece it configures off (logged with its
+// reason); the original routes and the other piece are untouched. Both pieces refuse any network but Base 8453
+// (SESSIONS_NETWORK=base), a relayer that differs from SESSIONS_FUNDING_RELAYER, and a well-known development account.
+// It makes no client, key, signer or wallet and sends nothing: the policy only READS over the host's request, and every
+// successor send still goes through the host's simulateAndSend and its ONE durable transaction queue.
+import { closeSync, constants as FS, fstatSync, openSync, readSync, realpathSync } from "node:fs";
+import { isAbsolute, normalize } from "node:path";
+import { createGasFundQuotePolicy } from "./fee-policy.mjs";
+import { FUNDING_CHAIN_ID, OWNER_PIN_KEYS, parseFundingManifest, parseOwnerControlsManifest } from "./funding-route.mjs";
+
+export const ENV = Object.freeze({
+  ownerControls: "SESSIONS_FUNDING_OWNER_CONTROLS", ownerManifest: "SESSIONS_FUNDING_OWNER_MANIFEST",
+  intake: "SESSIONS_FUNDING_INTAKE", manifest: "SESSIONS_FUNDING_MANIFEST", feePolicy: "SESSIONS_FUNDING_FEE_POLICY",
+  relayer: "SESSIONS_FUNDING_RELAYER",
+});
+/** Each configuration file: one JSON object of at most this many bytes. */
+export const MAX_CONFIG_BYTES = 16 * 1024;
+/** The anvil/hardhat default mnemonic's first ten accounts: never a production relayer. */
+export const DEV_ACCOUNTS = Object.freeze([
+  "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC", "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+  "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65", "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+  "0x976EA74026E726554dB657fA54763abd0C3a0aa9", "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+  "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f", "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+].map((a) => a.toLowerCase()));
+
+export class ActivationRefused extends Error {
+  constructor(code, message) {
+    super(`${code}: ${message}`);
+    this.name = "ActivationRefused";
+    this.code = code;
+  }
+}
+const refuse = (code, message) => { throw new ActivationRefused(code, message); };
+const reason = (e) => String(e?.message ?? e).slice(0, 400);
+
+/** One regular, bounded, UTF-8 JSON object file named by an absolute, normalized, symlink-free path. Throws. */
+export function readBoundedJsonFile(p, label, maxBytes = MAX_CONFIG_BYTES) {
+  if (typeof p !== "string" || p.length === 0) refuse("config_missing", `${label} is not set`);
+  if (p.length > 4096 || p.includes("\0") || !isAbsolute(p) || normalize(p) !== p || (p.length > 1 && p.endsWith("/"))) {
+    refuse("config_path", `${label} must be an absolute, normalized file path (no "..", ".", "//" or trailing "/")`);
+  }
+  let real;
+  try { real = realpathSync(p); } catch (e) { refuse("config_unreadable", `${label} cannot be resolved (${e?.code ?? reason(e)})`); }
+  if (real !== p) refuse("config_symlink", `${label} passes through a symlink; name the real file`);
+  let fd;
+  try { fd = openSync(p, FS.O_RDONLY | (FS.O_NOFOLLOW ?? 0) | (FS.O_NONBLOCK ?? 0)); }
+  catch (e) { refuse(e?.code === "ELOOP" ? "config_symlink" : "config_unreadable", `${label} cannot be opened (${e?.code ?? reason(e)})`); }
+  let text;
+  try {
+    const st = fstatSync(fd);
+    if (!st.isFile()) refuse("config_not_regular", `${label} is not a regular file`);
+    if (st.size > maxBytes) refuse("config_oversize", `${label} is ${st.size} bytes, above ${maxBytes}`);
+    if ((st.mode & 0o002) !== 0) refuse("config_writable", `${label} is world-writable`);
+    const buf = Buffer.alloc(maxBytes + 1);
+    let n = 0;
+    while (n < buf.length) {
+      const k = readSync(fd, buf, n, buf.length - n, null);
+      if (k === 0) break;
+      n += k;
+    }
+    if (n > maxBytes) refuse("config_oversize", `${label} holds more than ${maxBytes} bytes`);
+    try { text = new TextDecoder("utf-8", { fatal: true }).decode(buf.subarray(0, n)); }
+    catch { refuse("config_encoding", `${label} is not valid UTF-8`); }
+  } finally {
+    closeSync(fd);
+  }
+  let v;
+  try { v = JSON.parse(text); } catch (e) { refuse("config_json", `${label} is not JSON (${reason(e)})`); }
+  if (v === null || typeof v !== "object" || Array.isArray(v)) refuse("config_json", `${label} must hold one JSON object`);
+  return v;
+}
+
+function flag(env, key) {
+  const v = env?.[key];
+  if (v === undefined || v === "") return false;
+  if (v !== "1") refuse("flag_value", `${key} must be exactly "1" to enable; ${JSON.stringify(String(v).slice(0, 40))} leaves it off`);
+  return true;
+}
+
+/** The host this relay actually runs: Base 8453 by name and id, the relayer the operator named, no development key. */
+function bindHost(env, host, what) {
+  if (host?.netName !== "base") refuse("network_mismatch", `${what} runs only with SESSIONS_NETWORK=base, not ${JSON.stringify(host?.netName ?? null)}`);
+  if (Number(host?.chainId) !== FUNDING_CHAIN_ID) refuse("chain_mismatch", `${what} runs only on chain ${FUNDING_CHAIN_ID}, not ${host?.chainId}`);
+  const relayer = typeof host?.relayer === "string" && /^0x[0-9a-fA-F]{40}$/.test(host.relayer) ? host.relayer.toLowerCase() : null;
+  if (!relayer) refuse("account_mismatch", `${what} needs the host's relayer account`);
+  if (DEV_ACCOUNTS.includes(relayer)) refuse("default_credentials", `${what} refuses a well-known development account as the relayer`);
+  const want = String(env?.[ENV.relayer] ?? "").trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(want)) refuse("account_mismatch", `${what} needs ${ENV.relayer} naming this relay's account`);
+  if (want.toLowerCase() !== relayer) refuse("account_mismatch", `${ENV.relayer} ${want} is not this relay's account ${host.relayer}`);
+}
+
+function loadOwnerControls(env, host) {
+  if (!flag(env, ENV.ownerControls)) return null;
+  bindHost(env, host, "successor owner controls");
+  const json = readBoundedJsonFile(String(env[ENV.ownerManifest] ?? "").trim(), ENV.ownerManifest);
+  const o = parseOwnerControlsManifest(json);
+  if (o.why) refuse("owner_manifest", o.why);
+  return { json, owner: o.owner };
+}
+
+function loadIntake(env, host, controls) {
+  if (!flag(env, ENV.intake)) return null;
+  if (!controls) {
+    refuse("owner_controls_off", `intake needs successor owner controls on (${ENV.ownerControls}=1 with a valid ${ENV.ownerManifest}), `
+      + "so switching intake off can never remove them");
+  }
+  bindHost(env, host, "funding intake");
+  if (typeof host.request !== "function") refuse("no_request", "intake needs the host public client's EIP-1193 request (pc.request)");
+  const now = typeof host.now === "function" ? host.now : () => Math.floor(Date.now() / 1000);
+  const manifest = readBoundedJsonFile(String(env[ENV.manifest] ?? "").trim(), ENV.manifest);
+  const m = parseFundingManifest(manifest);
+  if (m.why) refuse("intake_manifest", m.why);
+  const O = controls.owner;
+  const differ = OWNER_PIN_KEYS.filter((k) => m.manifest.addresses[k] !== O.addresses[k] || m.manifest.codehashes[k] !== O.codehashes[k]);
+  if (differ.length) refuse("pin_mismatch", `the intake manifest and the owner-controls manifest pin different successor code (${differ.join(", ")})`);
+  const config = readBoundedJsonFile(String(env[ENV.feePolicy] ?? "").trim(), ENV.feePolicy);
+  let policy;
+  // parseFeePolicyConfig inside: exact schema, chain 8453, every field explicit and bounded, no default or fallback price
+  try { policy = createGasFundQuotePolicy({ config, request: host.request, now }); }
+  catch (e) { refuse(e?.code === "chain_mismatch" ? "chain_mismatch" : "fee_policy", reason(e)); }
+  const t = BigInt(now());
+  if (t > m.manifest.notAfter) refuse("intake_manifest_expired", `${ENV.manifest} expired at ${m.manifest.notAfter}`);
+  if (t > policy.config.notAfter) refuse("fee_policy_expired", `${ENV.feePolicy} expired at ${policy.config.notAfter}`);
+  return { manifest, policy };
+}
+
+/** { options, status }. options holds only the pieces that are ON; it is spread into the createSessionsService options. */
+export function loadFundingActivation(env, host = {}) {
+  const options = {};
+  const status = { ownerControls: { on: false, why: null }, intake: { on: false, why: null } };
+  let controls = null;
+  try {
+    controls = loadOwnerControls(env, host);
+    if (controls) { options.fundingOwnerControls = controls.json; status.ownerControls.on = true; }
+    else status.ownerControls.why = `off (${ENV.ownerControls} is not set)`;
+  } catch (e) {
+    controls = null;
+    status.ownerControls.why = `refused (${reason(e)})`;
+  }
+  try {
+    const i = loadIntake(env, host, controls);
+    if (i) { options.funding = i.manifest; options.fundingQuotePolicy = i.policy; status.intake.on = true; }
+    else status.intake.why = `off (${ENV.intake} is not set)`;
+  } catch (e) {
+    status.intake.why = `refused (${reason(e)})`;
+  }
+  return { options, status };
+}
+
+/** initSessions' entry point: the ON pieces only; never throws. */
+export function fundingActivationFromEnv(env, host = {}) {
+  let r;
+  try { r = loadFundingActivation(env, host); } catch (e) {
+    r = { options: {}, status: { ownerControls: { on: false, why: `refused (${reason(e)})` }, intake: { on: false, why: `refused (${reason(e)})` } } };
+  }
+  const s = r.status;
+  try {
+    (typeof host.log === "function" ? host.log : () => {})(`funding activation: owner controls ${s.ownerControls.on ? "on" : s.ownerControls.why}; `
+      + `intake ${s.intake.on ? `on (fee policy ${r.options.fundingQuotePolicy.configHash})` : s.intake.why}`);
+  } catch { /* logging never changes activation */ }
+  return r.options;
+}

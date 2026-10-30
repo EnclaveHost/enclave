@@ -1,0 +1,71 @@
+{
+  "staticSourceFiles": 194,
+  "staticMissing": [
+    {
+      "source": "enclave/relay/api-relay.js",
+      "import": "./network-runtime.bundle.mjs",
+      "reason": "missing source/generated runtime dependency"
+    }
+  ],
+  "externalImports": [
+    " };\n    },\n  },\n  {\n    name: ",
+    ") opt.from = a[++i];\n    else if (a[i] === ",
+    ");\n  if (deployment === null || deployment === undefined) {\n    if (!app) return no(",
+    ", ",
+    ", owner.address, ",
+    ", tx.from]] : []),\n      [",
+    ", type: ",
+    "@noble/ciphers/aes",
+    "@noble/curves/abstract/modular",
+    "@noble/curves/ed25519",
+    "@noble/curves/secp256k1",
+    "@noble/hashes/hkdf",
+    "@noble/hashes/sha2",
+    "@noble/hashes/utils",
+    "@simplewebauthn/server",
+    "expired",
+    "forge-std/Test.sol",
+    "jose",
+    "node:assert/strict",
+    "node:child_process",
+    "node:crypto",
+    "node:events",
+    "node:fs",
+    "node:http",
+    "node:https",
+    "node:net",
+    "node:os",
+    "node:path",
+    "node:process",
+    "node:readline",
+    "node:readline/promises",
+    "node:test",
+    "node:tls",
+    "node:url",
+    "node:util",
+    "priced at zero",
+    "served three",
+    "solc",
+    "viem",
+    "viem/accounts",
+    "viem/chains",
+    "viem/siwe",
+    "viem/utils",
+    "ws"
+  ],
+  "status": "SOURCE_PREPARATION_ONLY_NOT_TEST_OR_BUILD_CLOSURE",
+  "note": "Static import inventory only. Dynamic runtime assets/Foundry dependencies/fixtures must be admitted before tests. Do not install or run helper during author.",
+  "sourceVerification": "Present as read-only evidence/review/source-verification-base.json; not a product interface/deployment modification.",
+  "generatedBundleGate": "api-relay dynamic ./network-runtime.bundle.mjs is absent; author must not fabricate/build it. Source author can inspect wiring; root must separately supply reviewed actual bundle/dependency closure before import/integration tests. Not source-only author launch blocker, IS execution gate.",
+  "addedDependency": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/control/relay/shield-desktop-release.mjs",
+    "sha256": "a84635db7e33d5fe4f68796f29945597dd4b341fc1996c0394f804331a49f38d",
+    "note": "installed-manager source baseline dependency; not a fresh runtime capture"
+  },
+  "lexicalAliasAdditions": [
+    "enclave/relay/net-guard.mjs",
+    "enclave/relay/shield-derive.mjs",
+    "enclave/relay/shield-desktop-derive.mjs",
+    "enclave/relay/vbs-runtime.mjs"
+  ]
+}

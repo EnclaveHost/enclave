@@ -1,0 +1,876 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-create-r1-20261029/seed",
+  "baseRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source",
+  "baseGitCommit": "a6795a6fd7697d9ad05c2bf93c18bd53c48e87e0",
+  "origins": {
+    "enclave/availability/host-acceptor.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/availability/host-acceptor.mjs",
+      "sha256": "63436160d00ecae43d5eff7046b13e16e2fad04a423d32102afaa7645bbfb85d"
+    },
+    "enclave/cli/custody-v2.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/cli/custody-v2.mjs",
+      "sha256": "6ebf94bba5db2c26e251fe6a551606a741becb3b115f3cf7909f10815b96e6a2"
+    },
+    "enclave/cli/custody.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/cli/custody.mjs",
+      "sha256": "bf98f42c14c037ab58be6b666805788c36dab5c3a8b4fbe4c5c440d94c5b1c03"
+    },
+    "enclave/cli/enclave.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/cli/enclave.mjs",
+      "sha256": "ead393a232126aecc07cbf97e6b8e1b059b90b2423d1a5232dee70f0220247fb"
+    },
+    "enclave/contracts/EnclaveAddressBook.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/EnclaveAddressBook.sol",
+      "sha256": "b735186e2946903c5c18a9078fa7e8a0a5c70d30529bb33354a3c4c03dc5cfd8"
+    },
+    "enclave/contracts/EnclaveAppCatalog.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/EnclaveAppCatalog.sol",
+      "sha256": "b31744361efbb43fcf60152a5eaaa185d1af07bdc27f077af0a2b48e7de3b191"
+    },
+    "enclave/contracts/EnclaveDeployments.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/EnclaveDeployments.sol",
+      "sha256": "38fe6729590e159e59e546de000d07efa4025d89fb7211225cde6f9b798e4471"
+    },
+    "enclave/contracts/EnclaveProofOfTime.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/EnclaveProofOfTime.sol",
+      "sha256": "12d67d9aa5f1b0bd0d6b9df219a44630ca18faecfa4cdf54743883235f0829f0"
+    },
+    "enclave/contracts/EnclaveSecretVaultV2.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/EnclaveSecretVaultV2.sol",
+      "sha256": "2c7692ec13db18f567b3fa469db5931cfc4451540092259a0d28b651468a4469"
+    },
+    "enclave/contracts/PaymentRouter.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/PaymentRouter.sol",
+      "sha256": "8f28d3e4a313ea66a2dda511fca1194933c845a81756806f9f011ebe3e912ed0"
+    },
+    "enclave/contracts/SessionVault.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/SessionVault.sol",
+      "sha256": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c"
+    },
+    "enclave/contracts/foundry/test/SessionVault.invariant.t.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/foundry/test/SessionVault.invariant.t.sol",
+      "sha256": "7a058c1420f6c8c576e2b32ab9b20d2ae11459c4056f17a67159a7dc9186279b"
+    },
+    "enclave/contracts/foundry/test/SessionVault.t.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/foundry/test/SessionVault.t.sol",
+      "sha256": "2fd28ea76af54a28f711c887caa675410fee27f9501b3d5038dc9f6f135ec019"
+    },
+    "enclave/contracts/foundry/test/SessionVaultDelegate.t.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/foundry/test/SessionVaultDelegate.t.sol",
+      "sha256": "fb16c7d1218710299b983a46a4c9f23d516b1f9da6598c46f1053576dcadfd45"
+    },
+    "enclave/contracts/foundry/test/SessionVaultProof.t.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/foundry/test/SessionVaultProof.t.sol",
+      "sha256": "6690f5de7c9e66f2223ca58961007d48260ea857dd38dd313baa700b295e187f"
+    },
+    "enclave/contracts/foundry/test/mocks/MockUSDC.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/foundry/test/mocks/MockUSDC.sol",
+      "sha256": "a5974be618e96d31a3458e1271a876d00fd79d6811175ebfe406e051c1181703"
+    },
+    "enclave/contracts/foundry/test/mocks/SessionMocks.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/contracts/foundry/test/mocks/SessionMocks.sol",
+      "sha256": "47bd6b106cb1686709d4bcc6ebe72e8bf42cb2b5c6ee6a3cba3b67d853e4696d"
+    },
+    "enclave/custody/chain.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/custody/chain.mjs",
+      "sha256": "f0349c4f36e73e4e10e10d0a0a22da695383ec8db702e9a96246ed9adc1c689b"
+    },
+    "enclave/custody/hpke.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/custody/hpke.mjs",
+      "sha256": "1806a74c947db89db0e410c370ad7963eac9fa30d1807d8f55846690fafc0c03"
+    },
+    "enclave/custody/owner.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/custody/owner.mjs",
+      "sha256": "5f39114581dd26bd4b5ce5fef847d634460c3f09c52e6fb4fbe53c05128969cb"
+    },
+    "enclave/custody/protocol.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/custody/protocol.mjs",
+      "sha256": "9afb78e3a313c19446539c5797ca744564b904985ca894987cc9207879a023fc"
+    },
+    "enclave/custody/rules.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/custody/rules.mjs",
+      "sha256": "9c0f6cfa6f659bbc24dedee9d8f1b091f4a11b2d0e928287a7d6356e89c23470"
+    },
+    "enclave/custody/threshold.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/custody/threshold.mjs",
+      "sha256": "9c7f912e7dc38e1bf58e196bce2eaf4292219aef7dfa91b8d7813b102919844a"
+    },
+    "enclave/custody/v2/chain.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/custody/v2/chain.mjs",
+      "sha256": "87ce4efcbdbeeaae8cf21cebc747ce01c7ddeea34cec5e401c9fb5d8e128d126"
+    },
+    "enclave/custody/v2/owner.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/custody/v2/owner.mjs",
+      "sha256": "706fd42d5d23842c177ccae2267f1919814c788e3208a786b789f7d3649c148c"
+    },
+    "enclave/custody/v2/protocol.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/custody/v2/protocol.mjs",
+      "sha256": "3e3ad53e21cfa8d14e41d86f2a70527a735a012a0b3d9c096b0a8b6b888ab495"
+    },
+    "enclave/deploy/ledger/EnclaveDeployments.sol": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/deploy/ledger/EnclaveDeployments.sol",
+      "sha256": "9ad2bd38e3ffab3a3036939b70e1b492a654592cc46761cbf379edaa805e19b6"
+    },
+    "enclave/docs/design/sessions.md": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/docs/design/sessions.md",
+      "sha256": "f538934587e8c49d957b2c32c941dd85961dfb12ff303ea26376874953bde454"
+    },
+    "enclave/docs/session-auth.md": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/docs/session-auth.md",
+      "sha256": "5547e3ff7c82141ac0c4abadd513cd4ec3992e2d8d22ca8035255df984273171"
+    },
+    "enclave/foundry.toml": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/foundry.toml",
+      "sha256": "9c3ad1406f5ffe6a0a9e9bae3b3e013e26c420dd6fa9b3f29665b38493820c82"
+    },
+    "enclave/isolation/contract/runtime.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/contract/runtime.mjs",
+      "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69"
+    },
+    "enclave/isolation/m2/judge.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m2/judge.mjs",
+      "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd"
+    },
+    "enclave/isolation/m4/guestd/supervisor-guestcert.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/guestd/supervisor-guestcert.mjs",
+      "sha256": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597"
+    },
+    "enclave/isolation/m4/guestd/supervisor-splice.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/m4/guestd/supervisor-splice.mjs",
+      "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b"
+    },
+    "enclave/net-guard.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/net-guard.mjs",
+      "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af"
+    },
+    "enclave/package-lock.json": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/package-lock.json",
+      "sha256": "9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20"
+    },
+    "enclave/package.json": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/package.json",
+      "sha256": "176365e77ddfe0cef859d07a2916e702f177854f34b23abfd1b806df9200de93"
+    },
+    "enclave/relay/api-relay.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/api-relay.js",
+      "sha256": "250afeacb7bd20106abd6f9b988c5c110915067f31d37b62bc68aeb919486f87"
+    },
+    "enclave/relay/auth.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/auth.js",
+      "sha256": "f306187959c97944c18d27f485ca1eee1f3ccdfd3dbb891a15a67b16692f526c"
+    },
+    "enclave/relay/avf-binding.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/avf-binding.mjs",
+      "sha256": "a0c53d387515cd46065e614274f3ab5374196edc193f0bcd88b4af4ef0816673"
+    },
+    "enclave/relay/avf-policy.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/avf-policy.mjs",
+      "sha256": "a788d4bc51e65d80d0710e5fe2f1f6224b32997663bd4c78d15a114aa25e5019"
+    },
+    "enclave/relay/avf-verify.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/avf-verify.mjs",
+      "sha256": "081d826f674d8579f3636c28b4dbd6b62955bd0ff0b8f2710157980ecd9764fd"
+    },
+    "enclave/relay/billing.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/billing.js",
+      "sha256": "9e0f51291b78940dbfcefc232cd8673776b061eeece9035845bb293a10621665"
+    },
+    "enclave/relay/boxhost.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/boxhost.js",
+      "sha256": "017a2878300e3ba7cf41915b6a1e3c4a36191d851a093dd4cdf2ebabdd7093cc"
+    },
+    "enclave/relay/certs.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/certs.js",
+      "sha256": "e15802cf5609c7b8cdf51c36d43f12606bd44d26622b46cfab3951df5229a415"
+    },
+    "enclave/relay/cheapest-claim.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/cheapest-claim.mjs",
+      "sha256": "476d3b5282a24d690c56b7d50e7baf3dceb0e8951d5f36b8556afd07ec1e3f12"
+    },
+    "enclave/relay/contract-owner-signature.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/contract-owner-signature.mjs",
+      "sha256": "813f4204ed43ae461b14133b4548c4ff017347a7ee88d0aa0fa333428ff25202"
+    },
+    "enclave/relay/custody-state.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/custody-state.mjs",
+      "sha256": "be05212f64749e629e448173f39e0f546a931f8ff227dd8889af94cf269f639d"
+    },
+    "enclave/relay/domains.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/domains.js",
+      "sha256": "5cc69b53c5c8bd66441c3569baa6c9fa949d370cf973d515a1e48471ec7e6789"
+    },
+    "enclave/relay/fee-policy.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-quarantine-prep-r1/generated/relay/fee-policy.mjs",
+      "sha256": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd"
+    },
+    "enclave/relay/fleet-auth.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/fleet-auth.js",
+      "sha256": "cae94b265035049a7418919d23b1556ff66bf3e94a4498859b41a14c74b52a4e"
+    },
+    "enclave/relay/fleet.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/fleet.mjs",
+      "sha256": "050eb60486dc90f2d50d82c394bc97ef48d6809a5880b8d32e521fddde83c6e0"
+    },
+    "enclave/relay/funding-abi.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-quarantine-prep-r1/generated/relay/funding-abi.mjs",
+      "sha256": "6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7"
+    },
+    "enclave/relay/funding-activation.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-quarantine-prep-r1/generated/relay/funding-activation.mjs",
+      "sha256": "7554454dbe091f4bcc7ef8e15ac5dd8082c8be6d94256f52b1c8fadcfc198645"
+    },
+    "enclave/relay/funding-route.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-quarantine-prep-r1/generated/relay/funding-route.mjs",
+      "sha256": "1989f3ebf88833ac492e4f121ff33d564b1798eae1e5239b1aae444b63b572cd"
+    },
+    "enclave/relay/guest-prediction-row.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/guest-prediction-row.mjs",
+      "sha256": "dfcc7ac390d909bf183c267be6df6e5ebdf799d1b9955bf98d0da69d82f50a63"
+    },
+    "enclave/relay/host-delegation.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/host-delegation.mjs",
+      "sha256": "153f9aa731014a7aabdf9c221970b085577de80bdae738bc782d35deb777888c"
+    },
+    "enclave/relay/host-names.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/host-names.mjs",
+      "sha256": "352d58065929ec8d2a5b7e06d0bb4dbf00edad191dc4626d12914ef0598fe191"
+    },
+    "enclave/relay/host-sponsor.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/host-sponsor.mjs",
+      "sha256": "cc099540d5aee620dcc5c51ddf88ac1ac144a7c7e9077761c84f42eb83a36cf5"
+    },
+    "enclave/relay/hvnode-core.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/hvnode-core.mjs",
+      "sha256": "a69967f96af7324f409745fec29f0697b90e9da49037b5f8ff74e7deb26cd970"
+    },
+    "enclave/relay/hvnode-verify.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/hvnode-verify.mjs",
+      "sha256": "b0155ae296bb3e8cb3a9e54eaaed989d341253031f34b1c69576a6039d1334a7"
+    },
+    "enclave/relay/indexer.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/indexer.js",
+      "sha256": "0e8ef1159e78900a9f150fdca2c2b6b2c5657d8c4c0f910ef30caa61ff2a0c88"
+    },
+    "enclave/relay/mcp.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/mcp.js",
+      "sha256": "992888c5b710233e093da081ff38b71371daba80806252a8c71eeabebdb3ee64"
+    },
+    "enclave/relay/measurement-predict.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/measurement-predict.mjs",
+      "sha256": "9b7bb22231ef0b020b8eb6ec579c23823f8dcf5e999d51e05d67aab22dad238f"
+    },
+    "enclave/relay/ofac.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/ofac.js",
+      "sha256": "37210fa4b01e9a13592e501c1bba1feac343cb25722506a514c75328a2ef6156"
+    },
+    "enclave/relay/pad-ack.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/pad-ack.mjs",
+      "sha256": "b8b647b19b04c54fe493bad6b9d24c5b2e2bcf08fe812d33150b6679b2edb050"
+    },
+    "enclave/relay/pad-grant.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/pad-grant.mjs",
+      "sha256": "cb7a6ed9874b64575ce209129bdea0e3340f8d072551a2af29789b5151952097"
+    },
+    "enclave/relay/pad-shipment-store.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/pad-shipment-store.mjs",
+      "sha256": "c46e6deb4fab89d8b12b5edfe183f337c120cadd78f89f1c51d9f7725789d777"
+    },
+    "enclave/relay/pad-state.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/pad-state.mjs",
+      "sha256": "4f3d5bb6ff4ea0255c486ff7034fd36508b5f193848f7b0e919148c425ece541"
+    },
+    "enclave/relay/pads.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/pads.mjs",
+      "sha256": "0430ab28a2cad086bdca3cc83056e871fa21230ddecade6a6742f8feb13e454b"
+    },
+    "enclave/relay/placement.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/placement.mjs",
+      "sha256": "02fd2e5e255ea6c6dedef4eff397ac7285670fc59cd2dae6ead53ee5e2ad782e"
+    },
+    "enclave/relay/provisioner.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/provisioner.js",
+      "sha256": "ae84e9ff3082997f135973e82a0702d95190cf88a1046d11ced7481cf6dff7af"
+    },
+    "enclave/relay/pvm-app-attest.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/pvm-app-attest.mjs",
+      "sha256": "3ce272f8af983f95460adaaaaa06f7bc3401edc6adf0729f7e7ba6c8fc1d57c4"
+    },
+    "enclave/relay/pvm-app-fresh.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/pvm-app-fresh.mjs",
+      "sha256": "febcfe8b0c1d2413c1c3ba0307a9eea8d0b9c7fc244ef80a166049dc778c92de"
+    },
+    "enclave/relay/pvm-cpu-tier.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/pvm-cpu-tier.mjs",
+      "sha256": "9ea5ce0eec5eb13826320cace945f0775fc1caaf1e9c3b300d814c468aff832d"
+    },
+    "enclave/relay/pvm-evidence-core.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/pvm-evidence-core.mjs",
+      "sha256": "9f3ff1e886aa628e51dbc11bd3eb6f0ff8a374a9fcb7ce50b05fb47c82a5e6c0"
+    },
+    "enclave/relay/pvm-market.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/pvm-market.mjs",
+      "sha256": "a54052a4505a155321af865d1da94bc17fdeba48aae11cec92d7c33519ce5788"
+    },
+    "enclave/relay/pvm-secrets.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/pvm-secrets.mjs",
+      "sha256": "872dd3e45eca4fbe4d9d54459759d07c4da3837d819cd97e95e9ee4843b4737f"
+    },
+    "enclave/relay/referrals.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/referrals.mjs",
+      "sha256": "0c452081a7e931a95aa54a0a8a918a91e9aced6ff4c9aff181e952d73c466635"
+    },
+    "enclave/relay/route-grace.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/route-grace.mjs",
+      "sha256": "d2c6947b5cace29c38203f85cbae0c969f4b9aa46f57ee730a36dfc5e80290bb"
+    },
+    "enclave/relay/secrets-release.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-installed-policy-r1/secrets-release.mjs",
+      "sha256": "48cf67ee80a088f3b713eaed401273a97aecb3aeca7204f320e0f22083405715"
+    },
+    "enclave/relay/secrets.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-installed-policy-r1/secrets.js",
+      "sha256": "4c49127164e716a7431b1e2d62cd703f82b7a849641205e5bdf28d3bd17a198b"
+    },
+    "enclave/relay/sessions-abi.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/sessions-abi.mjs",
+      "sha256": "e9c2464c529d0665e4b2e38bdaa0bf8c703346f046b85521aba755bfc1b2a0a6"
+    },
+    "enclave/relay/sessions.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-installed-policy-r1/sessions.mjs",
+      "sha256": "483b1c5ef29d83c937a5fd5b15ea3b2e940025d76706a1c5a63867f33c55c4e3"
+    },
+    "enclave/relay/shield-app-fresh.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/shield-app-fresh.mjs",
+      "sha256": "5e0333bda25aecfaccf4b9dee80a5c4632a30af655c36f66f9f964207feb7623"
+    },
+    "enclave/relay/shield-app-policy.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/shield-app-policy.mjs",
+      "sha256": "0001ee6363a64894884bc7e1aac929eed65c71c09c354ce5a7ac279a9cefccd2"
+    },
+    "enclave/relay/shield-app-verifier.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/shield-app-verifier.mjs",
+      "sha256": "3381bd1b6ccf6bdabec04adccc7a7bfe39f9d7c3ad695f92e7a417abd8ca7def"
+    },
+    "enclave/relay/shield-marketplace.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/shield-marketplace.mjs",
+      "sha256": "beaccb11fccc222e1143ce60a5fddbdbe83869907b7e964a4c975229db69ff45"
+    },
+    "enclave/relay/shield-secrets.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-installed-policy-r1/shield-secrets.mjs",
+      "sha256": "744e687237a28b23b1e0954b5b408eeb904cb8882b16c8df39fd8e8aeba144e5"
+    },
+    "enclave/relay/snp-app-fresh.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/snp-app-fresh.mjs",
+      "sha256": "d04fa3ce87b12a5996764a552dd9caf7403be2a6bf4becc8e906580f85518ac3"
+    },
+    "enclave/relay/snp-verify.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/snp-verify.mjs",
+      "sha256": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046"
+    },
+    "enclave/relay/sso.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/sso.js",
+      "sha256": "cef16bf239cedec471f78436acda5ad81744b394413767e19772a4eb6066dd1d"
+    },
+    "enclave/relay/store.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/store.js",
+      "sha256": "12157d8ccf8b1ec4ffd4d0af9b5b846650ec20aac748bcc51ad087e119922dcd"
+    },
+    "enclave/relay/tunnel.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/tunnel.js",
+      "sha256": "da7c1f72c5eef26cdffae268c8a2a98e4ba0b31d6822477c4b058baa83cff318"
+    },
+    "enclave/relay/vaultsvc.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/vaultsvc.js",
+      "sha256": "7a4542a8b6c6a89c7aced8bdfbdc5505aece31a0535365a17aa5cc57d8408c1b"
+    },
+    "enclave/relay/vbs-app-core.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/vbs-app-core.mjs",
+      "sha256": "4d6130154e61f994898df5b869f9d4e332eb2b437204a5c631c1ac53e9978f70"
+    },
+    "enclave/relay/vbs-app-verify.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/vbs-app-verify.mjs",
+      "sha256": "2ec103db1da25d33bcab0eade79fe2beeeb9ed8f11c82360e9becef471974c8e"
+    },
+    "enclave/relay/vbs-credential.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/vbs-credential.mjs",
+      "sha256": "b36a2d037323b1e145c82529faffb94a1ecbdc0658c5c5c5c4d08a29c5692a77"
+    },
+    "enclave/relay/vbs-policy.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/vbs-policy.mjs",
+      "sha256": "0e915d95b6771db87e00cee5ef97b82459da0b43653629a2e03264c78a3901cc"
+    },
+    "enclave/relay/vbs-tcglog-core.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/vbs-tcglog-core.mjs",
+      "sha256": "936fc2ccc116154b6936d16a05fa89774a8f68a6dcb36b2733b064d4f2425912"
+    },
+    "enclave/relay/vbs-tcglog.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/vbs-tcglog.mjs",
+      "sha256": "b7c6b2e43c4fde1fbc6730b2ce53d257a83003673b3b56257b60983083a7036d"
+    },
+    "enclave/relay/vbs-tpm.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/vbs-tpm.mjs",
+      "sha256": "993c69a8e9931d67fb741ff93c52dc10503f11b42aedb125a42cffb71922b4f6"
+    },
+    "enclave/relay/vbs-verify.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/vbs-verify.mjs",
+      "sha256": "1b26c6b328d463b6597bc26ea4f8220403638e84655da1ddddea5152cd57b868"
+    },
+    "enclave/relay/vbs-vm-report-core.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/vbs-vm-report-core.mjs",
+      "sha256": "5c0fca2992494d985c6ac83d44c6a185e71ac83d0b9c232320da77db9609e314"
+    },
+    "enclave/relay/vbs-vm-report.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/vbs-vm-report.mjs",
+      "sha256": "974cbe2f5d2a37edfc4362b3f922d7e4ee178d309adfdd37584d159576e63775"
+    },
+    "enclave/relay/vendor/enclave-verifier-node.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/vendor/enclave-verifier-node.mjs",
+      "sha256": "2177c328b22f6656b92c9a329dc4316005b9105f2e872ab62024a994cf0e19ab"
+    },
+    "enclave/scripts/deploy-session-vault.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/scripts/deploy-session-vault.mjs",
+      "sha256": "121fd18119b4f789f831c41835f369bed6633e392119b87a90966963d607c9d1"
+    },
+    "enclave/sdk/sessions/dist/node.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/dist/node.mjs",
+      "sha256": "13952d0ad08e396158d32c9a6ab879e8abda216addeb041f1f65b33b7c5b8224"
+    },
+    "enclave/sdk/sessions/package-lock.json": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/package-lock.json",
+      "sha256": "fcd9babe23b5541b045b97f577e79e13e717cd302c41fdcfee5b1ed39de576a0"
+    },
+    "enclave/sdk/sessions/package.json": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/package.json",
+      "sha256": "58097520862c2fa6e1792761c903fae093eab91dadfe592de551b2fe8d3c2dae"
+    },
+    "enclave/sdk/sessions/src/abi.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/abi.ts",
+      "sha256": "b6ad2023bdb9427307fd7d3c61a2aa3f3f413819775f5630c03d4ca5e95eadf7"
+    },
+    "enclave/sdk/sessions/src/args.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/args.ts",
+      "sha256": "b95b01fc06e9ae6e224d0ae3b8fce5bddca6ac7e4f830849218ebf806e063c61"
+    },
+    "enclave/sdk/sessions/src/attest.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/attest.ts",
+      "sha256": "e12bfe27e6d20efe58a9a6b5c6d549c4c7c905c814a9c1a7357df6743e1d6f0f"
+    },
+    "enclave/sdk/sessions/src/browser.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/browser.ts",
+      "sha256": "d2497376da36d58228faf2ea7ed0e05c1bafc833f9800b160eaca064d1718da9"
+    },
+    "enclave/sdk/sessions/src/client.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/client.ts",
+      "sha256": "5bda84f8fb8e5f7c84ecf59a50f4aa2a2f1b9d34f73f45faf9392df5435dec24"
+    },
+    "enclave/sdk/sessions/src/constants.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/constants.ts",
+      "sha256": "1ad3dc31733c9c97bfc90c6ee61afe83630078f2bc7525f1ac3697602a18cb20"
+    },
+    "enclave/sdk/sessions/src/delegate.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/delegate.ts",
+      "sha256": "988b08ae347019813bd1875644ef193bedd981d3414df6fa2086db66ec469c0b"
+    },
+    "enclave/sdk/sessions/src/grant.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/grant.ts",
+      "sha256": "034979223f47fec38d0b2b6a5fd5d3481a5d317a308f920ec925383055f8d205"
+    },
+    "enclave/sdk/sessions/src/index.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/index.ts",
+      "sha256": "194ee455642d5f62db0a46d5aec50ded2d835dd5d94725dafeeda3c93fd42329"
+    },
+    "enclave/sdk/sessions/src/keys.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/keys.ts",
+      "sha256": "b85055f83c5ead1105c4d47b2a46da18432671c64ff4d17247a143ac4de26037"
+    },
+    "enclave/sdk/sessions/src/node.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/node.ts",
+      "sha256": "01442f88ec2f682da13ad97798f231c5a40658ef5c0dabd01e52feefe517ef04"
+    },
+    "enclave/sdk/sessions/src/store-browser.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/store-browser.ts",
+      "sha256": "8e74a7f25eb3ef6b13f6b28ef39ae770a1e32852e276b2717b6b7b9d79390519"
+    },
+    "enclave/sdk/sessions/src/store-node.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/store-node.ts",
+      "sha256": "145cd4efafce39bdcc5534ce1d7620d740611592c117eb9a37adaa5bf2af1b21"
+    },
+    "enclave/sdk/sessions/src/store.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/store.ts",
+      "sha256": "a9101d0fdcae2c0b868a6c86d7aafd2e3df2561db5e7290fb7b1ffe4d923ca20"
+    },
+    "enclave/sdk/sessions/src/typed.ts": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/typed.ts",
+      "sha256": "c8290663ef822f0c67257b7884747c7e1a8807492dffcce9abda4e5daeba1b9a"
+    },
+    "enclave/sdk/sessions/tsconfig.json": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/tsconfig.json",
+      "sha256": "6333f115269024a27c9e67507da6e3bf3244f466b7c8130d3e373876fb2e74e3"
+    },
+    "enclave/site/js/lib/contract-linker.js": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/site/js/lib/contract-linker.js",
+      "sha256": "4f78a692bb8cd19dec6c333423cc47da23c072330f95636d02df981c43b47122"
+    },
+    "enclave/test/cli-session.test.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/cli-session.test.mjs",
+      "sha256": "ccad53ca025ff7bb7cb910ea1fe94abc23f605c92cd5b01469c711cbe3276075"
+    },
+    "enclave/test/helpers/daemon.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/helpers/daemon.mjs",
+      "sha256": "44dd740393af653ac559e1b481b66da45fd2cc0c76c80c4da3f4b03c6a302e63"
+    },
+    "enclave/test/helpers/fake-base-rpc.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/helpers/fake-base-rpc.mjs",
+      "sha256": "4bee7b3c73d1f89f93b1c0fdea9fea6fa981297ac341ba0d7779afed739d5296"
+    },
+    "enclave/test/helpers/hv-fake-manager.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/helpers/hv-fake-manager.mjs",
+      "sha256": "37d7b600c16215320c5a1ba15ca4e67bd080b0809f260a8cd831808d75df6e39"
+    },
+    "enclave/test/helpers/owners.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/helpers/owners.mjs",
+      "sha256": "6b0807e88e16e68bbb8fdf917cffa4d705c6f08044c6daacff89e55062a1662a"
+    },
+    "enclave/test/helpers/sessions-chain.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/helpers/sessions-chain.mjs",
+      "sha256": "b8a734fca2e948ec1c75614d4279f48ab6d9b0cd90d294bb0106c9f6a58e45f8"
+    },
+    "enclave/test/helpers/snp-synth.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/helpers/snp-synth.mjs",
+      "sha256": "bb6c1f6effe6cf03cc3fda42d6029ab0f52a8c6b5e0930ab7d99e69bb1625d6a"
+    },
+    "enclave/test/relay-session-forward.test.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/relay-session-forward.test.mjs",
+      "sha256": "26ddf5cab529c5c7ee599816d34140c06d2205f9eec453870bd853e847db4878"
+    },
+    "enclave/test/secrets-release.test.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/secrets-release.test.mjs",
+      "sha256": "84f00c7029747c088e2e2dc3842135bb816b37bdee23c380b598e9324c6c3d8e"
+    },
+    "enclave/test/secrets.test.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/secrets.test.mjs",
+      "sha256": "8fb650252aeead33242c8ddbc1b743d03284ba1eef42ada7b15f00f1b943f3ed"
+    },
+    "enclave/test/session-api-auth.test.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/session-api-auth.test.mjs",
+      "sha256": "7d30d6d9ead9e55068467b8555cad7811aaf43bd0d210129ed4a2c30b1813b13"
+    },
+    "enclave/test/sessions.test.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/sessions.test.mjs",
+      "sha256": "d0608c60da2c7c669ccc3e7e142a0f2b6a43a070fa4ad564652e128ed6f1c60a"
+    },
+    "enclave/test/windows-node-secrets-unknown.test.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/windows-node-secrets-unknown.test.mjs",
+      "sha256": "83703fdfbee2d1caa78ee5860322d372552c2497a7a64af633f4c3ffb131f5b0"
+    },
+    "enclave/test/windows-node-secrets.test.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/windows-node-secrets.test.mjs",
+      "sha256": "a9df50feb537a0712b1bea6063fee5702e20864e5e6a78cec3ec76c0116ae578"
+    },
+    "enclave/test/windows-node-session.test.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/test/windows-node-session.test.mjs",
+      "sha256": "b71b9b3a73d5fe1866f0609d3bf3628d0760add5197d17e37882f5e9d60aba4a"
+    },
+    "enclave/verifier/admission.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/verifier/admission.mjs",
+      "sha256": "9b33ed059c25ad45b8e1770989f1fe32718c8321b3a4fb0101ba2b896c7a36f4"
+    },
+    "enclave/verifier/collateral-cache.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/verifier/collateral-cache.mjs",
+      "sha256": "eab07f86acc54f5411fb2e9148b155d0ccc7e12bc608453c8f73b9869181f7b6"
+    },
+    "enclave/verifier/collateral.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/verifier/collateral.mjs",
+      "sha256": "c2be31edf2d6a2154f5e220c5cc1bcaa16a7f9e06065fd1290e06387e55a057f"
+    },
+    "enclave/verifier/consumer.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/verifier/consumer.mjs",
+      "sha256": "907e40bfd42529aa907c3267b7ec0cb9652d9c250b196e00c1508a7e460608e1"
+    },
+    "enclave/verifier/der.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/verifier/der.mjs",
+      "sha256": "3606e988e4d340973c105fdc7fc0ee39db13034419561fbbe2e0ee396ade9775"
+    },
+    "enclave/verifier/envelope.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/verifier/envelope.mjs",
+      "sha256": "ba94f540c5e3574c5750dbf8a0d5cf24885dd0ae3ffcc8729f526700015e4b39"
+    },
+    "enclave/verifier/hyperv.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/verifier/hyperv.mjs",
+      "sha256": "9e79e5ab41ea147afa6ba5b1ddfdac5efab5d20544d151a71fe8a50133d63cce"
+    },
+    "enclave/verifier/index.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/verifier/index.mjs",
+      "sha256": "e46f605b0cd68aeb56b5daa73d70b5584941e83ddb58a8e5084d6037d3105321"
+    },
+    "enclave/verifier/metal-box.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/verifier/metal-box.mjs",
+      "sha256": "a9187601753d42065601dac32f6b88a0a5914475dfe48a3be57a18cb438676b3"
+    },
+    "enclave/verifier/pvm-evidence.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/verifier/pvm-evidence.mjs",
+      "sha256": "3cb27b612bbe7ebdf517ffa286d58f90aef59a5ed30a92542b45fbf0fb496b7e"
+    },
+    "enclave/verifier/pvm-policy.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/verifier/pvm-policy.mjs",
+      "sha256": "9628dc7585f9244113e3236086cf87b7381a1179f2fe90363553a49934ea93e9"
+    },
+    "enclave/verifier/snp.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/verifier/snp.mjs",
+      "sha256": "beb7571c9b3004da4cd8bfd87377e2dd2fcaca72884b83676325d1e150df6721"
+    },
+    "enclave/verifier/tls-binding.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/verifier/tls-binding.mjs",
+      "sha256": "f11b1ff36e43f90c20b2349a9880dc1f86821a7270b31273c612bd4a532dc8e7"
+    },
+    "enclave/windows/node/appframe.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/appframe.mjs",
+      "sha256": "fd02f5b9f221291357ca0491a81e3330013f6bcec8149b48d3a1463b4ce05681"
+    },
+    "enclave/windows/node/apprun.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/apprun.mjs",
+      "sha256": "09c60eb7fbe7e6a63cd0696bac6c53b9dfa826e103cc1f0f64ce359abab361ce"
+    },
+    "enclave/windows/node/apptls.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/apptls.mjs",
+      "sha256": "1710999ca21d4505857a7e4135383e9eba60c021a453bb133c572cb0e795cf88"
+    },
+    "enclave/windows/node/audit-jobs.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/audit-jobs.mjs",
+      "sha256": "6a6fe3ae786a0a8ffdbf1cbf2dc1e2335035c6adb13058623932f209d97ec4c5"
+    },
+    "enclave/windows/node/chain.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/chain.mjs",
+      "sha256": "61f36e59d0e397e154448343d727f37d48c4d6bbcc84111a94e96a3575fbe7b9"
+    },
+    "enclave/windows/node/domains.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/domains.mjs",
+      "sha256": "1897f7cc4e0d31d764aaa103ce1f3e3146d55d2a547f943c95c095c86ae72ea1"
+    },
+    "enclave/windows/node/gas-runway.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/gas-runway.mjs",
+      "sha256": "de160bddb093b8a7e1e576b1d31be1af8ca577bba35530e922dd8d0272abfbac"
+    },
+    "enclave/windows/node/host-delegation.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/host-delegation.mjs",
+      "sha256": "153f9aa731014a7aabdf9c221970b085577de80bdae738bc782d35deb777888c"
+    },
+    "enclave/windows/node/host.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/host.mjs",
+      "sha256": "84b6a1f474f9b816a98c2f17bee03f88bdc2201a17041fbbbabba910e27ce2d3"
+    },
+    "enclave/windows/node/hosting.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/hosting.mjs",
+      "sha256": "f2f3f46cd2fcc5433d988379546cd8c142ec878907457ffe1a01d4a1c89f17b7"
+    },
+    "enclave/windows/node/hvcert.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/hvcert.mjs",
+      "sha256": "91b9f2db7eb3be98efec1594dfe95245475a0cf234d9ce6843657b37bc2b1557"
+    },
+    "enclave/windows/node/hyperv-events.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/hyperv-events.mjs",
+      "sha256": "c91242a456a4c0944ba3bf12bb0db6aa4010db2f4b50960bf4127290fe9933b4"
+    },
+    "enclave/windows/node/isolation-client.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/isolation-client.mjs",
+      "sha256": "8e83e0762b2379d6fdd8b1eab579db2fad293800a700ff97d9c1368fc805e84c"
+    },
+    "enclave/windows/node/isolation-lifecycle.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/isolation-lifecycle.mjs",
+      "sha256": "5ae5f457f35fd4debb0b77f8b16ec00325d003470551354377e51c791734b033"
+    },
+    "enclave/windows/node/price-guide.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/price-guide.mjs",
+      "sha256": "e9869b25b28896cef1691a8a0c26b7ee9b57c117ff668ae264dee745b89cd3ee"
+    },
+    "enclave/windows/node/secrets.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/secrets.mjs",
+      "sha256": "9505dc6c327b0fbcff9ea0da44cc913f40c19ffc592bde29edc18c78b8239a9c"
+    },
+    "enclave/windows/node/session-api-auth.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/session-api-auth.mjs",
+      "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29"
+    },
+    "enclave/windows/node/session.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/session.mjs",
+      "sha256": "cb14d370a09655bb05884a6a1f5bcd4dd0b28ebe0180ae881c9c00c6222be438"
+    },
+    "enclave/windows/node/shieldedcard.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/shieldedcard.mjs",
+      "sha256": "287f86d53617455f390fb65e39d99cb4f996edc1f4050351bd7ee710bc69f047"
+    },
+    "enclave/windows/node/verification-checkpoints.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/verification-checkpoints.mjs",
+      "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29"
+    },
+    "enclave/windows/node/waf.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/waf.mjs",
+      "sha256": "d44da8feb6b55073e1f18264d028e3f854c85215ae3a97208ef329638c1ee94a"
+    },
+    "enclave/windows/vbslike/datapath/datapath.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/datapath/datapath.mjs",
+      "sha256": "1149dfb2099a8ea3963c570d61d40e7b304d060b73c62694a31e8346bd258771"
+    },
+    "enclave/windows/vbslike/datapath/node-bridge.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/datapath/node-bridge.mjs",
+      "sha256": "2b4b400db094e28fc7eedd03623353202470f7366b20d554ffa88c018a65f515"
+    },
+    "enclave/windows/vbslike/datapath/partition-offers.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/datapath/partition-offers.mjs",
+      "sha256": "c13ddf69d2c669567cd868852817c62d473a3eaa031862caefbb67d84389c79e"
+    },
+    "enclave/windows/vbslike/manager/backend.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/manager/backend.mjs",
+      "sha256": "961d348386907452df7c742d2690709e0c6c47feaa496ca33d60298da4584e30"
+    },
+    "enclave/windows/vbslike/manager/derive.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/manager/derive.mjs",
+      "sha256": "504342510c09dadeac0ec925bf071ff9378a56c5c9cc6990c29bbaf85635ad4e"
+    },
+    "enclave/windows/vbslike/manager/egress.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/manager/egress.mjs",
+      "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05"
+    },
+    "enclave/windows/vbslike/manager/memory-share.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/manager/memory-share.mjs",
+      "sha256": "a9d8200b8ccd8c89e64aebadced10068e6ed952ca74dd857f0f99a1a637bfc52"
+    },
+    "enclave/windows/vbslike/manager/server.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/manager/server.mjs",
+      "sha256": "ec91cb03f694e131b0f4660bc60daed9e1f29d944bfe86dd40d53444901a7953"
+    },
+    "enclave/windows/vbslike/manager/shield-profile.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/manager/shield-profile.mjs",
+      "sha256": "87e8935a192c49fb1c3de69e058256aacd883641989ca0618222e9466af2139c"
+    },
+    "enclave/windows/vbslike/manager/wmi-launcher.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/manager/wmi-launcher.mjs",
+      "sha256": "33ef5f0e57755e596a50a11a256d8a4b831a90dfd4cda6a9699f8761be4a4592"
+    },
+    "enclave/windows/vbslike/manager/wmiserve-run.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/manager/wmiserve-run.mjs",
+      "sha256": "c0154d17372a09fa08d9c4c8675496668fa927774da5245bb2d6892410feddde"
+    },
+    "enclave/windows/vbslike/verify/boot-statements.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/verify/boot-statements.mjs",
+      "sha256": "f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3"
+    },
+    "enclave/windows/vbslike/verify/judge-hv.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/verify/judge-hv.mjs",
+      "sha256": "bae3916e4a9ee1c3f4d67503f76b52d93febfbf356375a3321c7fe1fb9781f7f"
+    },
+    "enclave/relay/shield-desktop-release.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/control/relay/shield-desktop-release.mjs",
+      "sha256": "a84635db7e33d5fe4f68796f29945597dd4b341fc1996c0394f804331a49f38d",
+      "note": "installed-manager source baseline dependency; not a fresh runtime capture"
+    },
+    "enclave/relay/net-guard.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/net-guard.mjs",
+      "declaredPath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/net-guard.mjs",
+      "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+      "note": "Lexical import path preserved; source symlink resolved to regular copied bytes, or installed-manager baseline for missing source."
+    },
+    "enclave/relay/shield-derive.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/vbslike/manager/derive.mjs",
+      "declaredPath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/shield-derive.mjs",
+      "sha256": "504342510c09dadeac0ec925bf071ff9378a56c5c9cc6990c29bbaf85635ad4e",
+      "note": "Lexical import path preserved; source symlink resolved to regular copied bytes, or installed-manager baseline for missing source."
+    },
+    "enclave/relay/shield-desktop-derive.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/control/relay/shield-desktop-derive.mjs",
+      "declaredPath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1/control/relay/shield-desktop-derive.mjs",
+      "sha256": "52c99e557ac4f119e3e1cba1b69c0909d4bc06068cc784d0298f62261c09c6e4",
+      "note": "Lexical import path preserved; source symlink resolved to regular copied bytes, or installed-manager baseline for missing source."
+    },
+    "enclave/relay/vbs-runtime.mjs": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/isolation/contract/runtime.mjs",
+      "declaredPath": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/vbs-runtime.mjs",
+      "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+      "note": "Lexical import path preserved; source symlink resolved to regular copied bytes, or installed-manager baseline for missing source."
+    }
+  },
+  "overlays": [
+    {
+      "candidate": "enclave/relay/sessions.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-installed-policy-r1/sessions.mjs",
+      "sha256": "483b1c5ef29d83c937a5fd5b15ea3b2e940025d76706a1c5a63867f33c55c4e3",
+      "baseSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/sessions.mjs",
+      "baseSha256": "457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d",
+      "kind": "installed-capture"
+    },
+    {
+      "candidate": "enclave/relay/secrets.js",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-installed-policy-r1/secrets.js",
+      "sha256": "4c49127164e716a7431b1e2d62cd703f82b7a849641205e5bdf28d3bd17a198b",
+      "baseSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/secrets.js",
+      "baseSha256": "6f3d8c7633510b5a0c6e4a230aa8b0dad78eff585ad59f8b1fc381f3ef138ea5",
+      "kind": "installed-capture"
+    },
+    {
+      "candidate": "enclave/relay/secrets-release.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-installed-policy-r1/secrets-release.mjs",
+      "sha256": "48cf67ee80a088f3b713eaed401273a97aecb3aeca7204f320e0f22083405715",
+      "baseSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/secrets-release.mjs",
+      "baseSha256": "93d543e61b5cb8254087fce04bf776832fb6215c9d08f8a05ddeb411d02582e2",
+      "kind": "installed-capture"
+    },
+    {
+      "candidate": "enclave/relay/shield-secrets.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-installed-policy-r1/shield-secrets.mjs",
+      "sha256": "744e687237a28b23b1e0954b5b408eeb904cb8882b16c8df39fd8e8aeba144e5",
+      "baseSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/shield-secrets.mjs",
+      "baseSha256": "95b7186531d0497e8f58b433c0279f4e02971652ca60078c9058f5b73e9ced35",
+      "kind": "installed-capture"
+    },
+    {
+      "candidate": "enclave/relay/snp-verify.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-quarantine-prep-r1/generated/relay/snp-verify.mjs",
+      "sha256": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046",
+      "baseSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/snp-verify.mjs",
+      "baseSha256": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046",
+      "kind": "matching-installed-sessions-source-closure"
+    },
+    {
+      "candidate": "enclave/relay/fee-policy.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-quarantine-prep-r1/generated/relay/fee-policy.mjs",
+      "sha256": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+      "baseSource": null,
+      "baseSha256": null,
+      "kind": "matching-installed-sessions-source-closure"
+    },
+    {
+      "candidate": "enclave/relay/funding-abi.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-quarantine-prep-r1/generated/relay/funding-abi.mjs",
+      "sha256": "6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7",
+      "baseSource": null,
+      "baseSha256": null,
+      "kind": "matching-installed-sessions-source-closure"
+    },
+    {
+      "candidate": "enclave/relay/sessions-abi.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-quarantine-prep-r1/generated/relay/sessions-abi.mjs",
+      "sha256": "e9c2464c529d0665e4b2e38bdaa0bf8c703346f046b85521aba755bfc1b2a0a6",
+      "baseSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/relay/sessions-abi.mjs",
+      "baseSha256": "e9c2464c529d0665e4b2e38bdaa0bf8c703346f046b85521aba755bfc1b2a0a6",
+      "kind": "matching-installed-sessions-source-closure"
+    },
+    {
+      "candidate": "enclave/relay/funding-activation.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-quarantine-prep-r1/generated/relay/funding-activation.mjs",
+      "sha256": "7554454dbe091f4bcc7ef8e15ac5dd8082c8be6d94256f52b1c8fadcfc198645",
+      "baseSource": null,
+      "baseSha256": null,
+      "kind": "matching-installed-sessions-source-closure"
+    },
+    {
+      "candidate": "enclave/relay/funding-route.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/relay-quarantine-prep-r1/generated/relay/funding-route.mjs",
+      "sha256": "1989f3ebf88833ac492e4f121ff33d564b1798eae1e5239b1aae444b63b572cd",
+      "baseSource": null,
+      "baseSha256": null,
+      "kind": "matching-installed-sessions-source-closure"
+    }
+  ],
+  "preAuthorProductEdits": 0,
+  "note": "Byte copies with explicit installed overlays. No runtime/loaded-code or installed freshness claim."
+}

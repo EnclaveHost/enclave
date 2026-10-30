@@ -1,0 +1,28 @@
+{
+  "existing": [
+    "enclave/relay/sessions.mjs",
+    "enclave/relay/sessions-abi.mjs",
+    "enclave/relay/api-relay.js",
+    "enclave/relay/secrets.js",
+    "enclave/relay/secrets-release.mjs",
+    "enclave/relay/shield-secrets.mjs",
+    "enclave/windows/node/session-api-auth.mjs",
+    "enclave/windows/node/host.mjs",
+    "enclave/cli/enclave.mjs"
+  ],
+  "patterns": [
+    "enclave/sdk/sessions/src/*",
+    "enclave/contracts/WalletSession*.sol",
+    "enclave/contracts/foundry/test/WalletSession*.t.sol",
+    "enclave/test/wallet-session/*"
+  ],
+  "newSharedModule": "At most one shared JS policy resolver; author must name/import it and collector/root manually review exact path. No blanket permission for other relay modules.",
+  "reports": [
+    "REPORT.md",
+    "CLOSURE.json"
+  ],
+  "immutable": [
+    "legacy contracts, source deployment records, old tests, package/lock, existing funding/fee/quarantine controls, site, shipped SDK, all evidence/seed/metadata"
+  ],
+  "note": "All changes must be explained by successful candidate-only Write/Edit replay; allowed path alone is not proof edits within scope."
+}
