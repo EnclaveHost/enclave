@@ -1,0 +1,5418 @@
+{
+  "at": 1793391580.0041168,
+  "bootId": "b5382987-896d-4f01-938b-12d1bb149fd5",
+  "readOnly": true,
+  "nativeAdmitted": false,
+  "beforeMemory": {
+    "MemTotal": 134015586304,
+    "MemAvailable": 31617871872,
+    "SwapTotal": 4294963200,
+    "SwapFree": 61440
+  },
+  "unitBefore": "Id=enclave-guestd.service\nActiveState=active\nSubState=running\nFragmentPath=/home/steven/.config/systemd/user/enclave-guestd.service\nDropInPaths=/home/steven/.config/systemd/user/enclave-guestd.service.d/70-protected-ports.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/80-shield-inference.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/90-tuna-egress.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/95-public-web.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/97-codegen.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/98-artifact-gateway.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/99-app-egress.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zz-memory-budget64.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzz-eyesoff-vision.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzz-pad-spill.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzz-custody.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzz-zimage.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzz-recovery-pad-location.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzz-loader-cache-20261028.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzz-retire-budget-20261028.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzzz-retire-rollback-20261028.conf\nInvocationID=6eff6e20ad984adba33c6603b3198ac5\nMainPID=194657\nControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service\nMemoryCurrent=199196672\nTasksCurrent=55\nCPUQuotaPerSecUSec=infinity\nMemoryMax=infinity\nMemorySwapMax=infinity\n\nId=enclave-rpc-production-vm.service\nActiveState=inactive\nSubState=dead\nFragmentPath=/home/steven/.config/systemd/user/enclave-rpc-production-vm.service\nDropInPaths=\nInvocationID=\nMainPID=0\nControlGroup=\nMemoryCurrent=[not set]\nTasksCurrent=[not set]\nCPUQuotaPerSecUSec=infinity\nMemoryMax=70866960384\nMemorySwapMax=0\n\nId=enclave-rpc-production-guard.service\nActiveState=inactive\nSubState=dead\nFragmentPath=/home/steven/.config/systemd/user/enclave-rpc-production-guard.service\nDropInPaths=\nInvocationID=\nMainPID=0\nControlGroup=\nMemoryCurrent=[not set]\nTasksCurrent=[not set]\nCPUQuotaPerSecUSec=infinity\nMemoryMax=268435456\nMemorySwapMax=infinity\n",
+  "guestd": {
+    "ok": true,
+    "authenticated": true,
+    "readOnly": true,
+    "at": 1793391580.204,
+    "before": {
+      "budget": {
+        "memMiB": 98304,
+        "cpuPct": 2400
+      },
+      "allocated": {
+        "memMiB": 68249,
+        "cpuPct": 1700
+      },
+      "free": {
+        "memMiB": 30055,
+        "cpuPct": 700
+      },
+      "guests": 2,
+      "overcommitted": false,
+      "host": {
+        "floorMiB": 18432,
+        "memAvailableMiB": 30135,
+        "pendingMiB": 5950,
+        "unreadUnits": 0
+      }
+    },
+    "after": {
+      "budget": {
+        "memMiB": 98304,
+        "cpuPct": 2400
+      },
+      "allocated": {
+        "memMiB": 68249,
+        "cpuPct": 1700
+      },
+      "free": {
+        "memMiB": 30055,
+        "cpuPct": 700
+      },
+      "guests": 2,
+      "overcommitted": false,
+      "host": {
+        "floorMiB": 18432,
+        "memAvailableMiB": 30127,
+        "pendingMiB": 5950,
+        "unreadUnits": 0
+      }
+    },
+    "guests": [
+      {
+        "id": "gd1609283d",
+        "status": "running",
+        "reserved": {
+          "memMiB": 3200,
+          "cpuPct": 100
+        }
+      },
+      {
+        "id": "gd61126785",
+        "status": "running",
+        "reserved": {
+          "memMiB": 65049,
+          "cpuPct": 1600
+        }
+      },
+      {
+        "id": "gd77d87e32",
+        "status": "failed",
+        "reserved": null
+      }
+    ],
+    "reservationsStable": true,
+    "pendingUpperMiB": 5950,
+    "memAvailableLowerMiB": 30127,
+    "rawHealthRetained": false,
+    "nativeAdmitted": false,
+    "installedProcessIdentity": {
+      "pid": 194657,
+      "startTicks": 148657014,
+      "ppid": 1899,
+      "uid": 1000,
+      "executable": "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde",
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service",
+      "rssBytes": 33546240
+    }
+  },
+  "baseline": {
+    "processes": [
+      {
+        "pid": 1977,
+        "startTicks": 5833,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/dbus-broker-launch",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/session.slice/dbus-broker.service",
+        "rssBytes": 1597440
+      },
+      {
+        "pid": 1985,
+        "startTicks": 5834,
+        "ppid": 1977,
+        "uid": 1000,
+        "executable": "/usr/bin/dbus-broker",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/session.slice/dbus-broker.service",
+        "rssBytes": 1392640
+      },
+      {
+        "pid": 1996,
+        "startTicks": 5834,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/pipewire",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/session.slice/pipewire.service",
+        "rssBytes": 10387456
+      },
+      {
+        "pid": 1998,
+        "startTicks": 5834,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/wireplumber",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/session.slice/wireplumber.service",
+        "rssBytes": 29106176
+      },
+      {
+        "pid": 1999,
+        "startTicks": 5834,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/pipewire",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/session.slice/pipewire-pulse.service",
+        "rssBytes": 13803520
+      },
+      {
+        "pid": 5656,
+        "startTicks": 7129,
+        "ppid": 5575,
+        "uid": 1000,
+        "executable": "/usr/bin/i3",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 37724160
+      },
+      {
+        "pid": 5683,
+        "startTicks": 7134,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal0-shield-v100-1.service",
+        "rssBytes": 250638336
+      },
+      {
+        "pid": 5685,
+        "startTicks": 7134,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal0-shield-v100-0.service",
+        "rssBytes": 253341696
+      },
+      {
+        "pid": 5712,
+        "startTicks": 7139,
+        "ppid": 5656,
+        "uid": 1000,
+        "executable": "/usr/bin/picom",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 86081536
+      },
+      {
+        "pid": 5734,
+        "startTicks": 7148,
+        "ppid": 5727,
+        "uid": 1000,
+        "executable": "/usr/bin/dbus-broker-launch",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/session.slice/at-spi-dbus-bus.service",
+        "rssBytes": 786432
+      },
+      {
+        "pid": 5735,
+        "startTicks": 7149,
+        "ppid": 5734,
+        "uid": 1000,
+        "executable": "/usr/bin/dbus-broker",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/session.slice/at-spi-dbus-bus.service",
+        "rssBytes": 966656
+      },
+      {
+        "pid": 5836,
+        "startTicks": 8141,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/bin/polybar",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 5468160
+      },
+      {
+        "pid": 5837,
+        "startTicks": 8141,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/bin/tee",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 528384
+      },
+      {
+        "pid": 11667,
+        "startTicks": 30747,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/lib/xdg-desktop-portal",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/session.slice/xdg-desktop-portal.service",
+        "rssBytes": 6987776
+      },
+      {
+        "pid": 11673,
+        "startTicks": 30750,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/lib/xdg-permission-store",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/session.slice/xdg-permission-store.service",
+        "rssBytes": 2576384
+      },
+      {
+        "pid": 11711,
+        "startTicks": 30751,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/lib/xdg-document-portal",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/session.slice/xdg-document-portal.service",
+        "rssBytes": 3043328
+      },
+      {
+        "pid": 11733,
+        "startTicks": 30753,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/lib/xdg-desktop-portal-gtk",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/xdg-desktop-portal-gtk.service",
+        "rssBytes": 38494208
+      },
+      {
+        "pid": 15249,
+        "startTicks": 91038176,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1855488
+      },
+      {
+        "pid": 15251,
+        "startTicks": 91038177,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 565248
+      },
+      {
+        "pid": 18891,
+        "startTicks": 91061900,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1687552
+      },
+      {
+        "pid": 18893,
+        "startTicks": 91061900,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 573440
+      },
+      {
+        "pid": 20643,
+        "startTicks": 91070568,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1765376
+      },
+      {
+        "pid": 20645,
+        "startTicks": 91070568,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 577536
+      },
+      {
+        "pid": 44782,
+        "startTicks": 91242591,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1859584
+      },
+      {
+        "pid": 44784,
+        "startTicks": 91242591,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 573440
+      },
+      {
+        "pid": 85693,
+        "startTicks": 91598580,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1798144
+      },
+      {
+        "pid": 85695,
+        "startTicks": 91598581,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 573440
+      },
+      {
+        "pid": 136367,
+        "startTicks": 148313639,
+        "ppid": 4009081,
+        "uid": 1000,
+        "executable": "/usr/bin/bash",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 4907008
+      },
+      {
+        "pid": 152893,
+        "startTicks": 148425925,
+        "ppid": 4008051,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/resources/disclaimer",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 1929216
+      },
+      {
+        "pid": 152894,
+        "startTicks": 148425926,
+        "ppid": 152893,
+        "uid": 1000,
+        "executable": "/home/steven/.config/Claude/claude-code/2.1.308/f8b3641a8d36/claude",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 207896576
+      },
+      {
+        "pid": 194657,
+        "startTicks": 148657014,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service",
+        "rssBytes": 33546240
+      },
+      {
+        "pid": 280230,
+        "startTicks": 149142980,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 4112384
+      },
+      {
+        "pid": 280232,
+        "startTicks": 149142980,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 3710976
+      },
+      {
+        "pid": 282017,
+        "startTicks": 149150739,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-282017.scope",
+        "rssBytes": 428953600
+      },
+      {
+        "pid": 282019,
+        "startTicks": 149150742,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 4272128
+      },
+      {
+        "pid": 282021,
+        "startTicks": 149150742,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 3637248
+      },
+      {
+        "pid": 282025,
+        "startTicks": 149150742,
+        "ppid": 282017,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 50892800
+      },
+      {
+        "pid": 282026,
+        "startTicks": 149150742,
+        "ppid": 282017,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 51417088
+      },
+      {
+        "pid": 282028,
+        "startTicks": 149150745,
+        "ppid": 282026,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 22937600
+      },
+      {
+        "pid": 282049,
+        "startTicks": 149150752,
+        "ppid": 282025,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 326156288
+      },
+      {
+        "pid": 282051,
+        "startTicks": 149150752,
+        "ppid": 282017,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 126099456
+      },
+      {
+        "pid": 282062,
+        "startTicks": 149150759,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 65241088
+      },
+      {
+        "pid": 282089,
+        "startTicks": 149150766,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 185507840
+      },
+      {
+        "pid": 282128,
+        "startTicks": 149150770,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 209043456
+      },
+      {
+        "pid": 282134,
+        "startTicks": 149150770,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 202006528
+      },
+      {
+        "pid": 282141,
+        "startTicks": 149150771,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 594436096
+      },
+      {
+        "pid": 282331,
+        "startTicks": 149150783,
+        "ppid": 282017,
+        "uid": 1000,
+        "executable": "/home/steven/.codex/plugins/cache/openai-bundled/chrome/26.1013.40934/extension-host/linux/x64/extension-host",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-282017.scope",
+        "rssBytes": 15708160
+      },
+      {
+        "pid": 282341,
+        "startTicks": 149150789,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 331063296
+      },
+      {
+        "pid": 282351,
+        "startTicks": 149150791,
+        "ppid": 282049,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 49426432
+      },
+      {
+        "pid": 282371,
+        "startTicks": 149150796,
+        "ppid": 282017,
+        "uid": 1000,
+        "executable": "/home/steven/.local/share/claude/versions/2.1.215",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-282017.scope",
+        "rssBytes": 85422080
+      },
+      {
+        "pid": 282564,
+        "startTicks": 149150974,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 429944832
+      },
+      {
+        "pid": 282603,
+        "startTicks": 149150982,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 289452032
+      },
+      {
+        "pid": 292126,
+        "startTicks": 149209406,
+        "ppid": 282017,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-282017.scope",
+        "rssBytes": 44896256
+      },
+      {
+        "pid": 310786,
+        "startTicks": 149326544,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 448602112
+      },
+      {
+        "pid": 419627,
+        "startTicks": 150048512,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/ssh",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-risc-nucbox-tunnel.service",
+        "rssBytes": 10985472
+      },
+      {
+        "pid": 623091,
+        "startTicks": 94769702,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1839104
+      },
+      {
+        "pid": 623093,
+        "startTicks": 94769703,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 565248
+      },
+      {
+        "pid": 650900,
+        "startTicks": 152544436,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 235716608
+      },
+      {
+        "pid": 655012,
+        "startTicks": 152595747,
+        "ppid": 3918027,
+        "uid": 1000,
+        "executable": "/home/steven/enclave-prod/enclave-network/release-2e8e7e3d7/enclave-wg",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-agent.service",
+        "rssBytes": 71200768
+      },
+      {
+        "pid": 734542,
+        "startTicks": 23758865,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 37392384
+      },
+      {
+        "pid": 734582,
+        "startTicks": 23758891,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 28893184
+      },
+      {
+        "pid": 734623,
+        "startTicks": 23758914,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 144744448
+      },
+      {
+        "pid": 734667,
+        "startTicks": 23758937,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 160616448
+      },
+      {
+        "pid": 734709,
+        "startTicks": 23758960,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 126476288
+      },
+      {
+        "pid": 734756,
+        "startTicks": 23758983,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 28528640
+      },
+      {
+        "pid": 734796,
+        "startTicks": 23759006,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 131883008
+      },
+      {
+        "pid": 734843,
+        "startTicks": 23759029,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 105308160
+      },
+      {
+        "pid": 734900,
+        "startTicks": 23759053,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 58634240
+      },
+      {
+        "pid": 734943,
+        "startTicks": 23759076,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 59420672
+      },
+      {
+        "pid": 734983,
+        "startTicks": 23759099,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 132739072
+      },
+      {
+        "pid": 735028,
+        "startTicks": 23759123,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 83582976
+      },
+      {
+        "pid": 735068,
+        "startTicks": 23759147,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 1417216
+      },
+      {
+        "pid": 739459,
+        "startTicks": 23780371,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 2011136
+      },
+      {
+        "pid": 743847,
+        "startTicks": 23796168,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 2023424
+      },
+      {
+        "pid": 836484,
+        "startTicks": 111160110,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/bin/bash",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 573440
+      },
+      {
+        "pid": 836653,
+        "startTicks": 111160120,
+        "ppid": 836484,
+        "uid": 1000,
+        "executable": "/usr/bin/nvim",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1372160
+      },
+      {
+        "pid": 893276,
+        "startTicks": 111495542,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/home/steven/.local/bin/enclave-risc-gs-bridge",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-risc-moonlight.service",
+        "rssBytes": 9969664
+      },
+      {
+        "pid": 956426,
+        "startTicks": 111825067,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1822720
+      },
+      {
+        "pid": 956428,
+        "startTicks": 111825068,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 581632
+      },
+      {
+        "pid": 1080405,
+        "startTicks": 112288055,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal0-owner-accept-20261024.service",
+        "rssBytes": 49700864
+      },
+      {
+        "pid": 1214959,
+        "startTicks": 24919468,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/home/steven/enclave-prod/sia-swap/bin/kdf",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/sia-swap-kdf.service",
+        "rssBytes": 29638656
+      },
+      {
+        "pid": 1384622,
+        "startTicks": 157862186,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/qemu-system-x86_64",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gd61126785-1384596.service",
+        "rssBytes": 479870976
+      },
+      {
+        "pid": 1385299,
+        "startTicks": 157866605,
+        "ppid": 194657,
+        "uid": 1000,
+        "executable": "/home/steven/enclave-prod/guestd-root/bin/fwd",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service",
+        "rssBytes": 16125952
+      },
+      {
+        "pid": 1428537,
+        "startTicks": 114019726,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-custody-canary-publish-20261024.service",
+        "rssBytes": 53706752
+      },
+      {
+        "pid": 1532328,
+        "startTicks": 114494596,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/home/steven/Documents/Codex/2026-10-23/it/work/shield-compute/worker/shielded-worker",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/kvm-box-native-worker.service",
+        "rssBytes": 200470528
+      },
+      {
+        "pid": 1904920,
+        "startTicks": 83404910,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1753088
+      },
+      {
+        "pid": 1904922,
+        "startTicks": 83404910,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 499712
+      },
+      {
+        "pid": 1949215,
+        "startTicks": 101380244,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1757184
+      },
+      {
+        "pid": 1949217,
+        "startTicks": 101380244,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 540672
+      },
+      {
+        "pid": 1955801,
+        "startTicks": 101404060,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1761280
+      },
+      {
+        "pid": 1955803,
+        "startTicks": 101404060,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 548864
+      },
+      {
+        "pid": 1956370,
+        "startTicks": 101405210,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1650688
+      },
+      {
+        "pid": 1956373,
+        "startTicks": 101405211,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 540672
+      },
+      {
+        "pid": 1958767,
+        "startTicks": 101408395,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1757184
+      },
+      {
+        "pid": 1958769,
+        "startTicks": 101408395,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 524288
+      },
+      {
+        "pid": 1962768,
+        "startTicks": 101414501,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1826816
+      },
+      {
+        "pid": 1962770,
+        "startTicks": 101414501,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 540672
+      },
+      {
+        "pid": 1964321,
+        "startTicks": 101417549,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1720320
+      },
+      {
+        "pid": 1964323,
+        "startTicks": 101417549,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 585728
+      },
+      {
+        "pid": 1966493,
+        "startTicks": 101424353,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1703936
+      },
+      {
+        "pid": 1966495,
+        "startTicks": 101424353,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 536576
+      },
+      {
+        "pid": 1968229,
+        "startTicks": 101429942,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1744896
+      },
+      {
+        "pid": 1968231,
+        "startTicks": 101429942,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 516096
+      },
+      {
+        "pid": 1974062,
+        "startTicks": 101460918,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1736704
+      },
+      {
+        "pid": 1974064,
+        "startTicks": 101460918,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 552960
+      },
+      {
+        "pid": 2081895,
+        "startTicks": 43347772,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/home/steven/Projects/enclave/.consolidation/2026-10-24/artifacts/enclave-sdshield-work/test-worker/shielded-worker",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/sdshield-test-worker.service",
+        "rssBytes": 79048704
+      },
+      {
+        "pid": 2084439,
+        "startTicks": 101989699,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1785856
+      },
+      {
+        "pid": 2084441,
+        "startTicks": 101989700,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 528384
+      },
+      {
+        "pid": 2109160,
+        "startTicks": 134237231,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 1904640
+      },
+      {
+        "pid": 2109162,
+        "startTicks": 134237231,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 741376
+      },
+      {
+        "pid": 2170003,
+        "startTicks": 26702248,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 5861376
+      },
+      {
+        "pid": 2180461,
+        "startTicks": 26703992,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 5373952
+      },
+      {
+        "pid": 2181247,
+        "startTicks": 26704157,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 7651328
+      },
+      {
+        "pid": 2181330,
+        "startTicks": 26704172,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 29958144
+      },
+      {
+        "pid": 2181688,
+        "startTicks": 26704197,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 2560000
+      },
+      {
+        "pid": 2203223,
+        "startTicks": 26720544,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 5705728
+      },
+      {
+        "pid": 2226072,
+        "startTicks": 26722899,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 153808896
+      },
+      {
+        "pid": 2227471,
+        "startTicks": 26723099,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 2908160
+      },
+      {
+        "pid": 2227473,
+        "startTicks": 26723099,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 5271552
+      },
+      {
+        "pid": 2227572,
+        "startTicks": 26723105,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/.foundry/bin/anvil",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 4091904
+      },
+      {
+        "pid": 2290051,
+        "startTicks": 163987558,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 4390912
+      },
+      {
+        "pid": 2290053,
+        "startTicks": 163987558,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 3874816
+      },
+      {
+        "pid": 2290848,
+        "startTicks": 163992103,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 481550336
+      },
+      {
+        "pid": 2290854,
+        "startTicks": 163992115,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/browser_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 2674688
+      },
+      {
+        "pid": 2290856,
+        "startTicks": 163992115,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/browser_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 2560000
+      },
+      {
+        "pid": 2290860,
+        "startTicks": 163992117,
+        "ppid": 2290848,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 62922752
+      },
+      {
+        "pid": 2290861,
+        "startTicks": 163992117,
+        "ppid": 2290848,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 63025152
+      },
+      {
+        "pid": 2290868,
+        "startTicks": 163992121,
+        "ppid": 2290861,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 23175168
+      },
+      {
+        "pid": 2290892,
+        "startTicks": 163992152,
+        "ppid": 2290860,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 246038528
+      },
+      {
+        "pid": 2290894,
+        "startTicks": 163992152,
+        "ppid": 2290848,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 132292608
+      },
+      {
+        "pid": 2290905,
+        "startTicks": 163992157,
+        "ppid": 2290868,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 64204800
+      },
+      {
+        "pid": 2290951,
+        "startTicks": 163992167,
+        "ppid": 2290892,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 46059520
+      },
+      {
+        "pid": 2291143,
+        "startTicks": 163992354,
+        "ppid": 2290868,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 1146888192
+      },
+      {
+        "pid": 2291196,
+        "startTicks": 163992371,
+        "ppid": 2290848,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/codex",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 553771008
+      },
+      {
+        "pid": 2291356,
+        "startTicks": 163992456,
+        "ppid": 2290848,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 86958080
+      },
+      {
+        "pid": 2291381,
+        "startTicks": 163992608,
+        "ppid": 2290868,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 188674048
+      },
+      {
+        "pid": 2291785,
+        "startTicks": 163992787,
+        "ppid": 2290848,
+        "uid": 1000,
+        "executable": "/home/steven/.config/Codex/artifact-sessions/runtime-generations/generation-Pq3xD8/runtime/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 138452992
+      },
+      {
+        "pid": 2291914,
+        "startTicks": 163992879,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 4538368
+      },
+      {
+        "pid": 2291916,
+        "startTicks": 163992879,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 4055040
+      },
+      {
+        "pid": 2291964,
+        "startTicks": 163992934,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node_repl",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 12419072
+      },
+      {
+        "pid": 2291965,
+        "startTicks": 163992934,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node_repl",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 11915264
+      },
+      {
+        "pid": 2291999,
+        "startTicks": 163992934,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 66097152
+      },
+      {
+        "pid": 2292153,
+        "startTicks": 163992937,
+        "ppid": 2291999,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node_repl",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 14508032
+      },
+      {
+        "pid": 2293267,
+        "startTicks": 163994090,
+        "ppid": 2290868,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 123957248
+      },
+      {
+        "pid": 2293332,
+        "startTicks": 163994095,
+        "ppid": 2290868,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 341614592
+      },
+      {
+        "pid": 2293722,
+        "startTicks": 163994187,
+        "ppid": 2290868,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 451305472
+      },
+      {
+        "pid": 2294140,
+        "startTicks": 163994228,
+        "ppid": 2290868,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 124260352
+      },
+      {
+        "pid": 2294468,
+        "startTicks": 163994502,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 134168576
+      },
+      {
+        "pid": 2294916,
+        "startTicks": 163994601,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 100798464
+      },
+      {
+        "pid": 2294929,
+        "startTicks": 163994613,
+        "ppid": 2290868,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 119611392
+      },
+      {
+        "pid": 2294945,
+        "startTicks": 163994625,
+        "ppid": 2290868,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 79273984
+      },
+      {
+        "pid": 2294971,
+        "startTicks": 163994644,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 100532224
+      },
+      {
+        "pid": 2294978,
+        "startTicks": 163994645,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 133890048
+      },
+      {
+        "pid": 2294999,
+        "startTicks": 163994646,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node_repl",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 10641408
+      },
+      {
+        "pid": 2295020,
+        "startTicks": 163994647,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 66060288
+      },
+      {
+        "pid": 2295042,
+        "startTicks": 163994648,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node_repl",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 9834496
+      },
+      {
+        "pid": 2295157,
+        "startTicks": 163994652,
+        "ppid": 2295020,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node_repl",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 11161600
+      },
+      {
+        "pid": 2295798,
+        "startTicks": 163994756,
+        "ppid": 2290848,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/codex",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 146358272
+      },
+      {
+        "pid": 2296248,
+        "startTicks": 163995644,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/codex-code-mode-host",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 27119616
+      },
+      {
+        "pid": 2296429,
+        "startTicks": 163996463,
+        "ppid": 2292153,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 94420992
+      },
+      {
+        "pid": 2296430,
+        "startTicks": 163996463,
+        "ppid": 2292153,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 281927680
+      },
+      {
+        "pid": 2296462,
+        "startTicks": 163996479,
+        "ppid": 2292153,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/codex",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 192946176
+      },
+      {
+        "pid": 2298575,
+        "startTicks": 164010153,
+        "ppid": 2290860,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/ChatGPT",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 110387200
+      },
+      {
+        "pid": 2298887,
+        "startTicks": 164012552,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 299089920
+      },
+      {
+        "pid": 2299201,
+        "startTicks": 164014516,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 277606400
+      },
+      {
+        "pid": 2302433,
+        "startTicks": 102544718,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2301659-i31659228.scope",
+        "rssBytes": 41443328
+      },
+      {
+        "pid": 2333784,
+        "startTicks": 61080946,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/ipfs",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/ipfs.service",
+        "rssBytes": 272162816
+      },
+      {
+        "pid": 2334878,
+        "startTicks": 164269492,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 311586816
+      },
+      {
+        "pid": 2349720,
+        "startTicks": 164370740,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 184160256
+      },
+      {
+        "pid": 2353311,
+        "startTicks": 164396273,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 641589248
+      },
+      {
+        "pid": 2369523,
+        "startTicks": 164534137,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 598614016
+      },
+      {
+        "pid": 2369548,
+        "startTicks": 164534353,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 391938048
+      },
+      {
+        "pid": 2369712,
+        "startTicks": 164534755,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 218898432
+      },
+      {
+        "pid": 2534440,
+        "startTicks": 165747593,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 348246016
+      },
+      {
+        "pid": 2534550,
+        "startTicks": 165748321,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 297218048
+      },
+      {
+        "pid": 2535082,
+        "startTicks": 165750511,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 134057984
+      },
+      {
+        "pid": 2535084,
+        "startTicks": 165750512,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node_repl",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 11923456
+      },
+      {
+        "pid": 2535090,
+        "startTicks": 165750513,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 93130752
+      },
+      {
+        "pid": 2535123,
+        "startTicks": 165750513,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node_repl",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 10129408
+      },
+      {
+        "pid": 2535126,
+        "startTicks": 165750514,
+        "ppid": 2291196,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 66019328
+      },
+      {
+        "pid": 2535263,
+        "startTicks": 165750518,
+        "ppid": 2535126,
+        "uid": 1000,
+        "executable": "/usr/lib/chatgpt/resources/cua_node/bin/node_repl",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 10891264
+      },
+      {
+        "pid": 2540625,
+        "startTicks": 165777827,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 4567040
+      },
+      {
+        "pid": 2540627,
+        "startTicks": 165777828,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "rssBytes": 3932160
+      },
+      {
+        "pid": 2713242,
+        "startTicks": 166590363,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/qemu-system-x86_64",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gd1609283d-2713222.service",
+        "rssBytes": 332099584
+      },
+      {
+        "pid": 2714651,
+        "startTicks": 166598329,
+        "ppid": 194657,
+        "uid": 1000,
+        "executable": "/home/steven/enclave-prod/guestd-root/bin/fwd",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service",
+        "rssBytes": 10522624
+      },
+      {
+        "pid": 2892642,
+        "startTicks": 167960798,
+        "ppid": 3918027,
+        "uid": 1000,
+        "executable": "/home/steven/enclave-prod/enclave-network/release-2e8e7e3d7/enclave-wg",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-agent.service",
+        "rssBytes": 24494080
+      },
+      {
+        "pid": 2892675,
+        "startTicks": 167961128,
+        "ppid": 3918027,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-agent.service",
+        "rssBytes": 88952832
+      },
+      {
+        "pid": 2892825,
+        "startTicks": 167962623,
+        "ppid": 3918027,
+        "uid": 1000,
+        "executable": "/home/steven/enclave-prod/enclave-network/release-2e8e7e3d7/enclave-wg",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-agent.service",
+        "rssBytes": 35594240
+      },
+      {
+        "pid": 2900377,
+        "startTicks": 168054501,
+        "ppid": 3918027,
+        "uid": 1000,
+        "executable": "/home/steven/enclave-prod/enclave-network/release-2e8e7e3d7/enclave-wg",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-agent.service",
+        "rssBytes": 38612992
+      },
+      {
+        "pid": 2900757,
+        "startTicks": 168058899,
+        "ppid": 3918027,
+        "uid": 1000,
+        "executable": "/home/steven/enclave-prod/enclave-network/release-2e8e7e3d7/enclave-wg",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-agent.service",
+        "rssBytes": 24784896
+      },
+      {
+        "pid": 2900824,
+        "startTicks": 168059469,
+        "ppid": 3918027,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-agent.service",
+        "rssBytes": 89198592
+      },
+      {
+        "pid": 2904429,
+        "startTicks": 168104387,
+        "ppid": 3918027,
+        "uid": 1000,
+        "executable": "/home/steven/enclave-prod/enclave-network/release-2e8e7e3d7/enclave-wg",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-agent.service",
+        "rssBytes": 42000384
+      },
+      {
+        "pid": 2904461,
+        "startTicks": 168104663,
+        "ppid": 3918027,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-agent.service",
+        "rssBytes": 90419200
+      },
+      {
+        "pid": 2904505,
+        "startTicks": 168105252,
+        "ppid": 3918027,
+        "uid": 1000,
+        "executable": "/home/steven/enclave-prod/enclave-network/release-2e8e7e3d7/enclave-wg",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-agent.service",
+        "rssBytes": 24444928
+      },
+      {
+        "pid": 2904539,
+        "startTicks": 168105581,
+        "ppid": 3918027,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-agent.service",
+        "rssBytes": 90718208
+      },
+      {
+        "pid": 2966318,
+        "startTicks": 168794415,
+        "ppid": 282028,
+        "uid": 1000,
+        "executable": "/usr/lib/chromium/chromium",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 84369408
+      },
+      {
+        "pid": 2976934,
+        "startTicks": 139534778,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 72290304
+      },
+      {
+        "pid": 2976942,
+        "startTicks": 139534783,
+        "ppid": 2976934,
+        "uid": 1000,
+        "executable": "/usr/bin/ssh",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 6721536
+      },
+      {
+        "pid": 3044499,
+        "startTicks": 169669354,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/python3.14",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-local-capacity-read-r1-20261030.service",
+        "rssBytes": 17686528
+      },
+      {
+        "pid": 3044501,
+        "startTicks": 169669359,
+        "ppid": 3044499,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p3044501-i44981009.scope",
+        "rssBytes": 63545344
+      },
+      {
+        "pid": 3044511,
+        "startTicks": 169669363,
+        "ppid": 3044501,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p3044501-i44981009.scope",
+        "rssBytes": 63393792
+      },
+      {
+        "pid": 3044518,
+        "startTicks": 169669365,
+        "ppid": 3044511,
+        "uid": 1000,
+        "executable": "/usr/bin/python3.14",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p3044501-i44981009.scope",
+        "rssBytes": 21315584
+      },
+      {
+        "pid": 3185467,
+        "startTicks": 140845549,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/bin/ssh",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "rssBytes": 14479360
+      },
+      {
+        "pid": 3431662,
+        "startTicks": 64457375,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/lib/gnupg/keyboxd",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/keyboxd.service",
+        "rssBytes": 1761280
+      },
+      {
+        "pid": 3544229,
+        "startTicks": 17621729,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/home/steven/Android/Sdk/platform-tools/adb",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "rssBytes": 7282688
+      },
+      {
+        "pid": 3606571,
+        "startTicks": 143498213,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/sia-rollout-page.service",
+        "rssBytes": 54706176
+      },
+      {
+        "pid": 3899683,
+        "startTicks": 146033135,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/lib/flatpak-session-helper",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/flatpak-session-helper.service",
+        "rssBytes": 6225920
+      },
+      {
+        "pid": 3899688,
+        "startTicks": 146033137,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/lib/p11-kit/p11-kit-server",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/flatpak-session-helper.service",
+        "rssBytes": 995328
+      },
+      {
+        "pid": 3918027,
+        "startTicks": 146119056,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-agent.service",
+        "rssBytes": 695824384
+      },
+      {
+        "pid": 3934626,
+        "startTicks": 65646539,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-checker.service",
+        "rssBytes": 95047680
+      },
+      {
+        "pid": 3965305,
+        "startTicks": 146386338,
+        "ppid": 1899,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal.service",
+        "rssBytes": 52277248
+      },
+      {
+        "pid": 3967858,
+        "startTicks": 146386551,
+        "ppid": 3965305,
+        "uid": 1000,
+        "executable": "/usr/bin/qemu-system-x86_64",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal.service",
+        "rssBytes": 352784384
+      },
+      {
+        "pid": 4008051,
+        "startTicks": 146577767,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/claude-desktop",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 239988736
+      },
+      {
+        "pid": 4008055,
+        "startTicks": 146577769,
+        "ppid": 4008051,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/claude-desktop",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 27582464
+      },
+      {
+        "pid": 4008056,
+        "startTicks": 146577770,
+        "ppid": 4008051,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/claude-desktop",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 27127808
+      },
+      {
+        "pid": 4008058,
+        "startTicks": 146577772,
+        "ppid": 4008056,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/claude-desktop",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 13213696
+      },
+      {
+        "pid": 4008077,
+        "startTicks": 146577781,
+        "ppid": 1,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/chrome_crashpad_handler",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 3665920
+      },
+      {
+        "pid": 4008093,
+        "startTicks": 146577796,
+        "ppid": 4008055,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/claude-desktop",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 162267136
+      },
+      {
+        "pid": 4008096,
+        "startTicks": 146577796,
+        "ppid": 4008051,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/claude-desktop",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 56246272
+      },
+      {
+        "pid": 4008188,
+        "startTicks": 146577813,
+        "ppid": 4008058,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/claude-desktop",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 64032768
+      },
+      {
+        "pid": 4008205,
+        "startTicks": 146577820,
+        "ppid": 4008093,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/claude-desktop",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 38350848
+      },
+      {
+        "pid": 4008527,
+        "startTicks": 146577828,
+        "ppid": 4008058,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/claude-desktop",
+        "cgroup": "/user.slice/user-1000.slice/session-c1.scope",
+        "rssBytes": 599375872
+      },
+      {
+        "pid": 4008701,
+        "startTicks": 146577929,
+        "ppid": 4008051,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/resources/cowork-linux-helper",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 5455872
+      },
+      {
+        "pid": 4008712,
+        "startTicks": 146577936,
+        "ppid": 4008051,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/claude-desktop",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 48697344
+      },
+      {
+        "pid": 4008744,
+        "startTicks": 146577962,
+        "ppid": 4008051,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/claude-desktop",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 50753536
+      },
+      {
+        "pid": 4008745,
+        "startTicks": 146577963,
+        "ppid": 4008051,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/resources/disclaimer",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 1859584
+      },
+      {
+        "pid": 4008746,
+        "startTicks": 146577963,
+        "ppid": 4008745,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 33595392
+      },
+      {
+        "pid": 4008763,
+        "startTicks": 146577965,
+        "ppid": 4008746,
+        "uid": 1000,
+        "executable": "/home/steven/.local/lib/node_modules/@agent-sh/computer-use-linux/npm/bin/computer-use-linux-linux-x64",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 24674304
+      },
+      {
+        "pid": 4008774,
+        "startTicks": 146577992,
+        "ppid": 4008051,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/resources/disclaimer",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 1880064
+      },
+      {
+        "pid": 4008775,
+        "startTicks": 146577992,
+        "ppid": 4008774,
+        "uid": 1000,
+        "executable": "/usr/bin/node",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 32018432
+      },
+      {
+        "pid": 4008783,
+        "startTicks": 146577994,
+        "ppid": 4008775,
+        "uid": 1000,
+        "executable": "/home/steven/.local/lib/node_modules/@agent-sh/computer-use-linux/npm/bin/computer-use-linux-linux-x64",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 4587520
+      },
+      {
+        "pid": 4008883,
+        "startTicks": 146578133,
+        "ppid": 4008051,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/claude-desktop",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 27979776
+      },
+      {
+        "pid": 4008896,
+        "startTicks": 146578162,
+        "ppid": 4008051,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/resources/disclaimer",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 1855488
+      },
+      {
+        "pid": 4008897,
+        "startTicks": 146578163,
+        "ppid": 4008896,
+        "uid": 1000,
+        "executable": "/home/steven/.config/Claude/claude-code/2.1.308/f8b3641a8d36/claude",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 186687488
+      },
+      {
+        "pid": 4009081,
+        "startTicks": 146578911,
+        "ppid": 4008051,
+        "uid": 1000,
+        "executable": "/usr/lib/claude-desktop/claude-desktop",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 44462080
+      },
+      {
+        "pid": 4009096,
+        "startTicks": 146578916,
+        "ppid": 4009081,
+        "uid": 1000,
+        "executable": "/usr/bin/bash",
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "rssBytes": 4206592
+      }
+    ],
+    "cgroups": [
+      {
+        "path": "/user.slice/user-1000.slice/session-c1.scope",
+        "identity": [
+          29,
+          7152
+        ],
+        "memory.current": "7346200576",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "1328",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-code-oss-33624.scope",
+        "identity": [
+          29,
+          20442
+        ],
+        "memory.current": "2604240896",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "951",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-com.anthropic.Claude-4008051.scope",
+        "identity": [
+          29,
+          6170187
+        ],
+        "memory.current": "686043136",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "224",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2190679.scope",
+        "identity": [
+          29,
+          2182628
+        ],
+        "memory.current": "9913303040",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "74",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-2290848.scope",
+        "identity": [
+          29,
+          7197531
+        ],
+        "memory.current": "20872105984",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "648",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.chromium.Chromium-282017.scope",
+        "identity": [
+          29,
+          6283721
+        ],
+        "memory.current": "458862592",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "62",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-custody-canary-publish-20261024.service",
+        "identity": [
+          29,
+          4703006
+        ],
+        "memory.current": "30310400",
+        "memory.max": "268435456",
+        "memory.swap.max": "0",
+        "pids.current": "7",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": 238125056
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service",
+        "identity": [
+          29,
+          6263217
+        ],
+        "memory.current": "199237632",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "55",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal.service",
+        "identity": [
+          29,
+          6162446
+        ],
+        "memory.current": "4424355840",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "14",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal0-owner-accept-20261024.service",
+        "identity": [
+          29,
+          4588306
+        ],
+        "memory.current": "24276992",
+        "memory.max": "268435456",
+        "memory.swap.max": "0",
+        "pids.current": "7",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": 244158464
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal0-shield-v100-0.service",
+        "identity": [
+          29,
+          7249
+        ],
+        "memory.current": "149073920",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "5",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal0-shield-v100-1.service",
+        "identity": [
+          29,
+          7294
+        ],
+        "memory.current": "146161664",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "5",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-agent.service",
+        "identity": [
+          29,
+          6150741
+        ],
+        "memory.current": "1009188864",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "170",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-network-checker.service",
+        "identity": [
+          29,
+          2328085
+        ],
+        "memory.current": "77148160",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "11",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-risc-moonlight.service",
+        "identity": [
+          29,
+          4541001
+        ],
+        "memory.current": "7516160",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "4",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-risc-nucbox-tunnel.service",
+        "identity": [
+          29,
+          6338368
+        ],
+        "memory.current": "2461696",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "1",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-local-capacity-read-r1-20261030.service",
+        "identity": [
+          29,
+          7561158
+        ],
+        "memory.current": "9981952",
+        "memory.max": "134217728",
+        "memory.swap.max": "0",
+        "pids.current": "1",
+        "cpu.max": "100000 100000",
+        "remainingCapGrowthBytes": 124235776
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/flatpak-session-helper.service",
+        "identity": [
+          29,
+          6145220
+        ],
+        "memory.current": "1454080",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "5",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/ipfs.service",
+        "identity": [
+          29,
+          2196353
+        ],
+        "memory.current": "294092800",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "77",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/keyboxd.service",
+        "identity": [
+          29,
+          2281419
+        ],
+        "memory.current": "860160",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "1",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/kvm-box-native-worker.service",
+        "identity": [
+          29,
+          4735857
+        ],
+        "memory.current": "176558080",
+        "memory.max": "1073741824",
+        "memory.swap.max": "max",
+        "pids.current": "4",
+        "cpu.max": "100000 100000",
+        "remainingCapGrowthBytes": 897183744
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gd1609283d-2713222.service",
+        "identity": [
+          29,
+          7362334
+        ],
+        "memory.current": "2605326336",
+        "memory.max": "3355443200",
+        "memory.swap.max": "max",
+        "pids.current": "5",
+        "cpu.max": "100000 100000",
+        "remainingCapGrowthBytes": 750116864
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gd61126785-1384596.service",
+        "identity": [
+          29,
+          6822733
+        ],
+        "memory.current": "62738055168",
+        "memory.max": "68208820224",
+        "memory.swap.max": "max",
+        "pids.current": "21",
+        "cpu.max": "1600000 100000",
+        "remainingCapGrowthBytes": 5470765056
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2301659-i31659228.scope",
+        "identity": [
+          29,
+          4064244
+        ],
+        "memory.current": "18194432",
+        "memory.max": "805306368",
+        "memory.swap.max": "0",
+        "pids.current": "7",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": 787111936
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p3044501-i44981009.scope",
+        "identity": [
+          29,
+          7561210
+        ],
+        "memory.current": "33796096",
+        "memory.max": "268435456",
+        "memory.swap.max": "0",
+        "pids.current": "15",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": 234639360
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/sdshield-test-worker.service",
+        "identity": [
+          29,
+          1715902
+        ],
+        "memory.current": "45559808",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "4",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/sia-rollout-page.service",
+        "identity": [
+          29,
+          6048271
+        ],
+        "memory.current": "20602880",
+        "memory.max": "268435456",
+        "memory.swap.max": "0",
+        "pids.current": "7",
+        "cpu.max": "100000 100000",
+        "remainingCapGrowthBytes": 247832576
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/sia-swap-kdf.service",
+        "identity": [
+          29,
+          1229981
+        ],
+        "memory.current": "33820672",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "68",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/app.slice/xdg-desktop-portal-gtk.service",
+        "identity": [
+          29,
+          13326
+        ],
+        "memory.current": "32935936",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "9",
+        "cpu.max": "max 100000",
+        "remainingCapGrowthBytes": null
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/session.slice/at-spi-dbus-bus.service",
+        "identity": [
+          29,
+          7339
+        ],
+        "memory.current": "1703936",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "7",
+        "unavailable": "FileNotFoundError"
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/session.slice/dbus-broker.service",
+        "identity": [
+          29,
+          5762
+        ],
+        "memory.current": "1564672",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "2",
+        "unavailable": "FileNotFoundError"
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/session.slice/pipewire-pulse.service",
+        "identity": [
+          29,
+          6302
+        ],
+        "memory.current": "13656064",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "3",
+        "unavailable": "FileNotFoundError"
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/session.slice/pipewire.service",
+        "identity": [
+          29,
+          6167
+        ],
+        "memory.current": "11145216",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "3",
+        "unavailable": "FileNotFoundError"
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/session.slice/wireplumber.service",
+        "identity": [
+          29,
+          6257
+        ],
+        "memory.current": "29097984",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "9",
+        "unavailable": "FileNotFoundError"
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/session.slice/xdg-desktop-portal.service",
+        "identity": [
+          29,
+          13098
+        ],
+        "memory.current": "14204928",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "5",
+        "unavailable": "FileNotFoundError"
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/session.slice/xdg-document-portal.service",
+        "identity": [
+          29,
+          13281
+        ],
+        "memory.current": "1597440",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "9",
+        "unavailable": "FileNotFoundError"
+      },
+      {
+        "path": "/user.slice/user-1000.slice/user@1000.service/session.slice/xdg-permission-store.service",
+        "identity": [
+          29,
+          13236
+        ],
+        "memory.current": "802816",
+        "memory.max": "max",
+        "memory.swap.max": "max",
+        "pids.current": "4",
+        "unavailable": "FileNotFoundError"
+      }
+    ],
+    "unavailable": [
+      {
+        "pid": 1,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 4,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 6,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 7,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 8,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 14,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 15,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 16,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 17,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 18,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 19,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 20,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 21,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 22,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 23,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 24,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 25,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 26,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 27,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 30,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 31,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 32,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 33,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 36,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 37,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 38,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 39,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 42,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 43,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 44,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 45,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 48,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 49,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 50,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 51,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 54,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 55,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 56,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 57,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 60,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 61,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 62,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 63,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 66,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 67,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 68,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 69,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 72,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 73,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 74,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 75,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 78,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 79,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 80,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 81,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 84,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 85,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 86,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 87,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 90,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 91,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 92,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 93,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 96,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 97,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 98,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 99,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 102,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 103,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 104,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 105,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 108,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 109,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 110,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 111,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 114,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 115,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 116,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 117,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 120,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 121,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 122,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 123,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 124,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 125,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 128,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 129,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 130,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 131,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 134,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 135,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 136,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 137,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 140,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 141,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 142,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 143,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 146,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 147,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 148,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 149,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 152,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 153,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 154,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 155,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 158,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 159,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 160,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 161,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 164,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 165,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 166,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 167,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 170,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 171,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 172,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 173,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 176,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 177,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 178,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 179,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 182,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 183,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 184,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 185,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 188,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 189,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 190,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 191,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 194,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 195,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 196,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 197,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 200,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 201,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 202,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 203,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 206,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 207,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 208,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 209,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 214,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 215,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 216,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 217,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 218,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 219,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 220,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 223,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 224,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 225,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 226,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 227,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 228,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 229,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 231,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 232,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 233,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 234,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 235,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 236,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 238,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 240,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 241,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 242,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 243,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 244,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 245,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 246,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 247,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 248,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 249,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 250,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 251,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 252,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 254,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 255,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 256,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 257,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 258,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 259,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 260,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 261,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 262,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 263,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 264,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 265,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 280,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 282,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 283,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 307,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 412,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 413,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 414,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 415,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 432,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 655,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 656,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 657,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 658,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 670,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 671,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 750,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 751,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 752,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 754,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 775,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 780,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 781,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 782,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 783,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 784,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 787,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 788,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 789,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 790,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 791,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 792,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 793,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 794,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 795,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 796,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 797,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 798,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 816,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 885,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 941,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 943,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 944,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 945,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 964,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 980,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 981,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1006,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1007,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1022,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1023,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1024,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1025,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1124,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1125,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1132,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1133,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1134,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1356,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1357,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1358,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1798,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1799,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1800,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1801,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1820,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1821,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1838,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1839,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1840,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1841,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1884,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1885,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1897,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1898,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1899,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1900,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1901,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1905,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1906,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1932,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1994,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2169,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2191,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2192,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2225,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2226,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3969,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 4988,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 4989,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5117,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5124,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5308,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5537,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5575,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5651,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5652,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5653,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5706,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5707,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5708,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5716,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5718,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5719,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 5744,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 6895,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 7931,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 7937,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 11657,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 11668,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 11730,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 18545,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 18555,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 108106,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 168047,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 282188,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 282359,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 282372,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 282377,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 282412,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 292150,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 292378,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 355906,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 355907,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 355908,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 520150,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 821332,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1384696,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1699047,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 1835909,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2004673,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2005007,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2029600,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2032786,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2044230,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2044358,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2057877,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2071318,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2071854,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2072206,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2072697,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2103847,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2142125,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2147612,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2161000,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2164430,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2166557,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2166935,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2290933,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2320035,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2320342,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2386360,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2425071,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2434206,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2552896,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2595569,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2614352,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2614354,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2614759,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2616946,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2617616,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2644265,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2666437,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2668598,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2698578,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2713248,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2774858,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2807430,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2868949,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2876914,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2901780,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2922728,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2942999,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2969663,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2975896,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2986085,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2993995,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2994066,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2995103,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2995983,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 2998931,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3001720,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3002775,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3002778,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3002780,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3008042,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3008472,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3008620,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3009403,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3012472,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3013302,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3013985,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3014398,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3015342,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3015385,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3015520,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3016598,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3017010,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3018364,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3019122,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3019556,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3020589,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3021218,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3022325,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3022456,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3023357,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3023638,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3023965,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3023979,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3024089,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3025357,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3026233,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3027252,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3027727,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3028838,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3029223,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3030501,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3030510,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3030526,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3030527,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3030582,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3030645,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3031182,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3031226,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3031585,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3031830,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3032498,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3033138,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3033692,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3034141,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3035776,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3037595,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3039280,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3039650,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3041431,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3041483,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3041694,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3042167,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3042548,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3042934,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3043000,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3043001,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3043234,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3043235,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3043453,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3043671,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3043672,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3043952,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3044064,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3044242,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3044243,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3044286,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3044287,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3044440,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3098604,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3461311,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3461312,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3461313,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3461314,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3461316,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3461322,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3461328,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3496185,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3516484,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3516651,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3517608,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3517685,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3520227,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3528300,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3528579,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3528731,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3556163,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3556469,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3557217,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3558537,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3558723,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3559434,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3560408,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3561237,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3604365,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3608951,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3608952,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3608953,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3612785,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3620016,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3620245,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3620521,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3620720,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3621121,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3621419,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3656651,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3658411,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3658436,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3658502,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3658626,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3658627,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3658628,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3658629,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3658630,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3658633,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3658634,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3658635,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671250,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671251,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671252,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671253,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671254,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671255,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671256,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671257,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671259,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671261,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671263,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671265,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671267,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671270,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671272,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671274,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3671347,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3697799,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3709930,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3715543,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3715682,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3738018,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3739134,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3740307,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3747269,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3748543,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3752101,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3754617,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3756343,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3757574,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3758690,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3758969,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3761324,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3761492,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3764914,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3767433,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3768204,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3768693,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3769452,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3769628,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3770709,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3770711,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3772061,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3772248,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3774107,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3774377,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3774474,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3775915,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3775920,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3776132,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3776406,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3776578,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3776676,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3776735,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3776821,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3776894,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3776955,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3777025,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3777175,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3777317,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3777640,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3777648,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3777810,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3778110,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3778354,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3778363,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3778388,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3778429,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3778550,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3778551,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3817705,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3899674,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 3967865,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 4007171,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 4008204,
+        "unavailable": "PermissionError"
+      },
+      {
+        "pid": 4087080,
+        "unavailable": "PermissionError"
+      }
+    ],
+    "cgroupGrowthMustNotBeSummedWithGuestdPending": true,
+    "ordinaryOSAndOtherGrowthNeedsRootClassification": true
+  },
+  "storage": {
+    "images": [
+      {
+        "role": "original",
+        "file": {
+          "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+          "resolved": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+          "device": 64769,
+          "inode": 147981798,
+          "bytes": 528387407872,
+          "allocatedBytes": 461808537600,
+          "mode": 33152,
+          "uid": 1000,
+          "gid": 1000,
+          "mtimeNs": 1793030445134925227,
+          "ctimeNs": 1793030445134925227,
+          "links": 1,
+          "regular": true,
+          "symlink": false,
+          "readable": true,
+          "writable": true
+        },
+        "mount": {
+          "target": "/vm",
+          "majorMinor": "253:1",
+          "options": "rw,relatime",
+          "fstype": "ext4",
+          "source": "/dev/mapper/cryptvm"
+        },
+        "availableBytes": 616052559872,
+        "floorBytes": 300000000000,
+        "aboveFloor": true,
+        "devices": [
+          {
+            "sysfs": "/sys/devices/virtual/block/dm-1",
+            "dev": "253:1",
+            "size": "7289712640",
+            "queue/rotational": "0",
+            "queue/logical_block_size": "512"
+          },
+          {
+            "sysfs": "/sys/devices/pci0000:e0/0000:e0:01.2/0000:e1:00.0/nvme/nvme0/nvme0n1/nvme0n1p1",
+            "dev": "259:1",
+            "size": "7289745408"
+          },
+          {
+            "sysfs": "/sys/devices/pci0000:e0/0000:e0:01.2/0000:e1:00.0/nvme/nvme0/nvme0n1",
+            "dev": "259:0",
+            "size": "7814037168",
+            "queue/rotational": "0",
+            "queue/logical_block_size": "512",
+            "device/model": "CT4000T710SSD8"
+          }
+        ]
+      },
+      {
+        "role": "frozen-r6",
+        "file": {
+          "path": "/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2",
+          "resolved": "/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2",
+          "device": 64769,
+          "inode": 148393098,
+          "bytes": 277741568,
+          "allocatedBytes": 277741568,
+          "mode": 33152,
+          "uid": 1000,
+          "gid": 1000,
+          "mtimeNs": 1793377151538885655,
+          "ctimeNs": 1793377151538885655,
+          "links": 1,
+          "regular": true,
+          "symlink": false,
+          "readable": true,
+          "writable": true
+        },
+        "mount": {
+          "target": "/vm",
+          "majorMinor": "253:1",
+          "options": "rw,relatime",
+          "fstype": "ext4",
+          "source": "/dev/mapper/cryptvm"
+        },
+        "availableBytes": 616052559872,
+        "floorBytes": 300000000000,
+        "aboveFloor": true,
+        "devices": [
+          {
+            "sysfs": "/sys/devices/virtual/block/dm-1",
+            "dev": "253:1",
+            "size": "7289712640",
+            "queue/rotational": "0",
+            "queue/logical_block_size": "512"
+          },
+          {
+            "sysfs": "/sys/devices/pci0000:e0/0000:e0:01.2/0000:e1:00.0/nvme/nvme0/nvme0n1/nvme0n1p1",
+            "dev": "259:1",
+            "size": "7289745408"
+          },
+          {
+            "sysfs": "/sys/devices/pci0000:e0/0000:e0:01.2/0000:e1:00.0/nvme/nvme0/nvme0n1",
+            "dev": "259:0",
+            "size": "7814037168",
+            "queue/rotational": "0",
+            "queue/logical_block_size": "512",
+            "device/model": "CT4000T710SSD8"
+          }
+        ]
+      },
+      {
+        "role": "completed-r9-child",
+        "file": {
+          "path": "/vm/enclave-volumes/rpc-control-l1-client-r9/overlay.qcow2",
+          "resolved": "/vm/enclave-volumes/rpc-control-l1-client-r9/overlay.qcow2",
+          "device": 64769,
+          "inode": 148393144,
+          "bytes": 880869376,
+          "allocatedBytes": 880869376,
+          "mode": 33152,
+          "uid": 1000,
+          "gid": 1000,
+          "mtimeNs": 1793390151873479404,
+          "ctimeNs": 1793390151873479404,
+          "links": 1,
+          "regular": true,
+          "symlink": false,
+          "readable": true,
+          "writable": true
+        },
+        "mount": {
+          "target": "/vm",
+          "majorMinor": "253:1",
+          "options": "rw,relatime",
+          "fstype": "ext4",
+          "source": "/dev/mapper/cryptvm"
+        },
+        "availableBytes": 616052559872,
+        "floorBytes": 300000000000,
+        "aboveFloor": true,
+        "devices": [
+          {
+            "sysfs": "/sys/devices/virtual/block/dm-1",
+            "dev": "253:1",
+            "size": "7289712640",
+            "queue/rotational": "0",
+            "queue/logical_block_size": "512"
+          },
+          {
+            "sysfs": "/sys/devices/pci0000:e0/0000:e0:01.2/0000:e1:00.0/nvme/nvme0/nvme0n1/nvme0n1p1",
+            "dev": "259:1",
+            "size": "7289745408"
+          },
+          {
+            "sysfs": "/sys/devices/pci0000:e0/0000:e0:01.2/0000:e1:00.0/nvme/nvme0/nvme0n1",
+            "dev": "259:0",
+            "size": "7814037168",
+            "queue/rotational": "0",
+            "queue/logical_block_size": "512",
+            "device/model": "CT4000T710SSD8"
+          }
+        ]
+      }
+    ],
+    "devicePermissions": {
+      "/dev/kvm": {
+        "exists": true,
+        "readWriteAccess": true
+      },
+      "/dev/loop-control": {
+        "exists": true,
+        "readWriteAccess": false
+      },
+      "/dev/nbd0": {
+        "exists": true,
+        "readWriteAccess": false
+      },
+      "/dev/nbd7": {
+        "exists": true,
+        "readWriteAccess": false
+      }
+    },
+    "nbdMetadata": [
+      {
+        "device": "nbd0",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd1",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd2",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd3",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd4",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd5",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd6",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd7",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd8",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd9",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd10",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd11",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd12",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd13",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd14",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      },
+      {
+        "device": "nbd15",
+        "sectors": 0,
+        "pid": null,
+        "holders": []
+      }
+    ],
+    "installedManifestSummary": [
+      {
+        "path": "/home/steven/.local/state/enclave-rpc-production/manifest.json",
+        "disks": {
+          "base": {
+            "backing": "hdd",
+            "bytes": 4000000000000,
+            "path": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+            "serial": "ERPC-BASE-740457FE"
+          },
+          "l1": {
+            "backing": "nvme",
+            "bytes": 4000000000000,
+            "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+            "serial": "ERPC-L1-6DA15A8D"
+          },
+          "os": {
+            "backing": "nvme",
+            "bytes": 34359738368,
+            "path": "/vm/enclave-volumes/rpc-production/os.qcow2",
+            "serial": "ERPC-OS-C0D16DA3"
+          }
+        },
+        "backings": {
+          "hdd": {
+            "fstype": "ntfs3",
+            "guestRotationRate": 7200,
+            "kind": "hdd",
+            "mount": "/mnt/usb",
+            "source": "/dev/sda2"
+          },
+          "nvme": {
+            "fstype": "ext4",
+            "guestRotationRate": 1,
+            "kind": "nvme",
+            "mount": "/vm",
+            "source": "/dev/mapper/cryptvm"
+          }
+        },
+        "sourceHash": "a28432151c9a24bd207d9adaab401ca4e24a9cdc39807489f12c3000b0936441"
+      }
+    ],
+    "tools": {
+      "/usr/bin/qemu-system-x86_64": {
+        "exists": true,
+        "executable": true
+      },
+      "/usr/sbin/qemu-nbd": {
+        "exists": true,
+        "executable": true
+      },
+      "/usr/bin/qemu-img": {
+        "exists": true,
+        "executable": true
+      },
+      "/usr/sbin/qemu-img": {
+        "exists": true,
+        "executable": true
+      },
+      "/usr/bin/mount": {
+        "exists": true,
+        "executable": true
+      }
+    },
+    "attachmentExecuted": false,
+    "exclusiveUseProven": false,
+    "originalContentsRead": false
+  },
+  "jobs": "",
+  "timers": "Fri 2026-10-30 13:19:40 MST    450ms Fri 2026-10-30 13:19:10 MST     29s ago enclave-risc-viewer-refresh.timer    enclave-risc-viewer-refresh.service\nFri 2026-10-30 13:19:41 MST    621ms Fri 2026-10-30 13:19:10 MST     29s ago enclave-pad-bank-reaper.timer        enclave-pad-bank-reaper.service\nFri 2026-10-30 13:20:32 MST      52s Fri 2026-10-30 13:18:32 MST 1min 7s ago enclave-risc-moonlight-refresh.timer enclave-risc-moonlight-refresh.service\nFri 2026-10-30 13:20:52 MST 1min 12s Fri 2026-10-30 13:18:52 MST     47s ago enclave-network-reconcile.timer      enclave-network-reconcile.service\n",
+  "systemJobs": "",
+  "unitAfter": "Id=enclave-guestd.service\nActiveState=active\nSubState=running\nFragmentPath=/home/steven/.config/systemd/user/enclave-guestd.service\nDropInPaths=/home/steven/.config/systemd/user/enclave-guestd.service.d/70-protected-ports.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/80-shield-inference.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/90-tuna-egress.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/95-public-web.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/97-codegen.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/98-artifact-gateway.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/99-app-egress.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zz-memory-budget64.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzz-eyesoff-vision.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzz-pad-spill.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzz-custody.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzz-zimage.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzz-recovery-pad-location.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzz-loader-cache-20261028.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzz-retire-budget-20261028.conf /home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzzz-retire-rollback-20261028.conf\nInvocationID=6eff6e20ad984adba33c6603b3198ac5\nMainPID=194657\nControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service\nMemoryCurrent=196517888\nTasksCurrent=55\nCPUQuotaPerSecUSec=infinity\nMemoryMax=infinity\nMemorySwapMax=infinity\n\nId=enclave-rpc-production-vm.service\nActiveState=inactive\nSubState=dead\nFragmentPath=/home/steven/.config/systemd/user/enclave-rpc-production-vm.service\nDropInPaths=\nInvocationID=\nMainPID=0\nControlGroup=\nMemoryCurrent=[not set]\nTasksCurrent=[not set]\nCPUQuotaPerSecUSec=infinity\nMemoryMax=70866960384\nMemorySwapMax=0\n\nId=enclave-rpc-production-guard.service\nActiveState=inactive\nSubState=dead\nFragmentPath=/home/steven/.config/systemd/user/enclave-rpc-production-guard.service\nDropInPaths=\nInvocationID=\nMainPID=0\nControlGroup=\nMemoryCurrent=[not set]\nTasksCurrent=[not set]\nCPUQuotaPerSecUSec=infinity\nMemoryMax=268435456\nMemorySwapMax=infinity\n",
+  "afterMemory": {
+    "MemTotal": 134015586304,
+    "MemAvailable": 31613104128,
+    "SwapTotal": 4294963200,
+    "SwapFree": 61440
+  },
+  "pressure": {
+    "memory": "some avg10=0.00 avg60=0.00 avg300=0.00 total=4886181605\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=4878002553\n",
+    "io": "some avg10=0.31 avg60=0.47 avg300=0.29 total=37976649681\nfull avg10=0.31 avg60=0.46 avg300=0.29 total=36884411833\n",
+    "cpu": "some avg10=0.26 avg60=0.33 avg300=0.09 total=4541374013\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+  },
+  "queueLockFiles": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.lock",
+      "resolved": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.lock",
+      "device": 64768,
+      "inode": 210411380,
+      "bytes": 0,
+      "allocatedBytes": 0,
+      "mode": 33188,
+      "uid": 1000,
+      "gid": 1000,
+      "mtimeNs": 1792478429359997166,
+      "ctimeNs": 1792478429359997166,
+      "links": 1,
+      "regular": true,
+      "symlink": false,
+      "readable": true,
+      "writable": true
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-small-queue.lock",
+      "resolved": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-small-queue.lock",
+      "device": 64768,
+      "inode": 210411347,
+      "bytes": 0,
+      "allocatedBytes": 0,
+      "mode": 33188,
+      "uid": 1000,
+      "gid": 1000,
+      "mtimeNs": 1792481131040396923,
+      "ctimeNs": 1792481131040396923,
+      "links": 1,
+      "regular": true,
+      "symlink": false,
+      "readable": true,
+      "writable": true
+    }
+  ],
+  "kernelLocks": "1: POSIX  ADVISORY  WRITE 282017 fd:00:187826536 1073741824 1073742335\n2: POSIX  ADVISORY  READ 282017 fd:00:187826694 1073741826 1073742335\n3: POSIX  ADVISORY  WRITE 4008093 fd:00:190447665 0 EOF\n4: POSIX  ADVISORY  WRITE 4008051 fd:00:190449132 1073741826 1073742335\n5: POSIX  ADVISORY  READ 1214959 fd:00:198742208 128 128\n6: POSIX  ADVISORY  READ 1214959 fd:00:198742204 1073741826 1073742335\n7: FLOCK  ADVISORY  WRITE 3044499 fd:00:210411347 0 EOF\n8: POSIX  ADVISORY  WRITE 282017 fd:00:187826750 1073741826 1073742335\n9: POSIX  ADVISORY  READ 282017 fd:00:187826767 1073741826 1073742335\n10: POSIX  ADVISORY  WRITE 282017 fd:00:187826868 1073741824 1073742335\n11: POSIX  ADVISORY  WRITE 282017 fd:00:187826835 0 EOF\n12: POSIX  ADVISORY  READ 2290848 fd:00:53492464 1073741826 1073742335\n13: OFDLCK ADVISORY  READ -1 fd:01:147981760 201 201\n14: OFDLCK ADVISORY  READ -1 fd:00:199101344 201 201\n15: OFDLCK ADVISORY  READ -1 fd:00:199101344 100 101\n16: POSIX  ADVISORY  READ 282051 fd:00:187826815 1073741826 1073742335\n17: POSIX  ADVISORY  WRITE 282017 fd:00:187826818 0 EOF\n18: POSIX  ADVISORY  WRITE 4008051 fd:00:190449110 1073741824 1073742335\n19: FLOCK  ADVISORY  WRITE 4988 fd:00:170528757 0 EOF\n20: FLOCK  ADVISORY  WRITE 4988 fd:00:170528756 0 EOF\n21: FLOCK  ADVISORY  WRITE 4988 fd:00:170528753 0 EOF\n22: FLOCK  ADVISORY  WRITE 4988 fd:00:170528750 0 EOF\n23: FLOCK  ADVISORY  WRITE 4988 fd:00:170528747 0 EOF\n24: POSIX  ADVISORY  WRITE 282017 fd:00:195835305 0 EOF\n25: POSIX  ADVISORY  WRITE 282017 fd:00:194519628 0 EOF\n26: POSIX  ADVISORY  WRITE 282017 fd:00:195822150 0 EOF\n27: POSIX  ADVISORY  WRITE 282017 fd:00:194520840 0 EOF\n28: POSIX  ADVISORY  WRITE 282017 fd:00:187826744 0 EOF\n29: POSIX  ADVISORY  WRITE 282017 fd:00:187826759 0 EOF\n30: POSIX  ADVISORY  WRITE 282017 fd:00:187826700 0 EOF\n31: POSIX  ADVISORY  WRITE 282017 fd:00:187826679 0 EOF\n32: POSIX  ADVISORY  WRITE 282017 fd:00:187957267 0 EOF\n33: POSIX  ADVISORY  WRITE 282017 fd:00:187826663 0 EOF\n34: POSIX  ADVISORY  WRITE 282017 fd:00:187826272 1073741826 1073742335\n35: POSIX  ADVISORY  WRITE 282017 fd:00:187961551 0 EOF\n36: FLOCK  ADVISORY  WRITE 1901 fd:00:170528771 0 EOF\n37: POSIX  ADVISORY  WRITE 282017 fd:00:190972014 0 EOF\n38: POSIX  ADVISORY  WRITE 282017 fd:00:187826669 1073741824 1073742335\n39: POSIX  ADVISORY  WRITE 282017 fd:00:187826764 1073741824 1073742335\n40: POSIX  ADVISORY  WRITE 282017 fd:00:187931342 1073741824 1073742335\n41: POSIX  ADVISORY  WRITE 4008051 fd:00:190447695 0 EOF\n42: POSIX  ADVISORY  WRITE 282017 fd:00:209466195 0 EOF\n43: POSIX  ADVISORY  WRITE 282017 fd:00:209461384 0 EOF\n44: POSIX  ADVISORY  WRITE 282017 fd:00:194516605 0 EOF\n45: POSIX  ADVISORY  WRITE 282017 fd:00:188129849 0 EOF\n46: FLOCK  ADVISORY  WRITE 2291196 fd:00:55183574 0 EOF\n47: POSIX  ADVISORY  WRITE 2290848 fd:00:57016959 0 EOF\n48: POSIX  ADVISORY  READ 2290848 fd:00:53492365 1073741826 1073742335\n49: POSIX  ADVISORY  WRITE 2290848 fd:00:53492197 0 EOF\n50: POSIX  ADVISORY  WRITE 2290848 fd:00:53492165 0 EOF\n51: POSIX  ADVISORY  WRITE 2290848 fd:00:53492066 1073741825 1073741825\n52: POSIX  ADVISORY  READ 2290848 fd:00:53492066 1073741826 1073742335\n53: POSIX  ADVISORY  READ 2290848 fd:00:53492186 1073741826 1073742335\n54: POSIX  ADVISORY  WRITE 2290848 fd:00:53493953 1073741824 1073742335\n55: POSIX  ADVISORY  WRITE 2290848 fd:00:53492131 0 EOF\n56: POSIX  ADVISORY  READ 2290848 fd:00:53492067 1073741826 1073742335\n57: POSIX  ADVISORY  WRITE 2290848 fd:00:54657316 0 EOF\n58: FLOCK  ADVISORY  WRITE 1996 00:35:83 0 EOF\n59: FLOCK  ADVISORY  WRITE 1996 00:35:82 0 EOF\n60: POSIX  ADVISORY  WRITE 2290848 fd:00:53492357 1073741824 1073742335\n61: POSIX  ADVISORY  WRITE 2290848 fd:00:54657312 1073741824 1073742335\n62: POSIX  ADVISORY  WRITE 2290848 fd:00:54657298 1073741824 1073742335\n63: POSIX  ADVISORY  WRITE 2290848 fd:00:53492062 1073741826 1073742335\n64: FLOCK  ADVISORY  WRITE 4988 fd:00:170528762 0 EOF\n65: POSIX  ADVISORY  WRITE 1884 00:1c:4105 0 0\n66: POSIX  ADVISORY  WRITE 1884 00:1c:4102 0 0\n67: POSIX  ADVISORY  WRITE 1884 00:1c:4099 0 0\n68: POSIX  ADVISORY  WRITE 1884 00:1c:4097 0 0\n69: POSIX  ADVISORY  WRITE 1884 00:1c:4095 0 0\n70: POSIX  ADVISORY  WRITE 282017 fd:00:190972027 0 EOF\n71: POSIX  ADVISORY  WRITE 2298575 fd:00:57409810 0 0\n72: POSIX  ADVISORY  WRITE 2298575 fd:00:57409809 0 0\n73: POSIX  ADVISORY  WRITE 2298575 fd:00:57411813 0 0\n74: POSIX  ADVISORY  WRITE 2298575 fd:00:57411812 0 0\n75: POSIX  ADVISORY  WRITE 2298575 fd:00:57409807 0 0\n76: POSIX  ADVISORY  WRITE 2298575 fd:00:57409806 0 0\n77: POSIX  ADVISORY  WRITE 2290848 fd:00:53492355 0 EOF\n78: POSIX  ADVISORY  WRITE 2290848 fd:00:53492331 0 EOF\n79: POSIX  ADVISORY  READ 2290848 fd:00:53493966 1073741826 1073742335\n80: POSIX  ADVISORY  READ 2290848 fd:00:53492260 1073741826 1073742335\n81: POSIX  ADVISORY  WRITE 2290848 fd:00:53493968 1073741826 1073742335\n82: POSIX  ADVISORY  WRITE 2290848 fd:00:53492215 0 EOF\n83: POSIX  ADVISORY  READ 2290848 fd:00:54657210 1073741826 1073742335\n84: POSIX  ADVISORY  READ 2290848 fd:00:53492271 1073741826 1073742335\n85: POSIX  ADVISORY  WRITE 2290848 fd:00:53492089 0 EOF\n86: POSIX  ADVISORY  WRITE 2290848 fd:00:54657214 0 EOF\n87: POSIX  ADVISORY  READ 2291196 fd:00:53478628 128 128\n88: POSIX  ADVISORY  READ 2291196 fd:00:53492414 1073741826 1073742335\n89: POSIX  ADVISORY  WRITE 2290848 fd:00:53493944 0 EOF\n90: POSIX  ADVISORY  WRITE 2290848 fd:00:53492238 1073741825 1073741825\n91: POSIX  ADVISORY  READ 2290848 fd:00:53492238 1073741826 1073742335\n92: POSIX  ADVISORY  READ 2290848 fd:00:53492350 1073741826 1073742335\n93: POSIX  ADVISORY  WRITE 2290848 fd:00:53492227 1073741824 1073742335\n94: POSIX  ADVISORY  WRITE 2290848 fd:00:53492217 1073741824 1073742335\n95: POSIX  ADVISORY  READ 2290848 fd:00:53492084 1073741826 1073742335\n96: POSIX  ADVISORY  READ 2290848 fd:00:54657328 1073741826 1073742335\n97: POSIX  ADVISORY  WRITE 1884 00:1c:4114 0 0\n98: FLOCK  ADVISORY  WRITE 1901 fd:00:170528738 0 EOF\n99: POSIX  ADVISORY  WRITE 282017 fd:00:190447645 0 EOF\n100: POSIX  ADVISORY  WRITE 2290848 fd:00:53493960 0 EOF\n101: POSIX  ADVISORY  WRITE 2290848 fd:00:54657242 0 EOF\n102: FLOCK  ADVISORY  WRITE 2333784 fd:00:194518191 0 EOF\n103: POSIX  ADVISORY  WRITE 2333784 fd:00:194511111 0 EOF\n104: FLOCK  ADVISORY  WRITE 2295798 fd:00:55574540 0 EOF\n105: POSIX  ADVISORY  WRITE 2290848 fd:00:53492278 0 EOF\n106: POSIX  ADVISORY  READ 2290848 fd:00:53492218 1073741826 1073742335\n107: POSIX  ADVISORY  WRITE 2290892 fd:00:53477479 0 EOF\n108: POSIX  ADVISORY  READ 2290848 fd:00:54657191 1073741826 1073742335\n109: POSIX  ADVISORY  READ 2290848 fd:00:54657279 1073741826 1073742335\n110: POSIX  ADVISORY  WRITE 282049 fd:00:195317806 0 EOF\n111: POSIX  ADVISORY  WRITE 282049 fd:00:57411831 0 0\n112: POSIX  ADVISORY  WRITE 282049 fd:00:57411830 0 0\n113: POSIX  ADVISORY  WRITE 282049 fd:00:57411833 0 0\n114: POSIX  ADVISORY  WRITE 282049 fd:00:57411832 0 0\n115: POSIX  ADVISORY  WRITE 282049 fd:00:57411829 0 0\n116: POSIX  ADVISORY  WRITE 282049 fd:00:57411828 0 0\n117: POSIX  ADVISORY  WRITE 110500 00:2b:14218 0 EOF\n118: POSIX  ADVISORY  WRITE 282017 fd:00:190447676 0 EOF\n119: POSIX  ADVISORY  READ 2290848 fd:00:53492241 1073741826 1073742335\n120: POSIX  ADVISORY  READ 2290848 fd:00:54657299 1073741826 1073742335\n121: FLOCK  ADVISORY  WRITE 2291196 fd:00:55228797 0 EOF\n122: POSIX  ADVISORY  READ 2290848 fd:00:54657300 1073741826 1073742335\n123: POSIX  ADVISORY  WRITE 4008051 fd:00:190449182 0 EOF\n124: FLOCK  ADVISORY  WRITE 2296462 fd:00:55574535 0 EOF\n125: FLOCK  ADVISORY  WRITE 2291196 fd:00:55183580 0 EOF\n126: POSIX  ADVISORY  READ 2290894 fd:00:53492326 1073741826 1073742335\n127: POSIX  ADVISORY  WRITE 282017 fd:00:208930561 0 EOF\n128: POSIX  ADVISORY  WRITE 282017 fd:00:195561876 0 EOF\n129: POSIX  ADVISORY  WRITE 282017 fd:00:187826806 0 EOF\n130: POSIX  ADVISORY  WRITE 282017 fd:00:187826704 1073741824 1073742335\n131: POSIX  ADVISORY  WRITE 282017 fd:00:209466201 0 EOF\n132: POSIX  ADVISORY  WRITE 282017 fd:00:194520848 0 EOF\n133: POSIX  ADVISORY  WRITE 282017 fd:00:187826862 0 EOF\n134: POSIX  ADVISORY  WRITE 282017 fd:00:187827336 1073741824 1073742335\n135: POSIX  ADVISORY  WRITE 282017 fd:00:187826778 1073741824 1073742335\n136: POSIX  ADVISORY  WRITE 282017 fd:00:202261121 0 EOF\n137: POSIX  ADVISORY  WRITE 4008051 fd:00:190449190 1073741824 1073742335\n138: POSIX  ADVISORY  READ 2291196 fd:00:53478423 128 128\n139: POSIX  ADVISORY  READ 2291196 fd:00:53492405 1073741826 1073742335\n140: POSIX  ADVISORY  READ 2296462 fd:00:53478591 128 128\n141: POSIX  ADVISORY  READ 2296462 fd:00:53492421 1073741826 1073742335\n142: POSIX  ADVISORY  READ 2290848 fd:00:54657192 1073741826 1073742335\n143: POSIX  ADVISORY  WRITE 282017 fd:00:187826776 1073741824 1073742335\n144: POSIX  ADVISORY  READ 2291196 fd:00:53478113 128 128\n145: POSIX  ADVISORY  READ 2291196 fd:00:53492408 1073741826 1073742335\n146: POSIX  ADVISORY  READ 2290894 fd:00:54657270 1073741826 1073742335\n147: POSIX  ADVISORY  WRITE 2290848 fd:00:54657222 0 EOF\n148: POSIX  ADVISORY  WRITE 282017 fd:00:187957419 0 EOF\n149: POSIX  ADVISORY  WRITE 282017 fd:00:209614585 0 EOF\n150: POSIX  ADVISORY  WRITE 282017 fd:00:187826840 0 EOF\n151: POSIX  ADVISORY  WRITE 5712 fd:00:57409805 0 0\n152: POSIX  ADVISORY  WRITE 5712 fd:00:57409804 0 0\n153: POSIX  ADVISORY  READ 2296462 fd:00:53478113 128 128\n154: POSIX  ADVISORY  READ 2296462 fd:00:53492408 1073741826 1073742335\n155: POSIX  ADVISORY  READ 2290894 fd:00:53492169 1073741826 1073742335\n156: POSIX  ADVISORY  WRITE 282017 fd:00:187826762 1073741824 1073742335\n157: POSIX  ADVISORY  WRITE 282017 fd:00:187826664 1073741824 1073742335\n158: POSIX  ADVISORY  WRITE 4008051 fd:00:190449356 0 EOF\n159: POSIX  ADVISORY  WRITE 2290848 fd:00:55052626 1073741824 1073742335\n160: POSIX  ADVISORY  WRITE 2290848 fd:00:53494032 0 EOF\n161: POSIX  ADVISORY  READ 2290848 fd:00:53492270 1073741826 1073742335\n162: POSIX  ADVISORY  READ 2291196 fd:00:53478591 128 128\n163: POSIX  ADVISORY  READ 2291196 fd:00:53492421 1073741826 1073742335\n164: POSIX  ADVISORY  READ 2290848 fd:00:53492219 1073741826 1073742335\n165: POSIX  ADVISORY  WRITE 2290848 fd:00:54657293 0 EOF\n166: POSIX  ADVISORY  WRITE 2290848 fd:00:54657274 0 EOF\n167: POSIX  ADVISORY  WRITE 2290848 fd:00:54657327 1073741824 1073742335\n168: FLOCK  ADVISORY  WRITE 2291196 fd:00:53478500 0 EOF\n169: POSIX  ADVISORY  WRITE 2290848 fd:00:53492242 1073741824 1073742335\n170: POSIX  ADVISORY  WRITE 2290848 fd:00:53492098 0 EOF\n171: POSIX  ADVISORY  WRITE 2290848 fd:00:53494000 1073741824 1073742335\n172: POSIX  ADVISORY  READ 282017 fd:00:187826666 1073741826 1073742335\n173: POSIX  ADVISORY  READ 4008096 fd:00:190449115 1073741826 1073742335\n174: FLOCK  ADVISORY  WRITE 1901 00:1c:4129 0 EOF\n175: POSIX  ADVISORY  WRITE 1884 00:1c:4125 0 0\n176: FLOCK  ADVISORY  WRITE 2291196 fd:00:55574530 0 EOF\n177: POSIX  ADVISORY  WRITE 282017 fd:00:190972020 0 EOF\n178: POSIX  ADVISORY  READ 2290848 fd:00:53481401 128 128\n179: POSIX  ADVISORY  READ 2290848 fd:00:53492205 1073741826 1073742335\n180: POSIX  ADVISORY  READ 2290848 fd:00:53493954 1073741826 1073742335\n181: POSIX  ADVISORY  WRITE 282017 fd:00:187826701 1073741824 1073742335\n182: POSIX  ADVISORY  READ 2291196 fd:00:53478572 128 128\n183: POSIX  ADVISORY  READ 2291196 fd:00:53484649 1073741826 1073742335\n184: POSIX  ADVISORY  WRITE 2290848 fd:00:54657191 1073741825 1073741825\n185: POSIX  ADVISORY  WRITE 1884 00:1c:4030 0 0\n186: POSIX  ADVISORY  WRITE 1884 00:1c:4026 0 0\n187: POSIX  ADVISORY  WRITE 2290848 fd:00:53492391 0 EOF\n188: POSIX  ADVISORY  WRITE 2290848 fd:00:53492252 0 EOF\n189: FLOCK  ADVISORY  WRITE 2333784 fd:00:195435641 0 EOF\n190: POSIX  ADVISORY  WRITE 2290848 fd:00:53493964 1073741824 1073742335\n191: POSIX  ADVISORY  WRITE 2290848 fd:00:54657333 0 EOF\n192: OFDLCK ADVISORY  READ -1 fd:01:147981760 100 100\n193: POSIX  ADVISORY  WRITE 282017 fd:00:187826740 1073741824 1073742335\n194: POSIX  ADVISORY  WRITE 2290848 fd:00:53492268 0 EOF\n",
+  "conditionalScenarios": [
+    {
+      "clientMiB": 2304,
+      "nativePlusToolingMiB": 3200,
+      "guestdPendingMiB": 5950,
+      "activeNanCoordinatorConservativeMiB": 640,
+      "knownResidualMiB": 20337,
+      "requiredFloorMiB": 27648,
+      "otherExistingRemainingGrowthMiB": null,
+      "pendingSchedulesAndQueuedWorkMiB": null,
+      "admitted": false
+    },
+    {
+      "clientMiB": 2816,
+      "nativePlusToolingMiB": 3712,
+      "guestdPendingMiB": 5950,
+      "activeNanCoordinatorConservativeMiB": 640,
+      "knownResidualMiB": 19825,
+      "requiredFloorMiB": 27648,
+      "otherExistingRemainingGrowthMiB": null,
+      "pendingSchedulesAndQueuedWorkMiB": null,
+      "admitted": false
+    },
+    {
+      "clientMiB": 4096,
+      "nativePlusToolingMiB": 4992,
+      "guestdPendingMiB": 5950,
+      "activeNanCoordinatorConservativeMiB": 640,
+      "knownResidualMiB": 18545,
+      "requiredFloorMiB": 27648,
+      "otherExistingRemainingGrowthMiB": null,
+      "pendingSchedulesAndQueuedWorkMiB": null,
+      "admitted": false
+    }
+  ],
+  "limitations": [
+    "No active Nan client inspection or remote calls.",
+    "Guestd pool snapshots are authoritative authenticated observations, not reservations for this trial.",
+    "Unbounded or unreadable process/cgroup growth, schedules and queued work require root classification.",
+    "Do not double count guestd reservation growth in cgroup sums.",
+    "Nan coordinator reserve stays640MiB until terminal and cleanup proof; no new native trial concurrently.",
+    "Device permissions and topology establish candidate feasibility, not exclusive attachment or data integrity."
+  ]
+}
