@@ -1,0 +1,430 @@
+{
+  "readOnly": true,
+  "units": {
+    "enclave-rpc-base-snapshot.service": {
+      "inode": 84497,
+      "type": "regular",
+      "perm": 420,
+      "flags": "0x80000",
+      "uid": 0,
+      "gid": 0,
+      "size": 1557,
+      "links": 1,
+      "times": {
+        "ctime": "0x6addec2e:300189cc",
+        "atime": "0x6adf6a8f:a53bea24",
+        "mtime": "0x6addec2e:300189cc",
+        "crtime": "0x6addec2e:300189cc"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "f7a193f1f50ab147aa15d33cb7de9fbddc1ad0c01c244ffef852b417551950f4",
+      "expectedHashMatches": true
+    },
+    "enclave-rpc-l1-snapshot.service": {
+      "inode": 84498,
+      "type": "regular",
+      "perm": 420,
+      "flags": "0x80000",
+      "uid": 0,
+      "gid": 0,
+      "size": 1440,
+      "links": 1,
+      "times": {
+        "ctime": "0x6adde77e:5234b254",
+        "atime": "0x6adf6a8f:a4fee144",
+        "mtime": "0x6adde77e:5234b254",
+        "crtime": "0x6adde77e:5234b254"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "42cfc951d82ff4996460a4d180a9d6b91257d1bdfbee76e23c755d7e1e267070",
+      "expectedHashMatches": true
+    },
+    "enclave-base-retention.service": {
+      "inode": 2365,
+      "type": "regular",
+      "perm": 420,
+      "flags": "0x80000",
+      "uid": 0,
+      "gid": 0,
+      "size": 2664,
+      "links": 1,
+      "times": {
+        "ctime": "0x6adf6a8f:95f9b1f8",
+        "atime": "0x6adf6a90:4192f110",
+        "mtime": "0x6adf6a8f:95f9b1f8",
+        "crtime": "0x6adf6a8f:95f9b1f8"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "f02388268aa110612dbf2648f9a90a90bdc2a2e36d237cab0e869fc49b59ceee",
+      "expectedHashMatches": true
+    },
+    "enclave-base-holder.path": {
+      "inode": 84494,
+      "type": "regular",
+      "perm": 420,
+      "flags": "0x80000",
+      "uid": 0,
+      "gid": 0,
+      "size": 264,
+      "links": 1,
+      "times": {
+        "ctime": "0x6adde77e:5234b254",
+        "atime": "0x6adf691d:d05dc118",
+        "mtime": "0x6adde77e:5234b254",
+        "crtime": "0x6adde77e:5234b254"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "8accb496663c590e2a52a83cd73815d42a81d994b430dde96d17df1e56bf4329",
+      "expectedHashMatches": true
+    },
+    "enclave-base-holder.service": {
+      "inode": 84495,
+      "type": "regular",
+      "perm": 420,
+      "flags": "0x80000",
+      "uid": 0,
+      "gid": 0,
+      "size": 735,
+      "links": 1,
+      "times": {
+        "ctime": "0x6adde77e:5234b254",
+        "atime": "0x6adf691d:cfa6a674",
+        "mtime": "0x6adde77e:5234b254",
+        "crtime": "0x6adde77e:5234b254"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "3d305f2ef091af5ee7edec61bcd47607c7e969e64873dec66d021db34f5955ef",
+      "expectedHashMatches": true
+    },
+    "enclave-l1-el.path": {
+      "inode": 84500,
+      "type": "regular",
+      "perm": 420,
+      "flags": "0x80000",
+      "uid": 0,
+      "gid": 0,
+      "size": 244,
+      "links": 1,
+      "times": {
+        "ctime": "0x6adde77e:5234b254",
+        "atime": "0x6adf6a8f:a578f308",
+        "mtime": "0x6adde77e:5234b254",
+        "crtime": "0x6adde77e:5234b254"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "d2b379983fb5b5d6a442aef9ec7738e7f09641a2166353227d214ef1579656e3",
+      "expectedHashMatches": true
+    },
+    "enclave-l1-el.service": {
+      "inode": 84501,
+      "type": "regular",
+      "perm": 420,
+      "flags": "0x80000",
+      "uid": 0,
+      "gid": 0,
+      "size": 675,
+      "links": 1,
+      "times": {
+        "ctime": "0x6adde77e:5234b254",
+        "atime": "0x6adf6a8f:a578f308",
+        "mtime": "0x6adde77e:5234b254",
+        "crtime": "0x6adde77e:5234b254"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "be00a7d9542f79515658f09d49bc3ad546d3d80de3f30a531a4ee5d1fd72086d",
+      "expectedHashMatches": true
+    },
+    "enclave-l1-cl.service": {
+      "inode": 84499,
+      "type": "regular",
+      "perm": 420,
+      "flags": "0x80000",
+      "uid": 0,
+      "gid": 0,
+      "size": 697,
+      "links": 1,
+      "times": {
+        "ctime": "0x6adde77e:5234b254",
+        "atime": "0x6adf6a8f:a578f308",
+        "mtime": "0x6adde77e:5234b254",
+        "crtime": "0x6adde77e:5234b254"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "54791e1a9ac7e27d4e12ce7630d903363ba1069f9fb3529acade709a4a8bb547",
+      "expectedHashMatches": true
+    }
+  },
+  "ancestors": {
+    "/etc": {
+      "inode": 42,
+      "type": "directory",
+      "perm": 493,
+      "flags": "0x80000",
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "links": 108,
+      "times": {
+        "ctime": "0x6adf23c9:7e6bc3cc",
+        "atime": "0x6ad370f4:ba3fdfe8",
+        "mtime": "0x6adf23c9:7e6bc3cc",
+        "crtime": "0x6ad370d3:3f5b5fc4"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/etc/systemd": {
+      "inode": 369,
+      "type": "directory",
+      "perm": 493,
+      "flags": "0x80000",
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "links": 6,
+      "times": {
+        "ctime": "0x6ad370d3:44d73afc",
+        "atime": "0x6ad370f4:bb710aac",
+        "mtime": "0x6ad36ff5:00000000",
+        "crtime": "0x6ad370d3:42eeeebc"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/etc/systemd/system": {
+      "inode": 370,
+      "type": "directory",
+      "perm": 493,
+      "flags": "0x80000",
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "links": 29,
+      "times": {
+        "ctime": "0x6adf6a8f:95f9b1f8",
+        "atime": "0x6adf6a8f:a12e5338",
+        "mtime": "0x6adf6a8f:95f9b1f8",
+        "crtime": "0x6ad370d3:42eeeebc"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/var": {
+      "inode": 81159,
+      "type": "directory",
+      "perm": 493,
+      "flags": "0x80000",
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "links": 13,
+      "times": {
+        "ctime": "0x6adde155:0d1cef00",
+        "atime": "0x6ad370f4:bcdf3dfc",
+        "mtime": "0x6adde155:0d1cef00",
+        "crtime": "0x6ad370db:78e1f4ec"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/var/lib": {
+      "inode": 81160,
+      "type": "directory",
+      "perm": 493,
+      "flags": "0x80000",
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "links": 45,
+      "times": {
+        "ctime": "0x6adf5278:5ec8a37c",
+        "atime": "0x6ad370f4:bdd36034",
+        "mtime": "0x6adf5278:5ec8a37c",
+        "crtime": "0x6ad370db:78e1f4ec"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/lib": {
+      "inode": 1685,
+      "type": "symlink",
+      "perm": 511,
+      "flags": "0x0",
+      "uid": 0,
+      "gid": 0,
+      "size": 7,
+      "links": 1,
+      "times": {
+        "ctime": "0x6ad370d3:58a15214",
+        "atime": "0x6adf33ae:4b8d27e8",
+        "mtime": "0x66266133:00000000",
+        "crtime": "0x6ad370d3:58a15214"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": "usr/lib",
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/usr/lib/systemd/system": {
+      "inode": 4245,
+      "type": "directory",
+      "perm": 493,
+      "flags": "0x81000",
+      "uid": 0,
+      "gid": 0,
+      "size": 20480,
+      "links": 28,
+      "times": {
+        "ctime": "0x6ad370d3:ae39afd4",
+        "atime": "0x6adf33af:9e0abe08",
+        "mtime": "0x6ad3709b:929794d0",
+        "crtime": "0x6ad370d3:a74f9b6c"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": null,
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "links": {
+    "/etc/systemd/system/multi-user.target.wants/enclave-l1-cl.service": {
+      "inode": 84492,
+      "type": "symlink",
+      "perm": 511,
+      "flags": "0x0",
+      "uid": 0,
+      "gid": 0,
+      "size": 41,
+      "links": 1,
+      "times": {
+        "ctime": "0x6adde526:14d9cc28",
+        "atime": "0x6adf6a8f:a3cdb4e0",
+        "mtime": "0x6adde526:14d9cc28",
+        "crtime": "0x6adde526:14d9cc28"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": "/etc/systemd/system/enclave-l1-cl.service",
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/etc/systemd/system/multi-user.target.wants/enclave-l1-el.path": {
+      "inode": 84493,
+      "type": "symlink",
+      "perm": 511,
+      "flags": "0x0",
+      "uid": 0,
+      "gid": 0,
+      "size": 38,
+      "links": 1,
+      "times": {
+        "ctime": "0x6adde526:14d9cc28",
+        "atime": "0x6adf6a8f:a3cdb4e0",
+        "mtime": "0x6adde526:14d9cc28",
+        "crtime": "0x6adde526:14d9cc28"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": "/etc/systemd/system/enclave-l1-el.path",
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/etc/systemd/system/multi-user.target.wants/enclave-rpc-base-snapshot.service": {
+      "inode": 84506,
+      "type": "symlink",
+      "perm": 511,
+      "flags": "0x0",
+      "uid": 0,
+      "gid": 0,
+      "size": 53,
+      "links": 1,
+      "times": {
+        "ctime": "0x6adde996:c52491d0",
+        "atime": "0x6adf6a8f:a3cdb4e0",
+        "mtime": "0x6adde996:c52491d0",
+        "crtime": "0x6adde996:c52491d0"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": "/etc/systemd/system/enclave-rpc-base-snapshot.service",
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "/etc/systemd/system/multi-user.target.wants/enclave-rpc-l1-snapshot.service": {
+      "inode": 84496,
+      "type": "symlink",
+      "perm": 511,
+      "flags": "0x0",
+      "uid": 0,
+      "gid": 0,
+      "size": 51,
+      "links": 1,
+      "times": {
+        "ctime": "0x6adde526:1516d500",
+        "atime": "0x6adf6a8f:a3cdb4e0",
+        "mtime": "0x6adde526:1516d500",
+        "crtime": "0x6adde526:1516d500"
+      },
+      "xattrNames": [],
+      "xattrSha256": null,
+      "target": "/etc/systemd/system/enclave-rpc-l1-snapshot.service",
+      "eaListEmpty": true,
+      "eaListSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "productionQualified": false,
+  "backupStatUnchanged": true,
+  "unmountExit": 0,
+  "mountGone": true,
+  "exportExit": 0,
+  "exporterGone": true
+}
