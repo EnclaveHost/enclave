@@ -1,0 +1,11 @@
+{
+  "observedAt": "2026-10-30T08:57:40.988169+00:00",
+  "pid": 194657,
+  "startTicks": "148657014",
+  "exe": "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde",
+  "numericFlags": {
+    "-preemptible-floor-mib": 18432,
+    "-preempt-below-mib": 18432
+  },
+  "scope": "Read-only exact process numeric flags. No environment or credentials read. Not proof of source equivalence, external reservation, or permission to preempt serving apps."
+}
