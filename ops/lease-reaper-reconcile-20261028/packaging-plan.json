@@ -1,0 +1,45 @@
+{
+  "status": "SOURCE_PLAN_ONLY_NO_BUILD_OR_ROLLOUT",
+  "baseInitramfsSha256": "c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3",
+  "baseKernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
+  "builderSha256": "ea4d65948d62cd431080f88d7a3fced484c7d9e3368accda3744e308cfc9c9ce",
+  "expectedSourceCommit": "deabf8f90f64902d20d48620fd911d34c445859d",
+  "changedExistingAppFiles": [
+    "supervisor.js"
+  ],
+  "addedAppFiles": [
+    "network/lease-expiry-reconcile.mjs"
+  ],
+  "removedAppFiles": [],
+  "unchangedPackageRequirements": {
+    "cors": [
+      "."
+    ],
+    "express": [
+      "."
+    ],
+    "jose": [
+      "."
+    ],
+    "viem": [
+      ".",
+      "./accounts",
+      "./chains",
+      "./utils"
+    ],
+    "ws": [
+      "."
+    ]
+  },
+  "expectedCandidateSupervisorSha256": "017670e667372a7f4ac4696e80a724ead2d2f8723e176d0b56bd6cadc5390b53",
+  "expectedCandidateHelperSha256": "b848f8538405967b03c9be4cd169371e3c136a1adb5938282b9f71a24c17dee7",
+  "candidateBuildCommit": null,
+  "candidateImageSha256": null,
+  "candidateMeasurement": null,
+  "buildStarted": false,
+  "productionModified": false,
+  "liveRpcCalls": 0,
+  "baselineManifestSourceFilesChecked": 40,
+  "baselineManifestSourceDrift": [],
+  "baselineSourcesMatchManifest": true
+}

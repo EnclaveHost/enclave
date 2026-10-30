@@ -22,6 +22,7 @@ import express from "express";
 import {createArtifactGatewayProbe} from "./sdk/storage/gateways.mjs";
 import {validateStoragePlan} from "./sdk/bootstrap/storage.mjs";
 import {bootstrapIntent,fetchPackage,verifyPackage,parseUniqueJSON} from "./sdk/bootstrap/package.mjs";
+import {createLeaseExpiryReader, leaseExpiryVerdict} from "./network/lease-expiry-reconcile.mjs";
 import { planCheckpoints } from "./windows/node/verification-checkpoints.mjs";
 import {hostAdmissionFromEnv,hostAdmissionConfigured,createHostServiceGate} from './windows/node/host-admission.bundle.mjs';
 import cors from "cors";
@@ -4912,6 +4913,7 @@ function stopUnconfirmed(rec, why) {
 async function stopContainer(rec) {
   // every teardown and relaunch comes here first: lease permissions and established streams end NOW, before any await
   revokeLeasePermits(rec); cutDeploymentStreams(rec.id);
+  rec._expiryEpoch = (rec._expiryEpoch || 0) + 1; // revoke any in-flight expiry read before the first await
   if (PROVISION_BACKEND === "vm") {
     if (!rec._vmId) return true;               // nothing was ever provisioned
     try {
@@ -8045,6 +8047,50 @@ async function respawnTenant(rec) {
     return false;
   } finally { rec._respawning = false; }
 }
+// A relay may report timeout/502 even though its signed renewal subsequently
+// lands. Never destroy a guest solely from the cached expiry in that case.
+let _expiryReader = null;
+async function reconcileExpiryLease(rec) {
+  const ledger = DEPLOYMENTS_ADDRESS, epoch = rec._expiryEpoch || 0;
+  const current = () => deployments.get(rec.id) === rec && rec.status === "running"
+    && (rec._expiryEpoch || 0) === epoch && !rec._restarting
+    && DEPLOYMENTS_ADDRESS === ledger
+    && !(typeof _releaseIntents !== "undefined" && _releaseIntents.has(rec.id));
+  if (!current()) return "superseded";
+  if (rec._expiryChecking) return "pending";
+  rec._expiryChecking = true;
+  try {
+    _expiryReader ||= createLeaseExpiryReader({rpc: RPC_POOL});
+    const minBlock = Math.max(rec._expiryBlock || 0,
+      typeof _leaseFloors !== "undefined" ? (_leaseFloors.get(rec.id)?.block || 0) : 0);
+    let timer;
+    const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("lease reconciliation deadline")), 8000); });
+    const snapshot = await Promise.race([
+      (async () => _expiryReader({id: rec.id, ledger, abi: (await depsAbi()).abi, minBlock}))(), deadline,
+    ]).finally(() => clearTimeout(timer));
+    if (!current()) return "superseded";
+    const latestFloor = Math.max(rec._expiryBlock || 0,
+      typeof _leaseFloors !== "undefined" ? (_leaseFloors.get(rec.id)?.block || 0) : 0);
+    if (Number(snapshot.blockNumber) < latestFloor) return "superseded";
+    const verdict = leaseExpiryVerdict(snapshot, {id: rec.id, runner: _enclaveId,
+      operator: claimSigner().account.address});
+    rec._expiryBlock = Number(snapshot.blockNumber);
+    if (verdict.kind === "live") {
+      // Never lower a newer receipt observed while the quorum read was in flight.
+      rec._leaseUntil = Math.max(rec._leaseUntil || 0, verdict.until);
+      rec.remainingMs = rec._leaseUntil * 1000 - Date.now();
+      rec._renewBackoffUntil = 0;
+      saveStateSoon();
+      return "live";
+    }
+    return verdict.kind;
+  } catch (e) {
+    if (!current()) return "superseded";
+    console.warn(`[lease] ${rec.id} expiry reconciliation unavailable; no lease extension inferred`);
+    return "unknown";
+  } finally { rec._expiryChecking = false; }
+}
+
 function startBillingTicker() {
   const t = setInterval(async () => {
     const now = Date.now();
@@ -8079,15 +8125,28 @@ function startBillingTicker() {
         rec.remainingMs = rec._leaseUntil * 1000 - now;
         saveStateSoon();
         if (rec.remainingMs < -GRACE_SEC * 1000) {
-          console.log(`[reaper] ${rec.id} lease over (not renewed) -> teardown`);
-          // Settle what we served in this last, partial period. There is no
-          // release on this path (the lease ended on its own), so without a
-          // final proof the tail from our last checkpoint to the lease end is
-          // never credited — and nothing else would ever come back for it.
-          // The checkpoint clamps at leaseUntil, so this can only ever claim
-          // time the tenant actually paid for.
-          await proveFinalPeriod(rec, "lease expired").catch(() => {});
-          await tearDown(rec, "expired");   // claim sweep may re-adopt it if funded again (once its stop is confirmed)
+          if (rec._expiryTeardown) continue;
+          const reconciled = await reconcileExpiryLease(rec);
+          if (["live", "pending", "superseded"].includes(reconciled)) continue;
+          // Unknown is bounded by the existing expiry/grace policy, not an
+          // invented lease. Explicit owner/operator stops never use this gate.
+          if (rec.status !== "running" || deployments.get(rec.id) !== rec) continue;
+          if (reconciled !== "revoked" && rec._leaseUntil * 1000 >= Date.now() - GRACE_SEC * 1000) continue;
+          const expiryEpoch = rec._expiryEpoch || 0, expiryUntil = rec._leaseUntil;
+          rec._expiryTeardown = true;
+          try {
+            console.log(`[reaper] ${rec.id} lease expiry (${reconciled}) -> teardown`);
+            // Settle what we served in this last, partial period. There is no
+            // release on this path (the lease ended on its own), so without a
+            // final proof the tail from our last checkpoint to the lease end is
+            // never credited — and nothing else would ever come back for it.
+            // The checkpoint clamps at leaseUntil, so this can only ever claim
+            // time the tenant actually paid for.
+            await proveFinalPeriod(rec, "lease expired").catch(() => {});
+            if (rec.status !== "running" || deployments.get(rec.id) !== rec
+                || (rec._expiryEpoch || 0) !== expiryEpoch || rec._leaseUntil !== expiryUntil) continue;
+            await tearDown(rec, "expired"); // preserve confirmed-stop and lease-permit handling
+          } finally { rec._expiryTeardown = false; }
         }
         continue;
       }
@@ -10797,6 +10856,13 @@ async function renewLeases() {
     if (_releaseIntents.has(rec.id)) continue;   // a release of it may still land: buying more of that lease helps nobody
     if (rec._leaseUntil * 1000 - Date.now() > RENEW_MARGIN_SEC * 1000) continue;
     if ((rec._renewBackoffUntil || 0) > Date.now()) continue;   // a reverting tx must not re-fire every pass
+    if (rec._expiryTeardown) continue;
+    if (rec._renewNeedsReconcile) {
+      const reconciled = await reconcileExpiryLease(rec);
+      if (["pending", "superseded", "unknown", "revoked"].includes(reconciled)) continue;
+      rec._renewNeedsReconcile = false;
+      if (rec._leaseUntil * 1000 - Date.now() > RENEW_MARGIN_SEC * 1000) continue;
+    }
     const lapsed = rec._leaseUntil * 1000 <= Date.now();
     if (leaseGasActive() && !lapsed && !(await leaseGasRenewDue(rec))) continue;   // a sponsored renew waits for the app's window
     if (rec.status !== "running" || rec._renewing) continue;   // re-checked after that await
@@ -10836,6 +10902,7 @@ async function renewLeases() {
       // the local permission lapsed while the send waited in the operator queue (walletSendGate): nothing was sent and
       // this is no ledger failure; the next renewal round decides afresh
       if (e.superseded) { console.warn(`[claim] ${rec.id} ${msg}`); continue; }
+      rec._renewNeedsReconcile = true; // failed response does not prove the transaction failed
       // The owner dropped the rate cap under what this deployment costs here:
       // the chain refuses to sell more time, and no retry will change that.
       // Serve out the lease they already paid for, tell them why on the

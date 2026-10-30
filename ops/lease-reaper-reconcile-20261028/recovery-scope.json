@@ -1,0 +1,59 @@
+{
+  "status": "HISTORICAL_INVENTORY_NOT_AN_AUTHORIZATION",
+  "refreshRequiredBeforeSigningOrSpending": true,
+  "maximumCatalogAppIdsPerGrant": 8,
+  "groups": {
+    "metal0": [
+      {
+        "deploymentId": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+        "catalogAppId": "0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6",
+        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+      }
+    ],
+    "nucbox-k11-4": [
+      {
+        "deploymentId": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+        "catalogAppId": "0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef",
+        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+      },
+      {
+        "deploymentId": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+        "catalogAppId": "0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7",
+        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+      },
+      {
+        "deploymentId": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+        "catalogAppId": "0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc",
+        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+      },
+      {
+        "deploymentId": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+        "catalogAppId": "0xf1897f065ed94bc096d351b831514311e08b30702148c639cbaf8d0deb74d03a",
+        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+      },
+      {
+        "deploymentId": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+        "catalogAppId": "0xfd420627abb04e52e7d12e3a535e2df94a048ba51c0b0fec173e9e7de2e24b28",
+        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+      },
+      {
+        "deploymentId": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+        "catalogAppId": "0x093fa91736c2639e93867b76074c6c4dbc5e49150faf4e8618bdf45e30d275c6",
+        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+      },
+      {
+        "deploymentId": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+        "catalogAppId": "0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06",
+        "owner": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d"
+      },
+      {
+        "deploymentId": "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+        "catalogAppId": "0xcdc1fa941d248411e49f922e0bc7adfe8cc343712ca4fe4dfb24fab3ef6c70ce",
+        "owner": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d"
+      }
+    ]
+  },
+  "budgetAllocation": null,
+  "grantsCreated": false,
+  "transactionsSubmitted": false
+}

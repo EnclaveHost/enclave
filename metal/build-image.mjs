@@ -188,7 +188,7 @@ const OVERLAY_SRC = arg('supervisor-overlay', '');
 let supervisorOverlay = null;
 if (OVERLAY_SRC) {
   const src = path.resolve(OVERLAY_SRC);
-  const files = ['supervisor.js', 'addressbook.js', 'windows/node/session-api-auth.mjs', 'sdk/bootstrap/package.mjs', 'sdk/bootstrap/storage.mjs',
+  const files = ['supervisor.js', 'network/lease-expiry-reconcile.mjs', 'addressbook.js', 'windows/node/session-api-auth.mjs', 'sdk/bootstrap/package.mjs', 'sdk/bootstrap/storage.mjs',
                  'sdk/storage/gateways.mjs', 'sdk/storage/upload-auth.mjs', 'sdk/storage/replicas.mjs',
                  'site/js/core/upload-auth.js',
                  'windows/node/verification-checkpoints.mjs', 'windows/node/host-admission.bundle.mjs', 'isolation/m4/guestd/supervisor-transport.mjs',

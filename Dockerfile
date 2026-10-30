@@ -17,6 +17,7 @@ COPY supervisor.js ./
 COPY sdk/bootstrap/package.mjs sdk/bootstrap/storage.mjs ./sdk/bootstrap/
 COPY sdk/storage/replicas.mjs sdk/storage/upload-auth.mjs sdk/storage/gateways.mjs ./sdk/storage/
 COPY site/js/core/upload-auth.js ./site/js/core/
+COPY network/lease-expiry-reconcile.mjs ./network/
 COPY windows/node/verification-checkpoints.mjs ./windows/node/
 COPY windows/node/host-admission.bundle.mjs ./windows/node/
 # wallet sessions as owner credentials (shared with the Windows node, which ships it through deploy-files.mjs)
