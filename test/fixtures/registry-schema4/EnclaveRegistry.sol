@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 /// @notice The on-chain source of truth for "which enclaves exist, where they
 ///         are, and what code they claim to run." There is NO trusted gateway:
 ///         a caller reads this registry from any RPC, then connects to an
-///         enclave DIRECTLY and verifies its live attestation (Cloud Provider's
+///         enclave DIRECTLY and verifies its live attestation (Tinfoil's
 ///         SecureClient does the SEV-SNP/TDX + Sigstore checks). This contract
 ///         publishes the *slow-moving* truth (endpoint, repo, measurement,
 ///         liveness); live capacity is read from each enclave's /availability
@@ -61,7 +61,7 @@ pragma solidity ^0.8.20;
 ///     is what gates trust.
 contract EnclaveRegistry {
     struct Enclave {
-        string  endpoint;     // e.g. "https://svalbard.enclave.containers.Cloud Provider.dev"
+        string  endpoint;     // e.g. "https://svalbard.enclave.containers.tinfoil.dev"
         string  repo;         // attestation source, e.g. "EnclaveHost/enclave" (Sigstore-measured; exact casing)
         bytes32 measurement;  // optional cross-check digest (0x0 if unset); the live quote is authoritative
         address operator;     // controls this entry
@@ -291,5 +291,5 @@ FUTURE (not implemented — open registry is correct without it):
   - challenge/slash: a watcher proves an entry's live attestation != its claimed
     measurement and claims part of the bond.
   These layer on top; they do not change that ATTESTATION (checked at connect by
-  the caller's Cloud Provider SecureClient), not registration, is what gates trust.
+  the caller's Tinfoil SecureClient), not registration, is what gates trust.
 */

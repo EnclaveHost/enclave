@@ -53,15 +53,15 @@ test("injected authority outage fails closed: empty fleet, no fallback to BASE_R
   } finally { fleet.stop(); spy.restore(); }
 });
 
-test("legacy default unchanged: without an injected authority the fleet reads BASE_RPC (default mainnet.base.org)", async () => {
+test("cached default: without an injected authority the fleet reads BASE_RPC (default api.enclave.host/rpc/base)", async () => {
   const spy = fetchSpy();
   const cfg = cfgOf();
-  assert.equal(cfg.baseRpc, "https://mainnet.base.org");
+  assert.equal(cfg.baseRpc, "https://api.enclave.host/rpc/base");
   const fleet = createFleet(cfg);
   try {
     await fleet.start();                                  // the spy refuses: refresh() keeps the (empty) last known fleet
     assert.deepEqual(fleet.origins(), []);
-    assert.ok(spy.urls.length > 0 && spy.urls.every((u) => u.startsWith("https://mainnet.base.org")), JSON.stringify(spy.urls));
+    assert.ok(spy.urls.length > 0 && spy.urls.every((u) => u.startsWith("https://api.enclave.host/rpc/base")), JSON.stringify(spy.urls));
   } finally { fleet.stop(); spy.restore(); }
 });
 

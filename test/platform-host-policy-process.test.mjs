@@ -29,8 +29,8 @@ async function until(fn, ms = 15000, every = 250) { const end = Date.now() + ms;
 function packagedRelay() {
   const deploy = fs.readFileSync(path.join(ROOT, 'relay/deploy.sh'), 'utf8');
   const line = deploy.split('\n').find((l) => l.startsWith('scp api-relay.js '));
-  const files = line.replace(/^scp /, '').replace(/ nan:\/opt\/nan-relay\/$/, '').split(/\s+/).filter(Boolean);
-  assert.ok(deploy.includes('scp network-runtime.bundle.mjs network-runtime.bundle.mjs.manifest.json nan:/opt/nan-relay/'), 'deploy ships the bundle');
+  const files = line.replace(/^scp /, '').replace(/ \"\$API_TARGET\":\"\$API_STAGE\"\/$/, '').split(/\s+/).filter(Boolean);
+  assert.ok(deploy.includes('scp network-runtime.bundle.mjs network-runtime.bundle.mjs.manifest.json "$API_TARGET":"$API_STAGE"/'), 'deploy ships the bundle');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'packaged-relay-'));
   for (const f of [...files, 'network-runtime.bundle.mjs', 'network-runtime.bundle.mjs.manifest.json']) fs.copyFileSync(path.join(ROOT, 'relay', f), path.join(dir, f));
   for (const d of ['vendor', 'fixtures']) fs.cpSync(path.join(ROOT, 'relay', d), path.join(dir, d), { recursive: true });

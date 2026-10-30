@@ -193,7 +193,7 @@ test("Linux: the ACTUAL supervisor.js (same bundle) with ONLY the carrier: admit
 });
 
 test("parity: with NO carrier setting the candidate resolves exactly what the installed bundle 6bef372d resolves (config, mirrors, quorum, off reasons)", async (t) => {
-  const live = await import(process.env.LIVE_BUNDLE);
+  const live = await import(process.env.LIVE_BUNDLE || '../ops/unified-funding-20261028/operator-durability-delivery-r2/candidate/control/windows/node/host-admission.bundle.mjs');
   const w = await world(t);
   const envs = [{}, { ENCLAVE_PLATFORM_HOST_POLICY: "production" }, { ENCLAVE_PLATFORM_HOST_POLICY: "off" },
     { ENCLAVE_PLATFORM_HOST_POLICY: "production", ENCLAVE_PLATFORM_HOST_POLICY_RPCS: "https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org,https://mainnet.base.org" },

@@ -8,8 +8,14 @@ The starting main was `5ca9e61ddacd7d5887c02cacef80408d82605c5f` (October 25 UTC
 Work had accumulated in feature branches, installed overlays and dated snapshots.
 This was an integration failure, not an absence of commits. The host copy and
 search buttons were PRs 6 and 7 awaiting integration. The reported missing Shield
-scheduler source was a shallow CI checkout: parity tests read a historical Git
-object. Unit CI now fetches full history.
+scheduler error had two causes: CI fetched shallow history, and the October 24
+history rewrite changed commit identities while tests retained old pins. Unit CI
+now fetches full history. The Shield pin is restored to
+`e7ee6e34fc92bbc3d4da232c3078bee4486aa2ee`, whose extracted scheduler rule has
+the exact original SHA-256 (the expected hash is unchanged). GPU-price and
+custody counterexamples use the rewritten parents of their original fix commits.
+The deployed registry fixture restores its original brand spelling and hostname,
+recovering the exact SHA-256 and Git blob recorded in the deployment manifest.
 
 ## Maintained source reconciled
 
@@ -88,3 +94,13 @@ image, runtime budget, Android install or contract deployment.
 
 A completed implementation is committed, pushed, checked and integrated into main;
 a local branch or dated deployment snapshot is not completion. See root AGENTS.md.
+
+## Test boundaries
+
+`npm test` runs checkout-local source tests, including wallet and network tests.
+Thirteen native RPC qualification files are listed explicitly in
+`test/helpers/rpc-qualification-files.mjs`. Run them with
+`npm run test:rpc-qualification` inside an offline network namespace with the
+pinned binaries and captured Base fixture directories described by each test
+and `scripts/rpc-runtime/closure.json`. The qualification command fails on
+missing inputs; source CI does not claim to qualify those external artifacts.

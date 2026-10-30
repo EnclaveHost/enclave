@@ -71,7 +71,7 @@ export function versionRefusal(app, v, forPrivate = false) {
 // sha256 of the supervisor's three rule functions' source (isolationPolicyFor, isolationHttpPortOf, isolationDerivation),
 // identical at 0181bce3 and c42612c0. test/measurement-predict.test.mjs fails when a supervisor this repository holds (or
 // the working tree's) carries another rule, so the predictor is changed with it.
-export const SHIELD_SUPERVISOR_COMMIT = "caa47a0c8";
+export const SHIELD_SUPERVISOR_COMMIT = "e7ee6e34fc92bbc3d4da232c3078bee4486aa2ee";
 export const SHIELD_SUPERVISOR_RULE_SHA256 = "0c05967041f871e641720f29658a5ffd85fcddef0719ab4e649ee5eb2c163dcf";
 // Current source adds the Z-Image resource policy; historical releases retain their own pin.
 export const CURRENT_SUPERVISOR_RULE_SHA256 = "2ab8d6780c54aa2221f2479246056a355018346aff452ed23adac29ab83f3a4e";

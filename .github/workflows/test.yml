@@ -25,7 +25,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -35,6 +35,7 @@ jobs:
       - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
           node-version: 22
+      - uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
       - name: Install dependencies (root + relay)
         run: |
           # bsdtar: metal/oci-pull.mjs extracts OCI layers with it (whiteout
@@ -75,7 +76,7 @@ jobs:
         # npm test verbatim but with CI headroom on the per-file timeout:
         # Compilation fixtures need headroom on small runners; cap file concurrency
         # so independent compiler/browser processes do not exhaust runner memory.
-        run: node --test --test-timeout=120000 --test-concurrency=2 --test-shard=${{ matrix.shard }}/4 test/*.test.mjs test/wallet-release/*.test.mjs network/test/*.test.mjs
+        run: node scripts/test-source.mjs --test-shard=${{ matrix.shard }}/4
 
   contracts:
     runs-on: ubuntu-latest
@@ -152,8 +153,11 @@ jobs:
         with:
           node-version: 22
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Build the complete hosted site
-        run: npm run build:site
+      - name: Build the complete hosted site and guest source bundles
+        run: |
+          npm run build:site
+          node scripts/build-mcp-guest-bundle.mjs
+          node scripts/build-platform-api-guest-bundle.mjs
       - name: Retain generated source for reproducible synchronization
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -162,6 +166,8 @@ jobs:
             contracts/*.abi.json
             site/js/gen/contract-artifacts.js
             site/css/site.css
+            metal/guest/mcp-server.bundle.mjs*
+            metal/guest/platform-api.bundle.mjs*
           retention-days: 7
 
   native-source:
@@ -179,6 +185,8 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Native desktop planning and manager boundaries
         run: node --test --test-concurrency=2 --test-timeout=120000 windows/vbslike/manager/*.test.mjs windows/vbslike/datapath/*.test.mjs relay/shield-desktop-*.test.mjs windows/node/desktop-release.test.mjs
+      - name: Enable unprivileged namespace fixtures on the disposable runner
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Native guest source
         run: |
           (cd isolation/contract && go test ./...)

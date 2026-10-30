@@ -67,7 +67,7 @@ test('no host input moves the vaults: fw_cfg look-alikes are ignored and a baked
 test('control: the unmodified deabf8f90 gsup hands the supervisor NO custody vaults (the regression this restores)', async (t) => {
   const dir = fs.mkdtempSync(path.join(REPO, 'metal/guest/.control-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   // a byte copy of the committed deabf8f90 file, beside the real bundles it imports (same relative import paths)
-  const old = execFileSync('git', ['-C', REPO, 'show', 'deabf8f90f64902d20d48620fd911d34c445859d:metal/guest/gsup.mjs']);
+  const old = execFileSync('git', ['-C', REPO, 'show', 'c08532b28238a24f517db1beb3b12614abd05a6c:metal/guest/gsup.mjs']);
   for (const f of fs.readdirSync(path.join(REPO, 'metal/guest'))) if (/\.mjs$/.test(f) && f !== 'gsup.mjs') fs.copyFileSync(path.join(REPO, 'metal/guest', f), path.join(dir, f));
   fs.writeFileSync(path.join(dir, 'gsup.mjs'), old);
   const s = await runGsup(path.join(dir, 'gsup.mjs'), { fw: FW });

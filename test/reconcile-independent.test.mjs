@@ -18,7 +18,7 @@ function bundle(data=bytes,sha=identity.sha256){
 function client({rows=[row],cid=identity.cid,timestamp=1699999995n,chainId=8453,reorg=false}={}){
  let reads=0;return {
   getChainId:async()=>chainId,getBlockNumber:async()=>1000n,
-  getBlock:async()=>({hash:'0x'+(reorg&&reads++?'bb':'aa').repeat(32),timestamp}),
+  getBlock:async({blockNumber})=>({number:blockNumber,hash:'0x'+(reorg&&reads++?'bb':'aa').repeat(32),timestamp}),
   readContract:async({address,functionName,args,blockNumber})=>{
    assert.equal(blockNumber,998n);assert.notEqual(functionName,'addr','must never read the address book');
    if(functionName==='getVersion'){assert.equal(address,pinDocument.contracts.appCatalog);assert.deepEqual(args,[app,3n]);return {cid};}

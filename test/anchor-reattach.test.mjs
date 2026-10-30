@@ -39,11 +39,14 @@ test("anchor_reattach.h, natively: the nonce is the only input; B from the boot 
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("the payload source: reattach() touches no caps state and assigns no key; attestation only through the locked call; the serving loop takes STOP or REATTACH as whole lines", () => {
+test("the payload source: reattach() refreshes only its caps transcript and assigns no key; attestation only through the locked call; the serving loop takes STOP or REATTACH as whole lines", () => {
   const src = fs.readFileSync(join(payload, "anchor_payload.c"), "utf8");
   const body = (name) => { const i = src.indexOf(`static void ${name}(`); assert.ok(i >= 0, name); const j = src.indexOf("\n}\n", i); return src.slice(i, j + 2); };
   const r = body("reattach");
-  assert.doesNotMatch(r, /g_caps_|g_app_nonce|g_abi2/, "the tier's caps state and the app's ABI/2 state are not the re-attach's");
+  assert.doesNotMatch(r, /g_caps_gflops|g_bench_done|g_app_nonce|g_abi2/, "reattach preserves measured capacity and the app ABI/2 state");
+  assert.match(r, /memcpy\(g_caps_nonce, B \+ sizeof B - 32, 32\); g_caps_nonce_kind = 2;/, "the new caps transcript binds the relay's fresh nonce");
+  assert.match(r, /g_caps_attach_ms = boot_ms\(\);/);
+  assert.match(r, /caps_v2_emit\("REATTACH CAPS"\)/);
   assert.doesNotMatch(r, /\bg_(tpk|tsk|ppk|psk|ipk|isk)\b/, "reattach() never names a key: it gets them from the context armed at boot");
   assert.match(r, /anchor_reattach_prepare\(&g_reattach, arg, len, boot_ms\(\), B, isig, &has_isig\)/);
   assert.match(r, /attest_certify\(ch, B, sizeof B, 1\)/);

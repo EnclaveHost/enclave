@@ -322,7 +322,7 @@ test('source: every Linux lease send on a wallet decision carries its gate, and 
  assert.equal((source.match(/hostWalletDecision\(/g)||[]).length,6,'definition + gate + renew + audit + held review + tryClaim');
  for(const pin of ['if (TERMINAL_STATUSES.has(r.status) && !r._stopPending) { r._gpu = null; saveStateSoon(); continue; }',
    'if (!(await stopContainer(rec))) return refuse("the running instance could not be verifiably stopped; the config change waits for it");',
-   'await tearDown(rec, "expired");   // claim sweep may re-adopt it if funded again (once its stop is confirmed)',
+   'await tearDown(rec, "expired"); // preserve confirmed-stop and lease-permit handling',
    'const stopConfirmed = await tearDown(rec, "terminated");','status: "terminated", instanceStopConfirmed: stopConfirmed,',
    'await settleStop(rec, true);   // the lease rule above is unchanged',
    'onSigned: (s) => (_onLeaseSigned ? _onLeaseSigned(s) : undefined)'])

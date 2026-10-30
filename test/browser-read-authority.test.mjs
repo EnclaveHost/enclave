@@ -17,7 +17,7 @@ import { createQuorumReader } from "../site/js/core/quorum.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OWN = ["https://rpc-a.own-node.example/", "https://rpc-b.own-node.example/base"];
-const LEGACY = ["https://base-rpc.publicnode.com", "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
+const LEGACY = ["https://api.enclave.host/rpc/base", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
 const auth = (o = {}) => JSON.stringify({ version: 1, mode: "own-rpc", rpcs: OWN, trust: "self-hosted-transport", ...o });
 
 test("source default: no release authority, legacy pool exactly as before", () => {

@@ -61,9 +61,9 @@ const source=readFileSync(new URL('../site/components/deployments/deployments.js
 const method=source.match(/^  async _doMove\([^]*?^  }/m)[0];
 const buildPanel=new Function('Enclave','depGet','ctlOf','prepareDeploymentMove','moveLeaseLive','paintLine',
  'setTimeout','leaseHostOf','connectWallet','ensureBaseChain','sendTx','waitReceipt','encCall','DEP_SEL','DEPLOYMENTS_ADDRESS',
- 'isolationOptions','withIsolationRequirements','depSchemaRev','placementMessage','personalSign','pinnedHost','withPlacementPin',
+ 'isolationOptions','withIsolationRequirements','depSchemaRev','placementMessage','personalSign','pinnedHost','withPlacementPin','INDEPENDENT_MODE',
  `return new (class { ${method} })()`);
-const makePanel=(...args)=>{ while(args.length<20)args.push(undefined); return buildPanel(...args,pinnedHost,withPlacementPin); };
+const makePanel=(...args)=>{ while(args.length<20)args.push(undefined); return buildPanel(...args,pinnedHost,withPlacementPin,false); };
 for (const target of ['nucbox-k11', '']) for (const active of [true, false]) for (const saveRequirements of [false,true]) {
  test(`dashboard Pin ${target || 'Auto'} ${active ? 'queued' : 'ended'} ${saveRequirements ? 'with requirements' : ''} respects resume and target selection`, async()=>{
   let row={owner:'alice',active,runner:ZERO,leaseUntil:0};const hints=[],messages=[],signatures=[];

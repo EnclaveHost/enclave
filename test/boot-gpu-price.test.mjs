@@ -18,7 +18,7 @@ import { mayReconcile } from '../network/registry-reconcile.mjs';
 const pexec = promisify(execFile);
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HARNESS = path.join(REPO, 'test/helpers/gsup-env-harness.mjs');
-const BASE = '9f6d37bd858ad44be1171b6415353910214c2fa5';
+const BASE = '92223d0df0d488c0b33a47152b4636d17e5a09cb';
 const CMDLINE = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app';
 const FWCFG = '/sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.metal/raw';
 const OP = '0x00000000000000000000000000000000000000aa';
