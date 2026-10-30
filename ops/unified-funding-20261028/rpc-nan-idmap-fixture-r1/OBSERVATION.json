@@ -1,0 +1,251 @@
+{
+  "fixtureOnly": true,
+  "errors": [],
+  "commands": {
+    "mkfs": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.006133466958999634,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "plainMount": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.10429617948830128,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "plainUnmount": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.11450999788939953,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "idmapMount": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.10604740865528584,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "mappedWrite": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.1404674146324396,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "oldHostIdentityDenied": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.14010866545140743,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "unmappedRootAndSymlinkDenied": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.13160715997219086,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "idmapUnmount": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.1084802970290184,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "plainReopen": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.10432282648980618,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "finalUnmount": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.10255780257284641,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "loopCheck": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.0013186745345592499,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    }
+  },
+  "ok": true,
+  "mountNamespace": "mnt:[4026532448]",
+  "imageIdentity": {
+    "device": 2049,
+    "inode": 7711,
+    "bytes": 67108864
+  },
+  "plainMount": "50 317 7:0 / /var/lib/enclave-rpc-nan-idmap-fixture-r1/mount rw,nosuid,nodev,noexec,relatime,nosymfollow shared:264 - ext4 /dev/loop0 rw",
+  "plainSeed": {
+    "uid": 995,
+    "gid": 986,
+    "sha256": "9a53d817c8a138d6c1d48b71c695394c760862d3063316cd61c76329771f3b2b"
+  },
+  "idmapMount": "51 317 7:0 / /var/lib/enclave-rpc-nan-idmap-fixture-r1/mount rw,nosuid,nodev,noexec,relatime,nosymfollow,idmapped shared:264 - ext4 /dev/loop0 rw",
+  "mappedSeed": {
+    "uid": 50011,
+    "gid": 50011,
+    "sha256": "9a53d817c8a138d6c1d48b71c695394c760862d3063316cd61c76329771f3b2b"
+  },
+  "newFileDiskOwner": [
+    995,
+    986
+  ],
+  "remainingMounts": [],
+  "remainingLoop": ""
+}

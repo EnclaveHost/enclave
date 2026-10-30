@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 2.4345737288240343,
+  "stdout": "{\"at\": 1793374498.1376297, \"readOnly\": true, \"errors\": [], \"unit\": {\"rc\": 0, \"reason\": null, \"elapsedSeconds\": 0.006298858672380447, \"stdout\": \"MainPID=0\\nResult=success\\nControlGroup=\\nActiveState=inactive\\nInvocationID=\\n\", \"stderr\": \"\", \"bytesObserved\": {\"stdout\": 74, \"stderr\": 0}, \"stdinBytesWritten\": 0, \"stdinBytesRequested\": 0, \"truncated\": false, \"localChildReaped\": true, \"ownedGroupKillAttempted\": true, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"localProcessGroupDeathProven\": false, \"remoteDeathProven\": false}, \"fixtureProcesses\": [], \"loop\": {\"rc\": 0, \"reason\": null, \"elapsedSeconds\": 0.001075558364391327, \"stdout\": \"\", \"stderr\": \"\", \"bytesObserved\": {\"stdout\": 0, \"stderr\": 0}, \"stdinBytesWritten\": 0, \"stdinBytesRequested\": 0, \"truncated\": false, \"localChildReaped\": true, \"ownedGroupKillAttempted\": true, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"localProcessGroupDeathProven\": false, \"remoteDeathProven\": false}, \"independentCleanupVerified\": true}\n",
+  "stderr": "",
+  "bytesObserved": {
+    "stdout": 983,
+    "stderr": 0
+  },
+  "stdinBytesWritten": 8023,
+  "stdinBytesRequested": 8023,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
