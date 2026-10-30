@@ -1,0 +1,1 @@
+r1 failed before link test because root fixture omitted required Deadline clock argument. Preserve r1 as fixture error, not product/native-link evidence. r2 changes only fixture import+clock argument; unchanged product and intended80 cases.

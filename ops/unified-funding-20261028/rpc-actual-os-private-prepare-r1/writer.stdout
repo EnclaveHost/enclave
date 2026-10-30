@@ -1,0 +1,1 @@
+{"error": {"message": "inventory: /etc/systemd/system/multi-user.target.wants/snapd.recovery-chooser-trigger.service: slow or unreadable symlink target", "phase": "inventory"}, "receipt": "/vm/enclave-volumes/rpc-production-maint/os-private-20261030T092008Z-1b31c6/RESULT.json", "status": "FAILED"}
