@@ -1,0 +1,367 @@
+{
+  "status": "PRIVATE-PREPARED",
+  "format": "enclave-rpc-offline-mask-private-receipt/1",
+  "mutationStarted": true,
+  "operationsCompleted": [
+    {
+      "op": "mkdir",
+      "path": "/var/lib/enclave-rpc-maint"
+    },
+    {
+      "op": "mkdir",
+      "path": "/var/lib/enclave-rpc-maint/20261030T094345Z-28653e"
+    },
+    {
+      "op": "ln",
+      "path": "/var/lib/enclave-rpc-maint/20261030T094345Z-28653e/enclave-rpc-base-snapshot.service",
+      "unit": "enclave-rpc-base-snapshot.service"
+    },
+    {
+      "op": "unlink",
+      "path": "/etc/systemd/system/enclave-rpc-base-snapshot.service",
+      "unit": "enclave-rpc-base-snapshot.service"
+    },
+    {
+      "op": "symlink",
+      "path": "/etc/systemd/system/enclave-rpc-base-snapshot.service",
+      "target": "/dev/null",
+      "unit": "enclave-rpc-base-snapshot.service"
+    },
+    {
+      "op": "ln",
+      "path": "/var/lib/enclave-rpc-maint/20261030T094345Z-28653e/enclave-rpc-l1-snapshot.service",
+      "unit": "enclave-rpc-l1-snapshot.service"
+    },
+    {
+      "op": "unlink",
+      "path": "/etc/systemd/system/enclave-rpc-l1-snapshot.service",
+      "unit": "enclave-rpc-l1-snapshot.service"
+    },
+    {
+      "op": "symlink",
+      "path": "/etc/systemd/system/enclave-rpc-l1-snapshot.service",
+      "target": "/dev/null",
+      "unit": "enclave-rpc-l1-snapshot.service"
+    },
+    {
+      "op": "ln",
+      "path": "/var/lib/enclave-rpc-maint/20261030T094345Z-28653e/enclave-base-retention.service",
+      "unit": "enclave-base-retention.service"
+    },
+    {
+      "op": "unlink",
+      "path": "/etc/systemd/system/enclave-base-retention.service",
+      "unit": "enclave-base-retention.service"
+    },
+    {
+      "op": "symlink",
+      "path": "/etc/systemd/system/enclave-base-retention.service",
+      "target": "/dev/null",
+      "unit": "enclave-base-retention.service"
+    },
+    {
+      "op": "ln",
+      "path": "/var/lib/enclave-rpc-maint/20261030T094345Z-28653e/enclave-base-holder.path",
+      "unit": "enclave-base-holder.path"
+    },
+    {
+      "op": "unlink",
+      "path": "/etc/systemd/system/enclave-base-holder.path",
+      "unit": "enclave-base-holder.path"
+    },
+    {
+      "op": "symlink",
+      "path": "/etc/systemd/system/enclave-base-holder.path",
+      "target": "/dev/null",
+      "unit": "enclave-base-holder.path"
+    },
+    {
+      "op": "ln",
+      "path": "/var/lib/enclave-rpc-maint/20261030T094345Z-28653e/enclave-base-holder.service",
+      "unit": "enclave-base-holder.service"
+    },
+    {
+      "op": "unlink",
+      "path": "/etc/systemd/system/enclave-base-holder.service",
+      "unit": "enclave-base-holder.service"
+    },
+    {
+      "op": "symlink",
+      "path": "/etc/systemd/system/enclave-base-holder.service",
+      "target": "/dev/null",
+      "unit": "enclave-base-holder.service"
+    },
+    {
+      "op": "ln",
+      "path": "/var/lib/enclave-rpc-maint/20261030T094345Z-28653e/enclave-l1-el.path",
+      "unit": "enclave-l1-el.path"
+    },
+    {
+      "op": "unlink",
+      "path": "/etc/systemd/system/enclave-l1-el.path",
+      "unit": "enclave-l1-el.path"
+    },
+    {
+      "op": "symlink",
+      "path": "/etc/systemd/system/enclave-l1-el.path",
+      "target": "/dev/null",
+      "unit": "enclave-l1-el.path"
+    },
+    {
+      "op": "ln",
+      "path": "/var/lib/enclave-rpc-maint/20261030T094345Z-28653e/enclave-l1-el.service",
+      "unit": "enclave-l1-el.service"
+    },
+    {
+      "op": "unlink",
+      "path": "/etc/systemd/system/enclave-l1-el.service",
+      "unit": "enclave-l1-el.service"
+    },
+    {
+      "op": "symlink",
+      "path": "/etc/systemd/system/enclave-l1-el.service",
+      "target": "/dev/null",
+      "unit": "enclave-l1-el.service"
+    },
+    {
+      "op": "ln",
+      "path": "/var/lib/enclave-rpc-maint/20261030T094345Z-28653e/enclave-l1-cl.service",
+      "unit": "enclave-l1-cl.service"
+    },
+    {
+      "op": "unlink",
+      "path": "/etc/systemd/system/enclave-l1-cl.service",
+      "unit": "enclave-l1-cl.service"
+    },
+    {
+      "op": "symlink",
+      "path": "/etc/systemd/system/enclave-l1-cl.service",
+      "target": "/dev/null",
+      "unit": "enclave-l1-cl.service"
+    },
+    {
+      "op": "rm",
+      "path": "/etc/systemd/system/multi-user.target.wants/enclave-l1-cl.service"
+    },
+    {
+      "op": "rm",
+      "path": "/etc/systemd/system/multi-user.target.wants/enclave-l1-el.path"
+    },
+    {
+      "op": "rm",
+      "path": "/etc/systemd/system/multi-user.target.wants/enclave-rpc-base-snapshot.service"
+    },
+    {
+      "op": "rm",
+      "path": "/etc/systemd/system/multi-user.target.wants/enclave-rpc-l1-snapshot.service"
+    }
+  ],
+  "publishable": false,
+  "rpcReady": false,
+  "claims": {
+    "endpointInputIdentitiesTimesDigestsMatch": true,
+    "finalDerivativeSha256RecordsResult": "1c4fbce5ee66f4ce51a13f056ada362948f2a474aaf1bb725744a46d64af57b3",
+    "initialBackupStreamAndDerivativeReadbackEqualExpectedDigest": true,
+    "inputsOpenedReadOnlyByThisWriter": true,
+    "scopedGuestVerification": "unit-tree semantic delta, rollback archive, superblock identity, GPT and outside-root byte hashes, e2fsck -f -n and qemu-img check as recorded"
+  },
+  "notClaimed": [
+    "inputs continuously untouched by other actors between the endpoint checks",
+    "every guest root byte compared against a precomputed expected final output",
+    "complete host holder visibility or absence of unreadable holders",
+    "protection from hostile root or same-UID actors, ptrace or descriptor transfer",
+    "revocation of descriptors opened before chmod or private ancestry checks",
+    "publication, activation, boot or replacement authority"
+  ],
+  "receiptSha256": "489ccafa0edc3a5a409167d92eba845b165a6cc2459e1ce83192dc9beb2dff2d",
+  "evidence": {
+    "sourceBefore": {
+      "ctimeNs": 1793030445722920013,
+      "device": 64769,
+      "inode": 147981797,
+      "mtimeNs": 1793030445722920013,
+      "path": "/vm/enclave-volumes/rpc-production/os.qcow2",
+      "sha256": "f7e4ebc11362393f9db8e72c5f957cfa543ea4583d6ce5a73d3c59198037ab57",
+      "size": 18581159936
+    },
+    "sourceAfter": {
+      "ctimeNs": 1793030445722920013,
+      "device": 64769,
+      "inode": 147981797,
+      "mtimeNs": 1793030445722920013,
+      "path": "/vm/enclave-volumes/rpc-production/os.qcow2",
+      "sha256": "f7e4ebc11362393f9db8e72c5f957cfa543ea4583d6ce5a73d3c59198037ab57",
+      "size": 18581159936
+    },
+    "backupBefore": {
+      "ctimeNs": 1793341199383108546,
+      "device": 64769,
+      "inode": 148392253,
+      "mtimeNs": 1793341199383108546,
+      "path": "/vm/enclave-volumes/rpc-production-maint/os-backup-20261030T061922Z-1a31c4/os.qcow2",
+      "sha256": "f7e4ebc11362393f9db8e72c5f957cfa543ea4583d6ce5a73d3c59198037ab57",
+      "size": 18581159936
+    },
+    "backupAfter": {
+      "ctimeNs": 1793341199383108546,
+      "device": 64769,
+      "inode": 148392253,
+      "mtimeNs": 1793341199383108546,
+      "path": "/vm/enclave-volumes/rpc-production-maint/os-backup-20261030T061922Z-1a31c4/os.qcow2",
+      "sha256": "f7e4ebc11362393f9db8e72c5f957cfa543ea4583d6ce5a73d3c59198037ab57",
+      "size": 18581159936
+    },
+    "derivativeFinal": {
+      "ctimeNs": 1793353539833585078,
+      "dev": 64769,
+      "ino": 148392388,
+      "mtimeNs": 1793353532332647491,
+      "path": "/vm/enclave-volumes/rpc-production-maint/os-private-20261030T094345Z-28653e/derivative.qcow2",
+      "sha256": "1c4fbce5ee66f4ce51a13f056ada362948f2a474aaf1bb725744a46d64af57b3",
+      "size": 18581159936
+    },
+    "exporters": [
+      {
+        "drainerJoined": true,
+        "exit": 0,
+        "fault": null,
+        "fusermountRc": 0,
+        "mountPresent": false,
+        "normal": true,
+        "owned": [
+          [
+            2574167,
+            165862600
+          ]
+        ],
+        "pid": 2574165,
+        "result": "complete",
+        "signals": [],
+        "stderrBytes": 0,
+        "stderrHead": "",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "survivors": [],
+        "unmount": []
+      },
+      {
+        "drainerJoined": true,
+        "exit": 0,
+        "fault": null,
+        "fusermountRc": 0,
+        "mountPresent": false,
+        "normal": true,
+        "owned": [
+          [
+            2574208,
+            165862739
+          ]
+        ],
+        "pid": 2574206,
+        "result": "complete",
+        "signals": [],
+        "stderrBytes": 0,
+        "stderrHead": "",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "survivors": [],
+        "unmount": []
+      },
+      {
+        "drainerJoined": true,
+        "exit": 0,
+        "fault": null,
+        "fusermountRc": 0,
+        "mountPresent": false,
+        "normal": true,
+        "owned": [
+          [
+            2575108,
+            165863696
+          ]
+        ],
+        "pid": 2575106,
+        "result": "complete",
+        "signals": [],
+        "stderrBytes": 0,
+        "stderrHead": "",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "survivors": [],
+        "unmount": []
+      },
+      {
+        "drainerJoined": true,
+        "exit": 0,
+        "fault": null,
+        "fusermountRc": 0,
+        "mountPresent": false,
+        "normal": true,
+        "owned": [
+          [
+            2576095,
+            165864610
+          ]
+        ],
+        "pid": 2576093,
+        "result": "complete",
+        "signals": [],
+        "stderrBytes": 0,
+        "stderrHead": "",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "survivors": [],
+        "unmount": []
+      },
+      {
+        "drainerJoined": true,
+        "exit": 0,
+        "fault": null,
+        "fusermountRc": 0,
+        "mountPresent": false,
+        "normal": true,
+        "owned": [
+          [
+            2576858,
+            165865218
+          ]
+        ],
+        "pid": 2576856,
+        "result": "complete",
+        "signals": [],
+        "stderrBytes": 0,
+        "stderrHead": "",
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "survivors": [],
+        "unmount": []
+      }
+    ],
+    "fsckBefore": {
+      "rc": 0,
+      "stdoutSha256": "a0a63b3e34600e516eb71f046869a98f6b53f6f3f9b658ffa4b8ce645c219754"
+    },
+    "fsckAfter": {
+      "rc": 0,
+      "stdoutSha256": "7206a679331fbe79c31671d2f67d01bcad89d4879d6582fe485e70bea1ce81ee"
+    },
+    "qcowCheckAfter": {
+      "rc": 0
+    },
+    "vmAfter": {
+      "enclave-rpc-production-guard.service": {
+        "ActiveState": "inactive",
+        "LoadState": "loaded",
+        "MainPID": "0"
+      },
+      "enclave-rpc-production-vm.service": {
+        "ActiveState": "inactive",
+        "LoadState": "loaded",
+        "MainPID": "0"
+      }
+    },
+    "outsideRootBefore": [
+      "7b0ac98e253787ac9cf4ed8cd3997d794627eac7221efe86eb37432cf161dfb9",
+      "4400cb998ab31f940841a1499f4980e2ac9ed0bd65a388e00f66e600c7e3663b"
+    ]
+  },
+  "inventoryCounts": {
+    "before": 632,
+    "after": 628
+  }
+}
