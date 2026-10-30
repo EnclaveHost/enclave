@@ -1,0 +1,7 @@
+{
+  "at": 1793374814.5377636,
+  "scope": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2895347-i44860459.scope",
+  "pinsSha256": "99da89d5ca8b5e0ce949267cf0c76323499ae7634ea704eda500b5b1c4ce865b",
+  "privateCowOnly": true,
+  "noRetry": true
+}

@@ -1,0 +1,11 @@
+def mount(role, side):
+    d = next(d for d in DISKS if d['role'] == role)
+    expected = MANIFEST['mounts'][role]
+    assert d['mount'] == expected and os.path.ismount(expected), 'dedicated mount absent'
+    result = subprocess.check_output(['findmnt', '-n', '-o', 'UUID,FSTYPE,OPTIONS', '--mountpoint', expected], text=True).split()
+    assert result[:2] == [d['uuid'], 'ext4'], 'wrong dedicated filesystem'
+    # ProtectSystem makes the mount root read-only while only the client's data subtree is writable.
+    data = expected + ('/cl' if side == 'cl' else '/data')
+    writable = subprocess.check_output(['findmnt', '-n', '-o', 'UUID,FSTYPE,OPTIONS', '--target', data], text=True).split()
+    assert writable[:2] == [d['uuid'], 'ext4'] and 'rw' in writable[2].split(','), 'data filesystem not writable'
+    return expected

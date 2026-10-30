@@ -1,0 +1,11 @@
+{
+  "pinsDrift": [],
+  "knownPidsPresent": [],
+  "remoteCleanupVerified": true,
+  "parentUnchanged": true,
+  "clientExit": "wrapper wrong dedicated filesystem before Lighthouse",
+  "accountsRetained": [
+    50011,
+    50012
+  ]
+}

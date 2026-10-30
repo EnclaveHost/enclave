@@ -1,0 +1,9 @@
+{
+  "authorized": true,
+  "at": 1793375319.7249863,
+  "scope": "actual-nan-cl-bounded-client-n5",
+  "pinsSha256": "80e9e2385b558eea999d1721629b6e88775e222a6eb46199948932b24e8f28ac",
+  "admissionSha256": "57ddebac506179b8c7b0e594efbda6652d500cc3efc57995b63411b9a31e13a7",
+  "sourceTests": 47,
+  "sourceReview": "Root direct superblock UUID receipt boot+nonce+exact device/inodes+current mount confinement. Retained dedicated accounts exact, no process or membership collisions. Original read-only, same caps. No UUID-cache fallback. No production consumer change."
+}

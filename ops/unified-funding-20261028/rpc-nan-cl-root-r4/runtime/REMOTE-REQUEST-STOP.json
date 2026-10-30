@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 2.3746259319595993,
+  "stdout": "RESULT_JSON={\"action\": \"request-stop\", \"errors\": [], \"ok\": true, \"stopRequested\": true, \"unit:enclave-rpc-nan-watch-n4.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 609}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.006439032033085823, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nResult=success\\nExecMainCode=1\\nExecMainStatus=0\\nExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -B /run/enclave-rpc-nan-client-n4/program.py watchdog ; ignore_errors=no ; start_time=[Fri 2026-10-30 15:41:22 UTC] ; stop_time=[Fri 2026-10-30 15:41:36 UTC] ; pid=476733 ; code=exited ; status=0 }\\nControlGroup=\\nUser=root\\nGroup=\\nDescription=Enclave L1 9f88c0df-4815-4838-9f9f-442bff5c0a66 watchdog\\nLoadState=loaded\\nActiveState=inactive\\nSubState=dead\\nFragmentPath=/run/systemd/transient/enclave-rpc-nan-watch-n4.service\\nDropInPaths=\\nTransient=yes\\nInvocationID=15dea46c760c4f76b46e162e17a168d4\\n\", \"truncated\": false}}\n",
+  "stderr": "",
+  "bytesObserved": {
+    "stdout": 1140,
+    "stderr": 0
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
