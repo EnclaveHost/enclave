@@ -93,14 +93,12 @@ ee-host.exe … --serve 9596        # keys / attest <bound hex> / gen <n> <promp
 - **Sessions**: `EeSession` opens a request boxed to the attested X25519 pad key (client key ||
   nonce || crypto_box) and boxes the reply to the client's key; the host's `session` command and the
   agent's `/v1/session` carry the bytes opaquely, `/v1/completions` stays as the plaintext path for
-  tests. The pad key doubles as the session key for now (the dealer's seeds would share it); a
-  separate session key is a one-line change in `EeInit` once the dealer flow lands on Windows.
+  tests. The attested X25519 key is used for these sessions.
 - **Tier is vbs-dev**: test-signed, Secure Boot off, `TESTSIGNING=1` in the log. Production signing
   and the flip to tier vbs are windows/vbs/SIGNING.md (needs the company's Azure account). The node
   is live on enclave.host under that tier since 2026-09-21 (windows/vbs/REPORT.md section 12).
 - Weights are copied into the enclave (2 GB image, fine for 0.5B–1B); the benchmark shows the
   enclave reads host memory at native speed, so larger models should keep public weights outside.
-- Dealt pads (the dealer's seeds to the pad key) are not wired on Windows: the enclave mints its own
-  pads. The pad key is generated and attested so the dealer flow can follow.
+- The enclave generates fresh masks and computes their corrections locally.
 - The host prints a few `EeThread entry failed: 5` at exit when pool threads race the teardown;
   cosmetic (the host now `_exit`s instead).

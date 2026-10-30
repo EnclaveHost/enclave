@@ -4,7 +4,9 @@
 //      escrow and flips the book, exactly in the order the cutover writes;
 //   3. the vault v2 bundle is deployed and a browser session suspends a deployment its owner's WALLET
 //      holds, through the owner's setDelegate on the NEW ledger - refused before, refused after revoke.
-// Run: node scripts/ledger-cutover-rehearsal.mjs <vault-bundle.json>
+// Run: node scripts/ledger-cutover-rehearsal.mjs <vault-bundle.json | live>
+//   MIGRATE_SCRIPT=migrate-ledger-16d.mjs rehearses the 16d cutover instead (default: migrate-ledger-delegates.mjs, 15d);
+//   "live" uses the vault v2 factory already on Base (contracts/deployments/ledger-15d-base.json) instead of deploying a bundle.
 import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -19,7 +21,9 @@ import { JsonStore } from "../relay/store.js";
 import * as sdk from "../sdk/sessions/dist/node.mjs";
 
 const REPO = path.join(path.dirname(new URL(import.meta.url).pathname), "..");
-const bundle = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const LIVE_VAULT = process.argv[2] === "live";
+const bundle = LIVE_VAULT ? null : JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const MIGRATE = path.join(REPO, "scripts", process.env.MIGRATE_SCRIPT || "migrate-ledger-delegates.mjs");
 const PORT = 19545 + Math.floor(Math.random() * 1000);
 const RPC = `http://127.0.0.1:${PORT}`;
 // publicnode refuses state at a pinned (fork) block as an "archive request": drpc serves it
@@ -69,12 +73,12 @@ try {
   await rpc("anvil_setBalance", [privateKeyToAccount(migKey).address, toHex(10n ** 18n)]);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cutover-"));
   const stateFile = path.join(tmp, "state.json");
-  const runMig = (cmd) => execFileSync(process.execPath, [path.join(REPO, "scripts/migrate-ledger-delegates.mjs"), cmd, "--rpc", RPC, "--state", stateFile],
+  const runMig = (cmd) => execFileSync(process.execPath, [MIGRATE, cmd, "--rpc", RPC, "--state", stateFile],
     { env: { ...process.env, ENCLAVE_MIGRATOR_KEY: migKey }, stdio: "inherit", timeout: 1_800_000 });
   runMig("prepare");
   // the cutover refuses before the old ledger is retired
   let refused = false;
-  try { execFileSync(process.execPath, [path.join(REPO, "scripts/migrate-ledger-delegates.mjs"), "cutover", "--rpc", RPC, "--state", stateFile],
+  try { execFileSync(process.execPath, [MIGRATE, "cutover", "--rpc", RPC, "--state", stateFile],
     { env: { ...process.env, ENCLAVE_MIGRATOR_KEY: migKey }, stdio: "pipe" }); } catch { refused = true; }
   must(refused, "cutover refuses while the old ledger is not retired");
 
@@ -111,7 +115,9 @@ try {
   const dep = createWalletClient({ chain, account: privateKeyToAccount(dk), transport: vhttp(RPC) });
   await rpc("anvil_setBalance", [dep.account.address, toHex(10n ** 18n)]);
   const out = {};
-  for (const s of bundle.steps) {
+  const liveV2 = JSON.parse(fs.readFileSync(path.join(REPO, "contracts/deployments/ledger-15d-base.json"), "utf8")).sessionVaultV2;
+  if (LIVE_VAULT) out.sessionVaultFactory = getAddress(liveV2.SessionVaultFactory.address);
+  for (const s of LIVE_VAULT ? [] : bundle.steps) {
     let bc = s.bytecode;
     if (s.link) {
       let b = bc.slice(2);
@@ -129,7 +135,7 @@ try {
   const relayer = privateKeyToAccount(generatePrivateKey());
   await rpc("anvil_setBalance", [relayer.address, toHex(10n ** 17n)]);
   const svc = createSessionsService({ pc, wc: createWalletClient({ chain, account: relayer, transport: vhttp(RPC) }), account: relayer,
-    chainId: 8453, factory: out.sessionVaultFactory, book: BOOK, usdc, router: bundle.meta.router, startBlock: Number(await pc.getBlockNumber()),
+    chainId: 8453, factory: out.sessionVaultFactory, book: BOOK, usdc, router: LIVE_VAULT ? liveV2.SessionVaultFactory.args.router : bundle.meta.router, startBlock: Number(await pc.getBlockNumber()),
     store: new JsonStore(path.join(tmp, "i.json"), {}), journal: new JsonStore(path.join(tmp, "j.json"), { txs: [] }, { durable: true }),
     log: () => {}, alert: () => {} });
   server = http.createServer((req, res) => svc.handle(req, res, new URL(req.url, "http://x"), null));

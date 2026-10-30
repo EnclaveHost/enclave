@@ -79,24 +79,24 @@ const listen = async (s) => { await new Promise((r) => s.listen(0, "127.0.0.1", 
 const launcher = crypto.generateKeyPairSync("ed25519");
 const LAUNCHER_KEY = launcher.publicKey.export({ type: "spki", format: "der" }).subarray(12).toString("base64");
 async function front({ csr = GUEST.csr, runtime = RT, selfTest = ATTEST_TIME, image = IMAGE, partition = "hcs-child" } = {}) {
-  const f = { installed: null, csrAsked: 0, installs: 0, tamper: false };
+  const f = { installed: null, csrAsked: 0, installs: 0, tamper: false, app: APP };
   const ctxSelf = tls.createSecureContext({ key: GUEST.key, cert: GUEST.self });
   const s = https.createServer({ key: GUEST.key, cert: GUEST.self,
     SNICallback: (sn, cb) => cb(null, sn === NAME && f.installed ? tls.createSecureContext({ key: GUEST.key, cert: f.installed }) : ctxSelf) },
   (req, res) => {
     const u = new URL(req.url, "https://x");
     const json = (st, b) => { res.writeHead(st, { "content-type": "application/json" }); res.end(JSON.stringify(b)); };
-    if (u.pathname === "/.well-known/enclave-ready") return json(200, { ready: true, appId: APP });
+    if (u.pathname === "/.well-known/enclave-ready") return json(200, { ready: true, appId: f.app });
     if (u.pathname === "/.well-known/enclave-attestation") {
       const nonce = Buffer.from(u.searchParams.get("nonce") || "", "hex");
       const report = { format: FORMAT, tier: TIER,
-        reportData: Buffer.concat([bind2(GUEST_SPKI, nonce, runtimeId(runtime)), Buffer.from(APP, "hex")]).toString("hex"),
-        domain: { appSha256: APP }, partition: { vmId: VMID, guestImageSha256: image }, launcher: { key: LAUNCHER_KEY },
+        reportData: Buffer.concat([bind2(GUEST_SPKI, nonce, runtimeId(runtime)), Buffer.from(f.app, "hex")]).toString("hex"),
+        domain: { appSha256: f.app }, partition: { vmId: VMID, guestImageSha256: image }, launcher: { key: LAUNCHER_KEY },
         platform: { hostExcluded: false, partition }, boundary: `tier=T0-hv partition=${partition} host_excluded=no` };
       const signed = crypto.sign(null, Buffer.concat([SIGN_DOMAIN, Buffer.from(canonical(report))]), launcher.privateKey);
       if (f.tamper) signed[0] ^= 1;                              // a report the launcher key does not verify
       const sig = signed.toString("base64");
-      return json(200, { format: FORMAT, tier: TIER, nonce: nonce.toString("hex"), appSha256: APP, abi: ABI2, runtime,
+      return json(200, { format: FORMAT, tier: TIER, nonce: nonce.toString("hex"), appSha256: f.app, abi: ABI2, runtime,
         runtimeSelfTest: selfTest, transportKey: GUEST_SPKI.toString("base64"),
         report: Buffer.from(JSON.stringify({ doc: report, sig })).toString("base64") });
     }
@@ -367,4 +367,49 @@ test("a refusal without a retry hint is asked again after 30 s, doubling to an h
   await p.pass(records(box.instance));
   const wait = p.state(DEP).backoffUntil - before;
   assert.ok(wait >= 29_000 && wait <= 31_000 + 5_000, `first retry in ${wait} ms`);
+});
+
+// Native certificate tests retain the real TLS/CSR/CA path. Only the test
+// manager's reported identity and fixture front change; no hardware is attested.
+const desktopVectors = JSON.parse(fs.readFileSync(new URL('../isolation/contract/catalog/desktop_vectors.json', import.meta.url)));
+const { deriveDesktop } = await import('../relay/shield-desktop-derive.mjs');
+const { BOOT_STATEMENTS } = await import('../windows/vbslike/verify/boot-statements.mjs');
+async function nativeCertificateFixture() {
+  const f = await front({ partition: BOOT_STATEMENTS['linux-direct'].partition });
+  const box = await managerFor(f);
+  const record = structuredClone(desktopVectors.ok[0].record);record.runtimeId=PIN;record.secretDeployment=DEP;
+  const mapping = deriveDesktop({record,component:Buffer.from(desktopVectors.component_hex,'hex')});
+  const release = {schema:'enclave-desktop-release/1',controllerCid:record.cid,controllerSha256:mapping.componentSha256,
+    runtimeId:PIN,profileSha256:record.desktop.profileSha256,igvmSha256:IMAGE,launchMeasurement:'67'.repeat(32),
+    minimumCpuMilli:250,policy:{cpuPercent:record.policy.cpuPercent,vcpus:record.policy.vcpus}};
+  const held=box.m.domains.get(box.instance);
+  Object.assign(held,{derivation:record.derivation,name:DEP,appId:mapping.appId,cid:record.cid,
+    recordSha256:mapping.recordSha256,componentSha256:mapping.componentSha256,runtimeId:PIN,
+    desktop:record.desktop,imageRole:'desktop',image:IMAGE,igvmSha256:IMAGE,
+    boundary:{tier:'t0-hv',partition:BOOT_STATEMENTS['linux-direct'].partition,hostExcluded:false,attested:false},
+    guestIdentity:{partition:BOOT_STATEMENTS['linux-direct'].partition,guestImageKind:BOOT_STATEMENTS['linux-direct'].guestImageKind}});
+  f.app=mapping.appId;
+  const rows=records(box.instance,{cid:record.cid,gpuShare:.75,desktopRecord:record,
+    isolation:{...records(box.instance).get(DEP).isolation,appId:mapping.appId}});
+  return {f,box,release,held,rows};
+}
+test('native certificate uses independent desktop runtime before GPU inference selection',async()=>{
+  const n=await nativeCertificateFixture(),svc=await certsService();let legacySelected=0;
+  const p=passFor(n.box,svc,{desktopRelease:n.release,runtimeId:()=>{legacySelected++;return 'ff'.repeat(32);}});
+  await p.pass(n.rows);assert.equal(svc.issued,1,p.state(DEP)?.why);assert.equal(n.f.installs,1);assert.equal(legacySelected,0);
+});
+test('native identity or independent pin mismatch issues and installs nothing',async()=>{
+  for(const change of [n=>{n.held.recordSha256='ff'.repeat(32);},n=>{n.held.componentSha256='ff'.repeat(32);},
+    n=>{n.held.desktop={...n.held.desktop,profileSha256:'ff'.repeat(32)};},n=>{n.held.imageRole='inference';},
+    n=>{n.held.image='ff'.repeat(32);},n=>{n.held.guestIdentity={partition:'hcs-child',guestImageKind:'test'};},
+    n=>{n.release=null;},n=>{delete n.rows.get(DEP).desktopRecord;}]) {
+    const n=await nativeCertificateFixture(),svc=await certsService();change(n);
+    const p=passFor(n.box,svc,{desktopRelease:n.release});await p.pass(n.rows);
+    assert.ok(p.state(DEP)?.backoffUntil,p.state(DEP)?.why);assert.equal(svc.issued,0);assert.equal(n.f.installs,0);
+  }
+});
+test('native manager view cannot be certified through the legacy runtime-only path',async()=>{
+  const n=await nativeCertificateFixture(),svc=await certsService();delete n.rows.get(DEP).desktopRecord;
+  const p=passFor(n.box,svc);await p.pass(n.rows);assert.equal(svc.issued,0);assert.equal(n.f.installs,0);
+  assert.match(p.state(DEP).why,/native desktop/);
 });

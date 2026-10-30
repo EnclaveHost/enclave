@@ -7,6 +7,13 @@ import {execFileSync,spawn} from 'node:child_process';
 import net from 'node:net';
 
 test('private Unix transport preserves framing and refuses invalid/missing endpoints', async () => {
+ // The maintained broker authenticates UID 0 via SO_PEERCRED. Exercise that
+ // boundary in an isolated user namespace instead of weakening the UID check.
+ if (process.getuid() !== 0) {
+  execFileSync('unshare', ['--map-root-user', '--', process.execPath, '--test', new URL(import.meta.url).pathname],
+    { timeout: 20000, stdio: 'pipe' });
+  return;
+ }
  const dir=mkdtempSync(join(tmpdir(),'shield-unix-'));
  let server;
  try {

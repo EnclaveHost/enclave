@@ -1,0 +1,699 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-canary/canary/verify-canary.mjs	2026-10-22 15:51:55.059120354 -0700
++++ canary/verify-canary.mjs	2026-10-25 10:35:48.346097257 -0700
+@@ -1,18 +1,26 @@
+-// verify-canary.mjs: the canary's host-side check of the booted direct-control guest, with the PUBLISHED verifier only
+-// (tree = git archive of 493ee9ee): metal/measured-control-verify.mjs verifyMeasuredControl, verifier/collateral-cache.mjs
+-// over verifier/collateral.mjs, verifier/metal-box.mjs TCB_FLOORS, metal/guest/platform-api-verify.mjs quorumRegistry.
+-// Nothing synthetic: the evidence is the guest's own answer for a FRESH nonce; the collateral is AMD's (an authenticated
+-// cache COPY, optionally refreshed from AMD KDS); there is no fake registry - without a reader the wrapper honestly stays
+-// "pending", and with one it reads the original EnclaveRegistry read-only (no key, nothing sent).
+-//   node canary/verify-canary.mjs --url https://127.0.0.1:P --config owner-config.json --measurement <96 hex>
+-//        --expect-runtime runtime.json --collateral-dir DIR [--kds on|off] [--registry on|off] [--deadline-sec N] --out result.json
+-// Exit 0 ONLY when acceptance() passes: every REQUIRED check below (the published verifier's statement, config/HOST_DATA,
+-// TLS key, AMD report with the expected measurement and running supervisor keys, PLUS the exact-runtime and bare-role
+-// statement checks of the archived evidence). The registry (expected "pending": the canary URL is not registered) and
+-// the configured operator address are DIAGNOSTIC: reported, never required, never faked.
+-// Adapted 2026-10-22 from the root-reviewed direct-hardware-canary/canary/verify-canary.mjs (67979154) for the 493ee9ee image,
+-// whose statement may carry a `native` member (bound nativeControl): one REQUIRED bare-role check added (no `native` member),
+-// and the verifier's new identity.chipId (493ee9ee) is reported as a diagnostic. Nothing else changed.
++// verify-canary.mjs: the canary's host-side check of the booted VERIFIER-ONLY direct-control guest, with PUBLISHED code only
++// (tree = git archive of 0235e7d96): metal/measured-control-verify.mjs verifyMeasuredControl + tlsGet, verifier/envelope.mjs +
++// verifier/snp.mjs verifySnp (the SAME step-5 call the published verifier makes, here on the captured evidence), verifier/
++// collateral-cache.mjs over verifier/collateral.mjs, verifier/metal-box.mjs TCB_FLOORS, and network/attested-verifier-client.mjs
++// (checkAttestedReplicas, attestedOutcome, createAttestedVerifier, pinnedPost: the production verifier-only client). No new
++// cryptography, no synthetic roots: AMD collateral is a COPY of the public cache (optionally refreshed from AMD KDS).
++//   node canary/verify-canary.mjs --url https://127.0.0.1:P --config owner.json --wrong-config wrong.json --measurement <96 hex>
++//        --expect-runtime runtime.json --collateral-dir DIR [--kds on|off] [--deadline-sec N] --out result.json
++// There is NO registry read: a verifier-only replica is accepted by attestedOutcome only with registry === null.
++// Exit 0 ONLY when acceptance() passes. REQUIRED:
++//   A. positive (fresh nonce): the published verifier's statement/config+HOST_DATA/TLS key/AMD report with the expected
++//      measurement/running supervisor checks, status "pending" (registry null) and attestedOutcome(...) = "attested";
++//      archived evidence: HTTP 200, digest + HOST_DATA = owner config, TLS peer = statement key, same boot, mode snp,
++//      runtime gsup/helper/supervisor = the image manifest, no mcp/platformApi runtime, no native member;
++//   B. offline re-verification of the CAPTURED evidence through verifySnp: control (unchanged bytes) = verified (non-vacuity);
++//      one flipped report byte = rejected; a changed statement byte = rejected (binding); another nonce = rejected (replay);
++//   C. live rejections (fresh nonce each): wrong measurement -> rejected at the report (hardware measurement false);
++//      wrong config (another unsafeSigner) -> rejected at config;
++//   D. route fail-closed while the Base backend is unready: the production client attests the replica ("attested") and its
++//      eth_blockNumber read FAILS with HTTP 502; direct pinned POSTs: a read -> 502 {"error":"service_unreachable"} (every
++//      probe), a write method -> 403 method_refused; a wrong-measurement client never attests and its read fails;
++//      checkAttestedReplicas refuses a caller whose sequencer pin differs from the bound config.
++// Adapted 2026-10-25 from the root-reviewed native-final-canary/canary/verify-canary.mjs (a5bea76c).
+ import fs from "node:fs";
+ import tls from "node:tls";
+ import path from "node:path";
+@@ -22,48 +30,79 @@
+ const imp = (p) => import(path.join(TREE, p));
+ const { verifyMeasuredControl, tlsGet } = await imp("metal/measured-control-verify.mjs");
+ const MC = await imp("metal/guest/measured-control.mjs");
++const { parseEnvelope } = await imp("verifier/envelope.mjs");
++const { verifySnp } = await imp("verifier/snp.mjs");
+ const { cachedCollateral } = await imp("verifier/collateral-cache.mjs");
+ const { httpCollateral } = await imp("verifier/collateral.mjs");
+ const { TCB_FLOORS } = await imp("verifier/metal-box.mjs");
++const AV = await imp("network/attested-verifier-client.mjs");
+ const sha = (b) => createHash("sha256").update(b).digest("hex");
+ const arg = (n, d) => { const i = process.argv.indexOf("--" + n); return i > 0 ? process.argv[i + 1] : d; };
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++export const flipHex = (m) => (m[0] === "0" ? "1" : "0") + m.slice(1);
+ 
+-// verifyMeasuredControl sets checks[name] = true on each pass, in order: statement, config, endpoint key, report, supervisor,
+-// registry (metal/measured-control-verify.mjs:76-157). The HARDWARE result is the first five; the registry is separate.
+ export function hardwareVerdict(final, expectedMeasurement) {
+   const c = final?.checks || {};
+   const parts = { statement: c.statement === true, config: c.config === true, endpointKey: c["endpoint key"] === true,
+     report: c.report === true && final?.identity?.measurement === expectedMeasurement, supervisor: c.supervisor === true };
+-  const registry = c.registry === true ? "verified" : c.registry === false ? "rejected"
+-    : final?.status === "pending" ? "pending" : final?.status === "unknown" && c.supervisor === true ? "unknown (registry quorum)" : "not reached";
+-  return { hardwarePass: Object.values(parts).every(Boolean), parts, registry, wrapperStatus: final?.status ?? null };
++  return { hardwarePass: Object.values(parts).every(Boolean), parts, wrapperStatus: final?.status ?? null, registryCheck: "registry" in c ? c.registry : "absent" };
++}
++
++/** the published verifier's step 5 (measured-control-verify.mjs), unchanged, on a captured evidence document */
++export async function offlineReport(ev, { nonce, peerSpki, measurement, hostData, collateral, now = new Date() }) {
++  try {
++    const env = parseEnvelope({ format: "sev-snp-guest-domain-v1", report: ev.report, abi: "enclave-domain-abi/2", ...(typeof ev.certs === "string" ? { certs: ev.certs } : {}) });
++    const v = await verifySnp(env, { allowedMeasurements: [measurement], minTcb: TCB_FLOORS, crl: "required" },
++      { transportKeySpki: peerSpki, expectedBinding: MC.bindingFor(ev.statement, nonce), expectedAppId: MC.CONTROL_ROLE, expectedHostData: Buffer.from(hostData, "hex"), now,
++        ...(typeof ev.certs === "string" ? { auxblob: Buffer.from(ev.certs, "base64") } : {}) }, collateral);
++    return { status: v.status, failed: Object.entries(v.checks || {}).filter(([, ok]) => ok === false).map(([k]) => k), reasons: (v.reasons || []).filter((r) => /REJECT/.test(r)).slice(0, 3) };
++  } catch (e) { return { status: "error", error: String(e.message).slice(0, 200) }; }
++}
++export function tamperReport(ev, offset = 0x90) {     // one byte inside the signed report body (the MEASUREMENT field)
++  const b = Buffer.from(ev.report, "base64"); b[offset] ^= 0x01; return { ...ev, report: b.toString("base64") };
++}
++export function tamperStatement(ev) {                 // one hex digit of the bound config digest inside the statement text
++  const st = MC.parseStatement(ev.statement), d = st.configDigest, d2 = flipHex(d);
++  if (!ev.statement.includes(d)) throw new Error("statement does not carry its digest verbatim");
++  return { ...ev, statement: ev.statement.replace(d, d2) };
+ }
+ 
+-/** acceptance(R) -> { pass, required: {name: bool}, failed: [names], diagnostic: {...} }. Every promised check is either
+- *  REQUIRED here (and gates exit 0 and the harness) or explicitly diagnostic; nothing computed is silently ignored. */
+ export function acceptance(R) {
+   const v = R.verdict || hardwareVerdict(null, R.expected?.measurement), s = R.statementChecks || {}, rt = s.runtime || {};
+-  const expectedRuntime = Object.keys(R.expected?.runtime || {});
++  const expectedRuntime = Object.keys(R.expected?.runtime || {}), off = R.offline || {}, live = R.liveRejections || {}, rte = R.route || {};
+   const required = {
+-    "verifier: statement": v.parts?.statement === true, "verifier: config + HOST_DATA": v.parts?.config === true,
+-    "verifier: TLS peer = attested control key": v.parts?.endpointKey === true,
+-    "verifier: AMD report verified with the expected measurement": v.parts?.report === true,
+-    "verifier: running supervisor holds the minted keys": v.parts?.supervisor === true,
+-    "evidence: HTTP 200": R.evidence?.status === 200,
+-    "evidence: statement config digest = owner config": s.configDigest === true, "evidence: statement HOST_DATA = owner config": s.hostData === true,
+-    "evidence: TLS peer = statement control key": s.peerIsControlTls === true,
+-    "evidence: same boot as the verifier (control key)": s.controlTlsSpkiSha256 != null && s.controlTlsSpkiSha256 === R.final?.identity?.controlTlsSpkiSha256,
+-    "evidence: mode snp": s.mode === "snp",
+-    "evidence: runtime gsup/helper/supervisor = the built image inputs": expectedRuntime.length === 3 && expectedRuntime.every((k) => rt[k] === true),
+-    "evidence: bare roles (no mcpSha256, no platformApiSha256)": s.noMcpOrPlatformApi === true,
+-    "evidence: bare roles (no native control names in the statement)": s.noNative === true,
++    "A verifier: statement": v.parts?.statement === true, "A verifier: config + HOST_DATA": v.parts?.config === true,
++    "A verifier: TLS peer = attested control key": v.parts?.endpointKey === true,
++    "A verifier: AMD report verified with the expected measurement": v.parts?.report === true,
++    "A verifier: running supervisor holds the minted keys": v.parts?.supervisor === true,
++    "A verifier-only: status pending with registry null (no registry read)": v.wrapperStatus === "pending" && v.registryCheck === null,
++    "A verifier-only: attestedOutcome = attested (production acceptance rule)": R.attestedOutcome?.status === "attested",
++    "A evidence: HTTP 200": R.evidence?.status === 200,
++    "A evidence: statement config digest = owner config": s.configDigest === true, "A evidence: statement HOST_DATA = owner config": s.hostData === true,
++    "A evidence: TLS peer = statement control key": s.peerIsControlTls === true,
++    "A evidence: same boot as the verifier (control key)": s.controlTlsSpkiSha256 != null && s.controlTlsSpkiSha256 === R.final?.identity?.controlTlsSpkiSha256,
++    "A evidence: mode snp": s.mode === "snp",
++    "A evidence: runtime gsup/helper/supervisor = the image manifest": expectedRuntime.length === 3 && expectedRuntime.every((k) => rt[k] === true),
++    "A evidence: no mcpSha256/platformApiSha256 runtime": s.noMcpOrPlatformApi === true,
++    "A evidence: no native member": s.noNative === true,
++    "B offline control: captured evidence re-verifies (non-vacuity)": off.control?.status === "verified",
++    "B tamper: flipped report byte rejected": off.reportByte?.status === "rejected",
++    "B tamper: changed statement byte rejected": off.statementByte?.status === "rejected",
++    "B replay: another nonce rejected": off.otherNonce?.status === "rejected",
++    "C wrong measurement rejected at the report": live.wrongMeasurement?.status === "rejected" && live.wrongMeasurement?.checks?.report === false && live.wrongMeasurement?.hardwareMeasurement === false,
++    "C wrong config rejected at config": live.wrongConfig?.status === "rejected" && live.wrongConfig?.checks?.config === false,
++    "D client: replica attested while the backend is unready": rte.client?.attest?.[0] === true && rte.client?.replicaStatus === "attested",
++    "D client: read fails closed (HTTP 502)": rte.client?.read?.ok === false && /HTTP 502/.test(rte.client?.read?.error || ""),
++    "D route: every read probe 502 service_unreachable": Array.isArray(rte.readProbes) && rte.readProbes.length >= 2 && rte.readProbes.every((p) => p.status === 502 && p.error === "service_unreachable"),
++    "D route: write method 403 method_refused": rte.writeProbe?.status === 403 && rte.writeProbe?.error === "method_refused",
++    "D client: wrong measurement never attests and its read fails": rte.wrongClient?.attest?.[0] === false && rte.wrongClient?.read?.ok === false,
++    "D client: a different sequencer pin is refused before any connection": rte.signerMismatchRefused === true,
+   };
+   const failed = Object.entries(required).filter(([, ok]) => !ok).map(([k]) => k);
+   return { pass: failed.length === 0, required, failed,
+-    diagnostic: { registry: v.registry, wrapperStatus: v.wrapperStatus, operatorIsTheConfiguredCanaryAddress: s.operatorMatchesConfig ?? null,
+-      chipId: R.final?.identity?.chipId ?? null,
+-      note: "no-key/no-claim authority is proven by the harness from the launcher's own fw_cfg and host config (registryKey empty, no registryKeyFile) and the restricted QEMU network, not by this label" } };
++    diagnostic: { chipId: R.final?.identity?.chipId ?? null, operatorIsTheConfiguredCanaryAddress: s.operatorMatchesConfig ?? null,
++      offlineFailedChecks: Object.fromEntries(Object.entries(off).map(([k, x]) => [k, x?.failed ?? x?.error ?? null])),
++      note: "no-key/no-claim authority is proven by the harness from the launcher's own fw_cfg and host config and the restricted QEMU network" } };
+ }
+ 
+ async function tlsUp(port, deadline) {
+@@ -77,53 +116,85 @@
+   }
+   return { up: false, tries };
+ }
++const probe = async (url, spki, method) => {
++  try {
++    const g = await AV.pinnedPost(url, MC.CHAIN_VERIFIER_ROUTE, Buffer.from(JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: [] })), { pinSha256: spki, timeoutMs: 20000 });
++    let j = null; try { j = JSON.parse(g.body.toString("utf8")); } catch {}
++    return { at: new Date().toISOString(), method, status: g.status, error: j?.error ?? null };
++  } catch (e) { return { at: new Date().toISOString(), method, status: null, error: String(e.message).slice(0, 200) }; }
++};
++async function clientRun(url, config, M, collateral, signer) {
++  const c = AV.createAttestedVerifier({ replicas: [{ url, config, measurements: [M], minTcb: TCB_FLOORS, crl: "required" }], unsafeSigner: signer, collateral, timeoutMs: 20000 });
++  try {
++    const attest = await c.attest();
++    let read; try { read = { ok: true, result: await c.request("eth_blockNumber", [], 30000) }; } catch (e) { read = { ok: false, error: String(e.message).slice(0, 400) }; }
++    const st = c.status();
++    return { attest, read, replicaStatus: st.replicas[0]?.status ?? null, reasons: st.replicas[0]?.reasons ?? [] };
++  } finally { c.close(); }
++}
+ 
+ async function main() {
+   const url = arg("url"), out = arg("out"), M = String(arg("measurement", ""));
+   if (!/^https:\/\/127\.0\.0\.1:\d{1,5}$/.test(url || "") || !out || !/^[0-9a-f]{96}$/.test(M)) { console.error("usage: see the header (loopback https url, 96-hex measurement, --out)"); process.exit(2); }
+   const deadline = Date.now() + 1000 * Number(arg("deadline-sec", 150));
+   const config = MC.canonicalDirectConfig(JSON.parse(fs.readFileSync(arg("config"), "utf8")));
++  const wrongConfig = MC.canonicalDirectConfig(JSON.parse(fs.readFileSync(arg("wrong-config"), "utf8")));
+   const digest = MC.configDigest(config), hostData = MC.hostDataHex(digest);
++  if (MC.configDigest(wrongConfig) === digest) { console.error("wrong-config equals the owner config"); process.exit(2); }
+   const runtime = JSON.parse(fs.readFileSync(arg("expect-runtime"), "utf8"));
+-  const kds = arg("kds", "on") === "on", wantRegistry = arg("registry", "on") === "on";
+-  const R = { url, expected: { measurement: M, configDigest: digest, hostData, runtime }, collateral: { kds }, registryRead: wantRegistry, attempts: [] };
+-  // 1. readiness: the attested TLS front accepts a handshake (no request, no report)
++  const kds = arg("kds", "on") === "on";
++  const R = { url, expected: { measurement: M, configDigest: digest, hostData, runtime }, collateral: { kds }, registryRead: false, attempts: [] };
+   R.readiness = await tlsUp(Number(new URL(url).port), deadline);
+   if (!R.readiness.up) { R.error = "the control front never accepted a TLS handshake before the deadline"; return finish(R, 1); }
+-  // 2. one raw evidence document for root's offline re-verification (public: statement, report, certs) + its own checks
+   const nonce = randomBytes(32);
++  let ev = null, peerSpki = null;
+   try {
+     const g = await tlsGet(url, `${MC.EVIDENCE_PATH}?nonce=${nonce.toString("hex")}`, { timeoutMs: 20000 });
+-    const ev = g.status === 200 ? JSON.parse(g.body.toString("utf8")) : null;
++    ev = g.status === 200 ? JSON.parse(g.body.toString("utf8")) : null; peerSpki = g.peerSpki;
+     const st = ev ? MC.parseStatement(ev.statement) : null;
+     R.evidence = { nonce: nonce.toString("hex"), status: g.status, peerSpkiSha256: g.peerSpki ? sha(g.peerSpki) : null, document: ev };
+     if (st) R.statementChecks = {
+       configDigest: st.configDigest === digest, hostData: st.hostData === hostData, peerIsControlTls: !!g.peerSpki && sha(g.peerSpki) === st.keys.controlTls.spkiSha256,
+       runtime: Object.fromEntries(Object.entries(runtime).map(([k, v]) => [k, st.runtime?.[k] === v])),
+       noMcpOrPlatformApi: !("mcpSha256" in (st.runtime || {})) && !("platformApiSha256" in (st.runtime || {})),
+-      noNative: !("native" in st),
+-      controlTlsSpkiSha256: st.keys?.controlTls?.spkiSha256 ?? null,
++      noNative: !("native" in st), controlTlsSpkiSha256: st.keys?.controlTls?.spkiSha256 ?? null,
+       operatorMatchesConfig: st.identity?.operator === config.identity.operator, mode: st.mode,
+     };
+   } catch (e) { R.evidence = { nonce: nonce.toString("hex"), error: String(e.message).slice(0, 300) }; }
+-  // 3. collateral: a COPY of the existing public AMD cache, authenticated per entry; AMD KDS only when allowed
+   const collateral = cachedCollateral({ dir: arg("collateral-dir"), upstream: kds ? httpCollateral() : null });
+-  // 4. the registry: the bound quorum, read-only (no key exists; nothing is signed or sent)
+-  let registry = null;
+-  if (wantRegistry) { const { quorumRegistry } = await imp("metal/guest/platform-api-verify.mjs"); registry = quorumRegistry({ rpcs: config.rpcs, quorum: config.quorum, registry: config.contracts.registry }); }
+-  // 5. the published verifier; retried only while the guest is still coming up (evidence/supervisor UNKNOWN)
++  // A. the published verifier (no registry); retried only while the guest is still coming up
+   let final = null;
+   while (Date.now() < deadline) {
+     const t0 = Date.now();
+-    final = await verifyMeasuredControl({ url, expect: { config, measurements: [M], minTcb: TCB_FLOORS, crl: "required" }, collateral, registry, timeoutMs: 20000 });
++    final = await verifyMeasuredControl({ url, expect: { config, measurements: [M], minTcb: TCB_FLOORS, crl: "required" }, collateral, registry: null, timeoutMs: 20000 });
+     R.attempts.push({ at: new Date().toISOString(), ms: Date.now() - t0, status: final.status, checks: final.checks, reasons: final.reasons });
+-    const retry = final.status === "unknown" && (final.checks.evidence === null || final.checks.supervisor === null);
+-    if (!retry) break;
++    if (!(final.status === "unknown" && (final.checks.evidence === null || final.checks.supervisor === null))) break;
+     await sleep(5000);
+   }
+   R.final = final ? { status: final.status, checks: final.checks, reasons: final.reasons, identity: final.identity } : null;
+-  R.collateral.stats = collateral.stats; R.collateral.events = collateral.events;
+   R.verdict = hardwareVerdict(final, M);
++  R.attestedOutcome = final ? AV.attestedOutcome(final) : null;
++  // B. offline: the captured document through the published step 5, then single-byte changes and another nonce
++  if (ev && peerSpki) {
++    const o = { nonce, peerSpki, measurement: M, hostData, collateral };
++    R.offline = { control: await offlineReport(ev, o), reportByte: await offlineReport(tamperReport(ev), o),
++      statementByte: await offlineReport(tamperStatement(ev), o), otherNonce: await offlineReport(ev, { ...o, nonce: randomBytes(32) }) };
++  }
++  // C. live rejections, fresh nonces
++  const wm = await verifyMeasuredControl({ url, expect: { config, measurements: [flipHex(M)], minTcb: TCB_FLOORS, crl: "required" }, collateral, registry: null, timeoutMs: 20000 });
++  const wc = await verifyMeasuredControl({ url, expect: { config: wrongConfig, measurements: [M], minTcb: TCB_FLOORS, crl: "required" }, collateral, registry: null, timeoutMs: 20000 });
++  R.liveRejections = { wrongMeasurement: { status: wm.status, checks: { report: wm.checks.report ?? "absent", config: wm.checks.config }, hardwareMeasurement: wm.checks.hardware?.measurement ?? "absent", reasons: wm.reasons.slice(-3) },
++    wrongConfig: { status: wc.status, checks: { config: wc.checks.config ?? "absent" }, reasons: wc.reasons.slice(-2) } };
++  // D. route fail-closed while the backend is unready, through the production client and pinned POSTs
++  const spki = R.final?.identity?.controlTlsSpkiSha256;
++  R.route = { client: await clientRun(url, config, M, collateral, config.chainVerifier.unsafeSigner) };
++  R.route.readProbes = [];
++  for (let i = 0; i < 3 && spki; i++) { R.route.readProbes.push(await probe(url, spki, "eth_blockNumber")); if (i < 2) await sleep(10000); }
++  R.route.writeProbe = spki ? await probe(url, spki, "eth_sendRawTransaction") : null;
++  R.route.wrongClient = await clientRun(url, config, flipHex(M), collateral, config.chainVerifier.unsafeSigner);
++  try { AV.checkAttestedReplicas([{ url, config, measurements: [M], minTcb: TCB_FLOORS }], { unsafeSigner: "0x" + "11".repeat(20) }); R.route.signerMismatchRefused = false; }
++  catch (e) { R.route.signerMismatchRefused = /pins sequencer/.test(e.message); R.route.signerMismatchError = String(e.message).slice(0, 200); }
++  R.collateral.stats = collateral.stats; R.collateral.events = collateral.events;
+   R.acceptance = acceptance(R);
+   return finish(R, R.acceptance.pass ? 0 : 1);
+ }
+@@ -132,7 +203,7 @@
+   if (code === 0 && !R.acceptance.pass) code = 1;
+   fs.writeFileSync(arg("out"), JSON.stringify(R, null, 1), { flag: "wx" });
+   fs.writeFileSync(arg("out") + ".acceptance.json", JSON.stringify(R.acceptance, null, 1), { flag: "wx" });
+-  console.log(JSON.stringify({ acceptance: { pass: R.acceptance.pass, failed: R.acceptance.failed, diagnostic: R.acceptance.diagnostic }, readiness: R.readiness ?? null, error: R.error ?? null }, null, 1));
++  console.log(JSON.stringify({ acceptance: { pass: R.acceptance.pass, failed: R.acceptance.failed }, readiness: R.readiness ?? null, error: R.error ?? null }, null, 1));
+   process.exit(code);
+ }
+ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-canary/canary/owner-config.mjs	2026-10-22 15:51:55.059188194 -0700
++++ canary/owner-config.mjs	2026-10-25 10:18:35.400312237 -0700
+@@ -1,17 +1,23 @@
+-// owner-config.mjs: the canary's BARE direct-control owner config, validated by the PUBLISHED canonicalDirectConfig
+-// (tree/metal/guest/measured-control.mjs), with the config digest and the HOST_DATA the published launcher binds.
+-//   - bare: no mcp, platformApi, platformPolicyCarriers, leaseGas, ownerNomination or nativeControl member;
+-//   - not selling: cpuPrice6/payout null, and the operator address is a hash with NO private key (the launcher gets no
+-//     registryKeyFile, so REGISTRY_ENABLED/CLAIM_ENABLED are 0 in the guest);
+-//   - identity.publicUrl https://direct-control-canary.invalid: its registry id is not registered (expected "pending");
+-//   - isolation endpoints: 10.0.2.2:<two ports the harness proved have NO host listener> (never production guestd 8095/8096),
+-//     and the canary also runs slirp with restrict=on, so the guest reaches no host or outside address at all;
+-//   - contracts: the production pins (contracts/deployments/contract-pins-base.json of the commit), used only as bound,
+-//     public addresses; rpcs: two public Base RPCs (the guest cannot reach them under restrict=on; the host-side verifier
+-//     may read the registry through them, read-only).
+-//   node canary/owner-config.mjs --manager-port N --data-port M [--control-port 8444] --out FILE  -> prints {digest, hostData}
+-// Adapted 2026-10-22 from the root-reviewed direct-hardware-canary/canary/owner-config.mjs (3509db93): only nativeControl (a new
+-// optional member at 493ee9ee) added to the bare-config refusal list. The produced config is otherwise byte-identical in shape.
++// owner-config.mjs: the canary's VERIFIER-ONLY direct-control owner config, validated by the PUBLISHED canonicalDirectConfig
++// (tree/metal/guest/measured-control.mjs of 0235e7d96), with the config digest and the HOST_DATA the published launcher binds.
++//   - verifier-only: chainVerifier {format enclave-chain-verifier/v1, unsafeSigner = the documented Base sequencer pin
++//     (docs/network/local-chain-verifier.md), proofSources = ONE host-loopback stand-in port the harness proved has NO
++//     listener, expose "attested"}; no mcp, platformApi, platformPolicyCarriers, leaseGas, ownerNomination or nativeControl
++//     member, and NO txBackend (a read-only verifier);
++//   - the Base backend is therefore UNREADY by construction: its only proof source has no listener, and slirp restrict=on
++//     (canary/qemu-restrict.sh) blocks every host and outside address anyway. The route must fail closed; nothing is faked;
++//   - not selling: cpuPrice6/payout null; the operator address is a hash with NO private key (no registryKeyFile is given to
++//     the launcher, so REGISTRY_ENABLED/CLAIM_ENABLED are 0 in the guest);
++//   - identity.publicUrl https://snp-verifier-canary.invalid: not registered (registry diagnostic expected "pending");
++//   - isolation endpoints: 10.0.2.2:<two more refused stand-in ports> (never production guestd 8095/8096);
++//   - contracts: the commit's public production pins, used only as bound addresses; rpcs: two public Base RPCs the guest
++//     cannot reach under restrict=on (the host-side registry read is off in the recommended run).
++//   node canary/owner-config.mjs --manager-port N --data-port M --proof-port Q [--verifier-port V] [--control-port 8444] --out FILE
++//     -> prints {digest, hostData, ...}
++//   node canary/owner-config.mjs ... --variant wrong-config --out FILE   -> the SAME config with one bound field changed
++//     (controlPort+1 is NOT used: the variant changes chainVerifier.unsafeSigner), for the wrong-config rejection check only.
++// Adapted 2026-10-25 from the root-reviewed native-final-canary/canary/owner-config.mjs (79c592e0): only the verifier-only
++// chainVerifier member, its stand-in port and the wrong-config variant were added; the bare refusal list is unchanged.
+ import fs from "node:fs";
+ import path from "node:path";
+ import { createHash } from "node:crypto";
+@@ -21,21 +27,26 @@
+ const sha = (s) => createHash("sha256").update(s).digest("hex");
+ 
+ export const CANARY = Object.freeze({
+-  publicUrl: "https://direct-control-canary.invalid",
+-  operator: "0x" + sha("enclave direct-control hardware canary operator: no private key exists").slice(0, 40),
+-  releaseId: sha("enclave direct-control hardware canary: no app release"),
++  publicUrl: "https://snp-verifier-canary.invalid",
++  operator: "0x" + sha("enclave verifier-only SNP hardware canary operator: no private key exists").slice(0, 40),
++  releaseId: sha("enclave verifier-only SNP hardware canary: no app release"),
+   rpcs: ["https://base-rpc.publicnode.com", "https://mainnet.base.org"],
+-  gateways: ["http://192.0.2.1:9"],   // TEST-NET-1, never routed; the bare guest launches no app
++  gateways: ["http://192.0.2.1:9"],   // TEST-NET-1, never routed; the guest launches no app
+   repo: "EnclaveHost/enclave",
++  unsafeSigner: "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a",   // docs/network/local-chain-verifier.md (Base sequencer pin)
++  wrongUnsafeSigner: "0x" + sha("not the sequencer: wrong-config variant").slice(0, 40),
++  verifierPort: 50546,
+ });
+ const PRODUCTION_GUESTD = [8095, 8096];
++export const BARE_REFUSED = ["mcp", "platformApi", "platformPolicyCarriers", "leaseGas", "ownerNomination", "nativeControl"];
+ 
+-export function buildOwnerConfig({ managerPort, dataPort, controlPort = MC.DEFAULT_CONTROL_PORT }) {
+-  for (const p of [managerPort, dataPort]) {
+-    if (!Number.isInteger(p) || p < 1024 || p > 65535) throw new Error("guestd stand-in ports must be integers 1024..65535");
++export function buildOwnerConfig({ managerPort, dataPort, proofPort, verifierPort = CANARY.verifierPort, controlPort = MC.DEFAULT_CONTROL_PORT, variant = null }) {
++  for (const p of [managerPort, dataPort, proofPort]) {
++    if (!Number.isInteger(p) || p < 1024 || p > 65535) throw new Error("stand-in ports must be integers 1024..65535");
+     if (PRODUCTION_GUESTD.includes(p)) throw new Error(`port ${p} is production guestd's: refused`);
+   }
+-  if (managerPort === dataPort) throw new Error("manager and data ports must differ");
++  if (new Set([managerPort, dataPort, proofPort]).size !== 3) throw new Error("manager, data and proof stand-in ports must differ");
++  if (variant !== null && variant !== "wrong-config") throw new Error(`unknown variant ${variant}`);
+   const pins = JSON.parse(fs.readFileSync(path.join(TREE, "contracts/deployments/contract-pins-base.json"), "utf8")).contracts;
+   const raw = {
+     format: MC.CONFIG_FORMAT, chainId: MC.CHAIN_ID, contracts: { ...pins }, profileDigest: null,
+@@ -45,9 +56,14 @@
+     selling: { cpuPrice6: null, payout: null },
+     isolation: { managerUrl: `http://10.0.2.2:${managerPort}`, dataAddr: `10.0.2.2:${dataPort}` },
+     hostAdmissionSha256: null, controlPort,
++    chainVerifier: { format: "enclave-chain-verifier/v1", unsafeSigner: variant === "wrong-config" ? CANARY.wrongUnsafeSigner : CANARY.unsafeSigner,
++      proofSources: [`http://10.0.2.2:${proofPort}/`], port: verifierPort, expose: "attested" },
+   };
+   const config = MC.canonicalDirectConfig(raw);
+-  for (const k of ["mcp", "platformApi", "platformPolicyCarriers", "leaseGas", "ownerNomination", "nativeControl"]) if (k in config) throw new Error(`the canary config is bare: ${k} present`);
++  for (const k of BARE_REFUSED) if (k in config) throw new Error(`the canary config is verifier-only: ${k} present`);
++  const cv = config.chainVerifier;
++  if (!cv || cv.expose !== "attested" || "txBackend" in cv) throw new Error("the canary config must keep a read-only, attested-only chainVerifier");
++  if (cv.proofSources.length !== 1 || cv.proofSources[0] !== `http://10.0.2.2:${proofPort}/`) throw new Error("the only proof source must be the refused stand-in");
+   const digest = MC.configDigest(config);
+   return { config, text: MC.canonicalJson(config) + "\n", digest, hostData: MC.hostDataHex(digest) };
+ }
+@@ -55,8 +71,10 @@
+ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+   const arg = (n, d) => { const i = process.argv.indexOf("--" + n); return i > 0 ? process.argv[i + 1] : d; };
+   const out = arg("out");
+-  if (!out) { console.error("usage: owner-config.mjs --manager-port N --data-port M [--control-port P] --out FILE"); process.exit(2); }
+-  const r = buildOwnerConfig({ managerPort: Number(arg("manager-port")), dataPort: Number(arg("data-port")), controlPort: Number(arg("control-port", MC.DEFAULT_CONTROL_PORT)) });
++  if (!out) { console.error("usage: owner-config.mjs --manager-port N --data-port M --proof-port Q [--verifier-port V] [--control-port P] [--variant wrong-config] --out FILE"); process.exit(2); }
++  const r = buildOwnerConfig({ managerPort: Number(arg("manager-port")), dataPort: Number(arg("data-port")), proofPort: Number(arg("proof-port")),
++    verifierPort: Number(arg("verifier-port", CANARY.verifierPort)), controlPort: Number(arg("control-port", MC.DEFAULT_CONTROL_PORT)), variant: arg("variant", null) });
+   fs.writeFileSync(out, r.text, { flag: "wx", mode: 0o600 });
+-  console.log(JSON.stringify({ digest: r.digest, hostData: r.hostData, controlPort: r.config.controlPort, isolation: r.config.isolation, operator: r.config.identity.operator, publicUrl: r.config.identity.publicUrl }));
++  console.log(JSON.stringify({ digest: r.digest, hostData: r.hostData, controlPort: r.config.controlPort, isolation: r.config.isolation,
++    chainVerifier: r.config.chainVerifier, operator: r.config.identity.operator, publicUrl: r.config.identity.publicUrl }));
+ }
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-canary/test/test_run_canary.py	2026-10-22 13:39:03.520398767 -0700
++++ test/test_run_canary.py	2026-10-25 10:34:23.459286027 -0700
+@@ -1,18 +1,18 @@
+-"""Narrow tests of canary/run-canary.py (root review 2026-10-22): acceptance cannot pass with any false check or service drift;
++"""Narrow tests of canary/run-canary.py (root review 2026-10-22; verifier-only adaptation 2026-10-25): acceptance cannot pass with any false check or service drift;
+ group signals only while ownership holds; the parent stops only its own scope and scrubs only after proven absence.
+ Every process here is a DISPOSABLE ordinary subprocess (sleep/bash) or a uniquely named transient test scope. No production
+ PID is ever signalled; no QEMU is started."""
+ import copy, importlib.util, json, os, pathlib, secrets, signal, subprocess, sys, tempfile, time, unittest
+ D = pathlib.Path(__file__).resolve().parents[1]
+ spec = importlib.util.spec_from_file_location('rc', D / 'canary/run-canary.py'); rc = importlib.util.module_from_spec(spec); spec.loader.exec_module(rc)
+-PROTECTED = set(rc.PROTECTED)
++PROTECTED = {int(p) for p in rc.qemus()}   # every QEMU running now: never a test's process
+ 
+ def good():
+     return {'pinsAtLaunch': [], 'verifierExit': 0, 'acceptance': {'pass': True, 'failed': [], 'diagnostic': {'registry': 'pending'}},
+             'qemuStarts': 1, 'qemuArgvChecks': [{'measuredCmdline': True, 'netdevRestrictedOneLoopbackForwardToControlFront': True}],
+             'noKeyEvidence': {'fwRegistryKeyEmpty': True, 'hostConfigHasNoKeyOrRelayInput': True}, 'fwCfgModes': ['0o600', '0o700'],
+             'cleanup': {'allOwnedAbsent': True, 'refused': False}, 'protectedQemuIdentitiesUnchanged': True, 'userServicesUnchanged': True,
+-            'collateralSourceUnchanged': True, 'privateRemoved': True}
++            'collateralSourceUnchanged': True, 'privateRemoved': True, 'rpcStateUnchanged': True}
+ 
+ class Acceptance(unittest.TestCase):
+     def test_all_promised_checks_true_passes_with_registry_pending(self):
+@@ -24,6 +24,8 @@
+             'verifier exit 1': lambda r: r.update(verifierExit=1),
+             'service drift': lambda r: r.update(userServicesUnchanged=False),
+             'protected QEMU changed': lambda r: r.update(protectedQemuIdentitiesUnchanged=False),
++            'RPC VM state changed during the run': lambda r: r.update(rpcStateUnchanged=False),
++            'RPC state never recorded': lambda r: r.pop('rpcStateUnchanged'),
+             'QEMU relaunched': lambda r: r.update(qemuStarts=2),
+             'no QEMU record': lambda r: r.update(qemuStarts=0),
+             'netdev not restricted': lambda r: r['qemuArgvChecks'][0].update(netdevRestrictedOneLoopbackForwardToControlFront=False),
+@@ -44,8 +46,9 @@
+             self.assertFalse(ok, name); self.assertTrue(failed, name)
+ 
+ class NoKeyEvidence(unittest.TestCase):
+-    ports = {'guestdStandInManager': 40001, 'guestdStandInData': 40002}
+-    owner = {'selling': {'cpuPrice6': None, 'payout': None}, 'x': 1}
++    ports = {'guestdStandInManager': 40001, 'guestdStandInData': 40002, 'proofStandIn': 40003}
++    cv = {'format': 'enclave-chain-verifier/v1', 'unsafeSigner': '0x' + 'af' * 20, 'proofSources': ['http://10.0.2.2:40003/'], 'port': 50546, 'expose': 'attested'}
++    owner = {'selling': {'cpuPrice6': None, 'payout': None}, 'x': 1, 'chainVerifier': cv}
+     def fw(self, **o):
+         f = {'registryKey': '', 'fleetSecret': '', 'relayUrl': '', 'tunnelToken': '', 'volumes': [], 'direct': self.owner,
+              'isolation': {'managerUrl': 'http://10.0.2.2:40001', 'dataAddr': '10.0.2.2:40002', 'pairingKey': 'ab' * 32}}
+@@ -57,16 +60,36 @@
+                ({}, self.fw(fleetSecret='s')), ({}, self.fw(relayUrl='wss://x')), ({}, self.fw(certsApi='https://c')),
+                ({}, self.fw(isolation={'managerUrl': 'http://10.0.2.2:8095', 'dataAddr': '10.0.2.2:8096', 'pairingKey': 'ab' * 32})),
+                ({}, self.fw(isolation={'managerUrl': 'http://10.0.2.2:40001', 'dataAddr': '10.0.2.2:40002', 'release': True})),
+-               ({}, self.fw(direct={'other': 1})), ({}, None)]
++               ({}, self.fw(direct={'other': 1})), ({}, None),
++               ({'chainVerifier': {}}, self.fw()), ({}, self.fw(chainVerifier=self.cv)), ({}, self.fw(platformPolicyCarriers={})),
++               ({}, self.fw(direct={**self.owner, 'chainVerifier': {**self.cv, 'expose': None}})),
++               ({}, self.fw(direct={**self.owner, 'chainVerifier': {**self.cv, 'txBackend': 'http://10.0.2.2:1/'}})),
++               ({}, self.fw(direct={**self.owner, 'mcp': {}}))]
+         for host, fw in bad:
+             self.assertFalse(all(rc.no_key_evidence(host, fw, self.owner, self.ports).values()), (host, fw and {k: fw[k] for k in fw if k != 'direct'}))
+         self.assertFalse(all(rc.no_key_evidence({}, self.fw(), {'selling': {'cpuPrice6': 1, 'payout': None}}, self.ports).values()))
++        other = {**self.owner, 'chainVerifier': {**self.cv, 'proofSources': ['http://10.0.2.2:40999/']}}   # a proof source that is not the refused stand-in
++        self.assertFalse(all(rc.no_key_evidence({}, self.fw(direct=other), other, self.ports).values()))
++
++class Admission(unittest.TestCase):
++    """root rule 2026-10-25: RPC active -> 16384 + 3072; RPC not active -> its 66 GiB reservation is held at admission AND as the run floor."""
++    def with_rpc(self, state):
++        old = rc.rpc_state; rc.rpc_state = lambda: state
++        try: return rc.admission()
++        finally: rc.rpc_state = old
++    def test_rpc_running(self):
++        need, floor, _ = self.with_rpc((True, 67584, 'active')); self.assertEqual((need, floor), (19456, 16384))
++    def test_rpc_down_holds_its_reservation(self):
++        need, floor, _ = self.with_rpc((False, 67584, 'inactive')); self.assertEqual((need, floor), (87040, 83968))
++        need, floor, _ = self.with_rpc((False, 70000, 'failed')); self.assertEqual((need, floor), (70000 + 3072 + 16384, 16384 + 70000))
++    def test_bounds(self):
++        self.assertEqual((rc.MEM_MIB, rc.CAP_MIB, rc.FLOOR_MIB, rc.CPUS, rc.CPU_QUOTA), (2048, 3072, 16384, 4, '200%'))
+ 
+ class ArgvChecks(unittest.TestCase):
+     hd = 'cd' * 32
+     def argv(self, **o):
+         import base64
+-        a = {'-append': rc.MEASURED_CMDLINE, '-smp': '4', '-m': '4096', '-bios': str(rc.OVMF), '-kernel': str(rc.IMAGE / 'vmlinuz'),
++        a = {'-append': rc.MEASURED_CMDLINE, '-smp': '4', '-m': '2048', '-bios': str(rc.OVMF), '-kernel': str(rc.IMAGE / 'vmlinuz'),
+              '-initrd': str(rc.IMAGE / 'initramfs.cpio.gz'), '-netdev': 'user,id=net0,restrict=on,hostfwd=tcp:127.0.0.1:40000-:8444',
+              '-object': f"sev-snp-guest,id=cx0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on,sev-device=/dev/sev,host-data={base64.b64encode(bytes.fromhex(self.hd)).decode()}"}
+         a.update(o); return [str(rc.QEMU)] + [x for k, v in a.items() if v is not None for x in (k, v)]
+@@ -75,7 +98,7 @@
+     def test_deviations_fail(self):
+         for o in [{'-netdev': 'user,id=net0,hostfwd=tcp:127.0.0.1:40000-:8444'}, {'-netdev': 'user,id=net0,restrict=on,hostfwd=tcp:127.0.0.1:40000-:8080'},
+                   {'-netdev': 'user,id=net0,restrict=on,hostfwd=tcp:127.0.0.1:40000-:8444,hostfwd=tcp:127.0.0.1:40009-:8080'},
+-                  {'-append': rc.MEASURED_CMDLINE.replace(' metal.control=direct', '')}, {'-smp': '2'}, {'-drive': 'file=/x'},
++                  {'-append': rc.MEASURED_CMDLINE.replace(' metal.control=direct', '')}, {'-smp': '2'}, {'-m': '4096'}, {'-drive': 'file=/x'},
+                   {'-object': 'sev-snp-guest,id=cx0,kernel-hashes=on,host-data=AAAA'}, {'-bios': '/usr/share/edk2/x64/OVMF.4m.fd'}]:
+             self.assertFalse(all(rc.argv_checks([self.argv(**o)], self.hd, 40000)[0].values()), o)
+         self.assertFalse(all(rc.argv_checks([['/usr/bin/qemu-other'] + self.argv()[1:]], self.hd, 40000)[0].values()))
+@@ -92,7 +115,8 @@
+     def test_real_targets_cover_every_helper(self):
+         names = set(rc.pin_targets())
+         for n in ['canary/run-canary.py', 'canary/verify-canary.mjs', 'canary/owner-config.mjs', 'canary/qemu-restrict.sh', 'bin/ssh', 'bin/scp', 'bin/sftp',
+-                  'image/initramfs.cpio.gz', 'image/vmlinuz', 'image/cmdline', 'image/MEASUREMENT', 'ovmf', 'qemu', 'node', 'tree/source-files', 'tree/node_modules']:
++                  'image/initramfs.cpio.gz', 'image/vmlinuz', 'image/cmdline', 'image/MEASUREMENT', 'image/manifest.json', 'ovmf', 'qemu', 'node', 'receipt', 'inputs',
++                  'tools/env.sh', 'tree/source-files', 'tree/node_modules']:
+             self.assertIn(n, names)
+ 
+ def spawn(args, **kw):
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-canary/test/canary-launcher.test.mjs	2026-10-22 15:51:55.059254313 -0700
++++ test/canary-launcher.test.mjs	2026-10-25 10:36:35.397815282 -0700
+@@ -2,6 +2,7 @@
+ // the canary's exact host-config shape and canary/qemu-restrict.sh as cfg.qemu, but the wrapper's "real QEMU" is
+ // test/fake-qemu.sh, which only records its argv and the fw_cfg file and sleeps. Then the PUBLISHED planDirectBoot judges that
+ // fw_cfg against the measured cmdline. Plus the wrapper's refusals and verify-canary's acceptance() rules.
++// Adapted 2026-10-25 for the verifier-only 0235e7d96 image: 2048 MiB, the chainVerifier owner config, A..D acceptance, launcher refusal.
+ import test from "node:test";
+ import assert from "node:assert/strict";
+ import fs from "node:fs";
+@@ -11,10 +12,12 @@
+ import { createHash } from "node:crypto";
+ import { fileURLToPath } from "node:url";
+ const D = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+-const TREE = path.join(D, "tree"), IMAGE = path.resolve(D, "../native-final-image/image/dist-direct-493ee9ee0");
++const TREE = path.join(D, "tree"), IMAGE = path.resolve(D, "../attested-image-stage/out/dist-direct-0235e7d96-a");
+ const MC = await import(path.join(TREE, "metal/guest/measured-control.mjs"));
+ const { buildOwnerConfig } = await import(path.join(D, "canary/owner-config.mjs"));
+-const { acceptance, hardwareVerdict } = await import(path.join(D, "canary/verify-canary.mjs"));
++const { acceptance, hardwareVerdict, tamperReport, tamperStatement, flipHex, offlineReport } = await import(path.join(D, "canary/verify-canary.mjs"));
++const AV = await import(path.join(TREE, "network/attested-verifier-client.mjs"));
++const { CANARY } = await import(path.join(D, "canary/owner-config.mjs"));
+ const sha = (b) => createHash("sha256").update(b).digest("hex");
+ const FAKE = path.join(D, "test/fake-qemu.sh"), WRAP = path.join(D, "canary/qemu-restrict.sh");
+ const CMDLINE = "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct";
+@@ -24,10 +27,10 @@
+   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "canary-dry-")); fs.chmodSync(tmp, 0o700);
+   const priv = path.join(tmp, "private"); fs.mkdirSync(path.join(priv, "tmp"), { recursive: true, mode: 0o700 });
+   t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+-  const oc = buildOwnerConfig({ managerPort: 40961, dataPort: 40962 });
++  const oc = buildOwnerConfig({ managerPort: 40961, dataPort: 40962, proofPort: 40963 });
+   fs.writeFileSync(path.join(priv, "owner-config.json"), oc.text, { mode: 0o600 });
+   const key = "ab".repeat(32); fs.writeFileSync(path.join(priv, "pairing.key"), key + "\n", { mode: 0o600 });
+-  const host = { mode: "snp", name: "direct-control-canary", cpus: 4, memMiB: 4096, dist: IMAGE, ovmf: "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd",
++  const host = { mode: "snp", name: "direct-control-canary", cpus: 4, memMiB: 2048, dist: IMAGE, ovmf: "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd",
+     qemu: WRAP, sevDevice: "/dev/sev", control: "direct", direct: path.join(priv, "owner-config.json"),
+     isolation: { backend: "snp-guest-per-app", pairingKeyFile: path.join(priv, "pairing.key"), managerUrl: "http://10.0.2.2:40961", dataAddr: "10.0.2.2:40962" },
+     hostfwd: [{ host: 40960, guest: 8444 }], measureGflops: false };
+@@ -47,7 +50,7 @@
+   const argv = fs.readFileSync(argvFile, "utf8").split("\0").slice(0, -1);
+   const val = (f) => argv.flatMap((x, i) => (x === f ? [argv[i + 1]] : []));
+   assert.deepEqual(val("-append"), [CMDLINE]);
+-  assert.deepEqual(val("-smp"), ["4"]); assert.deepEqual(val("-m"), ["4096"]);
++  assert.deepEqual(val("-smp"), ["4"]); assert.deepEqual(val("-m"), ["2048"]);
+   assert.deepEqual(val("-kernel"), [path.join(IMAGE, "vmlinuz")]); assert.deepEqual(val("-initrd"), [path.join(IMAGE, "initramfs.cpio.gz")]);
+   assert.deepEqual(val("-bios"), [host.ovmf]);
+   assert.deepEqual(val("-netdev"), ["user,id=net0,restrict=on,hostfwd=tcp:127.0.0.1:40960-:8444"], "restricted slirp, one loopback forward to the control front only");
+@@ -59,16 +62,24 @@
+   const fw = JSON.parse(fs.readFileSync(fwCopy, "utf8"));
+   for (const k of ["registryKey", "fleetSecret", "relayUrl", "tunnelToken"]) assert.equal(fw[k], "", k);
+   assert.ok(!fw.certsApi && !fw.acmeEabKid && !fw.relayHost && !fw.leaseGas && !fw.ownerNomination);
++  assert.ok(!("chainVerifier" in fw) && !("platformPolicyCarriers" in fw), "the verifier is bound only inside the direct config");
++  assert.equal(fw.direct.chainVerifier.expose, "attested"); assert.deepEqual(fw.direct.chainVerifier.proofSources, ["http://10.0.2.2:40963/"]);
+   assert.deepEqual(fw.volumes, []); assert.deepEqual(fw.direct, JSON.parse(oc.text));
+   assert.deepEqual(fw.isolation, { managerUrl: "http://10.0.2.2:40961", dataAddr: "10.0.2.2:40962", pairingKey: key });
+   // the guest's own boot decision on exactly this fw_cfg (published planDirectBoot)
+-  const plan = await MC.planDirectBoot({ cmdline: CMDLINE, fw, reportHostData: oc.hostData });
++    // the image's /opt/rpc-runtime/IMAGE.json is the commit's metal/chain-verifier-image.json (manifest sha 23ac96ad): judge with exactly it
++  const imageFile = path.join(TREE, "metal/chain-verifier-image.json");
++  assert.equal(sha(fs.readFileSync(imageFile)), "23ac96adb0c6728ab48627e45b150845ef93690f73dba70da60ab6cf79dea964");
++  const paths = { ...MC.GUEST_PATHS, chainVerifierImage: imageFile };
++  const plan = await MC.planDirectBoot({ cmdline: CMDLINE, fw, reportHostData: oc.hostData, paths });
+   assert.equal(plan.ok, true, JSON.stringify(plan.reasons)); assert.equal(plan.bound, true); assert.equal(plan.selling, false);
+   assert.equal(plan.env.REGISTRY_ENABLED, "0"); assert.equal(plan.env.CLAIM_ENABLED, "0"); assert.ok(!("REGISTRY_PRIVATE_KEY" in plan.env));
+   for (const k of ["SECRETS_API", "DOMAINS_API", "CERTS_API", "DNS_API"]) assert.equal(plan.env[k], "", k);
+   assert.equal(plan.env.ENCLAVE_PLATFORM_HOST_POLICY, "production", "admin host policy stays on in direct mode");
+   assert.equal(plan.env.VMMGR_URL, "http://10.0.2.2:40961"); assert.equal(plan.mcp, null); assert.equal(plan.platformApi, null);
+-  const wrong = await MC.planDirectBoot({ cmdline: CMDLINE, fw, reportHostData: "00".repeat(32) });
++  assert.ok(JSON.stringify(plan).includes("/chain-verifier"), "the verifier-only plan routes /chain-verifier");
++  for (const k of ["BASE_RPC", "BASE_RPCS"]) assert.equal(plan.env[k], "http://127.0.0.1:9/", `${k} refuses (the verifier is the only chain authority)`);
++  const wrong = await MC.planDirectBoot({ cmdline: CMDLINE, fw, reportHostData: "00".repeat(32), paths });
+   assert.equal(wrong.ok, false, "a HOST_DATA that does not bind the config refuses to boot");
+ });
+ 
+@@ -83,35 +94,82 @@
+     assert.equal(run(bad).status, 97, JSON.stringify(bad));
+ });
+ 
+-test("acceptance: every promised check is required; registry is diagnostic only", () => {
++test("acceptance: A..D are all required; nothing passes without the rejections and the fail-closed route", () => {
+   const M = "ab".repeat(48), rt = { gsupSha256: "1", helperSha256: "2", supervisorSha256: "3" };
+   const final = (o = {}) => ({ status: "pending", identity: { measurement: M, controlTlsSpkiSha256: "k" },
+     checks: { statement: true, config: true, "endpoint key": true, report: true, supervisor: true, registry: null, ...o } });
+-  const R = (o = {}, f = final()) => ({ expected: { measurement: M, runtime: rt }, evidence: { status: 200 }, final: f,
++  const R = (o = {}, f = final(), x = {}) => ({ expected: { measurement: M, runtime: rt }, evidence: { status: 200 }, final: f, attestedOutcome: AV.attestedOutcome({ ...f, identity: { ...f.identity, controlTlsSpkiSha256: "a".repeat(64) } }),
+     statementChecks: { configDigest: true, hostData: true, peerIsControlTls: true, controlTlsSpkiSha256: "k", mode: "snp",
+-      runtime: { gsupSha256: true, helperSha256: true, supervisorSha256: true }, noMcpOrPlatformApi: true, noNative: true, operatorMatchesConfig: true, ...o }, verdict: hardwareVerdict(f, M) });
++      runtime: { gsupSha256: true, helperSha256: true, supervisorSha256: true }, noMcpOrPlatformApi: true, noNative: true, operatorMatchesConfig: true, ...o }, verdict: hardwareVerdict(f, M),
++    offline: { control: { status: "verified" }, reportByte: { status: "rejected" }, statementByte: { status: "rejected" }, otherNonce: { status: "rejected" } },
++    liveRejections: { wrongMeasurement: { status: "rejected", checks: { report: false }, hardwareMeasurement: false }, wrongConfig: { status: "rejected", checks: { config: false } } },
++    route: { client: { attest: [true], replicaStatus: "attested", read: { ok: false, error: "attested verifier: no attested replica answered (https://127.0.0.1:1: HTTP 502)" } },
++      readProbes: [{ status: 502, error: "service_unreachable" }, { status: 502, error: "service_unreachable" }], writeProbe: { status: 403, error: "method_refused" },
++      wrongClient: { attest: [false], read: { ok: false } }, signerMismatchRefused: true }, ...x });
+   const ok = acceptance(R());
+-  assert.equal(ok.pass, true, ok.failed.join(", ")); assert.equal(ok.diagnostic.registry, "pending");
+-  for (const [name, r] of [["runtime mismatch", R({ runtime: { gsupSha256: true, helperSha256: false, supervisorSha256: true } })],
+-                           ["runtime missing", R({ runtime: {} })], ["mcp role present", R({ noMcpOrPlatformApi: false })],
+-                           ["native names in the statement", R({ noNative: false })], ["native check absent", R({ noNative: undefined })],
+-                           ["HOST_DATA mismatch", R({ hostData: false })], ["other boot", R({ controlTlsSpkiSha256: "other" })],
+-                           ["dev mode", R({ mode: "dev" })], ["report false", R({}, final({ report: false }))],
+-                           ["wrong measurement", R({}, { ...final(), identity: { measurement: "cd".repeat(48), controlTlsSpkiSha256: "k" } })],
+-                           ["supervisor unknown", R({}, { ...final({ supervisor: null }), status: "unknown" })]])
+-    assert.equal(acceptance(r).pass, false, name);
+-  // a "verified" registry cannot make up for a failed hardware or runtime check
+-  assert.equal(acceptance(R({ runtime: {} }, { ...final({ registry: true }), status: "verified" })).pass, false);
+-  // the operator label is diagnostic, not proof of a key-less launch
+-  assert.equal(acceptance(R({ operatorMatchesConfig: false })).pass, true);
+-});
+-
+-test("owner config is bare, not selling, and never names production guestd", () => {
+-  const a = buildOwnerConfig({ managerPort: 40961, dataPort: 40962 });
+-  assert.equal(a.config.identity.publicUrl, "https://direct-control-canary.invalid");
++  assert.equal(ok.pass, true, ok.failed.join(", "));
++  const r0 = R(); const mut = (f) => { const r = structuredClone(r0); f(r); return r; };
++  const bad = {
++    "runtime mismatch": R({ runtime: { gsupSha256: true, helperSha256: false, supervisorSha256: true } }), "mcp role present": R({ noMcpOrPlatformApi: false }),
++    "native member": R({ noNative: false }), "HOST_DATA mismatch": R({ hostData: false }), "other boot": R({ controlTlsSpkiSha256: "other" }), "dev mode": R({ mode: "dev" }),
++    "report false": R({}, final({ report: false })), "wrong measurement verified": R({}, { ...final(), identity: { measurement: "cd".repeat(48), controlTlsSpkiSha256: "k" } }),
++    "a registry read happened (verified)": R({}, { ...final({ registry: true }), status: "verified" }), "supervisor unknown": R({}, { ...final({ supervisor: null }), status: "unknown" }),
++    "offline control not verified (vacuous tamper tests)": mut((r) => { r.offline.control.status = "rejected"; }),
++    "tampered report accepted": mut((r) => { r.offline.reportByte.status = "verified"; }), "tampered statement accepted": mut((r) => { r.offline.statementByte.status = "verified"; }),
++    "replay accepted": mut((r) => { r.offline.otherNonce.status = "verified"; }), "offline section absent": mut((r) => { delete r.offline; }),
++    "wrong measurement not rejected at the report": mut((r) => { r.liveRejections.wrongMeasurement.hardwareMeasurement = "absent"; }),
++    "wrong measurement unknown": mut((r) => { r.liveRejections.wrongMeasurement.status = "unknown"; }),
++    "wrong config accepted": mut((r) => { r.liveRejections.wrongConfig.status = "pending"; }),
++    "route answered 200 (backend reachable!)": mut((r) => { r.route.readProbes[1] = { status: 200, error: null }; }),
++    "one read probe only": mut((r) => { r.route.readProbes.pop(); }), "client read succeeded": mut((r) => { r.route.client.read = { ok: true }; }),
++    "client never attested": mut((r) => { r.route.client.attest = [false]; }), "write method not refused": mut((r) => { r.route.writeProbe = { status: 502, error: "service_unreachable" }; }),
++    "wrong-measurement client attested": mut((r) => { r.route.wrongClient.attest = [true]; }), "signer mismatch accepted": mut((r) => { r.route.signerMismatchRefused = false; }),
++    "route absent": mut((r) => { delete r.route; }),
++  };
++  for (const [name, r] of Object.entries(bad)) assert.equal(acceptance(r).pass, false, name);
++  assert.equal(acceptance(R({ operatorMatchesConfig: false })).pass, true, "the operator label is diagnostic");
++});
++
++test("tamper helpers change exactly one bound byte; offlineReport never verifies garbage", async () => {
++  const report = Buffer.alloc(0x4a0, 7).toString("base64");
++  const t = Buffer.from(tamperReport({ report }).report, "base64"), o = Buffer.from(report, "base64");
++  assert.equal(t.length, o.length); assert.equal([...t].filter((b, i) => b !== o[i]).length, 1); assert.notEqual(t[0x90], o[0x90]);
++  assert.equal(flipHex("0a"), "1a"); assert.equal(flipHex("ab"), "0b");
++  const r = await offlineReport({ report, statement: "{}" }, { nonce: Buffer.alloc(32), peerSpki: Buffer.alloc(1), measurement: "ab".repeat(48), hostData: "00".repeat(32), collateral: null });
++  assert.notEqual(r.status, "verified");
++});
++
++test("owner config is verifier-only, not selling, Base backend unready by construction, never production guestd", () => {
++  const a = buildOwnerConfig({ managerPort: 40961, dataPort: 40962, proofPort: 40963 });
++  assert.equal(a.config.identity.publicUrl, "https://snp-verifier-canary.invalid");
+   assert.deepEqual(a.config.selling, { cpuPrice6: null, payout: null });
+   for (const k of ["mcp", "platformApi", "platformPolicyCarriers", "leaseGas", "ownerNomination", "nativeControl"]) assert.ok(!(k in a.config), k);
++  assert.equal(a.config.chainVerifier.expose, "attested"); assert.ok(!("txBackend" in a.config.chainVerifier));
++  assert.deepEqual(a.config.chainVerifier.proofSources, ["http://10.0.2.2:40963/"]);
++  assert.equal(a.config.chainVerifier.unsafeSigner, "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a");
+   assert.equal(a.hostData, MC.hostDataHex(MC.configDigest(a.config)));
+-  assert.throws(() => buildOwnerConfig({ managerPort: 8095, dataPort: 40962 }), /production guestd/);
+-  assert.throws(() => buildOwnerConfig({ managerPort: 40961, dataPort: 8096 }), /production guestd/);
++  const w = buildOwnerConfig({ managerPort: 40961, dataPort: 40962, proofPort: 40963, variant: "wrong-config" });
++  assert.notEqual(w.digest, a.digest); assert.notEqual(w.hostData, a.hostData);
++  // the production client accepts exactly this replica shape for the documented sequencer pin, and refuses another pin
++  const rep = [{ url: "https://127.0.0.1:40960", config: a.config, measurements: ["ab".repeat(48)], minTcb: { Turin: { fmc: 1, bootloader: 3, tee: 2, snp: 5, microcode: 117 } } }];
++  assert.equal(AV.checkAttestedReplicas(rep, { unsafeSigner: CANARY.unsafeSigner })[0].digest, a.digest);
++  assert.throws(() => AV.checkAttestedReplicas(rep, { unsafeSigner: "0x" + "11".repeat(20) }), /pins sequencer/);
++  assert.throws(() => buildOwnerConfig({ managerPort: 8095, dataPort: 40962, proofPort: 40963 }), /production guestd/);
++  assert.throws(() => buildOwnerConfig({ managerPort: 40961, dataPort: 8096, proofPort: 40963 }), /production guestd/);
++  assert.throws(() => buildOwnerConfig({ managerPort: 40961, dataPort: 40962, proofPort: 40961 }), /must differ/);
++});
++
++test("the published launcher refuses a host-level chainVerifier in direct mode before any QEMU", () => {
++  const tmp = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), "cv-refuse-")), priv = path.join(tmp, "p"); fs.mkdirSync(priv, { mode: 0o700 });
++  const oc = buildOwnerConfig({ managerPort: 40961, dataPort: 40962, proofPort: 40963 });
++  fs.writeFileSync(path.join(priv, "owner-config.json"), oc.text, { mode: 0o600 }); fs.writeFileSync(path.join(priv, "pairing.key"), "ab".repeat(32) + "\n", { mode: 0o600 });
++  const host = { mode: "snp", name: "c", cpus: 4, memMiB: 2048, dist: IMAGE, ovmf: "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd", qemu: "/bin/false",
++    sevDevice: "/dev/sev", control: "direct", direct: path.join(priv, "owner-config.json"), chainVerifier: oc.config.chainVerifier,
++    isolation: { backend: "snp-guest-per-app", pairingKeyFile: path.join(priv, "pairing.key"), managerUrl: "http://10.0.2.2:40961", dataAddr: "10.0.2.2:40962" },
++    hostfwd: [{ host: 40960, guest: 8444 }], measureGflops: false };
++  fs.writeFileSync(path.join(priv, "host-config.json"), JSON.stringify(host), { mode: 0o600 });
++  const r = spawnSync(process.execPath, [path.join(TREE, "metal/enclave-metal.mjs"), "--config", path.join(priv, "host-config.json")],
++    { env: { PATH: `${D}/bin:/usr/bin:/bin`, HOME: process.env.HOME, TMPDIR: priv }, cwd: priv, encoding: "utf8", timeout: 30000 });
++  fs.rmSync(tmp, { recursive: true, force: true });
++  assert.notEqual(r.status, 0); assert.match(r.stdout + r.stderr, /takes chainVerifier only inside the bound direct config/);
+ });
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-canary/tools/stage-tree.sh	2026-10-22 15:51:55.059370482 -0700
++++ tools/stage-tree.sh	2026-10-25 10:17:43.838557102 -0700
+@@ -1,14 +1,14 @@
+ #!/usr/bin/env bash
+-# stage-tree.sh (queue 512): the canary's ONE runtime/verification tree = `git archive` of the image commit 493ee9ee
+-# (from the read-only native-final-image/src checkout) + a real copy of the root node_modules (the verifier imports viem;
++# stage-tree.sh (queue 512): the canary's ONE runtime/verification tree = `git archive` of the image commit 0235e7d96
++# (from the read-only clean clone attested-image-stage/src3-a) + a real copy of the root node_modules (the verifier imports viem;
+ # the launcher path imports no package). Every copied package's version must equal the commit's package-lock.json.
+ # Writes $D/tree (never modified afterwards: the run checks it against tree.sha256) and SOURCES-tree.json.
+ set -euo pipefail
+ . "$(dirname "$0")/env.sh"
+-SRC=/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-image/src
+-C=493ee9ee07497c94159ec4f6916e9ea920d31959; T=$D/tree
++SRC=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-image-stage/src3-a
++C=0235e7d9659f1ccbf9f258bd03593d26f32f3f3a; T=$D/tree
+ [ ! -e "$T" ] || { echo "$T exists"; exit 2; }
+-[ "$(git -C "$SRC" rev-parse HEAD^{commit})" = "$C" ] && [ "$(git -C "$SRC" rev-parse "$C^{tree}")" = b21163723ea789db13ff84d148e309e2709a89f4 ]
++[ "$(git -C "$SRC" rev-parse HEAD^{commit})" = "$C" ] && [ "$(git -C "$SRC" rev-parse "$C^{tree}")" = d36f220ab4258b91c6f909d720ef18ce21f73cbc ]
+ mkdir "$T"; git -C "$SRC" archive --format=tar "$C" | tar -x -C "$T"
+ cp -a /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules "$T/node_modules"
+ python3 - "$T" "$D" <<'PY'
+@@ -27,7 +27,7 @@
+ need_bad = [b for b in bad if b[0] in need]
+ files = subprocess.run(["bash", "-c", f"cd {T} && find . -path ./node_modules -prune -o -type f -print0 | sort -z | xargs -0 sha256sum"], capture_output=True, text=True, check=True).stdout
+ open(f"{D}/tree.sha256", "w").write(files)
+-res = {"commit": "493ee9ee07497c94159ec4f6916e9ea920d31959", "tree": "b21163723ea789db13ff84d148e309e2709a89f4", "method": "git archive of the commit (read-only checkout native-final-image/src)",
++res = {"commit": "0235e7d9659f1ccbf9f258bd03593d26f32f3f3a", "tree": "d36f220ab4258b91c6f909d720ef18ce21f73cbc", "method": "git archive of the commit (read-only clean clone attested-image-stage/src3-a)",
+        "sourceFiles": files.count("\n"), "sourceListSha256": hashlib.sha256(files.encode()).hexdigest(),
+        "nodeModules": {"from": "work/enclave/node_modules (real copy)", "lockPackagesChecked": checked, "mismatches": bad[:50], "mismatchCount": len(bad), "verifierClosureMismatches": need_bad}}
+ json.dump(res, open(f"{D}/SOURCES-tree.json", "w"), indent=1)
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-canary/tools/unit-checks.sh	2026-10-22 15:52:05.230435188 -0700
++++ tools/unit-checks.sh	2026-10-25 10:35:48.346213707 -0700
+@@ -12,5 +12,5 @@
+ grep -E "^Ran |^OK|^FAILED|ERROR:|FAIL:" "$D/rawlogs/unit-python.log"
+ rm -rf "$D/canary/__pycache__" "$D/test/__pycache__"
+ n=$(( $(wc -l < "$D/logs/ssh-stub-invocations.log") - STUB_BASE )); echo "ssh stub invocations during the tests: $n"; [ "$n" -eq 0 ] || rc=1
+-for p in 3483499 3817658; do echo "protected $p starttime $(awk '{print $22}' /proc/$p/stat 2>/dev/null)"; done
++for p in $(pgrep -x qemu-system-x86); do echo "qemu $p starttime $(awk "{print \$22}" /proc/$p/stat 2>/dev/null)"; done
+ echo "UNIT rc=$rc"; exit $rc
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/native-final-canary/tools/freeze.py	2026-10-22 15:51:55.059329712 -0700
++++ tools/freeze.py	2026-10-25 10:17:55.319591528 -0700
+@@ -8,8 +8,8 @@
+ out = D / 'FROZEN-PINS.json'
+ if out.exists() and '--replace' not in sys.argv: raise SystemExit('FROZEN-PINS.json exists (pass --replace to re-freeze after a reviewed change)')
+ pins = {k: f() for k, f in sorted(rc.pin_targets().items())}
+-doc = {'format': 'direct-control-canary-frozen-pins/1', 'writtenAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+-       'sourceCommit': '493ee9ee07497c94159ec4f6916e9ea920d31959', 'sourceTree': 'b21163723ea789db13ff84d148e309e2709a89f4',
++doc = {'format': 'snp-verifier-canary-frozen-pins/1', 'writtenAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
++       'sourceCommit': '0235e7d9659f1ccbf9f258bd03593d26f32f3f3a', 'sourceTree': 'd36f220ab4258b91c6f909d720ef18ce21f73cbc',
+        'expectedMeasurement': rc.expected_measurement(), 'pins': pins}
+ out.write_text(json.dumps(doc, indent=1) + '\n')
+ print(json.dumps({'pins': len(pins), 'file': str(out)}))

@@ -20,6 +20,7 @@ import { verifyShieldAppPolicy } from './shield-app-policy.mjs';
 import { verifyQuote, provenSnpChip } from "./snp-verify.mjs";
 import { verifyAvfEvidence } from "./avf-verify.mjs";
 import { admitPvmCpu, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
+import { verifyPvmAppAbi2 } from "./pvm-app-attest.mjs";
 import { AVF_PAD_FORMAT, avfPadBinding } from "./avf-binding.mjs";
 import { tpmNameOf, VBS_MAX_CERT_BYTES, VBS_MAX_CHAIN_CERTS, VBS_MAX_TPMT_PUBLIC_BYTES } from "./vbs-verify.mjs";
 import { HVNODE_FORMAT, HVNODE_TIER, verifyHvNodeEvidence, retiredFormat } from "./hvnode-verify.mjs";
@@ -177,6 +178,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                                   onReferral = () => {},
                                   operatorFor = null, operatorAttach = false,
                                   trustedOperators = [], operatorsUnrestricted = false,
+                                  // platform host policy (relay/api-relay.js): hostAdmission(name) -> { admit, status, reason };
+                                  // null = off. Every attach path asks it; attached tunnels are re-asked (hot ban) every hostPolicyRecheckMs.
+                                  hostAdmission = null, hostPolicyRecheckMs = 60_000,
                                   // this relay's public origin (selfRoutedUrl form 2) and, for an hv-node's owner-only
                                   // serving, what a hosting delegation must name: { chainId, registry: () => address }
                                   tunnelOrigin = "https://api.enclave.host", ownerOnly = null,
@@ -234,6 +238,27 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   // that, owner-only serving is SUSPENDED - the row stays attached but serves nothing - until a read succeeds again: the same
   // owner resumes it, any other ends it (re-attach needed). Delegations keep expiring by the clock throughout. Each state change
   // is logged once, not per re-check.
+  // HOT BAN: an attached box the platform policy now EXPLICITLY refuses (ban, allowlist miss, deregistered) is cut off at
+  // once - terminated and removed from discovery. An undecided answer (RPC outage, node behind the anchor) leaves an
+  // attached box alone (new attaches are refused meanwhile); only an explicit refusal detaches.
+  const EXPLICIT_REFUSAL = new Set(["current", "stale-grace", "stale", "inactive"]);
+  async function recheckHostPolicy() {
+    for (const [name, t] of [...tunnels]) {
+      let d; try { d = await hostAdmission(name, { fresh: true }); } catch { continue; }
+      if (tunnels.get(name) !== t || d?.admit === true || !EXPLICIT_REFUSAL.has(d?.status)) continue;
+      console.error(`[tunnel] ${name} DETACHED by the platform host policy: ${d.reason}`);
+      try { t.ws.send(JSON.stringify({ t: "detach", reason: `platform host policy: ${d.reason}` })); } catch {}
+      try { t.ws.terminate(); } catch {}
+      if (tunnels.get(name) === t) { tunnels.delete(name); try { onChange("detach", name); } catch {} }
+    }
+  }
+  if (hostAdmission) setInterval(() => recheckHostPolicy().catch((e) => console.error(`[tunnel] host policy recheck: ${e.message}`)), hostPolicyRecheckMs).unref?.();
+  const policyRefusal = async (name) => {
+    if (!hostAdmission) return null;
+    const d = await hostAdmission(name).catch((e) => ({ admit: false, reason: e.message }));
+    return d && d.admit === true ? null : `${name} is refused by the platform host policy: ${d?.reason || "no decision"}`;
+  };
+
   async function recheckOwnerOnly() {
     for (const [name, t] of [...tunnels]) {
       // A NEW HOST registers after it attaches (relay/host-sponsor.mjs): its attach carried a v2 signature by the CLAIMANT,
@@ -338,7 +363,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     if (ws.readyState !== ws.OPEN) { try { ws.terminate(); } catch {} return false; }
     const prev = tunnels.get(name);
     if (prev && prev.ws !== ws) { try { prev.ws.terminate(); } catch {} }   // newest wins
-    const t = { ws, pending: new Map(), lastSeen: Date.now(), mode: meta.mode || "", publicUrl: "",
+    const t = { ws, pending: new Map(), streams: new Map(), lastSeen: Date.now(), mode: meta.mode || "", publicUrl: "",
                 // HOW this box proved its name: "token" (an allowlisted token hash), "operator" (the name's on-chain
                 // operator key), or "attestation(...)" (a hardware verdict alone). Only the hub sets it.
                 via: meta.via || "",   // fail closed: a bind that says nothing is NOT a trusted identity (enclave-bf)
@@ -430,10 +455,47 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
         try { ws.send(JSON.stringify({ t: "caps-result", ok: verdict.eligible, tier: verdict.tier, reasons: verdict.reasons })); } catch {}
         return;
       }
+      // A pVM app's ABI/2 evidence (relay/pvm-app-attest.mjs; LAB ONLY: set when the hub is given attest.pvmApp). ONE
+      // frame per nonce this hub issued at bind: the evidence must bind THIS hub's nonce, THIS attach's transport key, an
+      // admitted runtime and an admitted app, under the tier's code/authority pins. The nonce is spent whatever the
+      // verdict (a replay finds none). Only a verified app gets raw streams (spliceRaw), and its TLS key is the attested
+      // transport key: the row publishes the public half for clients to pin.
+      if (f.t === "abi2") {
+        const reply = (ok, reasons) => { try { ws.send(JSON.stringify({ t: "abi2-result", ok, reasons })); } catch {} };
+        if (!t.pvm || !t.abi2 || t.abi2.used) return reply(false, ["no outstanding ABI/2 nonce on this attach (replay, or none was issued)"]);
+        t.abi2.used = true;
+        const policy = attest && attest.pvmApp;
+        const app = String(f.app || "").toLowerCase();
+        if (!policy || !policy.appIds.includes(app)) {
+          console.log(`[tunnel] ${name} abi2 REFUSED: app not admitted`);
+          return reply(false, ["the app is not one this relay admits"]);
+        }
+        const chain = Array.isArray(f.chain) && f.chain.length <= 8 ? f.chain.map((c) => Buffer.from(String(c), "base64")) : [];
+        // v3 (INSTANCE-BINDING.md): the frame may also carry the VM INSTANCE's key and its signature over the challenge; the
+        // challenge is then Bind3, and the row publishes the attested InstanceID -- a HINT for a policy signer, never trust
+        let inst = {};
+        if (f.instanceKey !== undefined || f.instanceSig !== undefined) {
+          if (!/^302a300506032b6570032100[0-9a-f]{64}$/.test(String(f.instanceKey)) || !/^[0-9a-f]{128}$/.test(String(f.instanceSig)))
+            return reply(false, ["the instance key or signature is malformed (an Ed25519 SPKI and a 64-byte signature, lowercase hex)"]);
+          inst = { instanceKey: Buffer.from(f.instanceKey, "hex"), instanceSig: Buffer.from(f.instanceSig, "hex") };
+        }
+        const v = verifyPvmAppAbi2({ chain, identity: f.identity, selftest: f.selftest, spki: t.pvm.spki, nonce: t.abi2.nonce, appId: app, ...inst },
+          { allowedRuntimeIds: policy.runtimeIds, allowedCodeHashes: [...(attest.pvmCpu ? attest.pvmCpu.codeHashes : [])],
+            allowedAuthorityHashes: (attest.avf && attest.avf.authorityHashes) || [], ...(attest.avf && attest.avf.rootPins ? { rootPins: attest.avf.rootPins } : {}) });
+        if (!v.ok) { console.log(`[tunnel] ${name} abi2 REFUSED: ${v.reasons[v.reasons.length - 1]}`); return reply(false, v.reasons); }
+        t.pvmApp = { appId: app, runtimeId: v.runtimeId, transportSpki: t.pvm.spki.toString("hex"), verifiedAt: Date.now(), ...(v.instanceId ? { instanceId: v.instanceId } : {}) };
+        console.log(`[tunnel] ${name} abi2 VERIFIED: app ${app.slice(0, 16)}… runtime ${v.runtimeId.slice(0, 16)}…${v.instanceId ? ` instance ${v.instanceId.slice(0, 16)}…` : ""}`);
+        try { onChange("abi2", name); } catch {}
+        return reply(true, v.reasons);
+      }
       if (f.t === "pong") return;
       if (f.t === "res" && f.id != null) { const p = t.pending.get(f.id); if (p) { t.pending.delete(f.id); p.resolve(f); } return; }
       // the box's answer to a CLIENT's fresh-attestation challenge (freshAttestation below): taken only when its report binds
       // the nonce in flight under this tunnel's attested transport key; anything else is ignored
+      if ((f.t === "s=" || f.t === "sd" || f.t === "sx") && f.sid != null) {
+        const stream = t.streams.get(f.sid); if (stream) stream(f);
+        return;
+      }
       if (f.t === "attest" && t.freshWait && t.freshWait.check(f)) { const w = t.freshWait; t.freshWait = null; w.resolve(f.rad); return; }
       // an Enclave Shield host's answers to a CLIENT's fresh check (shieldFreshStart/Finish below): its TPM keys, then its
       // evidence over the client's nonce; taken only in the phase the check is in, anything else is ignored
@@ -441,12 +503,18 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       if (t.shieldFresh && f.t === "attest" && t.shieldFresh.phase === "attest") return t.shieldFresh.onAttest(f);
     });
     const bye = () => { if (tunnels.get(name) === t) tunnels.delete(name); for (const p of t.pending.values()) p.reject(new Error("tunnel closed"));
+                        for (const stream of [...t.streams.values()]) stream({ t: "sx" }); t.streams.clear();
                         if (t.freshWait) { const w = t.freshWait; t.freshWait = null; w.reject(Object.assign(new Error("the tunnel closed"), { code: "closed" })); }
                         if (t.shieldFresh) t.shieldFresh.fail("closed", "the tunnel closed"); console.log(`[tunnel] ${name} detached`); try { onChange("detach", name); } catch {} };
     ws.on("close", bye);
     ws.on("error", () => { try { ws.terminate(); } catch {} });
     // the name is PROVEN now (token, operator key or attestation): only now may its referral code be recorded
     if (meta.referral) { try { onReferral(name, meta.referral, { via: t.via, operator: meta.operator || "" }); } catch {} }
+    // LAB: a fresh, single-use nonce for the app's ABI/2 evidence, owned by this hub (never the phone's or the owner's)
+    if (t.pvm && attest && attest.pvmApp) {
+      t.abi2 = { nonce: randomBytes(32), used: false };
+      try { ws.send(JSON.stringify({ t: "abi2-challenge", nonce: t.abi2.nonce.toString("base64") })); } catch {}
+    }
     return true;
   }
 
@@ -458,7 +526,13 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     if (!NAME_RE_OK.test(name)) { socket.write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"); return socket.destroy(); }
 
     // Token path (bootstrap / first-party): authorize before the handshake.
-    if (tokenOk(name, token)) return wss.handleUpgrade(req, socket, head, (ws) => bind(name, ws, { via: "token", referral }));
+    if (tokenOk(name, token)) {
+      if (!hostAdmission) return wss.handleUpgrade(req, socket, head, (ws) => bind(name, ws, { via: "token", referral }));
+      return policyRefusal(name).then((why) => {
+        if (why) { console.log(`[tunnel] ${name} token attach REFUSED: ${why}`); socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"); return socket.destroy(); }
+        wss.handleUpgrade(req, socket, head, (ws) => bind(name, ws, { via: "token", referral }));
+      });
+    }
 
     // Operator path: prove the NAME from the chain, with no quote at all. For a
     // relay this is the only identity that exists — it runs no measured image —
@@ -518,6 +592,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             // A live holder is only displaceable by the same on-chain owner —
             // which this signature just proved. Two boxes sharing one operator
             // key is the operator's own business; a stranger cannot get here.
+            const policyWhy = await policyRefusal(name);
+            if (settled) return;
+            if (policyWhy) return deny(policyWhy);
             clearTimeout(timer); settled = true;
             try { ws.send(JSON.stringify({ t: "attest-result", ok: true })); } catch {}
             bind(name, ws, { via: "operator", referral });
@@ -667,6 +744,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             // name would be held by a tunnel that answers nothing, forever.
             if (settled) return;
             if (!res.ok) return deny(res.reasons[res.reasons.length - 1] || "quote invalid");
+            { const policyWhy = await policyRefusal(name); if (settled) return; if (policyWhy) return deny(policyWhy); }
             // WHOSE NAME IS THIS? A quote proves the image, not the box, so a
             // name that is REGISTERED ON CHAIN belongs to whoever registered it
             // — and only that operator's key can take it, whether the real box
@@ -763,6 +841,119 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     const wait = (t.freshAt || 0) + FRESH_GAP_MS - Date.now();
     if (wait > 0) throw Object.assign(new Error(`this box was checked moments ago; retry in ${Math.ceil(wait / 1000)} s`), { code: "busy", retryAfter: Math.ceil(wait / 1000) });
     t.freshBusy = true; t.freshAt = Date.now();
+  }
+
+  // LAB: a raw byte stream to a pVM, no request head replayed. kind "pvm-app-tls": the client's TLS goes straight to the
+  // VM, where it terminates (httpd.rs with_tls) -- only to an app THIS hub verified (t.pvmApp; its own policy, which can
+  // only deny). kind "pvm-evidence": the VM's evidence endpoint, which answers a CLIENT's nonce so the client verifies the
+  // VM itself -- any AVF-attested attach. kind "pvm-app-sealed": one HPKE-sealed request to the VM's app key (the browser
+  // channel; pvm-rt sealed.rs), under the same rule as TLS. The hub and the phone carry opaque {t:"sd"} chunks and log
+  // sizes only.
+  // ---- raw streams over the control ws (Phase D) -----------------------------
+  // A WebSocket UPGRADE can't ride the buffered req/res frames, so it gets a
+  // spliced byte stream instead: the hub asks the agent to open a TCP
+  // connection to the guest supervisor ({t:"s+"}), replays the client's
+  // upgrade request head into it, and from then on both directions are opaque
+  // {t:"sd"} chunks. The supervisor completes the handshake itself (101 flows
+  // back through the splice), so the in-enclave /x/<id>/tls and /https bridges
+  // — TLS terminating INSIDE the CVM — work unchanged behind a tunnel: this is
+  // what makes a CGNAT seller box publicly serve its apps. The hub never
+  // parses the spliced bytes; on the app-TLS path they are ciphertext
+  // end-to-end. Bounded: per-tunnel stream cap, open timeout, idle timeout,
+  // and a bufferedAmount guard so one slow reader can't balloon hub memory.
+  const MAX_STREAMS = 128, STREAM_OPEN_MS = 10_000, STREAM_IDLE_MS = 15 * 60_000, MAX_WS_BUFFER = 16 * 1024 * 1024;
+  // LAB raw streams: the phone -> client direction has no credit-based flow control across the tunnel, so a client that
+  // does not read is bounded here and its stream finished (fail closed) rather than buffered without limit
+  const MAX_RAW_OUT = 1024 * 1024;
+  function spliceUpgrade(origin, req, socket, head, path) {
+    const name = (String(origin).match(NAME_RE) || [])[1];
+    const t = tunnels.get(name);
+    const refuse = (code, text) => { try { socket.write(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\n\r\n`); } catch {} socket.destroy(); };
+    if (!t) return refuse(502, "Bad Gateway");
+    if (t.streams.size >= MAX_STREAMS) return refuse(503, "Service Unavailable");
+    const sid = seq++;
+    const sendF = (o) => { try { t.ws.send(JSON.stringify(o)); return true; } catch { return false; } };
+    let open = false, idleTimer = null;
+    const openTimer = setTimeout(() => finish("stream open timeout"), STREAM_OPEN_MS);
+    const idle = () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => finish("idle"), STREAM_IDLE_MS); };
+    function finish(why) {
+      clearTimeout(openTimer); clearTimeout(idleTimer);
+      if (t.streams.delete(sid)) sendF({ t: "sx", sid });
+      if (!open && why !== "closed") refuse(502, "Bad Gateway"); else socket.destroy();
+    }
+    t.streams.set(sid, (f) => {
+      idle();
+      if (f.t === "s=" && !open) {
+        if (!f.ok) return finish(f.err || "open refused");
+        clearTimeout(openTimer); open = true;
+        // replay the client's upgrade request into the guest supervisor: the
+        // request line (path already rewritten by the caller) + headers as
+        // received, then any bytes that arrived with the upgrade event
+        let headStr = `${req.method} ${path} HTTP/1.1\r\n`;
+        for (let i = 0; i < req.rawHeaders.length; i += 2) headStr += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
+        headStr += "\r\n";
+        sendF({ t: "sd", sid, d: Buffer.concat([Buffer.from(headStr, "latin1"), head && head.length ? head : Buffer.alloc(0)]).toString("base64") });
+        socket.on("data", (chunk) => {
+          if (t.ws.bufferedAmount > MAX_WS_BUFFER) return finish("hub buffer overflow");
+          idle(); sendF({ t: "sd", sid, d: chunk.toString("base64") });
+        });
+        socket.resume();
+        return;
+      }
+      if (f.t === "sd" && open) { try { socket.write(Buffer.from(f.d || "", "base64")); } catch {} return; }
+      if (f.t === "sx") { open = true; finish("closed"); }   // remote closed: plain teardown, no 502
+    });
+    socket.pause();
+    socket.on("error", () => finish("closed"));
+    socket.on("close", () => finish("closed"));
+    idle();
+    if (!sendF({ t: "s+", sid })) return finish("tunnel send failed");
+  }
+
+  // LAB: a raw byte stream to a pVM, no request head replayed. kind "pvm-app-tls": the client's TLS goes straight to the
+  // VM, where it terminates (httpd.rs with_tls) -- only to an app THIS hub verified (t.pvmApp; its own policy, which can
+  // only deny). kind "pvm-evidence": the VM's evidence endpoint, which answers a CLIENT's nonce so the client verifies the
+  // VM itself -- any AVF-attested attach. kind "pvm-app-sealed": one HPKE-sealed request to the VM's app key (the browser
+  // channel; pvm-rt sealed.rs), under the same rule as TLS. The hub and the phone carry opaque {t:"sd"} chunks and log
+  // sizes only.
+  function spliceRaw(name, socket, kind = "pvm-app-tls") {
+    const t = tunnels.get(name);
+    const allowed = t && t.pvm && (kind === "pvm-evidence" || ((kind === "pvm-app-tls" || kind === "pvm-app-sealed") && t.pvmApp));
+    if (!allowed || t.streams.size >= MAX_STREAMS) { socket.destroy(); return false; }
+    const sid = seq++;
+    const sendF = (o) => { try { t.ws.send(JSON.stringify(o)); return true; } catch { return false; } };
+    let open = false, idleTimer = null, bytesIn = 0, bytesOut = 0;
+    const openTimer = setTimeout(() => finish("stream open timeout"), STREAM_OPEN_MS);
+    const idle = () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => finish("idle"), STREAM_IDLE_MS); };
+    function finish(why) {
+      clearTimeout(openTimer); clearTimeout(idleTimer);
+      if (t.streams.delete(sid)) { sendF({ t: "sx", sid }); console.log(`[tunnel] ${name} raw ${kind} stream ${sid} closed (${why}): ${bytesIn} bytes in, ${bytesOut} out`); }
+      socket.destroy();
+    }
+    t.streams.set(sid, (f) => {
+      idle();
+      if (f.t === "s=" && !open) {
+        if (!f.ok) return finish(f.err || "open refused");
+        clearTimeout(openTimer); open = true;
+        socket.on("data", (chunk) => {
+          if (t.ws.bufferedAmount > MAX_WS_BUFFER) return finish("hub buffer overflow");
+          bytesIn += chunk.length; idle(); sendF({ t: "sd", sid, d: chunk.toString("base64") });
+        });
+        socket.resume();
+        return;
+      }
+      if (f.t === "sd" && open) {
+        if (socket.writableLength > MAX_RAW_OUT) return finish("client too slow: stream buffer bound reached");
+        const b = Buffer.from(f.d || "", "base64"); bytesOut += b.length; try { socket.write(b); } catch {} return;
+      }
+      if (f.t === "sx") finish("closed by the phone");
+    });
+    socket.pause();
+    socket.on("error", () => finish("client error"));
+    socket.on("close", () => finish("client closed"));
+    idle();
+    if (!sendF({ t: "s+", sid, kind })) { finish("tunnel send failed"); return false; }
+    return true;
   }
 
   let seq = 1;
@@ -920,6 +1111,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       ...(t.capsRefused && !t.pvmCpu ? { capsRefused: true } : {}),
       // a pVM host whose registered operator signed its attach (public: the registry says the same)
       ...(t.mode === "avf" && t.pvmOperator ? { operator: t.pvmOperator } : {}),
+      // LAB: a verified pVM app (its ABI/2 evidence bound this hub's nonce): the app, the runtime, and the transport key --
+      // the TLS key the app's connections terminate with, public, for a client to pin before it sends a byte
+      ...(t.pvmApp ? { pvmApp: t.pvmApp } : {}),
       // A CONSUMER NODE's attested public keys, published because a client needs them to
       // talk to it at all: the session is sealed to the enclave's X25519 key (padKey) and
       // signed by its Ed25519 transport key, both minted inside VTL1 per boot and both
@@ -951,5 +1145,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     count: () => tunnels.size,
     // the CHIP_IDs a mode-"snp" tunnel has proved at attach (VCEK-verified): secrets-release.mjs's lease-holder chip binding
     snpChipIdsOf: (name) => { const t = tunnels.get(name); return t && t.mode === "snp" ? [...(t.snpChips || [])] : []; },
+    // websocket-upgrade splice into the guest supervisor (Phase D)
+    spliceUpgrade,
+    // LAB: raw splice to a verified pVM app
+    spliceRaw,
   };
 }

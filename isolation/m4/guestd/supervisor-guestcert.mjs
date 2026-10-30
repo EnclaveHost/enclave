@@ -226,7 +226,21 @@ export async function ensureGuestCert({ transport, dataAddr, instanceId, expectA
   }
   // 3. the guest's attestation, over a session with the verified key
   const nonce = randomBytes(32);
-  const a = await ex(dataAddr, route, name, "GET", `/.well-known/enclave-attestation?nonce=${nonce.toString("hex")}`, null, timeoutMs);
+  // TPM report generation is serialized. Certificate and marketplace probes can
+  // coincide; retry only the two explicit contention responses, on the same
+  // pinned route and nonce. Every successful response still passes the judge.
+  const deadline = Date.now() + timeoutMs;
+  let a;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    a = await ex(dataAddr, route, name, "GET", `/.well-known/enclave-attestation?nonce=${nonce.toString("hex")}`, null,
+      Math.max(1, deadline - Date.now()));
+    const busy = a.status === 500 && Buffer.isBuffer(a.body) && a.body.length < 160 &&
+      /^(?:report: guest VBS report: guest TPM attestation busy; retry|report: too many concurrent report requests from this domain)\n?$/.test(a.body.toString("utf8"));
+    if (!busy || attempt === 3) break;
+    const delay = 500 * 2 ** attempt + randomBytes(1)[0];
+    if (Date.now() + delay >= deadline) break;
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
   if (a.status !== 200) throw new Error(`the guest's attestation answered HTTP ${a.status}`);
   let doc;
   try { doc = JSON.parse(a.body.toString()); } catch { throw new Error("the guest's attestation is not JSON"); }

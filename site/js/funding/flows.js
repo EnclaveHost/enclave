@@ -1,3 +1,4 @@
+// migration-cutover-site-r1: DERIVED (pinned) from source/site/js/funding/flows.js; lines marked "migration-cutover-site-r1" are new.
 /* ============================================================
    Funding page click flows + effect guards (no DOM, no globals).
    UNREVIEWED SOURCE (client-site-repair-r2).
@@ -69,7 +70,8 @@ function startsSomething(before, after) {
     const was = a[k]?.status;
     if (was !== "planned" && was !== "void" && was !== undefined) return false;
     return JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null);
-  }) || (!before && !!after);
+  }) || (!before && !!after)
+    || JSON.stringify(before?.cutover?.resumed ?? null) !== JSON.stringify(after?.cutover?.resumed ?? null);   // migration-cutover-site-r1: recording activation starts something
 }
 export function guardGasStore(store, g) {
   return Object.freeze({
@@ -99,7 +101,7 @@ export const guardSetActive = (setActive, g) => async (newSid, oldSid) => {
 
 /** The plan for this click, re-read and re-checked: scoped to this context (relay evidence included), equal to the
  *  configured proposal, approved field by field. Throws with a code, never returns a partial answer. */
-async function freshScopedPlan({ g, store, ctx, np, planId, approvalCfg }) {
+async function freshScopedPlan({ g, store, ctx, np, planId, approvalCfg, cut }) {
   const plan = await store.getJournal(planId);
   const records = await store.listKeys();
   g.check("reading the plan");
@@ -109,16 +111,18 @@ async function freshScopedPlan({ g, store, ctx, np, planId, approvalCfg }) {
   if (!m.ok) throw new ST.StateError("proposal_plan_mismatch", `the configured proposal differs from the plan's reviewed terms (${m.diffs.join(", ")})`);
   const ok = ST.approvalStatus(approvalCfg, plan, ctx);
   if (!ok.ok) throw new ST.StateError("approval_required", `not approved: ${ok.reason}`);
+  const md = ST.planMode(plan, cut ?? null);   // migration-cutover-site-r1: a plan is used only in its own mode
+  if (!md.ok) throw new ST.StateError("plan_mode", `this plan cannot be used in the configured mode (${md.reason})`);
   return { plan, approval: ok.approval };
 }
 
 /** Sign the next steps of the plan the person was SHOWN (same termsHash, same steps). Wallet prompts go through the
  *  guarded provider, one after another; a change between prompts stops the rest and keeps nothing. */
-export async function signFlow({ g, memory, ctx, np, approvalCfg, shown, store, provider, core, signArgs, now }) {
+export async function signFlow({ g, memory, ctx, np, approvalCfg, cut, shown, store, provider, core, signArgs, now }) {
   g.check("signing");
-  const { plan, approval } = await freshScopedPlan({ g, store, ctx, np, planId: shown.planId, approvalCfg });
+  const { plan, approval } = await freshScopedPlan({ g, store, ctx, np, planId: shown.planId, approvalCfg, cut });
   if (plan.termsHash !== shown.termsHash) throw new ST.StateError("plan_changed", "the plan changed; review it again");
-  const want = ST.nextSignable(plan, now());
+  const want = ST.signableOf(plan, now(), cut ?? null);   // migration-cutover-site-r1
   if (want.length === 0 || want.join() !== shown.steps.join()) throw new ST.StateError("plan_changed", "the signable steps changed; review again");
   const bundle = await core.signSteps({ ...signArgs, plan, steps: want, approval, provider: guardProvider(provider, g), now: now() });
   g.check("keeping the signatures");
@@ -128,9 +132,9 @@ export async function signFlow({ g, memory, ctx, np, approvalCfg, shown, store, 
 
 /** Send the held bundle for the exact plan it was signed for. The bundle is single use; the core admits and sends one
  *  step at a time through the guarded store / relays / setActive in `stepCtx`. */
-export async function runFlow({ g, memory, ctx, np, approvalCfg, planId, store, core, stepCtx }) {
+export async function runFlow({ g, memory, ctx, np, approvalCfg, cut, planId, store, core, stepCtx }) {
   g.check("sending");
-  const { plan } = await freshScopedPlan({ g, store, ctx, np, planId, approvalCfg });
+  const { plan } = await freshScopedPlan({ g, store, ctx, np, planId, approvalCfg, cut });
   const bundle = memory.signedFor(ctx, plan);
   if (!bundle) throw new ST.StateError("signatures_stale", "the held signatures do not match this exact plan anymore; sign again");
   memory.dropSigned();
@@ -169,4 +173,21 @@ export async function fundFlow({ g, memory, ctx, inputs, shownDigest, store, sco
   const review = memory.takeQuote(ctx, record, inputs, shownDigest, now());
   if (!review) throw new ST.StateError("quote_stale", "the quote expired, was used, or does not match the current choices; get a new one");
   return core.confirmGasFund({ ...fundArgs, store: guardGasStore(store, g), record, review, relay: guardRelayFn(fundArgs.relay, g), now: now() });
+}
+
+/** migration-cutover-site-r1: "Record activation" click. A FRESH verified context (a new runtime read) must name the SAME
+ *  owner / chain / vaults / relay as the page shown; the plan is re-read, scoped, equal to the proposal, approved and in
+ *  the reviewed cutover mode and paused; then the core checks the root-reviewed evidence, live intake, the relayer and a
+ *  final termination, and records the activation. Never signs, sends, re-arms or reconnects anything. */
+export async function resumeFlow({ g, ctx, np, approvalCfg, cut, planId, store, activation, freshContext, core, stepCtxOf }) {
+  g.check("recording the activation");
+  if (!cut) throw new ST.StateError("plan_mode", "the reviewed pause is not configured here");
+  if (activation === null || activation === undefined) throw new ST.StateError("activation_required", "no reviewed activation record is configured; still paused");
+  const fresh = await freshContext();
+  g.check("recording the activation");
+  if (!fresh?.ctx || fresh.ctx.key !== ctx.key) throw new ST.StateError("context_mismatch", "the fresh check names another wallet, network, vault or relay; still paused");
+  const scoped = await freshScopedPlan({ g, store, ctx, np, planId, approvalCfg, cut });
+  if (ST.cutoverView(scoped.plan).kind !== "paused") throw new ST.StateError("not_paused", "this plan is not paused after its original ended");
+  g.check("recording the activation");
+  return core.resumeCutover(stepCtxOf(fresh), planId, activation);
 }

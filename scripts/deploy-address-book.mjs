@@ -58,8 +58,8 @@ const ASSUME_YES = args.has("--yes");
 const REPLACE = args.has("--replace");                 // override the live-contract guard on mainnet
 
 const NETWORKS = {
-  "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org", explorer: "https://sepolia.basescan.org" },
-  "base":         { chain: base,        rpc: "https://mainnet.base.org",  explorer: "https://basescan.org" },
+  "base-sepolia": { chain: baseSepolia, rpc: "https://api.enclave.host/rpc/base-sepolia", explorer: "https://sepolia.basescan.org" },
+  "base":         { chain: base,        rpc: "https://api.enclave.host/rpc/base",  explorer: "https://basescan.org" },
 };
 
 // The canonical book entries and the env/config name each one feeds.

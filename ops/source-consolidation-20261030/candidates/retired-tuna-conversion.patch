@@ -1,0 +1,1786 @@
+From 80d52a81d90be0280fb693d24fc5bf70d5e091b6 Mon Sep 17 00:00:00 2001
+From: Steven Batchelor <srbatchelor@ovgl.org>
+Date: Sat, 24 Oct 2026 20:27:24 -0700
+Subject: [PATCH] Preserve unfinished Codex source before disk consolidation
+
+Source: /home/steven/Documents/Codex/2026-10-12/retere/work/enclave-ip-policy
+Local recovery checkpoint only; not validated for main. Original checkout and index remain unchanged.
+---
+ docs/network/bandwidth-revenue.md             |  15 ++
+ docs/network/currency-conversion.md           | 107 ++++++++
+ network/circuit-manager.mjs                   |   2 +-
+ network/circuit-policy.mjs                    |  23 +-
+ network/conversion/external-http.mjs          |  57 +++++
+ network/conversion/multihop-discovery.mjs     |  89 +++++++
+ network/conversion/nblock-relay.mjs           | 177 +++++++++++++
+ network/conversion/nblock-runtime.mjs         |  42 ++++
+ network/conversion/nblock-wallet.mjs          | 134 ++++++++++
+ network/conversion/nblock.mjs                 | 105 ++++++++
+ network/conversion/relay-deposit.mjs          |  45 ++++
+ network/conversion/runtime.mjs                |   5 +
+ network/conversion/swft-discovery.mjs         |  14 +-
+ .../provider/nblock-conversion.example.json   |  57 +++++
+ network/route-record.mjs                      |   7 +-
+ network/tuna-policy.mjs                       |   4 +-
+ scripts/network/conversion-status.mjs         |  14 +-
+ scripts/network/nblock-status.mjs             |   8 +
+ site/js/core/network-controls.js              |   4 +-
+ test/circuit-manager.test.mjs                 |  19 ++
+ test/multihop-conversion.test.mjs             | 113 +++++++++
+ test/nblock-conversion.test.mjs               | 235 ++++++++++++++++++
+ test/nblock-wallet.test.mjs                   |  78 ++++++
+ test/network-controls.test.mjs                |   2 +-
+ test/route-record.test.mjs                    |  17 ++
+ test/tuna-usdc-policy.test.mjs                |  50 +++-
+ 26 files changed, 1394 insertions(+), 29 deletions(-)
+ create mode 100644 network/conversion/external-http.mjs
+ create mode 100644 network/conversion/multihop-discovery.mjs
+ create mode 100644 network/conversion/nblock-relay.mjs
+ create mode 100644 network/conversion/nblock-runtime.mjs
+ create mode 100644 network/conversion/nblock-wallet.mjs
+ create mode 100644 network/conversion/nblock.mjs
+ create mode 100644 network/conversion/relay-deposit.mjs
+ create mode 100644 network/provider/nblock-conversion.example.json
+ create mode 100644 scripts/network/nblock-status.mjs
+ create mode 100644 test/multihop-conversion.test.mjs
+ create mode 100644 test/nblock-conversion.test.mjs
+ create mode 100644 test/nblock-wallet.test.mjs
+
+diff --git a/docs/network/bandwidth-revenue.md b/docs/network/bandwidth-revenue.md
+index 670857ddd..02f94c418 100644
+--- a/docs/network/bandwidth-revenue.md
++++ b/docs/network/bandwidth-revenue.md
+@@ -198,6 +198,21 @@ count their legacy receipts as new-policy revenue.
+ 
+ ## USDC TUNA settlement (implemented locally, not activated)
+ 
++USDC routing uses `diversity: public-ip`: the guard and edges of each circuit,
++and all providers across sibling circuits, must have distinct public IPs.
++Public ingress and egress may share a provider within a circuit, so two routes
++need at least four distinct IPs. The same operator, beneficiary and hosting ASN
++are allowed; missing ASN metadata does not prevent selection. Equivalent IPv6
++spellings do not count as distinct addresses. This separates endpoints, not
++operators or hosting failure domains, and does not prove separate physical servers.
++Legacy native-NKN diversity policies are unchanged.
++
++The policy label is included in the route policy hash. Upgrade USDC policy
++producers and consumers together and republish routes; old provider-diversity
++records are not silently interpreted as public-IP-only records. Owner-authorized
++registry IDs, current independent qualification, public-address validation,
++two guarded routes, no direct fallback, and spending limits remain required.
++
+ `EnclaveConnectivity.authorizeTuna` accepts an owner-signed provider list (one to
+ six IDs), expiry, aggregate USDC/GiB cap and a single shared budget. Six allows the
+ existing two guarded circuits to use three providers each. `viaTuna` separates
+diff --git a/docs/network/currency-conversion.md b/docs/network/currency-conversion.md
+index 97844f93c..cb45610bd 100644
+--- a/docs/network/currency-conversion.md
++++ b/docs/network/currency-conversion.md
+@@ -71,6 +71,40 @@ native-NKN liquidity.
+ No conversion order, token approval, wallet creation or transfer was performed
+ during this investigation.
+ 
++## Intermediary route preflight (2026-10-12)
++
++The read-only status command can now probe direct and intermediary paths:
++
++```sh
++node scripts/network/conversion-status.mjs --multihop --amount 10 --probe-intermediates
++```
++
++`--amount` is Base USDC, parsed exactly to six decimals. The default remains the
++original SWFT asset-list check. Multihop mode probes the native-NKN final leg
++from Base USDC, Ethereum USDT, Tron USDT, Ethereum USDC, ETH, BTC, and Ethereum
++NKN. These are availability probes at explicitly reported amounts, not chained
++executable quotes or evidence of a guaranteed end-to-end price. An HTTP 200 or
++`resCode: 800` does not override SWFT's `isSupport: false`. Network failures stay
++unknown rather than being reported as definitive lack of support.
++
++The optional intermediate probe obtains a live LI.FI quote for Base USDC to the
++exact Ethereum NKN contract. It validates chain IDs, token contracts, decimals,
++amounts, recipient and minimum output. It uses a placeholder address, discards
++transaction calldata, and cannot submit a transaction. Its result always says
++`nativeDelivery: false`: Ethereum NKN is not a funded TUNA wallet.
++
++This implements multihop discovery, not a funded multihop execution adapter.
++No path can become executable merely because its individual indicative rates
++exist. The production conversion worker still requires a reviewed route adapter
++with a protected native minimum, bounded fees, order recovery and independently
++verified final delivery. The official NKN public swap frontend currently submits
++an hCaptcha token during order creation; no bypass is attempted. A supported
++unattended native bridge or liquidity provider remains necessary.
++
++The new code is isolated from production configuration, and does not change the
++server rollout or authorize funds. Do not start a first-hop swap without a usable
++final native conversion and a defined intermediate-asset recovery path.
++
+ 
+ ## Host runtime implementation
+ 
+@@ -206,3 +240,76 @@ local Anvil test that broadcasts USDC funding and verifies a return transfer
+ against finalized blocks. The local EVM token and gas oracle are mocks; the
+ native RPC in that integration test is simulated. No live swap, production
+ wallet, production funds or production configuration was used.
++## nBlock / Relay Prototype
++
++`engine: "nblock-relay"` selects a separate, opt-in workflow in the conversion
++runtime. It buys native NKN through nBlock's custodial OTC market, using Relay
++strict deposit-address swaps for Base USDC -> Ethereum ETH. It does not sell NKN
++or change the protections of the existing direct-conversion engine.
++
++Implementation: `network/conversion/nblock-relay.mjs`, `nblock.mjs`,
++`relay-deposit.mjs`, `nblock-wallet.mjs`, and `nblock-runtime.mjs`.
++Configuration template: `network/provider/nblock-conversion.example.json`.
++The template is disabled, has an expired policy, and includes deliberate
++placeholders. Its example limits are not production spending authorization.
++
++The worker journals and reserves its all-in USDC allowance before accepting one
++sell listing. It never retries an ambiguous acceptance: it reconciles the
++authenticated trade list against the pre-acceptance IDs, listing ID, recipient,
++amount, and creation time. It waits for `AWAITING_BUYER_DEPOSIT` and sufficient
++deadline headroom before requesting the Relay swap. This seller-ready state is
++an assertion by the custodial service, not a trustless escrow proof.
++
++Relay funding is an exact plain USDC transfer, not an allowance or arbitrary
++contract call. `strict: true`, explicit source-wallet refunds, exact chain/token
++validation, and a local 30-second submission window are required. Received ETH
++must be finalized and verified before a plain Ethereum transfer funds nBlock.
++Native NKN is credited only after independent chain verification. An exchange
++status, quoted amount, ERC-20 NKN, or unrelated balance increase is insufficient.
++
++Key operational boundaries:
++
++- nBlock is a community-operated custodial beta. Its web endpoints are not a
++  documented stable partner API. Authenticated trade fields are not live-tested.
++  `reviewedNblockApi: true` must follow an actual authenticated schema review.
++- Credentials stay in a mode-0600 file containing `username` and `password`, or
++  `token`. Username/password credentials support login renewal; token-only
++  credentials require rotation. A 401 invalidates the token without retrying a
++  side-effecting request. Credentials and remote error bodies are not logged.
++- The Ethereum EOA is the same provider-controlled account used on Base, with
++  separate chain-specific nonce journals. Native seeds remain in the existing
++  pinned offline signer. A process lock prevents multiple runtime writers.
++- Ethereum RPCs must support finalized blocks and transaction receipts. Internal
++  ETH payouts also require matching `trace_transaction` results from two RPCs.
++  Native finality retains the existing two-HTTPS-RPC/genesis-pin requirements.
++- Changing policy or limits during a pending job blocks new spending while
++  reconciliation continues. Setting `enabled: false` likewise permits existing
++  job reconciliation without signing or broadcasting new transfers.
++- Daily limits reserve input USDC plus the source-gas allowance when accepting
++  a trade, including trades that later cancel or refund. Ethereum spending and
++  gas must fit inside the verified bridged ETH, with separate hard caps.
++- Each listing can be attempted only once in a journal. Completed/cancelled
++  listings cannot repeatedly consume the budget if the remote list is stale.
++- Partial Relay refunds are recorded at the actual verified amount. Failed,
++  short, disputed, or timed-out funded nBlock trades enter `needs_review`; the
++  implementation does not pretend unverified refunds happened. Intermediate
++  ETH remains in the provider wallet when a seller becomes unavailable.
++- No order retries, automatic top-ups for a short bridge payout, or automatic
++  conversion of leftover ETH are performed. Do not delete a pending journal or
++  stale process/key lock without reconciling orders and signed transactions.
++
++Public read-only status:
++
++```sh
++node scripts/network/nblock-status.mjs
++```
++
++The local tests simulate authenticated responses, interruptions and receipts;
++they do not demonstrate production settlement. Before enabling, validate the
++private response schema, RPC compatibility, account eligibility/automation
++terms, and a separately authorized small funded conversion. No live credentials
++or production configuration were installed with this implementation.
++
++Sources checked 2026-10-12: <https://nblock.net/otc.html>, the page's public
++`js/otc.js` and `js/api.js`, and
++<https://docs.relay.link/features/deposit-addresses>.
+diff --git a/network/circuit-manager.mjs b/network/circuit-manager.mjs
+index df772408a..627581a11 100644
+--- a/network/circuit-manager.mjs
++++ b/network/circuit-manager.mjs
+@@ -214,7 +214,7 @@ export class CircuitManager extends EventEmitter {
+         if(circuit){if(app.circuits.includes(circuit))await this.fail(app,circuit,e.message);else await circuit.close(e.message);}app.error=e.message;this.log(`app ${app.id.slice(0,10)}: ${e.message}`);
+       }
+     }
+-    app.error=app.circuits.length===2?null:app.error||'second independent circuit unavailable';
++    app.error=app.circuits.length===2?null:app.error||'second circuit unavailable';
+     }finally{for(const address of reserved)this.reservedPublic.delete(address);}
+   }
+   status() {return [...this.apps.values()].map(app=>({deploymentId:app.id,transport:app.policy.mode==='direct'?'direct':'tuna',ready:app.circuits.length===app.policy.routes&&app.circuits.every(c=>c.healthy)&&!!this.authorizationUntil(app.id),
+diff --git a/network/circuit-policy.mjs b/network/circuit-policy.mjs
+index 585ccf156..2ec46f014 100644
+--- a/network/circuit-policy.mjs
++++ b/network/circuit-policy.mjs
+@@ -1,7 +1,6 @@
+-// App-scoped provider policy. Different keys are not proof of different owners.
+-import net from 'node:net';
++// App-scoped route separation. Public-IP diversity is not operator independence.
+ import {publicReservations} from './public-fallback.mjs';
+-import {isBlockedHost} from '../relay/net-guard.mjs';
++import {parseIp} from '../relay/net-guard.mjs';
+ import {publicProviderAddress} from './provider-qualification.mjs';
+ import {validateTunaPolicy} from './tuna-policy.mjs';
+ import {validateDirectPolicy} from './connectivity-policy.mjs';
+@@ -55,14 +54,18 @@ export function providerAllowedForPolicy(provider,policy,role,now=Date.now()) {
+ }
+ export function independent(a, b, level) {
+   if (!a || !b || a.identity === b.identity || a.address === b.address) return false;
++  if (level === 'public-ip') {
++    if (!publicProviderAddress(a.address) || !publicProviderAddress(b.address)) return false;
++    const left = parseIp(a.address), right = parseIp(b.address);
++    return !!left && !!right && (left.family !== right.family || left.value !== right.value);
++  }
+   // Unknown ownership/network metadata does not satisfy a strict diversity gate.
+   if (!a.beneficiary || !b.beneficiary || a.beneficiary === b.beneficiary || !Number.isSafeInteger(a.asn) || !Number.isSafeInteger(b.asn) || a.asn <= 0 || b.asn <= 0 || a.asn === b.asn) return false;
+   if (level === 'verified-operator') return !!a.verifiedOperator && !!b.verifiedOperator && a.verifiedOperator !== b.verifiedOperator;
+   return true;
+ }
+-// Every provider in one circuit must be independent of every provider in its
+-// sibling. Within a circuit, the public and egress edges may share an operator;
+-// neither may share the guard's operator or network.
++// Apply the selected separation policy across sibling circuits and between
++// each guard and its edges. Public ingress and egress may share a provider.
+ export function independentCircuits(a, b, level) {
+   return Object.values(a).every(x => Object.values(b).every(y => independent(x, y, level)));
+ }
+@@ -100,7 +103,7 @@ export function selectCircuitProviders(policy, inventory, {existing = [], locked
+         if (chosen.some(c => Object.values(c).some(n => !independent(n, publicNode, p.diversity)))) continue;
+         // Public ingress and egress are already permitted to share an edge
+         // provider within a circuit. Prefer that shape before consuming a
+-        // third failure domain, which can strand the sibling on unproven edges.
++        // third provider, which can strand the sibling on unproven edges.
+         // An explicit owner preference still takes precedence.
+         const edgeRank=n=>n.identity===publicNode.identity?0:n.beneficiary===publicNode.beneficiary&&n.asn===publicNode.asn?1:n.asn===publicNode.asn?2:3;
+         const edges=[...egressNodes].sort((a,b)=>(p.providers.egress.prefer.includes(a.identity)?0:1)-(p.providers.egress.prefer.includes(b.identity)?0:1)||edgeRank(a)-edgeRank(b));
+@@ -118,11 +121,11 @@ export function selectCircuitProviders(policy, inventory, {existing = [], locked
+     return null;
+   };
+   // Keep one warm fallback when possible, while all owner constraints and
+-  // cross-circuit independence still apply. If it is unavailable, ordinary
+-  // independent providers can fill both slots. It is not an owner pin.
++  // cross-circuit separation still apply. If it is unavailable, ordinary
++  // eligible providers can fill both slots. It is not an owner pin.
+   const wantFallback=publicNodes.some(n=>n.fallback)&&!p.providers.public.prefer.length;
+   let circuits=wantFallback?search([...locked],true):null;
+   if(!circuits){examined=0;circuits=search([...locked],false);}
+   return circuits ? {circuits, ready:true, reason:null} : {circuits:partial, ready:false,
+-    reason: examined > 100000 ? 'provider selection work limit reached' : 'insufficient independently eligible providers'};
++    reason: examined > 100000 ? 'provider selection work limit reached' : p.diversity === 'public-ip' ? 'insufficient eligible providers with distinct public IPs' : 'insufficient independently eligible providers'};
+ }
+diff --git a/network/conversion/external-http.mjs b/network/conversion/external-http.mjs
+new file mode 100644
+index 000000000..c99887305
+--- /dev/null
++++ b/network/conversion/external-http.mjs
+@@ -0,0 +1,57 @@
++import fs from 'node:fs/promises';
++import path from 'node:path';
++import {getAddress} from 'viem';
++import {decimalUnits} from './policy.mjs';
++
++export function evmAddress(value) {
++ const address=getAddress(value);
++ if(/^0x0{40}$/i.test(address))throw Error('zero funding address');
++ return address.toLowerCase();
++}
++export function id(value) {
++ const text=String(value??'');
++ if(!/^[a-zA-Z0-9_-]{1,128}$/.test(text))throw Error('invalid external order id');
++ return text;
++}
++export function timestamp(value) {
++ const result=Date.parse(value);
++ if(!Number.isSafeInteger(result))throw Error('invalid external timestamp');
++ return result;
++}
++// Preserve numeric JSON money lexemes, including scientific notation, before
++// JavaScript can round them. Refuse excess precision rather than round a price.
++export function money(value,decimals) {
++ if(typeof value!=='string')throw Error('exact external amount required');
++ const m=/^(0|[1-9]\d*)(?:\.(\d+))?(?:[eE]([+-]?\d{1,3}))?$/.exec(value);
++ if(!m)throw Error('invalid external amount');
++ const exponent=Number(m[3]||0),digits=m[1]+(m[2]||''),point=m[1].length+exponent;
++ if(Math.abs(exponent)>80||digits.length>80)throw Error('external amount too large');
++ let text=point<=0?'0.'+'0'.repeat(-point)+digits:point>=digits.length?digits+'0'.repeat(point-digits.length):digits.slice(0,point)+'.'+digits.slice(point);
++ text=text.replace(/^0+(?=\d)/,'').replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,'');
++ return decimalUnits(text,decimals).toString();
++}
++export async function privateJson(file) {
++ if(!path.isAbsolute(file||''))throw Error('absolute credentials file required');
++ const stat=await fs.stat(file);
++ if(!stat.isFile()||(process.platform!=='win32'&&(stat.mode&0o077)))throw Error('private credentials file permissions required');
++ return JSON.parse(await fs.readFile(file,'utf8'));
++}
++export async function externalJson(url,{fetcher=fetch,token,body}={}) {
++ let response;
++ try {response=await fetcher(url,{method:body===undefined?'GET':'POST',redirect:'error',
++  signal:AbortSignal.timeout(15000),headers:{accept:'application/json',...(body===undefined?{}:{'content-type':'application/json'}),...(token?{authorization:'Bearer '+token}:{})},
++  body:body===undefined?undefined:JSON.stringify(body)});}
++ catch {throw Error('external request outcome unknown');}
++ if(!response.ok)throw Error('external HTTP '+response.status);
++ const reader=response.body.getReader(),chunks=[];let size=0;
++ try {for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>2000000)throw Error('external response too large');chunks.push(value);}}
++ finally {await reader.cancel().catch(()=>{});reader.releaseLock();}
++ return JSON.parse(Buffer.concat(chunks).toString('utf8'),(key,value,context)=>{
++  if(typeof value==='number'&&(/amount|gas_fee_eth|usd_target|eth_usd|nkn_usd/.test(key))){
++   if(!context?.source)throw Error('Node 22 or newer required for exact external amounts');
++   return context.source;
++  }
++  if(typeof value==='number'&&(!Number.isFinite(value)||(Number.isInteger(value)&&!Number.isSafeInteger(value))))throw Error('unsafe external JSON number');
++  return value;
++ });
++}
+diff --git a/network/conversion/multihop-discovery.mjs b/network/conversion/multihop-discovery.mjs
+new file mode 100644
+index 000000000..337c1e737
+--- /dev/null
++++ b/network/conversion/multihop-discovery.mjs
+@@ -0,0 +1,89 @@
++// Availability preflight, not an execution adapter. Never opens orders or loads
++// wallets. Intermediates do not count as successful native-NKN conversion.
++import {ASSETS,units} from './policy.mjs';
++import {querySwft,classifyAssets} from './swft-discovery.mjs';
++
++const BASE_USDC=ASSETS.USDC.id.split('erc20:')[1];
++const EVM_NKN='0x5cf04716ba20127f1e2297addcf4b5035000c9eb';
++const PLACEHOLDER='0x0000000000000000000000000000000000000001';
++const intermediates=Object.freeze([
++ {name:'USDT on Ethereum',code:'USDT(ERC20)',network:'ETH',contract:'0xdac17f958d2ee523a2206206994597c13d831ec7',decimals:6,probeAmount:'20'},
++ {name:'USDT on Tron',code:'USDT(TRON)',network:'TRX',contract:'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',decimals:6,probeAmount:'20'},
++ {name:'USDC on Ethereum',code:'USDC',network:'ETH',contract:'0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',decimals:6,probeAmount:'20'},
++ {name:'ETH on Ethereum',code:'ETH',network:'ETH',contract:'',decimals:18,probeAmount:'0.01'},
++ {name:'BTC on Bitcoin',code:'BTC',network:'BTC',contract:'',decimals:8,probeAmount:'0.001'},
++ {name:'NKN on Ethereum',code:'NKN(ERC20)',network:'ETH',contract:EVM_NKN,decimals:18,probeAmount:'1000'},
++]);
++function listed(data,asset){
++ return data.some(x=>x.coinCode===asset.code&&x.mainNetwork===asset.network&&
++  Number(x.coinDecimal)===asset.decimals&&
++  (asset.network==='ETH'?(x.contact||'').toLowerCase()===(asset.contract||'').toLowerCase():(x.contact||'')===(asset.contract||'')));
++}
++function decimal(amount,precision){
++ const value=units(amount,{zero:false}).toString().padStart(precision+1,'0');
++ return value.slice(0,-precision)+'.'+value.slice(-precision);
++}
++export function pairAvailability(data){
++ if(!data||typeof data.isSupport!=='boolean')throw Error('invalid SWFT pair availability');
++ return {status:data.isSupport?'indicative_only':'unsupported',supported:data.isSupport,
++  rate:data.instantRate,minimumInput:data.depositMin,maximumInput:data.depositMax,
++  serviceFeeRate:data.depositCoinFeeRate,receiveFee:data.receiveCoinFee,
++  executable:false};
++}
++
++// The placeholder is only for public quote diagnostics. Returned calldata is
++// discarded so it cannot accidentally become a transaction to this address.
++export async function quoteEvmIntermediate({amountUsdc6,fetcher=fetch}){
++ units(amountUsdc6,{zero:false});
++ const query=new URLSearchParams({fromChain:'8453',toChain:'1',fromToken:BASE_USDC,
++  toToken:EVM_NKN,fromAmount:amountUsdc6,fromAddress:PLACEHOLDER,toAddress:PLACEHOLDER,slippage:'0.005'});
++ const response=await fetcher('https://li.quest/v1/quote?'+query,{redirect:'error',signal:AbortSignal.timeout(20000)});
++ if(!response.ok)throw Error('EVM intermediate quote unavailable');
++ const text=await response.text();if(text.length>2000000)throw Error('EVM quote response too large');
++ const q=JSON.parse(text),a=q.action,e=q.estimate;
++ if(a?.fromChainId!==8453||a?.toChainId!==1||a?.fromToken?.chainId!==8453||a?.toToken?.chainId!==1||
++  a.fromToken.address?.toLowerCase()!==BASE_USDC||a.toToken.address?.toLowerCase()!==EVM_NKN||
++  a.fromToken.decimals!==6||a.toToken.decimals!==18||a.fromAmount!==amountUsdc6||
++  a.fromAddress?.toLowerCase()!==PLACEHOLDER||a.toAddress?.toLowerCase()!==PLACEHOLDER||
++  !e||e.fromAmount!==amountUsdc6||units(e.toAmountMin,{zero:false})>units(e.toAmount,{zero:false}))throw Error('EVM quote asset, amount or recipient mismatch');
++ return {provider:'LI.FI',status:'intermediate_quote_only',inputAsset:ASSETS.USDC.id,
++  outputAsset:'eip155:1/erc20:'+EVM_NKN,amountIn:amountUsdc6,expectedOut:e.toAmount,
++  minimumOut:e.toAmountMin,decimals:18,tool:q.tool,feeCosts:e.feeCosts,gasCosts:e.gasCosts,
++  executable:false,nativeDelivery:false};
++}
++
++export async function discoverMultihop({amountUsdc6='10000000',probeIntermediates=false,fetcher=fetch,now=Date.now}={}){
++ units(amountUsdc6,{zero:false});
++ const startedAt=now(),catalogue=await querySwft('queryCoinList',{},fetcher);
++ const assets=classifyAssets(catalogue),paths=[];
++ async function probe(code,amount){
++  try{return {...pairAvailability(await querySwft('queryBaseInfo',{
++   depositCoinCode:code,receiveCoinCode:'NKN',depositCoinAmt:amount,walletAddress:''},fetcher)),
++   inputCode:code,outputCode:'NKN',supportProbeAmount:amount};}
++  catch(e){return {status:'unknown',executable:false,inputCode:code,outputCode:'NKN',error:e.message};}
++ }
++ const direct=await probe('USDC(BASE)',decimal(amountUsdc6,6));
++ paths.push({via:[],provider:'SWFT',finalHop:direct,executable:false,
++  reason:direct.status==='unsupported'?'native_final_hop_unsupported':direct.status==='unknown'?
++   'native_final_hop_unknown':'protected_end_to_end_quote_unverified'});
++ // Probe the final hop first. Do not buy an intermediate merely because its
++ // first-leg quote exists. Fixed probe amounts test support, not chained prices.
++ for(const asset of intermediates){
++  const finalHop=await probe(asset.code,asset.probeAmount);
++  paths.push({via:[asset.name],provider:'SWFT',intermediateListed:listed(catalogue,asset),
++   finalHop,executable:false,reason:finalHop.status==='unsupported'?
++    'native_final_hop_unsupported':finalHop.status==='unknown'?'native_final_hop_unknown':'protected_end_to_end_quote_unverified'});
++ }
++ const official={via:['NKN on Ethereum'],provider:'LI.FI + official NKN swap',
++  finalHop:{status:'adapter_not_configured',executable:false},executable:false,
++  reason:'supported_unattended_native_bridge_required'};
++ if(probeIntermediates){
++  try{official.firstHop=await quoteEvmIntermediate({amountUsdc6,fetcher});}
++  catch(e){official.firstHop={status:'unknown',executable:false,error:e.message};}
++ }
++ paths.push(official);
++ return {version:1,startedAt,observedAt:now(),inputAsset:ASSETS.USDC.id,
++  outputAsset:ASSETS.NKN.id,amountIn:amountUsdc6,catalogue:assets,paths,
++  executable:false,state:'unavailable',reason:'no_verified_end_to_end_native_route',
++  note:'Read-only preflight. Pair support and intermediate quotes are not execution guarantees. No orders or transfers created.'};
++}
+diff --git a/network/conversion/nblock-relay.mjs b/network/conversion/nblock-relay.mjs
+new file mode 100644
+index 000000000..f1cc56fba
+--- /dev/null
++++ b/network/conversion/nblock-relay.mjs
+@@ -0,0 +1,177 @@
++import path from 'node:path';
++import {randomUUID} from 'node:crypto';
++import {DurableState} from '../durable-state.mjs';
++import {ASSETS,units,validatePolicy,conversionIntent} from './policy.mjs';
++import {ETH_ASSET} from './relay-deposit.mjs';
++import {id} from './external-http.mjs';
++
++const queues=new Map();
++const terminal=new Set(['EXPIRED','CANCELLED','REFUNDED','DISPUTED']);
++export function validateNblockLimits(limits) {
++ for(const k of ['maxDepositWei','maxEthGasWei','maxBridgeGasUsdc6','maxNkn8'])units(limits?.[k],{zero:false});
++ for(const k of ['minimumFundingWindowMs','maxWaitMs'])if(!Number.isSafeInteger(limits[k]))throw Error('invalid nBlock time limits');
++ if(limits.minimumFundingWindowMs<1800000||limits.minimumFundingWindowMs>86400000||limits.maxWaitMs<3600000||limits.maxWaitMs>172800000)throw Error('unsafe nBlock time limits');
++ return Object.freeze({...limits});
++}
++
++// This is intentionally separate from the atomic/direct conversion engine:
++// intermediate ETH can remain in the wallet, and refunds can be partial.
++export class NblockRelayConversion {
++ constructor({directory,policy,limits,addresses,nblock,bridge,wallet,enabled=false,now=Date.now}) {
++  this.policy=validatePolicy(policy);this.limits=validateNblockLimits(limits);
++  if(!this.policy.allowExternal)throw Error('nBlock requires explicit external custody consent');
++  if(typeof enabled!=='boolean')throw Error('explicit nBlock enabled flag required');
++  Object.assign(this,{addresses:{...addresses},nblock,bridge,wallet,enabled,now});
++  this.store=new DurableState(directory);this.key=path.resolve(directory);
++ }
++ tick() {
++  const run=(queues.get(this.key)||Promise.resolve()).then(()=>this.run());
++  const tail=run.catch(()=>{});queues.set(this.key,tail);
++  void tail.then(()=>{if(queues.get(this.key)===tail)queues.delete(this.key);});return run;
++ }
++ save(s) {return this.store.set('nblock-conversion',s);}
++ async review(s,reason) {s.job.phase='needs_review';s.job.reason=reason;await this.save(s);return {state:'needs_review',reason};}
++ async finish(s,state,details={}) {
++  s.last={id:s.job.id,state,...details};s.job=null;await this.save(s);return {state,...details};
++ }
++ canSpend(job) {return this.enabled&&this.now()<this.policy.expiresAt&&(!job||
++  (JSON.stringify(job.policy)===JSON.stringify(this.policy)&&JSON.stringify(job.limits)===JSON.stringify(this.limits)));}
++ async run() {
++  const s=await this.store.get('nblock-conversion')||{version:1,days:{},usedTransfers:{},usedListings:{},job:null};
++  if(s.version!==1||!s.days||!s.usedTransfers||!s.usedListings)throw Error('damaged nBlock journal');
++  if(s.job)return this.resume(s);
++  if(!this.canSpend())return {state:'disabled'};
++  const actual=await this.wallet.addresses();
++  if(JSON.stringify(actual)!==JSON.stringify(this.addresses))throw Error('nBlock funding wallet identity changed');
++  const balances=await this.wallet.balances();
++  const intent=conversionIntent(this.policy,balances,this.now());
++  if(!intent)return {state:'ready'};
++  if(intent.direction!=='USDC_TO_NKN')return {state:'unavailable',reason:'nblock_buy_only'};
++  const cost=units(intent.amount)+units(this.limits.maxBridgeGasUsdc6);
++  const day=String(Math.floor(this.now()/86400000));
++  if(cost>units(this.policy.maxConversionUsdc6)||cost+units(s.days[day]||'0')>units(this.policy.dailyConversionUsdc6))return {state:'limited'};
++  const listings=(await this.nblock.listings()).filter(x=>!s.usedListings[x.listingId]&&
++   units(x.nkn8)<=units(this.limits.maxNkn8)&&units(x.nkn8)*1000000n>=cost*units(this.policy.minNknPerUsdc8));
++  listings.sort((a,b)=>units(a.nkn8)<units(b.nkn8)?-1:units(a.nkn8)>units(b.nkn8)?1:0);
++  if(!listings.length)return {state:'unavailable',reason:'no_bounded_nblock_listing'};
++  const quote=await this.nblock.quote(listings[0]);
++  const quotedCap=units(quote.depositWei)*(10000n+BigInt(this.policy.maxSlippageBps))/10000n;
++  const maxDepositWei=quotedCap<units(this.limits.maxDepositWei)?quotedCap:units(this.limits.maxDepositWei);
++  if(units(quote.depositWei)>maxDepositWei)return {state:'limited',reason:'nblock_price_cap'};
++  const beforeIds=(await this.nblock.trades()).map(t=>id(t.id));
++  s.days[day]=(units(s.days[day]||'0')+cost).toString();s.usedListings[quote.listingId]=true;
++  s.job={id:randomUUID(),phase:'opening',quote,beforeIds,maxDepositWei:maxDepositWei.toString(),
++   amountUsdc6:intent.amount,allInUsdc6:cost.toString(),addresses:this.addresses,createdAt:this.now(),policy:this.policy,limits:this.limits};
++  // Reserve money and record reconciliation identifiers before accepting.
++  await this.save(s);
++  await this.nblock.accept(quote,this.addresses);
++  return this.resume(s);
++ }
++ async proof(s,asset,recipient,hash,minimum) {
++  const j=s.job,p=await this.wallet.verifyTransfer({asset,recipient,hash,notBefore:j.createdAt});
++  if(!p)return null;
++  if(p.finalized!==true||p.asset!==asset||p.recipient!==recipient||p.hash!==hash||!p.transferId||
++   !Number.isSafeInteger(p.timestamp)||p.timestamp<j.createdAt||p.timestamp>this.now()+5000)throw Error('unverified conversion receipt');
++  const key=asset+':'+p.transferId;
++  if(s.usedTransfers[key]&&s.usedTransfers[key]!==j.id)throw Error('conversion receipt reused');
++  if(units(p.amount,{zero:false})<units(minimum))throw Error('conversion receipt below required amount');
++  s.usedTransfers[key]=j.id;return p;
++ }
++ async readyTrade(s) {
++  const j=s.job,trade=await this.nblock.status(j);
++  if(trade.state!=='AWAITING_BUYER_DEPOSIT')return null;
++  if(trade.deadline<this.now()+this.limits.minimumFundingWindowMs)return null;
++  if(units(trade.depositWei)>units(j.maxDepositWei)||units(trade.depositWei)>units(this.limits.maxDepositWei))throw Error('nBlock deposit cap exceeded');
++  return trade;
++ }
++ async funding(s,field,nextPhase,expiresAt) {
++  const j=s.job,signed=j[field],status=await this.wallet.fundingStatus(signed);
++  if(status==='reverted')return this.review(s,field+'_reverted');
++  if(status==='confirmed'){j.phase=nextPhase;await this.save(s);return null;}
++  if(status!=='unknown')throw Error('unknown wallet funding state');
++  if(!this.canSpend(j)||this.now()>=expiresAt)return {state:'pending',reason:field+'_reconciliation'};
++  if(!await this.readyTrade(s))return {state:'pending',reason:'seller_or_deadline_reconciliation'};
++  await this.wallet.broadcast(signed);return {state:'pending',reason:field+'_confirmation'};
++ }
++ async resume(s) {
++  const j=s.job;
++  if(JSON.stringify(j.addresses)!==JSON.stringify(this.addresses))throw Error('pending nBlock wallet identity changed');
++  if(j.phase==='needs_review')return {state:'needs_review',reason:j.reason};
++  if(j.phase==='opening') {
++   const trade=await this.nblock.lookup(j);
++   if(!trade)return this.now()>j.createdAt+this.limits.maxWaitMs?this.review(s,'order_acceptance_unknown'):{state:'pending',reason:'order_reconciliation'};
++   j.trade=trade;j.phase='seller_wait';await this.save(s);
++  }
++  if(j.phase==='seller_wait') {
++   const trade=await this.nblock.status(j);
++   if(terminal.has(trade.state))return this.finish(s,'cancelled',{reason:'seller_unavailable'});
++   if(trade.state!=='AWAITING_BUYER_DEPOSIT')return this.now()>j.createdAt+this.limits.maxWaitMs?this.review(s,'seller_timeout'):{state:'pending',reason:'seller_deposit'};
++   if(!this.canSpend(j))return {state:'disabled',reason:'spending_disabled_or_policy_changed'};
++   j.trade=trade;
++   if(!await this.readyTrade(s))return this.review(s,'insufficient_funding_window');
++   j.phase='bridge_quote';await this.save(s);
++  }
++  if(j.phase==='bridge_quote') {
++   if(!this.canSpend(j))return {state:'disabled'};
++   if(!await this.readyTrade(s))return this.review(s,'seller_not_ready');
++   const quote=await this.bridge.quote({amountUsdc6:j.amountUsdc6,addresses:this.addresses});
++   if(units(quote.minimumEthWei)<units(j.trade.depositWei)+units(this.limits.maxEthGasWei))return this.review(s,'bridge_output_insufficient');
++   j.bridge=quote;j.phase='bridge_prepare';await this.save(s);
++  }
++  if(j.phase==='bridge_prepare') {
++   if(!this.canSpend(j))return {state:'disabled'};
++   if(this.now()>=j.bridge.expiresAt)return this.review(s,'bridge_quote_expired');
++   if(!await this.readyTrade(s))return this.review(s,'seller_not_ready');
++   j.baseFunding=await this.wallet.prepareTransfer({key:j.id+'_base',transfer:{asset:ASSETS.USDC.id,
++    from:this.addresses.USDC,to:j.bridge.depositAddress,amount:j.amountUsdc6},allInUsdc6:j.allInUsdc6,
++    minimumOut:j.quote.nkn8,minUsdcPerNkn6:this.policy.minUsdcPerNkn6});
++   j.phase='bridge_prepared';await this.save(s);
++  }
++  if(j.phase==='bridge_prepared') {
++   // A deposit already broadcast is reconciled even after the seller expires.
++   const result=await this.funding(s,'baseFunding','bridge_wait',j.bridge.expiresAt);
++   if(result)return result;
++  }
++  if(j.phase==='bridge_wait') {
++   const status=await this.bridge.status(j.bridge,j.baseFunding.hash);
++   if(status.state==='needs_review')return this.review(s,status.reason);
++   if(status.state==='refunded') {
++    const p=await this.proof(s,ASSETS.USDC.id,this.addresses.USDC,status.hash,'1');
++    if(!p)return {state:'pending',reason:'bridge_refund_finality'};
++    return this.finish(s,'refunded',{asset:ASSETS.USDC.id,amount:p.amount,hash:status.hash});
++   }
++   if(status.state!=='received')return this.now()>j.createdAt+this.limits.maxWaitMs?this.review(s,'bridge_timeout'):{state:'pending',reason:'bridge_delivery'};
++   const required=units(j.trade.depositWei)+units(this.limits.maxEthGasWei);
++   const minimum=required>units(j.bridge.minimumEthWei)?required.toString():j.bridge.minimumEthWei;
++   let p;
++   try {p=await this.proof(s,ETH_ASSET,this.addresses.ETH,status.hash,minimum);}
++   catch(e){return this.review(s,e.message);}
++   if(!p)return {state:'pending',reason:'intermediate_eth_finality'};
++   j.ethReceipt=p;j.phase='eth_prepare';await this.save(s);
++  }
++  if(j.phase==='eth_prepare') {
++   if(!this.canSpend(j))return {state:'disabled',reason:'intermediate_eth_retained'};
++   if(!await this.readyTrade(s))return this.review(s,'intermediate_eth_retained_seller_unavailable');
++   j.ethFunding=await this.wallet.prepareTransfer({key:j.id+'_eth',transfer:{asset:ETH_ASSET,
++    from:this.addresses.ETH,to:j.trade.depositAddress,amount:j.trade.depositWei},maxGasWei:this.limits.maxEthGasWei});
++   j.phase='eth_prepared';await this.save(s);
++  }
++  if(j.phase==='eth_prepared') {
++   const result=await this.funding(s,'ethFunding','native_wait',j.trade.deadline-this.limits.minimumFundingWindowMs);
++   if(result)return result;
++  }
++  if(j.phase==='native_wait') {
++   const trade=await this.nblock.status(j);
++   if(terminal.has(trade.state))return this.review(s,'nblock_funded_'+trade.state.toLowerCase());
++   if(trade.state!=='COMPLETED'||!trade.nativeHash)return this.now()>j.createdAt+this.limits.maxWaitMs?this.review(s,'native_delivery_timeout'):{state:'pending',reason:'native_delivery'};
++   let proof;
++   try {proof=await this.proof(s,ASSETS.NKN.id,this.addresses.NKN,trade.nativeHash,j.quote.nkn8);}
++   catch(e){return this.review(s,e.message);}
++   if(!proof)return {state:'pending',reason:'native_finality'};
++   return this.finish(s,'completed',{asset:ASSETS.NKN.id,amount:proof.amount,hash:proof.hash,
++    intermediateEthRemainingWei:(units(j.ethReceipt.amount)-units(j.trade.depositWei)).toString(),
++    note:'ETH remainder is before actual Ethereum gas; retained in the provider wallet.'});
++  }
++  throw Error('invalid nBlock workflow phase');
++ }
++}
+diff --git a/network/conversion/nblock-runtime.mjs b/network/conversion/nblock-runtime.mjs
+new file mode 100644
+index 000000000..b27560716
+--- /dev/null
++++ b/network/conversion/nblock-runtime.mjs
+@@ -0,0 +1,42 @@
++import fs from 'node:fs/promises';
++import path from 'node:path';
++import {DurableState} from '../durable-state.mjs';
++import {NblockClient} from './nblock.mjs';
++import {RelayDepositClient} from './relay-deposit.mjs';
++import {NblockRelayConversion} from './nblock-relay.mjs';
++import {privateJson} from './external-http.mjs';
++
++export async function startNblockConversion({config,directory,log=()=>{},loadAdapter}) {
++ const state=new DurableState(directory);
++ const pendingJournal=await new DurableState(path.join(directory,'journal')).get('nblock-conversion');
++ if(config.enabled!==true&&!pendingJournal?.job) {
++  await state.set('status',{updatedAt:Date.now(),state:'disabled',reason:'nblock_explicit_opt_in_required'});
++  return {async close(){}};
++ }
++ if(config.reviewedNblockApi!==true)throw Error('nBlock authenticated API review must be acknowledged');
++ await fs.mkdir(directory,{recursive:true,mode:0o700});
++ const lock=path.join(directory,'nblock-runner.lock');
++ await fs.mkdir(lock,{mode:0o700});
++ let wallet;
++ try {
++  const credentials=await privateJson(config.credentialsFile);
++  const passwordLogin=typeof credentials.username==='string'&&credentials.username&&typeof credentials.password==='string'&&credentials.password;
++  if(!passwordLogin&&(typeof credentials.token!=='string'||!credentials.token||credentials.token.length>16384||/[\r\n]/.test(credentials.token)))throw Error('invalid nBlock credentials');
++  wallet=await loadAdapter(config.wallet,'nblock-wallet');
++  const addresses=await wallet.addresses();
++  for(const key of ['USDC','NKN','ETH'])if(!addresses[key]||addresses[key]!==config.addresses?.[key])throw Error('nBlock wallet configuration mismatch');
++  const worker=new NblockRelayConversion({directory:path.join(directory,'journal'),policy:config.policy,
++   limits:config.limits,addresses,wallet,enabled:config.enabled===true,nblock:new NblockClient({token:credentials.token,credentials}),
++   bridge:new RelayDepositClient({slippageBps:config.policy.maxSlippageBps})});
++  let pending,closed=false;
++  const tick=()=>{
++   if(closed||pending)return pending;
++   pending=worker.tick().then(value=>state.set('status',{updatedAt:Date.now(),...value}))
++    .catch(async()=>{log('nBlock conversion is blocked; inspect its private journal before retrying.');
++     await state.set('status',{updatedAt:Date.now(),state:'unavailable',reason:'nblock_execution_or_reconciliation_failed'});})
++    .finally(()=>{pending=null;});return pending;
++  };
++  const timer=setInterval(()=>void tick(),30000);timer.unref();void tick();
++  return {async close(){closed=true;clearInterval(timer);await pending;try{await wallet.close?.();}finally{await fs.rmdir(lock);}}};
++ } catch(e) {try{await wallet?.close?.();}finally{await fs.rmdir(lock);}throw e;}
++}
+diff --git a/network/conversion/nblock-wallet.mjs b/network/conversion/nblock-wallet.mjs
+new file mode 100644
+index 000000000..4f552fa14
+--- /dev/null
++++ b/network/conversion/nblock-wallet.mjs
+@@ -0,0 +1,134 @@
++import path from 'node:path';
++import {createPublicClient,createWalletClient,http,parseTransaction,recoverTransactionAddress,keccak256} from 'viem';
++import {mainnet} from 'viem/chains';
++import {create as createProviderWallet} from './provider-wallet.mjs';
++import {DurableState} from '../durable-state.mjs';
++import {exactJSON} from './native-rpc.mjs';
++import {units} from './policy.mjs';
++import {evmAddress} from './external-http.mjs';
++import {ETH_ASSET} from './relay-deposit.mjs';
++
++export class NblockWallet {
++ constructor({provider,clients,wallet,directory,maxGasWei,now=Date.now}) {
++  units(maxGasWei,{zero:false});Object.assign(this,{provider,clients,wallet,maxGasWei,now});
++  this.store=new DurableState(directory);this.tail=Promise.resolve();
++ }
++ async addresses() {const a=await this.provider.addresses();return {...a,ETH:a.USDC};}
++ balances() {return this.provider.balances();}
++ async quorum(fn) {
++  const results=await Promise.all(this.clients.map(c=>fn(c).catch(()=>undefined)));
++  for(const value of results)if(value!==undefined&&results.filter(v=>v!==undefined&&exactJSON(v)===exactJSON(value)).length>=2)return value;
++  throw Error('Ethereum RPC quorum unavailable');
++ }
++ async finalBlock() {
++  if(await this.quorum(c=>c.getChainId())!==1)throw Error('Ethereum mainnet required');
++  const heads=await Promise.all(this.clients.map(c=>c.getBlock({blockTag:'finalized'}).catch(()=>null)));
++  const heights=heads.filter(b=>b?.number!==undefined).map(b=>b.number).sort((a,b)=>a>b?-1:a<b?1:0);
++  if(heights.length<2)throw Error('Ethereum finality unavailable');
++  const b=await this.quorum(c=>c.getBlock({blockNumber:heights[1]}));
++  const now=BigInt(Math.floor(this.now()/1000));
++  if(!b.hash||b.timestamp>now+10n||b.timestamp<now-3600n)throw Error('Ethereum finalized chain stale');
++  return b;
++ }
++ prepareTransfer(request) {
++  if(this.closed)return Promise.reject(Error('nBlock wallet closed'));
++  if(request.transfer.asset!==ETH_ASSET)return this.provider.prepareTransfer(request);
++  const result=this.tail.then(()=>this.prepareEth(request));this.tail=result.catch(()=>{});return result;
++ }
++ async prepareEth({key,transfer,maxGasWei}) {
++  if(!/^[a-zA-Z0-9_-]{1,128}$/.test(key||''))throw Error('ETH transfer key required');
++  const prior=await this.store.get('eth-current');
++  if(prior?.key===key) {
++   if(exactJSON(prior.transfer)!==exactJSON(transfer)||prior.maxGasWei!==maxGasWei)throw Error('ETH transfer key reused');
++   await this.validateEth(prior.signed,transfer,maxGasWei);return prior.signed;
++  }
++  if(prior&&!['confirmed','reverted'].includes(await this.fundingStatus(prior.signed)))throw Error('previous ETH transfer unresolved');
++  const from=(await this.addresses()).ETH,to=evmAddress(transfer.to);
++  if(evmAddress(transfer.from)!==evmAddress(from)||units(transfer.amount,{zero:false})===0n)throw Error('provider-owned ETH transfer required');
++  const block=await this.finalBlock();
++  const balance=await this.quorum(c=>c.getBalance({address:from,blockNumber:block.number}));
++  if(balance<units(transfer.amount)+units(maxGasWei))throw Error('insufficient finalized Ethereum balance');
++  const code=await this.quorum(async c=>(await c.getCode({address:to}))||'0x');
++  if(code!=='0x')throw Error('nBlock ETH escrow must be an EOA');
++  const nonce=await this.quorum(c=>c.getTransactionCount({address:from,blockTag:'pending'}));
++  const request=await this.wallet.prepareTransactionRequest({account:this.provider.account,chain:mainnet,
++   to,value:units(transfer.amount),data:'0x',gas:21000n,nonce});
++  const raw=await this.wallet.signTransaction(request);
++  const signed={asset:ETH_ASSET,raw,hash:keccak256(raw)};
++  await this.validateEth(signed,transfer,maxGasWei);
++  await this.store.set('eth-current',{key,signed,transfer,maxGasWei});return signed;
++ }
++ async validateEth(signed,transfer,maxGasWei) {
++  const tx=parseTransaction(signed.raw),sender=await recoverTransactionAddress({serializedTransaction:signed.raw});
++  const from=(await this.addresses()).ETH;
++  if(signed.asset!==ETH_ASSET||tx.chainId!==1||evmAddress(sender)!==evmAddress(from)||evmAddress(transfer.from)!==evmAddress(from)||
++   evmAddress(tx.to)!==evmAddress(transfer.to)||tx.value!==units(transfer.amount,{zero:false})||(tx.data&&tx.data!=='0x')||
++   tx.gas!==21000n||keccak256(signed.raw)!==signed.hash||tx.authorizationList?.length)throw Error('signed ETH transfer differs from intent');
++  const price=tx.maxFeePerGas??tx.gasPrice;
++  if(typeof price!=='bigint'||price<=0n||price*tx.gas>units(maxGasWei)||units(maxGasWei)>units(this.maxGasWei))throw Error('ETH gas cap exceeded');
++ }
++ async fundingStatus(signed) {
++  if(signed.asset!==ETH_ASSET)return this.provider.fundingStatus(signed);
++  const b=await this.finalBlock();
++  const r=await this.quorum(c=>c.getTransactionReceipt({hash:signed.hash})).catch(()=>null);
++  if(!r||r.blockNumber>b.number)return 'unknown';
++  const block=await this.quorum(c=>c.getBlock({blockNumber:r.blockNumber}));
++  if(block.hash!==r.blockHash)throw Error('Ethereum funding receipt reorganized');
++  return r.status==='success'?'confirmed':'reverted';
++ }
++ async broadcast(signed) {
++  if(this.closed)throw Error('nBlock wallet closed');
++  if(signed.asset!==ETH_ASSET)return this.provider.broadcast(signed);
++  const record=await this.store.get('eth-current');
++  if(!record||exactJSON(record.signed)!==exactJSON(signed))throw Error('only journaled ETH can be broadcast');
++  await this.validateEth(signed,record.transfer,record.maxGasWei);await this.finalBlock();
++  const hash=await this.clients[0].sendRawTransaction({serializedTransaction:signed.raw});
++  if(hash!==signed.hash)throw Error('ETH broadcast hash mismatch');return hash;
++ }
++ async verifyTransfer({asset,recipient,hash,notBefore}) {
++  if(asset!==ETH_ASSET)return this.provider.verifyTransfer({asset,recipient,hash,notBefore});
++  if(evmAddress(recipient)!==evmAddress((await this.addresses()).ETH)||!/^0x[0-9a-f]{64}$/i.test(hash))throw Error('Ethereum receipt destination mismatch');
++  const head=await this.finalBlock();
++  const receipt=await this.quorum(c=>c.getTransactionReceipt({hash}));
++  if(receipt.status!=='success'||receipt.blockNumber>head.number)return null;
++  const block=await this.quorum(c=>c.getBlock({blockNumber:receipt.blockNumber}));
++  const time=Number(block.timestamp)*1000;
++  if(block.hash!==receipt.blockHash||time<notBefore)return null;
++  const tx=await this.quorum(c=>c.getTransaction({hash}));
++  if(tx.blockHash!==block.hash||tx.hash!==hash)throw Error('Ethereum transaction block mismatch');
++  let amount=0n;
++  if(tx.to?.toLowerCase()===recipient.toLowerCase()) {
++   // A direct transfer is sufficient only for an EOA, which cannot forward it.
++   const code=await this.quorum(async c=>(await c.getCode({address:recipient,blockNumber:block.number}))||'0x');
++   if(code!=='0x')throw Error('Ethereum recipient is not an EOA');amount=tx.value;
++  } else {
++   // Relay fills can be internal ETH transfers. Never infer them from a token
++   // ticker or a balance increase; require matching traces from two RPCs.
++   const traces=await this.quorum(c=>c.request({method:'trace_transaction',params:[hash]}));
++   if(!Array.isArray(traces))throw Error('Ethereum transfer traces unavailable');
++   const failed=traces.filter(t=>t.error).map(t=>t.traceAddress);
++   for(const t of traces) {
++    if(!Array.isArray(t.traceAddress)||failed.some(p=>Array.isArray(p)&&p.every((n,i)=>t.traceAddress[i]===n)))continue;
++    if(t.transactionHash!==hash||t.blockHash!==block.hash)throw Error('Ethereum trace anchor mismatch');
++    if(t.type==='call'&&t.action?.callType==='call'&&t.action?.to?.toLowerCase()===recipient.toLowerCase()&&!t.error)
++     amount+=BigInt(t.action.value);
++    if(t.type==='call'&&t.action?.from?.toLowerCase()===recipient.toLowerCase()&&BigInt(t.action.value||'0')>0n)
++     throw Error('Ethereum recipient forwards receipt funds');
++   }
++  }
++  if(amount<=0n)return null;
++  return {asset,recipient,hash,amount:String(amount),transferId:hash.toLowerCase(),timestamp:time,finalized:true};
++ }
++ async close() {this.closed=true;await this.tail;await this.provider.close();}
++}
++export async function create(config) {
++ const rpc=config.ethereumRpc;
++ if(!path.isAbsolute(config.directory||'')||!Array.isArray(rpc)||rpc.length<2||
++  new Set(rpc.map(u=>new URL(u).hostname)).size!==rpc.length||rpc.some(u=>{const x=new URL(u);return x.protocol!=='https:'||x.username||x.password;}))throw Error('independent Ethereum HTTPS RPCs and wallet directory required');
++ const provider=await createProviderWallet(config.providerWallet);
++ try {
++  const clients=rpc.map(url=>createPublicClient({chain:mainnet,transport:http(url,{timeout:15000,retryCount:0})}));
++  const wallet=createWalletClient({account:provider.account,chain:mainnet,transport:http(rpc[0],{timeout:15000,retryCount:0})});
++  return new NblockWallet({provider,clients,wallet,directory:config.directory,maxGasWei:config.maxGasWei});
++ } catch(e) {await provider.close();throw e;}
++}
+diff --git a/network/conversion/nblock.mjs b/network/conversion/nblock.mjs
+new file mode 100644
+index 000000000..b9d7267b3
+--- /dev/null
++++ b/network/conversion/nblock.mjs
+@@ -0,0 +1,105 @@
++import {units} from './policy.mjs';
++import {externalJson,evmAddress,id,money,timestamp} from './external-http.mjs';
++
++const ORIGIN='https://nblock.net';
++const STATES=new Set(['MATCHED','AWAITING_SELLER_DEPOSIT','SELLER_DEPOSITED','AWAITING_BUYER_DEPOSIT','BUYER_DEPOSITED','COMPLETING','COMPLETED','EXPIRED','CANCELLED','DISPUTED','REFUNDED']);
++export class NblockClient {
++ constructor({token,credentials,fetcher=fetch,now=Date.now}={}) {Object.assign(this,{token,credentials,fetcher,now});}
++ async authenticate() {
++  let expiresAt=Infinity;
++  if(this.token)try{expiresAt=JSON.parse(Buffer.from(this.token.split('.')[1],'base64url').toString()).exp*1000;}catch{}
++  if(this.token&&(!Number.isFinite(expiresAt)||expiresAt>this.now()+30000))return;
++  if(!this.credentials?.username||!this.credentials?.password)throw Error('nBlock credentials missing or expired');
++  const data=await externalJson(ORIGIN+'/api/login',{fetcher:this.fetcher,body:{username:this.credentials.username,password:this.credentials.password}});
++  if(typeof data?.token!=='string'||!data.token||/[\r\n]/.test(data.token))throw Error('nBlock login failed');
++  this.token=data.token;
++ }
++ async request(path,{body,authenticated=false}={}) {
++  if(authenticated)await this.authenticate();
++  if(authenticated&&(!this.token||/[\r\n]/.test(this.token)))throw Error('nBlock authentication required');
++  let data;
++  try{data=await externalJson(ORIGIN+'/api/otc/'+path,{fetcher:this.fetcher,body,token:authenticated?this.token:undefined});}
++  catch(e){if(authenticated&&e.message==='external HTTP 401')this.token=null;throw e;}
++  if(data?.success!==true)throw Error('nBlock request rejected');
++  return data;
++ }
++ async listings() {
++  const result=await this.request('listings?page=1&sort=created_at');
++  if(!Array.isArray(result.data)||result.pagination?.pages>1)throw Error('nBlock listings incomplete');
++  return result.data.filter(x=>x.listing_type==='SELL_NKN').map(x=>{
++   const nkn8=money(x.nkn_amount,8);units(nkn8,{zero:false});
++   if(!['market','limit','usd_target'].includes(x.order_type))throw Error('unsupported nBlock listing type');
++   return {listingId:id(x.id),nkn8,orderType:x.order_type,seller:evmAddress(x.seller_eth_address),
++    ethWei:x.erc20_amount===null?null:money(x.erc20_amount,18),
++    usd6:x.usd_target===null?null:money(x.usd_target,6),createdAt:timestamp(x.created_at)};
++  });
++ }
++ async quote(listing) {
++  const current=(await this.listings()).find(x=>x.listingId===listing.listingId);
++  if(!current||JSON.stringify(current)!==JSON.stringify(listing))throw Error('nBlock listing changed');
++  const gas=await this.request('gas-estimate');
++  const gasWei=money(gas.gas_fee_eth,18);let ethWei=listing.ethWei,quoteId=null,expiresAt=this.now()+30000;
++  if(listing.orderType==='market') {
++   const result=await this.request('listings/'+listing.listingId+'/quote',{body:{},authenticated:true});
++   const q=result.data;
++   quoteId=id(q?.quote_id);ethWei=money(q?.erc20_amount,18);
++   if(!Number.isInteger(q.expires_in_seconds)||q.expires_in_seconds<1||q.expires_in_seconds>60)throw Error('invalid nBlock quote expiry');
++   expiresAt=this.now()+q.expires_in_seconds*1000;
++  } else if(listing.orderType==='usd_target') {
++   const price=await this.request('price');const ethUsd6=units(money(price.data?.eth_usd,6),{zero:false});
++   ethWei=((units(listing.usd6)*10n**18n+ethUsd6-1n)/ethUsd6).toString();
++  }
++  units(ethWei,{zero:false});
++  return {...listing,ethWei,gasWei,quoteId,expiresAt,depositWei:(units(ethWei)+units(gasWei)).toString()};
++ }
++ async trades() {
++  const result=await this.request('trades',{authenticated:true});
++  if(!Array.isArray(result.data)||result.pagination?.pages>1)throw Error('nBlock trades incomplete');
++  return result.data;
++ }
++ async accept(quote,addresses) {
++  if(this.now()>=quote.expiresAt-5000)throw Error('nBlock quote expired');
++  // No retry: callers journal a snapshot of trade IDs before this side effect.
++  await this.request('listings/'+id(quote.listingId)+'/accept',{authenticated:true,body:{
++   buyer_nkn_address:addresses.NKN,buyer_eth_address:evmAddress(addresses.ETH),
++   ...(quote.quoteId?{quote_id:quote.quoteId}:{})}});
++ }
++ normalizeTrade(t,{quote,addresses,createdAt,maxDepositWei}) {
++  if(id(t.listing_id)!==quote.listingId||t.listing_type!=='SELL_NKN'||t.buyer_nkn_address!==addresses.NKN||
++   (t.seller_eth_address&&evmAddress(t.seller_eth_address)!==quote.seller)||
++   evmAddress(t.buyer_eth_address)!==evmAddress(addresses.ETH)||money(t.nkn_amount,8)!==quote.nkn8||
++   timestamp(t.created_at)<createdAt-5000||!STATES.has(t.status))throw Error('nBlock trade does not match reserved intent');
++  const ethWei=money(t.erc20_amount,18);
++  if(units(ethWei,{zero:false})>units(maxDepositWei))throw Error('nBlock trade exceeds price cap');
++  const depositWei=t.buyer_deposit_required==null?null:money(t.buyer_deposit_required,18);
++  if(depositWei!==null&&(units(depositWei)<units(ethWei)||units(depositWei)>units(maxDepositWei)))throw Error('nBlock deposit exceeds reserved cap');
++  const ready=t.status==='AWAITING_BUYER_DEPOSIT';
++  const depositAddress=t.eth_escrow_address?evmAddress(t.eth_escrow_address):null;
++  const deadline=t.buyer_deposit_deadline?timestamp(t.buyer_deposit_deadline):null;
++  if(ready&&(!depositWei||!depositAddress||!deadline))throw Error('nBlock funding instructions incomplete');
++  const hash=t.mainnet_release_tx;
++  if(hash!=null&&!/^[0-9a-f]{64}$/.test(hash))throw Error('invalid nBlock native receipt hash');
++  return {id:id(t.id),listingId:quote.listingId,state:t.status,nkn8:quote.nkn8,ethWei,depositWei,depositAddress,deadline,
++   nativeHash:hash||null,createdAt:timestamp(t.created_at)};
++ }
++ async lookup(intent) {
++  const trades=await this.trades();
++  const candidates=trades.filter(t=>!intent.beforeIds.includes(id(t.id))&&String(t.listing_id)===intent.quote.listingId);
++  if(candidates.length>1)throw Error('ambiguous nBlock order reconciliation');
++  return candidates.length?this.normalizeTrade(candidates[0],intent):null;
++ }
++ async status(intent) {
++  const trade=(await this.trades()).find(t=>id(t.id)===intent.trade.id);
++  if(!trade)throw Error('nBlock trade missing');
++  const result=this.normalizeTrade(trade,intent);
++  if(result.ethWei!==intent.trade.ethWei||(intent.trade.depositAddress&&result.depositAddress!==intent.trade.depositAddress)||
++   (intent.trade.depositWei&&result.depositWei!==intent.trade.depositWei))throw Error('nBlock accepted trade changed');
++  if(result.state==='COMPLETED'&&!result.nativeHash) {
++   const settled=await this.request('public/settlements');
++   if(!Array.isArray(settled.data))throw Error('invalid nBlock settlement list');
++   const matches=settled.data.filter(x=>String(x.id)===result.id&&money(x.nkn_amount,8)===result.nkn8);
++   if(matches.length===1&&/^[0-9a-f]{64}$/.test(matches[0].mainnet_release_tx))result.nativeHash=matches[0].mainnet_release_tx;
++  }
++  return result;
++ }
++}
+diff --git a/network/conversion/relay-deposit.mjs b/network/conversion/relay-deposit.mjs
+new file mode 100644
+index 000000000..cc7bc62db
+--- /dev/null
++++ b/network/conversion/relay-deposit.mjs
+@@ -0,0 +1,45 @@
++import {encodeFunctionData,parseAbi} from 'viem';
++import {ASSETS,units} from './policy.mjs';
++import {externalJson,evmAddress} from './external-http.mjs';
++export const ETH_ASSET='eip155:1/native';
++const TOKEN=ASSETS.USDC.id.split('erc20:')[1],ZERO='0x'+'0'.repeat(40);
++const abi=parseAbi(['function transfer(address,uint256) returns (bool)']);
++const hash=value=>typeof value==='string'&&/^0x[0-9a-f]{64}$/i.test(value);
++function currency(c,chain,address,decimals) {return c?.chainId===chain&&c?.address?.toLowerCase()===address&&c.decimals===decimals;}
++export class RelayDepositClient {
++ constructor({fetcher=fetch,now=Date.now,slippageBps=50}={}) {
++  if(!Number.isInteger(slippageBps)||slippageBps<0||slippageBps>1000)throw Error('invalid Relay slippage');
++  Object.assign(this,{fetcher,now,slippageBps});
++ }
++ async quote({amountUsdc6,addresses}) {
++  units(amountUsdc6,{zero:false});const from=evmAddress(addresses.USDC),to=evmAddress(addresses.ETH);
++  const q=await externalJson('https://api.relay.link/quote/v2',{fetcher:this.fetcher,body:{
++   user:from,recipient:to,refundTo:from,refundOnOrigin:true,originChainId:8453,destinationChainId:1,
++   originCurrency:TOKEN,destinationCurrency:ZERO,amount:amountUsdc6,tradeType:'EXACT_INPUT',
++   useDepositAddress:true,strict:true,slippageTolerance:String(this.slippageBps)}});
++  const d=q.details,s=q.steps?.[0],item=s?.items?.[0],tx=item?.data;
++  if(q.steps?.length!==1||s.id!=='deposit'||s.kind!=='transaction'||s.items?.length!==1||!hash(q.requestId)||s.requestId!==q.requestId||
++   !currency(d?.currencyIn?.currency,8453,TOKEN,6)||!currency(d?.refundCurrency?.currency,8453,TOKEN,6)||!currency(d?.currencyOut?.currency,1,ZERO,18)||
++   d.currencyIn.amount!==amountUsdc6||evmAddress(d.sender)!==from||evmAddress(d.recipient)!==to||tx?.chainId!==8453||
++   evmAddress(tx.from)!==from||evmAddress(tx.to)!==TOKEN||BigInt(tx.value)!==0n)throw Error('Relay quote assets or route changed');
++  const depositAddress=evmAddress(s.depositAddress),minimumEthWei=d.currencyOut.minimumAmount,expectedEthWei=d.currencyOut.amount;
++  if(units(minimumEthWei,{zero:false})>units(expectedEthWei,{zero:false})||
++   units(minimumEthWei)<units(expectedEthWei)*BigInt(10000-this.slippageBps)/10000n)throw Error('Relay minimum output invalid');
++  const expectedData=encodeFunctionData({abi,functionName:'transfer',args:[depositAddress,units(amountUsdc6)]});
++  if(tx.data?.toLowerCase()!==expectedData.toLowerCase())throw Error('Relay deposit is not the exact USDC transfer');
++  return {id:q.requestId,depositAddress,amountUsdc6,minimumEthWei,expectedEthWei,recipient:to,refundAddress:from,
++   // Strict addresses are single-order. Limit local submission age regardless
++   // of the longer protocol deadline; never renew a funded address.
++   expiresAt:this.now()+30000};
++ }
++ async status(quote,fundingHash) {
++  if(!hash(quote.id)||!hash(fundingHash))throw Error('invalid Relay reconciliation id');
++  const q=await externalJson('https://api.relay.link/intents/status/v3?requestId='+quote.id,{fetcher:this.fetcher});
++  if(!['success','refund','failure'].includes(q.status))return {state:'pending'};
++  if(!Array.isArray(q.inTxHashes)||!q.inTxHashes.some(h=>h.toLowerCase()===fundingHash.toLowerCase())||q.originChainId!==8453)throw Error('Relay status does not match funding');
++  if(q.status==='failure')return {state:'needs_review',reason:'relay_failure'};
++  if(!Array.isArray(q.txHashes)||q.txHashes.length!==1||!hash(q.txHashes[0]))return {state:'needs_review',reason:'relay_receipt_ambiguous'};
++  if(q.status==='success'&&q.destinationChainId!==1)throw Error('Relay destination chain changed');
++  return {state:q.status==='success'?'received':'refunded',hash:q.txHashes[0]};
++ }
++}
+diff --git a/network/conversion/runtime.mjs b/network/conversion/runtime.mjs
+index b80af54e3..da8c7baaf 100644
+--- a/network/conversion/runtime.mjs
++++ b/network/conversion/runtime.mjs
+@@ -16,6 +16,11 @@ async function adapter(spec,kind){
+  return m.create(spec.config||{});
+ }
+ export async function startAutomaticConversion({config,directory,log=()=>{}}){
++ if(config.engine==='nblock-relay'){
++  const {startNblockConversion}=await import('./nblock-runtime.mjs');
++  return startNblockConversion({config,directory,log,loadAdapter:adapter});
++ }
++ if(config.engine&&config.engine!=='direct')throw Error('unknown conversion engine');
+  let route,wallet;
+  try{
+  route=await adapter(config.route,'route');wallet=await adapter(config.wallet,'wallet');
+diff --git a/network/conversion/swft-discovery.mjs b/network/conversion/swft-discovery.mjs
+index c41129f0b..5d113f210 100644
+--- a/network/conversion/swft-discovery.mjs
++++ b/network/conversion/swft-discovery.mjs
+@@ -2,6 +2,14 @@
+ // listing an asset or an indicative price is not an executable protected quote.
+ const ENDPOINT='https://www.swftc.info/gt/swap/v1/queryCoinList';
+ const USDC='0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
++export async function querySwft(method,params={},fetcher=fetch){
++ if(!['queryCoinList','queryBaseInfo'].includes(method))throw Error('read-only SWFT method required');
++ const response=await fetcher(ENDPOINT.replace('queryCoinList',method),{method:'POST',redirect:'error',headers:{'content-type':'application/json'},body:JSON.stringify({...params,sourceType:'H5',userNo:'',sessionUuid:'',orderId:''}),signal:AbortSignal.timeout(15000)});
++ if(!response.ok)throw Error('conversion discovery unavailable');
++ const raw=await response.text();if(raw.length>2000000)throw Error('asset response too large');
++ const data=JSON.parse(raw);if(String(data.resCode)!=='800')throw Error('conversion discovery failed');
++ return data.data;
++}
+ export function classifyAssets(data){
+  if(!Array.isArray(data))throw Error('invalid asset list');
+  const usdc=data.find(x=>x.coinCode==='USDC(BASE)'&&x.mainNetwork==='BASE'&&x.contact?.toLowerCase()===USDC&&Number(x.coinDecimal)===6);
+@@ -9,11 +17,7 @@ export function classifyAssets(data){
+  return {baseUSDC:!!usdc,nativeNKN:!!nkn};
+ }
+ export async function discoverConversion({fetcher=fetch}={}){
+- const response=await fetcher(ENDPOINT,{method:'POST',redirect:'error',headers:{'content-type':'application/json'},body:JSON.stringify({sourceType:'H5',userNo:'',sessionUuid:'',orderId:''}),signal:AbortSignal.timeout(15000)});
+- if(!response.ok)throw Error('conversion discovery unavailable');
+- const raw=await response.text();if(raw.length>2000000)throw Error('asset response too large');
+- const data=JSON.parse(raw);if(String(data.resCode)!=='800')throw Error('conversion discovery failed');
+- const assets=classifyAssets(data.data);
++ const assets=classifyAssets(await querySwft('queryCoinList',{},fetcher));
+  return {provider:'SWFT',custody:'external',...assets,executable:false,
+   reason:!assets.baseUSDC||!assets.nativeNKN?'native_pair_unavailable':'protected_native_quote_unverified',
+   directions:['USDC_TO_NKN','NKN_TO_USDC']};
+diff --git a/network/provider/nblock-conversion.example.json b/network/provider/nblock-conversion.example.json
+new file mode 100644
+index 000000000..ca4b551e0
+--- /dev/null
++++ b/network/provider/nblock-conversion.example.json
+@@ -0,0 +1,57 @@
++{
++  "engine": "nblock-relay",
++  "enabled": false,
++  "reviewedNblockApi": false,
++  "credentialsFile": "/etc/enclave-tuna-usdc/nblock-credentials.json",
++  "addresses": {
++    "USDC": "PROVIDER_BASE_EOA",
++    "ETH": "SAME_PROVIDER_EOA_ON_ETHEREUM",
++    "NKN": "PROVIDER_NATIVE_NKN_ADDRESS"
++  },
++  "policy": {
++    "version": 1,
++    "payoutCurrency": "NKN",
++    "allowExternal": true,
++    "reserveNkn8": "100000000000",
++    "refillBelowNkn8": "10000000000",
++    "buyUsdc6": "5000000",
++    "maxConversionUsdc6": "5100000",
++    "dailyConversionUsdc6": "5100000",
++    "maxSellNkn8": "100000000",
++    "minNknPerUsdc8": "9000000000",
++    "minUsdcPerNkn6": "1",
++    "maxSlippageBps": 50,
++    "expiresAt": 0
++  },
++  "limits": {
++    "maxDepositWei": "1800000000000000",
++    "maxEthGasWei": "10000000000000",
++    "maxBridgeGasUsdc6": "100000",
++    "maxNkn8": "50000000000",
++    "minimumFundingWindowMs": 1800000,
++    "maxWaitMs": 172800000
++  },
++  "wallet": {
++    "module": "/opt/enclave-tuna-usdc/nblock-wallet.bundle.mjs",
++    "sha256": "REPLACE_WITH_REVIEWED_BUNDLE_SHA256",
++    "config": {
++      "directory": "/var/lib/enclave-tuna-usdc/currency/ethereum-wallet",
++      "maxGasWei": "10000000000000",
++      "ethereumRpc": ["https://ethereum-rpc.publicnode.com", "https://eth.drpc.org"],
++      "providerWallet": {
++        "directory": "/var/lib/enclave-tuna-usdc/currency/provider-wallet",
++        "usdcKeyFile": "/etc/enclave-tuna-usdc/provider-evm.key",
++        "nknSeedFile": "/etc/enclave-tuna-usdc/provider-nkn.seed",
++        "nativeBinary": "/opt/enclave-tuna-usdc/enclave-currency-wallet",
++        "nativeBinarySha256": "REPLACE_WITH_REVIEWED_BINARY_SHA256",
++        "baseRpc": ["https://mainnet.base.org", "https://base-rpc.publicnode.com"],
++        "native": {
++          "endpoints": ["REPLACE_WITH_FIRST_NATIVE_HTTPS_RPC", "REPLACE_WITH_SECOND_NATIVE_HTTPS_RPC"],
++          "genesisHash": "REPLACE_WITH_PINNED_MAINNET_GENESIS_HASH",
++          "confirmations": 12
++        },
++        "limits": {"nknFee8": "100000", "maxGasWei": "20000000000000", "maxEthPriceUsdc6": "4000000000"}
++      }
++    }
++  }
++}
+diff --git a/network/route-record.mjs b/network/route-record.mjs
+index a6fb77bc1..1c5dae000 100644
+--- a/network/route-record.mjs
++++ b/network/route-record.mjs
+@@ -4,7 +4,7 @@ import {createHash, createPublicKey, sign, verify} from 'node:crypto';
+ import {assertDirectChoice} from './connectivity-control.mjs';
+ import {recoverMessageAddress,keccak256,stringToHex} from 'viem';
+ import net from 'node:net';
+-import {isBlockedHost} from '../relay/net-guard.mjs';
++import {isBlockedHost,parseIp} from '../relay/net-guard.mjs';
+ import {validateCircuitPolicy} from './circuit-policy.mjs';
+ import {verifyQualification} from './provider-qualification.mjs';
+ import {tunaPolicyFromLease} from './tuna-policy.mjs';
+@@ -62,7 +62,7 @@ export async function verifyRoute(bundle, {deploymentId, policy, lease, memory,
+       !Number.isSafeInteger(r.sequence) || r.sequence < 1 || !Number.isSafeInteger(r.issuedAt) || r.issuedAt > now + 5000 ||
+       !Number.isSafeInteger(r.expiresAt) || r.expiresAt <= now || r.expiresAt > d.expiresAt ||
+       r.expiresAt > lease.leaseUntil || r.expiresAt - r.issuedAt > 300000 || !Array.isArray(r.routes) || r.routes.length > p.routes) throw new Error('invalid or expired route record');
+-  const seen = new Set();
++  const seen = new Set(), publicIps = new Set();
+   for (const route of r.routes) {
+     if (!route || typeof route.circuit !== 'string' || !/^[0-9a-f]{32}$/.test(route.circuit) || seen.has(route.circuit) ||
+         !net.isIP(route.address) || isBlockedHost(route.address) || route.port !== 443 || route.transport !== (p.mode==='direct'?'direct':'tuna-guarded-tcp') ||
+@@ -72,6 +72,9 @@ export async function verifyRoute(bundle, {deploymentId, policy, lease, memory,
+         Object.keys(route).some(k => !['circuit','address','port','transport','directPort','fallback'].includes(k))) throw new Error('invalid public route');
+     seen.add(route.circuit);
+     if(p.currency==='USDC'&&p.mode==='guarded'){
++      const ip=parseIp(route.address),ipKey=ip&&`${ip.family}:${ip.value}`;
++      if(!ipKey||publicIps.has(ipKey))throw Error('USDC TUNA routes require distinct public IPs');
++      publicIps.add(ipKey);
+       const current=tunaPolicyFromLease(lease);
+       if(recordHash(current)!==recordHash(p)||r.expiresAt>p.expiresAt||p.expiresAt<=now||route.fallback!==undefined||route.directPort!==undefined)throw Error('route lacks current USDC TUNA owner authorization');
+       const providers=lease.connectivity.providers;
+diff --git a/network/tuna-policy.mjs b/network/tuna-policy.mjs
+index 844db8735..5334c7fb8 100644
+--- a/network/tuna-policy.mjs
++++ b/network/tuna-policy.mjs
+@@ -4,7 +4,7 @@ export function validateTunaPolicy(p){
+  const fields=['version','deploymentId','mode','currency','directFallback','routes','maxPricePerGiB6','budget6','nonce','connectivity','expiresAt','providerIds','diversity','providers'];
+  if(!p||p.version!==4||!id.test(p.deploymentId||'')||p.mode!=='guarded'||p.currency!=='USDC'||p.directFallback!==false||p.routes!==2||
+   !['maxPricePerGiB6','budget6','nonce'].every(k=>uint.test(p[k]||'')&&BigInt(p[k])>0n)||!/^0x[0-9a-f]{40}$/.test(p.connectivity||'')||
+-  !Number.isSafeInteger(p.expiresAt)||p.expiresAt<=0||p.diversity!=='beneficiary-and-network'||!Array.isArray(p.providerIds)||p.providerIds.length<1||p.providerIds.length>6||
++  !Number.isSafeInteger(p.expiresAt)||p.expiresAt<=0||p.diversity!=='public-ip'||!Array.isArray(p.providerIds)||p.providerIds.length<1||p.providerIds.length>6||
+   p.providerIds.some(v=>!id.test(v))||new Set(p.providerIds).size!==p.providerIds.length||Object.keys(p).some(k=>!fields.includes(k)))throw Error('invalid owner USDC TUNA policy');
+  // The owner pins registry identities on chain. NKN keys may rotate only when
+  // their new encrypted connection is authenticated by the registered proof key.
+@@ -15,7 +15,7 @@ export function validateTunaPolicy(p){
+ export function tunaPolicyFromLease(lease){
+  const c=lease?.connectivity;if(!c?.viaTuna||c.owner.toLowerCase()!==lease.owner.toLowerCase())throw Error('current USDC TUNA owner authorization required');
+  if(!Array.isArray(c.providers))throw Error('USDC TUNA provider path required');
+- return validateTunaPolicy({version:4,deploymentId:lease.id,mode:'guarded',currency:'USDC',directFallback:false,routes:2,maxPricePerGiB6:String(c.maxPricePerGiB6),budget6:String(c.budget6),nonce:String(c.nonce),connectivity:c.address.toLowerCase(),expiresAt:Number(c.expires)*1000,providerIds:c.providers.map(p=>p.id),diversity:'beneficiary-and-network'});
++ return validateTunaPolicy({version:4,deploymentId:lease.id,mode:'guarded',currency:'USDC',directFallback:false,routes:2,maxPricePerGiB6:String(c.maxPricePerGiB6),budget6:String(c.budget6),nonce:String(c.nonce),connectivity:c.address.toLowerCase(),expiresAt:Number(c.expires)*1000,providerIds:c.providers.map(p=>p.id),diversity:'public-ip'});
+ }
+ export function tunaInventoryForLease(nodes,lease,policy,now=Date.now()){
+  let p;try{p=tunaPolicyFromLease(lease);}catch{return [];}
+diff --git a/scripts/network/conversion-status.mjs b/scripts/network/conversion-status.mjs
+index 384fca499..461b0c34a 100644
+--- a/scripts/network/conversion-status.mjs
++++ b/scripts/network/conversion-status.mjs
+@@ -1,5 +1,17 @@
+ #!/usr/bin/env node
+ // Read-only: no wallet, signing, deposit order or customer ledger access.
+ import {discoverConversion} from '../../network/conversion/swft-discovery.mjs';
+-try{console.log(JSON.stringify(await discoverConversion(),null,2));}
++import {discoverMultihop} from '../../network/conversion/multihop-discovery.mjs';
++import {decimalUnits} from '../../network/conversion/policy.mjs';
++try{
++ const args=process.argv.slice(2);let multihop=false,probeIntermediates=false,amountUsdc6='10000000';
++ for(let i=0;i<args.length;i++){
++  if(args[i]==='--multihop')multihop=true;
++  else if(args[i]==='--probe-intermediates')probeIntermediates=true;
++  else if(args[i]==='--amount')amountUsdc6=String(decimalUnits(args[++i],6));
++  else throw Error('unknown conversion-status argument');
++ }
++ if(!multihop&&args.length)throw Error('--multihop is required for route options');
++ console.log(JSON.stringify(await(multihop?discoverMultihop({amountUsdc6,probeIntermediates}):discoverConversion()),null,2));
++}
+ catch(e){console.error('Currency conversion is unavailable: '+e.message);process.exitCode=1;}
+diff --git a/scripts/network/nblock-status.mjs b/scripts/network/nblock-status.mjs
+new file mode 100644
+index 000000000..f975da9de
+--- /dev/null
++++ b/scripts/network/nblock-status.mjs
+@@ -0,0 +1,8 @@
++#!/usr/bin/env node
++import {NblockClient} from '../../network/conversion/nblock.mjs';
++if(process.argv.length!==2)throw Error('Usage: node scripts/network/nblock-status.mjs');
++const client=new NblockClient();
++const listings=await client.listings();
++console.log(JSON.stringify({observedAt:new Date().toISOString(),provider:'nBlock',
++ state:listings.length?'listings_available':'unavailable',executable:false,
++ note:'Public listings only. Seller funding, authenticated API schema and settlement are not verified.',listings},null,2));
+diff --git a/site/js/core/network-controls.js b/site/js/core/network-controls.js
+index f138568f9..60c4dad31 100644
+--- a/site/js/core/network-controls.js
++++ b/site/js/core/network-controls.js
+@@ -114,7 +114,7 @@ export async function renderNetworkControls(box,id,{viaVault=false}={}){
+  section.innerHTML='<label>Internet route <select name="mode"><option value="tuna">Existing route — no paid authorization</option><option value="tuna-usdc">TUNA providers — pay from app balance</option><option value="direct">Direct host</option></select></label><fieldset data-providers hidden><legend>Allowed internet providers</legend><p data-provider-status>Loading qualified providers…</p><div data-provider-list></div></fieldset><div data-limits><label>Maximum combined USDC per GiB <input name="price" type="text" inputmode="decimal" required></label><label>Bandwidth budget (USDC) <input name="budget" type="text" inputmode="decimal" required></label><label>Authorization (hours) <input name="hours" type="number" min="1" max="720" value="24" required></label></div><p data-info></p><button type="submit" class="btn sm">Save internet route</button><p role="status" aria-live="polite"></p>';
+  const form=section.elements;form.mode.value=current.expires>0?(current.viaTuna?'tuna-usdc':'direct'):'tuna';form.price.value=showNetworkAmount(current.maxPricePerGiB6||current.rate6);form.budget.value=showNetworkAmount(current.budget6);
+  const info=section.querySelector('[data-info]'),status=section.querySelector('[role=status]'),save=section.querySelector('button');
+- const update=()=>{const paid=form.mode.value!=='tuna';section.querySelector('[data-limits]').hidden=!paid;for(const key of ['price','budget','hours'])form[key].disabled=!paid;section.querySelector('[data-providers]').hidden=form.mode.value!=='tuna-usdc';info.textContent=form.mode.value==='direct'?(current.selfHosted?'Eligible self-hosting has no bandwidth charge.':`Host rate: ${showNetworkAmount(current.rate6)} USDC/GiB, charged from this app’s balance.`):form.mode.value==='tuna-usdc'?'Choose up to six providers. The app uses independent routes and pays only for measured traffic from its existing USDC balance.':'Saving this option cancels paid bandwidth authorization and restores the existing route.';if(form.mode.value==='direct'&&!current.direct)info.textContent+=' This host has not enabled qualified direct service.';};
++ const update=()=>{const paid=form.mode.value!=='tuna';section.querySelector('[data-limits]').hidden=!paid;for(const key of ['price','budget','hours'])form[key].disabled=!paid;section.querySelector('[data-providers]').hidden=form.mode.value!=='tuna-usdc';info.textContent=form.mode.value==='direct'?(current.selfHosted?'Eligible self-hosting has no bandwidth charge.':`Host rate: ${showNetworkAmount(current.rate6)} USDC/GiB, charged from this app’s balance.`):form.mode.value==='tuna-usdc'?'Traffic is charged to the app’s USDC balance. Routes use distinct public IPs; shared operators and hosting networks are allowed.':'Saving this option cancels paid bandwidth authorization and restores the existing route.';if(form.mode.value==='direct'&&!current.direct)info.textContent+=' This host has not enabled qualified direct service.';};
+  form.mode.addEventListener('change',update);update();
+  if(!viaVault&&Enclave.address?.toLowerCase()!==current.owner.toLowerCase()){save.disabled=true;status.textContent='Connect the app owner’s wallet to change its route.';}
+  section.addEventListener('submit',async event=>{event.preventDefault();save.disabled=true;status.textContent='Confirm the route and spending limits in your wallet.';try{const providers=[...section.querySelectorAll('[name=provider]:checked')].map(input=>input.value);await saveNetworkSettings(current,{mode:form.mode.value,maxPrice:form.price.value,budget:form.budget.value,hours:form.hours.value,providers,viaVault});status.textContent='Saved on-chain. The host will apply your route after its next authorization refresh.';}catch(e){status.textContent=e.message;}finally{save.disabled=!viaVault&&Enclave.address?.toLowerCase()!==current.owner.toLowerCase();}});
+@@ -126,7 +126,7 @@ export async function renderNetworkControls(box,id,{viaVault=false}={}){
+  try{
+   const available=await networkProviders(current,{block:await baseRpc('eth_blockNumber',[])}),list=section.querySelector('[data-provider-list]');
+   for(const p of available){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.name='provider';input.value=p.id;input.checked=current.providers.includes(p.id);label.append(input,document.createTextNode(` ${p.id.slice(0,10)}… — ${showNetworkAmount(p.rate6)} USDC/GiB`));list.append(label);}
+-  section.querySelector('[data-provider-status]').textContent=available.length?'Providers are rechecked before authorization and while serving traffic. At least four independent operators and networks are needed for two guarded routes.':'No qualified paid providers are available yet.';
++  section.querySelector('[data-provider-status]').textContent=available.length?'Two guarded routes require at least four distinct public IPs. Shared hosting does not provide independent-operator privacy or outage protection.':'No qualified paid providers are available yet.';
+  }catch(e){section.querySelector('[data-provider-status]').textContent='Could not load qualified providers: '+e.message;}
+ }
+ 
+diff --git a/test/circuit-manager.test.mjs b/test/circuit-manager.test.mjs
+index 89eaee984..20d29bd25 100644
+--- a/test/circuit-manager.test.mjs
++++ b/test/circuit-manager.test.mjs
+@@ -1,5 +1,7 @@
+ import test from 'node:test';import assert from 'node:assert/strict';import {EventEmitter} from 'node:events';
+ import {CircuitManager} from '../network/circuit-manager.mjs';
++import {keccak256,stringToHex} from 'viem';
++import {tunaPolicyFromLease} from '../network/tuna-policy.mjs';
+ const id='0x'+'ab'.repeat(32);
+ const policy={version:2,deploymentId:id,mode:'guarded',directFallback:false,routes:2,maxPrice:'0.0002',budgetNkn:'1',diversity:'beneficiary-and-network'};
+ const nodes=Array.from({length:10},(_,i)=>({identity:(i+1).toString(16).padStart(64,'0'),address:`8.2.1.${i+1}`,price:'0.0002',beneficiary:`wallet${i}`,asn:100+i,services:['reverse','socksproxy'],expiresAt:Date.now()+60000}));
+@@ -12,6 +14,23 @@ function fixture(){
+  }}});
+  return {manager,publications,started,wallets,setAllowed:v=>allowed=v,setProbeFails:v=>probeFails=v};
+ }
++test('USDC manager publishes two same-provider circuits and withdraws revoked providers',async t=>{
++ const f=fixture();t.after(()=>f.manager.close());
++ const now=Date.now(),until=now+60000,owner='0x'+'12'.repeat(20);
++ const inventory=nodes.slice(0,4).map(n=>({...n,registryId:'0x'+n.identity,currency:'USDC',pricePerGiB6:'10000',beneficiary:'same',asn:559,expiresAt:until}));
++ const lease={id,owner,active:true,leaseUntil:until,validUntil:until,bandwidthBackingRequired6:'0',connectivity:{address:'0x'+'34'.repeat(20),owner,viaTuna:true,nonce:1,expires:Math.floor(until/1000),maxPricePerGiB6:'40000',budget6:'1000000',providers:inventory.map(n=>({id:n.registryId,operator:owner,qualified:true,active:true,qualifiedUntil:Math.floor(until/1000),pricePerGiB6:n.pricePerGiB6,addressHash:keccak256(stringToHex(n.address))}))}};
++ f.manager.admission.leases.set(id,lease);f.manager.inventory=async()=>inventory;
++ await f.manager.configure([{policy:tunaPolicyFromLease(lease),names:['app.example']}]);
++ await f.manager.reconcile();
++ assert.equal(f.manager.status()[0].ready,true);assert.equal(f.started.length,2);
++ assert.equal(new Set(f.publications.at(-1).routes.map(r=>r.address)).size,2);
++ assert.ok(f.started.every(c=>Object.values(c.providers).every(n=>n.asn===559&&n.beneficiary===owner)));
++ const revoked=lease.connectivity.providers.find(p=>p.id===f.started[0].providers.public.registryId);
++ revoked.qualified=false;await f.manager.reconcile();
++ assert.equal(f.manager.status()[0].ready,false);
++ assert.equal(f.started[0].closed,true);assert.equal(f.started[1].closed,false);
++ assert.equal(f.publications.at(-1).routes.length,1);
++});
+ test('guard loss withdraws only its route and keeps its independent sibling',async()=>{
+  const f=fixture();await f.manager.configure([{policy,names:['app.example']}]);await f.manager.reconcile();
+  assert.equal(f.manager.status()[0].ready,true);assert.equal(f.started.length,2);
+diff --git a/test/multihop-conversion.test.mjs b/test/multihop-conversion.test.mjs
+new file mode 100644
+index 000000000..8dbb30d89
+--- /dev/null
++++ b/test/multihop-conversion.test.mjs
+@@ -0,0 +1,113 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import {ASSETS} from '../network/conversion/policy.mjs';
++import {querySwft} from '../network/conversion/swft-discovery.mjs';
++import {discoverMultihop,pairAvailability,quoteEvmIntermediate} from '../network/conversion/multihop-discovery.mjs';
++
++const baseUsdc={coinCode:'USDC(BASE)',mainNetwork:'BASE',contact:ASSETS.USDC.id.split('erc20:')[1],coinDecimal:6};
++const nativeNkn={coinCode:'NKN',mainNetwork:'NKN',contact:'',coinDecimal:8};
++const evmNkn={coinCode:'NKN(ERC20)',mainNetwork:'ETH',contact:'0x5cf04716ba20127f1e2297addcf4b5035000c9eb',coinDecimal:18};
++const placeholder='0x0000000000000000000000000000000000000001';
++const response=data=>({ok:true,text:async()=>JSON.stringify(data)});
++function evmQuote(){return {
++ action:{fromChainId:8453,toChainId:1,fromAmount:'10000000',fromAddress:placeholder,toAddress:placeholder,
++  fromToken:{chainId:8453,address:baseUsdc.contact,decimals:6},
++  toToken:{chainId:1,address:evmNkn.contact,decimals:18}},
++ estimate:{fromAmount:'10000000',toAmount:'1500000000000000000000',toAmountMin:'1485000000000000000000',feeCosts:[],gasCosts:[]},
++ transactionRequest:{to:'do-not-expose',data:'do-not-execute'},
++};}
++function fixture({supported=false,catalogue=[baseUsdc,evmNkn],brokenCode,quote=evmQuote()}={}){
++ const calls=[];
++ const fetcher=async(url,options={})=>{
++  calls.push({url,options});
++  if(new URL(url).hostname==='li.quest')return response(quote);
++  if(url.endsWith('queryCoinList'))return response({resCode:'800',data:catalogue});
++  assert.ok(url.endsWith('queryBaseInfo'),'only public read-only calls are allowed');
++  const body=JSON.parse(options.body);
++  if(body.depositCoinCode===brokenCode)throw Error('test timeout');
++  return response({resCode:'800',data:{isSupport:supported,instantRate:'1',depositMin:'1',depositMax:'100000'}});
++ };
++ return {fetcher,calls};
++}
++
++test('tries direct and six exact-network intermediary final hops without orders',async()=>{
++ const f=fixture(),r=await discoverMultihop({fetcher:f.fetcher});
++ assert.equal(r.state,'unavailable');assert.equal(r.executable,false);
++ assert.equal(r.outputAsset,ASSETS.NKN.id);assert.equal(r.paths.length,8);
++ assert.deepEqual(f.calls.slice(1).map(c=>JSON.parse(c.options.body).depositCoinCode),
++  ['USDC(BASE)','USDT(ERC20)','USDT(TRON)','USDC','ETH','BTC','NKN(ERC20)']);
++ assert.ok(r.paths.slice(0,7).every(p=>p.reason==='native_final_hop_unsupported'));
++ assert.equal(f.calls.some(c=>c.url.includes('li.quest')),false);
++ for(const c of f.calls){assert.equal(c.options.method,'POST');assert.equal(c.options.redirect,'error');}
++});
++
++test('intermediate quote can succeed without declaring native conversion available',async()=>{
++ const f=fixture(),r=await discoverMultihop({fetcher:f.fetcher,probeIntermediates:true});
++ const hop=r.paths.at(-1).firstHop;
++ assert.equal(hop.status,'intermediate_quote_only');assert.equal(hop.nativeDelivery,false);
++ assert.equal(hop.outputAsset,'eip155:1/erc20:'+evmNkn.contact);
++ assert.equal(r.executable,false);assert.ok(r.paths.every(p=>p.executable===false));
++ assert.equal(JSON.stringify(r).includes('do-not-execute'),false);
++ assert.ok(f.calls.at(-1).url.includes('li.quest'));
++});
++
++test('supported indications alone never produce a protected executable path',async()=>{
++ const f=fixture({supported:true,catalogue:[baseUsdc,nativeNkn,evmNkn]});
++ const r=await discoverMultihop({fetcher:f.fetcher});
++ assert.equal(r.catalogue.nativeNKN,true);
++ assert.equal(r.paths[0].finalHop.status,'indicative_only');
++ assert.equal(r.paths[0].reason,'protected_end_to_end_quote_unverified');
++ assert.equal(r.executable,false);
++});
++
++test('timeouts remain unknown and do not suppress other intermediary checks',async()=>{
++ const f=fixture({brokenCode:'ETH'}),r=await discoverMultihop({fetcher:f.fetcher});
++ const eth=r.paths.find(p=>p.via[0]==='ETH on Ethereum');
++ assert.equal(eth.finalHop.status,'unknown');assert.equal(eth.reason,'native_final_hop_unknown');
++ assert.equal(r.paths.find(p=>p.via[0]==='BTC on Bitcoin').finalHop.status,'unsupported');
++});
++
++test('rate of one and HTTP/application success cannot override isSupport=false',()=>{
++ assert.equal(pairAvailability({isSupport:false,instantRate:'1'}).status,'unsupported');
++ for(const data of [null,{}, {isSupport:'false'}, {isSupport:1}])assert.throws(()=>pairAvailability(data));
++});
++
++test('asset catalogue matches token contract, network and precision',async()=>{
++ for(const mutation of [{contact:'0x123'}, {mainNetwork:'BSC'}, {coinDecimal:8}]){
++  const f=fixture({catalogue:[baseUsdc,{...evmNkn,...mutation}]});
++  const r=await discoverMultihop({fetcher:f.fetcher});
++  assert.equal(r.paths.find(p=>p.provider==='SWFT'&&p.via[0]==='NKN on Ethereum').intermediateListed,false);
++ }
++});
++
++test('EVM diagnostic rejects changed amounts, recipients, network and precision',async()=>{
++ for(const mutate of [
++  q=>q.action.fromAmount='9999999',q=>q.action.toAddress='0x123',q=>q.action.toChainId=8453,
++  q=>q.action.toToken.chainId=8453,q=>q.action.toToken.decimals=8,q=>q.action.toToken.address='0x123',
++  q=>q.estimate.fromAmount='9999999',
++  q=>q.estimate.toAmountMin='0',q=>q.estimate.toAmountMin='999999999999999999999999',
++ ]){
++  const q=evmQuote();mutate(q);
++  await assert.rejects(quoteEvmIntermediate({amountUsdc6:'10000000',fetcher:fixture({quote:q}).fetcher}));
++ }
++});
++
++test('invalid input amounts fail before network calls',async()=>{
++ for(const amountUsdc6 of ['0','-1','1e6','1.5',10000000]){
++  const f=fixture();await assert.rejects(discoverMultihop({amountUsdc6,fetcher:f.fetcher}));
++  assert.equal(f.calls.length,0);
++ }
++});
++
++test('large exact USDC amounts are formatted without floating point',async()=>{
++ const f=fixture();await discoverMultihop({amountUsdc6:'9007199254740993',fetcher:f.fetcher});
++ assert.equal(JSON.parse(f.calls[1].options.body).depositCoinAmt,'9007199254.740993');
++});
++
++test('read-only client refuses mutation endpoints and application errors',async()=>{
++ let calls=0;
++ await assert.rejects(querySwft('accountExchange',{},async()=>{calls++;}),/read-only/);
++ assert.equal(calls,0);
++ await assert.rejects(querySwft('queryCoinList',{},async()=>response({resCode:'900'})),/discovery failed/);
++ await assert.rejects(querySwft('queryCoinList',{},async()=>({ok:false})),/unavailable/);
++});
+diff --git a/test/nblock-conversion.test.mjs b/test/nblock-conversion.test.mjs
+new file mode 100644
+index 000000000..8c8d07239
+--- /dev/null
++++ b/test/nblock-conversion.test.mjs
+@@ -0,0 +1,235 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs/promises';
++import os from 'node:os';
++import path from 'node:path';
++import {encodeFunctionData,parseAbi} from 'viem';
++import {NblockClient} from '../network/conversion/nblock.mjs';
++import {RelayDepositClient,ETH_ASSET} from '../network/conversion/relay-deposit.mjs';
++import {money,externalJson} from '../network/conversion/external-http.mjs';
++import {NblockRelayConversion} from '../network/conversion/nblock-relay.mjs';
++import {ASSETS} from '../network/conversion/policy.mjs';
++import {startNblockConversion} from '../network/conversion/nblock-runtime.mjs';
++
++const EVM='0x'+'12'.repeat(20),ESCROW='0x'+'34'.repeat(20),HASH='0x'+'ab'.repeat(32),NATIVE='cd'.repeat(32);
++const addresses={USDC:EVM,NKN:'native-wallet',ETH:EVM};
++const policy={version:1,payoutCurrency:'NKN',allowExternal:true,reserveNkn8:'100000000000',refillBelowNkn8:'100000000',
++ buyUsdc6:'5000000',maxConversionUsdc6:'5100000',dailyConversionUsdc6:'10000000',maxSellNkn8:'100000000000',
++ minNknPerUsdc8:'100000000',minUsdcPerNkn6:'1000',maxSlippageBps:50,expiresAt:900000000};
++const limits={maxDepositWei:'2000000000000000',maxEthGasWei:'10000000000000',maxBridgeGasUsdc6:'100000',
++ maxNkn8:'1000000000000',minimumFundingWindowMs:1800000,maxWaitMs:86400000};
++const response=body=>new Response(typeof body==='string'?body:JSON.stringify(body),{status:200,headers:{'content-type':'application/json'}});
++const listing={listingId:'23',nkn8:'50000000000',orderType:'market',seller:ESCROW,ethWei:null,usd6:null,createdAt:100};
++
++test('external money parsing preserves JSON precision and exponent notation',async()=>{
++ const data=await externalJson('https://nblock.net/api/otc/gas-estimate',{fetcher:async()=>response('{"gas_fee_eth":9.015541164e-6,"nkn_amount":500.00000001,"id":23}')});
++ assert.equal(money(data.gas_fee_eth,18),'9015541164000');assert.equal(money(data.nkn_amount,8),'50000000001');
++ assert.equal(money('0.010000000000000000',18),'10000000000000000');
++ for(const value of ['-1','NaN','Infinity','1e999','0.000000001'])assert.throws(()=>money(value,8));
++ assert.throws(()=>money(0.01,18));
++});
++test('external HTTP client rejects redirects, HTTP errors and oversized responses',async()=>{
++ let options;
++ await externalJson('https://nblock.net/api/otc/price',{fetcher:async(u,o)=>{options=o;return response({success:true});}});
++ assert.equal(options.redirect,'error');
++ await assert.rejects(externalJson('https://nblock.net',{fetcher:async()=>new Response('secret',{status:401})}),/HTTP 401/);
++ await assert.rejects(externalJson('https://nblock.net',{fetcher:async()=>response(' '.repeat(2000001))}),/too large/);
++});
++test('nBlock client follows observed endpoints and keeps credentials off public calls',async()=>{
++ const calls=[],now=100000000;
++ const c=new NblockClient({token:'private-token',now:()=>now,fetcher:async(u,o)=>{
++  calls.push({u,o});
++  if(u.includes('listings?page'))return response({success:true,data:[{id:23,nkn_amount:'500',order_type:'market',listing_type:'SELL_NKN',seller_eth_address:ESCROW,erc20_amount:null,usd_target:null,created_at:new Date(100).toISOString()}],pagination:{pages:1}});
++  if(u.endsWith('gas-estimate'))return response({success:true,gas_fee_eth:0.000009});
++  if(u.endsWith('/quote'))return response({success:true,data:{quote_id:'q1',erc20_amount:0.0012,expires_in_seconds:60}});
++  if(u.endsWith('/accept'))return response({success:true});
++  throw Error('unexpected endpoint');
++ }});
++ const q=await c.quote((await c.listings())[0]);assert.equal(q.depositWei,'1209000000000000');
++ await c.accept(q,addresses);
++ assert.equal(calls.find(x=>x.u.endsWith('/quote')).o.headers.authorization,'Bearer private-token');
++ assert.equal(calls[0].o.headers.authorization,undefined);
++ assert.deepEqual(JSON.parse(calls.at(-1).o.body),{buyer_nkn_address:addresses.NKN,buyer_eth_address:EVM,quote_id:'q1'});
++});
++const rawTrade=()=>({id:44,listing_id:23,listing_type:'SELL_NKN',buyer_nkn_address:addresses.NKN,buyer_eth_address:EVM,
++ nkn_amount:'500',erc20_amount:'0.0012',buyer_deposit_required:'0.001209',eth_escrow_address:ESCROW,
++ buyer_deposit_deadline:new Date(110000000).toISOString(),created_at:new Date(100000000).toISOString(),status:'AWAITING_BUYER_DEPOSIT'});
++const intent=()=>({quote:listing,addresses,createdAt:100000000,maxDepositWei:'1300000000000000',beforeIds:[]});
++test('nBlock changed amounts, recipients, listings, dates and unknown states fail closed',()=>{
++ const c=new NblockClient();assert.equal(c.normalizeTrade(rawTrade(),intent()).depositAddress,ESCROW);
++ for(const change of [{listing_id:24},{listing_type:'BUY_NKN'},{buyer_nkn_address:'other'},{buyer_eth_address:ESCROW},
++  {nkn_amount:'501'},{buyer_deposit_required:'0.5'},{erc20_amount:'0.5'},{status:'NEW_STATE'},
++  {created_at:new Date(1).toISOString()},{buyer_deposit_deadline:null},{eth_escrow_address:null}])
++  assert.throws(()=>c.normalizeTrade({...rawTrade(),...change},intent()));
++});
++test('ambiguous acceptance lookup never chooses an arbitrary trade',async()=>{
++ const c=new NblockClient();c.trades=async()=>[rawTrade(),{...rawTrade(),id:45}];
++ await assert.rejects(c.lookup(intent()),/ambiguous/);
++ c.trades=async()=>[rawTrade()];assert.equal((await c.lookup(intent())).id,'44');
++ assert.equal(await c.lookup({...intent(),beforeIds:['44']}),null);
++});
++test('password credentials renew expired authentication without replaying a failed acceptance',async()=>{
++ let logins=0,accepts=0;
++ const token='x.'+Buffer.from(JSON.stringify({exp:1})).toString('base64url')+'.x';
++ const c=new NblockClient({token,credentials:{username:'test',password:'test-only'},now:()=>100000,fetcher:async(u,o)=>{
++  if(u.endsWith('/api/login')){logins++;assert.equal(JSON.parse(o.body).username,'test');return response({token:'fresh-opaque-token'});}
++  if(u.endsWith('/accept')){accepts++;return new Response('',{status:401});}
++  return response({success:true,data:[]});
++ }});
++ await assert.rejects(c.accept({...listing,expiresAt:200000},addresses),/401/);
++ assert.equal(logins,1);assert.equal(accepts,1);
++ await c.trades();assert.equal(logins,2);assert.equal(accepts,1);
++});
++test('token-only expired authentication stops instead of silently accepting orders',async()=>{
++ const c=new NblockClient({token:'x.'+Buffer.from(JSON.stringify({exp:1})).toString('base64url')+'.x',now:()=>100000});
++ await assert.rejects(c.trades(),/expired/);
++});
++test('nBlock completed trade can obtain a transaction hint from public settlements',async()=>{
++ const c=new NblockClient();c.trades=async()=>[{...rawTrade(),status:'COMPLETED'}];
++ c.request=async()=>({success:true,data:[{id:44,nkn_amount:'500',mainnet_release_tx:NATIVE}]});
++ const i=intent();i.trade=c.normalizeTrade(rawTrade(),i);
++ assert.equal((await c.status(i)).nativeHash,NATIVE);
++});
++function relayQuote() {
++ const currency=(chainId,address,decimals)=>({chainId,address,decimals});
++ const token=ASSETS.USDC.id.split('erc20:')[1],zero='0x'+'0'.repeat(40);
++ return {requestId:HASH,steps:[{id:'deposit',kind:'transaction',requestId:HASH,depositAddress:ESCROW,
++  items:[{data:{chainId:8453,from:EVM,to:token,value:'0',data:encodeFunctionData({abi:parseAbi(['function transfer(address,uint256) returns (bool)']),functionName:'transfer',args:[ESCROW,5000000n]})}}]}],
++  details:{sender:EVM,recipient:EVM,currencyIn:{currency:currency(8453,token,6),amount:'5000000'},
++   refundCurrency:{currency:currency(8453,token,6)},currencyOut:{currency:currency(1,zero,18),amount:'2000000000000000',minimumAmount:'1990000000000000'}}};
++}
++test('Relay uses strict deposit addresses with explicit refunds and validates plain transfer calldata',async()=>{
++ let body;const q=relayQuote();
++ const c=new RelayDepositClient({now:()=>100,fetcher:async(u,o)=>{body=JSON.parse(o.body);return response(q);}});
++ const result=await c.quote({amountUsdc6:'5000000',addresses});
++ assert.equal(body.strict,true);assert.equal(body.refundTo,EVM);assert.equal(body.refundOnOrigin,true);assert.equal(body.useDepositAddress,true);
++ assert.equal(result.depositAddress,ESCROW);assert.equal(result.expiresAt,30100);
++ for(const change of [x=>x.details.recipient=ESCROW,x=>x.details.currencyOut.currency.chainId=8453,
++  x=>x.steps[0].items[0].data.data='0x',x=>x.steps[0].items[0].data.value='1',
++  x=>x.details.currencyOut.minimumAmount='1',x=>x.steps.push(x.steps[0])]) {
++  const modified=relayQuote();change(modified);c.fetcher=async()=>response(modified);
++  await assert.rejects(c.quote({amountUsdc6:'5000000',addresses}));
++ }
++});
++test('Relay success must reference our actual source transaction and exact destination chain',async()=>{
++ const c=new RelayDepositClient({fetcher:async()=>response({status:'success',inTxHashes:[HASH],txHashes:[HASH],originChainId:8453,destinationChainId:1})});
++ assert.equal((await c.status({id:HASH},HASH)).state,'received');
++ c.fetcher=async()=>response({status:'success',inTxHashes:['0x'+'ef'.repeat(32)],txHashes:[HASH],originChainId:8453,destinationChainId:1});
++ await assert.rejects(c.status({id:HASH},HASH),/funding/);
++});
++test('Relay integer minimum may round down by less than one wei',async()=>{
++ const q=relayQuote();q.details.currencyOut.amount='2000000000000001';q.details.currencyOut.minimumAmount='1990000000000000';
++ const c=new RelayDepositClient({fetcher:async()=>response(q)});
++ assert.equal((await c.quote({amountUsdc6:'5000000',addresses})).minimumEthWei,'1990000000000000');
++});
++
++async function fixture(t) {
++ const directory=await fs.mkdtemp(path.join(os.tmpdir(),'nblock-worker-'));t.after(()=>fs.rm(directory,{recursive:true,force:true}));
++ const f={now:100000000,accepts:0,prepares:[],broadcasts:[],tradeState:'AWAITING_SELLER_DEPOSIT',baseStatus:'unknown',ethStatus:'unknown',bridgeStatus:'pending',proofs:{}};
++ const trade=()=>({id:'44',listingId:'23',state:f.tradeState,nkn8:listing.nkn8,ethWei:'1200000000000000',depositWei:'1209000000000000',depositAddress:ESCROW,deadline:f.now+10000000,nativeHash:f.tradeState==='COMPLETED'?NATIVE:null});
++ f.nblock={listings:async()=>[listing],quote:async()=>({...listing,depositWei:'1209000000000000',expiresAt:f.now+60000}),
++  trades:async()=>[],accept:async()=>{f.accepts++;},lookup:async()=>trade(),status:async()=>trade()};
++ f.bridge={quote:async()=>({id:HASH,amountUsdc6:'5000000',depositAddress:ESCROW,minimumEthWei:'1990000000000000',expiresAt:f.now+30000}),status:async()=>({state:f.bridgeStatus,hash:HASH})};
++ f.wallet={addresses:async()=>addresses,balances:async()=>({usdc6:'10000000',nkn8:'0'}),
++  prepareTransfer:async x=>{f.prepares.push(x);return {asset:x.transfer.asset,raw:'signed-'+x.key,hash:HASH};},
++  fundingStatus:async x=>x.asset===ETH_ASSET?f.ethStatus:f.baseStatus,
++  broadcast:async x=>{f.broadcasts.push(x.raw);},verifyTransfer:async({asset})=>f.proofs[asset]??null};
++ f.options={directory,policy,limits,addresses,nblock:f.nblock,bridge:f.bridge,wallet:f.wallet,enabled:true,now:()=>f.now};
++ f.worker=new NblockRelayConversion(f.options);
++ f.proof=(asset,amount,hash=HASH)=>({asset,amount,hash,recipient:asset===ASSETS.NKN.id?addresses.NKN:EVM,transferId:hash,timestamp:f.now,finalized:true});
++ f.ready=async()=>{await f.worker.tick();f.tradeState='AWAITING_BUYER_DEPOSIT';await f.worker.tick();};
++ f.ethReady=async()=>{await f.ready();f.baseStatus='confirmed';f.bridgeStatus='received';f.proofs[ETH_ASSET]=f.proof(ETH_ASSET,'1990000000000000');await f.worker.tick();};
++ return f;
++}
++test('disabled worker and disabled runtime do not read keys, accept trades or fund',async t=>{
++ const f=await fixture(t);const w=new NblockRelayConversion({...f.options,enabled:false});
++ assert.equal((await w.tick()).state,'disabled');assert.equal(f.accepts,0);
++ const runner=await startNblockConversion({config:{enabled:false},directory:f.options.directory,loadAdapter:()=>{throw Error('must not load');}});await runner.close();
++});
++test('full workflow waits for seller, finalizes ETH, then verifies native NKN',async t=>{
++ const f=await fixture(t);
++ assert.equal((await f.worker.tick()).reason,'seller_deposit');assert.equal(f.prepares.length,0);
++ await f.ethReady();assert.equal(f.prepares.length,2);assert.equal(f.prepares[0].transfer.asset,ASSETS.USDC.id);assert.equal(f.prepares[1].transfer.asset,ETH_ASSET);
++ f.ethStatus='confirmed';f.tradeState='COMPLETED';assert.equal((await f.worker.tick()).reason,'native_finality');
++ f.proofs[ASSETS.NKN.id]=f.proof(ASSETS.NKN.id,listing.nkn8,NATIVE);
++ const done=await f.worker.tick();assert.equal(done.state,'completed');assert.equal(done.asset,ASSETS.NKN.id);
++ assert.equal(f.accepts,1);assert.equal((await f.worker.tick()).state,'limited');
++});
++test('lost accept response reconciles without accepting twice after restart',async t=>{
++ const f=await fixture(t);f.nblock.accept=async()=>{f.accepts++;throw Error('lost response');};
++ await assert.rejects(f.worker.tick(),/lost response/);f.worker=new NblockRelayConversion(f.options);
++ assert.equal((await f.worker.tick()).reason,'seller_deposit');assert.equal(f.accepts,1);
++});
++test('unknown acceptance remains reserved; timeout requires review',async t=>{
++ const f=await fixture(t);f.nblock.lookup=async()=>null;
++ assert.equal((await f.worker.tick()).reason,'order_reconciliation');
++ f.now+=limits.maxWaitMs+1;assert.equal((await f.worker.tick()).state,'needs_review');assert.equal(f.accepts,1);
++});
++test('concurrent worker instances share a serialized journal',async t=>{
++ const f=await fixture(t),other=new NblockRelayConversion(f.options);
++ await Promise.all([f.worker.tick(),other.tick(),f.worker.tick()]);assert.equal(f.accepts,1);
++});
++test('daily spend includes source gas reservation and cannot be spent twice',async t=>{
++ const f=await fixture(t);await f.worker.tick();const s=await f.worker.store.get('nblock-conversion');
++ assert.equal(s.days['1'],'5100000');s.job=null;s.usedListings={};await f.worker.save(s);
++ assert.equal((await f.worker.tick()).state,'limited');assert.equal(f.accepts,1);
++});
++test('no listing and excessive price never accept or sign',async t=>{
++ const f=await fixture(t);f.nblock.listings=async()=>[];assert.equal((await f.worker.tick()).state,'unavailable');
++ f.nblock.listings=async()=>[listing];f.nblock.quote=async()=>({...listing,depositWei:'99999999999999999'});
++ assert.equal((await f.worker.tick()).state,'limited');assert.equal(f.accepts,0);assert.equal(f.prepares.length,0);
++});
++test('seller cancellation before funding never buys intermediate ETH',async t=>{
++ const f=await fixture(t);await f.worker.tick();f.tradeState='EXPIRED';assert.equal((await f.worker.tick()).state,'cancelled');assert.equal(f.prepares.length,0);
++});
++test('insufficient bridge output blocks before source signing',async t=>{
++ const f=await fixture(t);await f.worker.tick();f.tradeState='AWAITING_BUYER_DEPOSIT';
++ f.bridge.quote=async()=>({minimumEthWei:'1'});assert.equal((await f.worker.tick()).reason,'bridge_output_insufficient');assert.equal(f.prepares.length,0);
++});
++test('uncertain funding broadcast reuses signed bytes after restart',async t=>{
++ const f=await fixture(t);await f.worker.tick();f.tradeState='AWAITING_BUYER_DEPOSIT';
++ f.wallet.broadcast=async s=>{f.broadcasts.push(s.raw);throw Error('network lost');};
++ await assert.rejects(f.worker.tick(),/network lost/);f.worker=new NblockRelayConversion(f.options);
++ await assert.rejects(f.worker.tick(),/network lost/);assert.equal(f.prepares.length,1);assert.equal(f.broadcasts[0],f.broadcasts[1]);
++});
++test('expired prepared source transaction is not rebroadcast but remains reconcilable',async t=>{
++ const f=await fixture(t);await f.ready();f.now+=31000;
++ assert.equal((await f.worker.tick()).reason,'baseFunding_reconciliation');assert.equal(f.broadcasts.length,1);
++});
++test('policy changes block new broadcasts of pending work',async t=>{
++ const f=await fixture(t);await f.ready();
++ f.worker=new NblockRelayConversion({...f.options,policy:{...policy,maxSlippageBps:0}});
++ assert.equal((await f.worker.tick()).reason,'baseFunding_reconciliation');assert.equal(f.broadcasts.length,1);
++});
++test('disabled pending worker continues verifying delivery without spending',async t=>{
++ const f=await fixture(t);await f.ethReady();f.ethStatus='confirmed';f.tradeState='COMPLETED';
++ f.proofs[ASSETS.NKN.id]=f.proof(ASSETS.NKN.id,listing.nkn8,NATIVE);
++ f.worker=new NblockRelayConversion({...f.options,enabled:false});
++ const before=f.broadcasts.length;assert.equal((await f.worker.tick()).state,'completed');assert.equal(f.broadcasts.length,before);
++});
++test('bridge success with no verified ETH cannot fund nBlock',async t=>{
++ const f=await fixture(t);await f.ready();f.baseStatus='confirmed';f.bridgeStatus='received';
++ assert.equal((await f.worker.tick()).reason,'intermediate_eth_finality');assert.equal(f.prepares.length,1);
++});
++test('short or wrong-chain ETH delivery requires review, never another purchase',async t=>{
++ const f=await fixture(t);await f.ready();f.baseStatus='confirmed';f.bridgeStatus='received';
++ f.proofs[ETH_ASSET]=f.proof(ETH_ASSET,'1');assert.equal((await f.worker.tick()).state,'needs_review');assert.equal(f.prepares.length,1);
++});
++test('partial Relay refund records actual funds and retains daily reservation',async t=>{
++ const f=await fixture(t);await f.ready();f.baseStatus='confirmed';f.bridgeStatus='refunded';
++ f.proofs[ASSETS.USDC.id]=f.proof(ASSETS.USDC.id,'4900000');assert.equal((await f.worker.tick()).amount,'4900000');
++ const s=await f.worker.store.get('nblock-conversion');assert.equal(s.days['1'],'5100000');assert.equal(s.last.state,'refunded');
++});
++test('seller disappears after bridging: retain ETH instead of blindly paying',async t=>{
++ const f=await fixture(t);await f.ready();f.baseStatus='confirmed';f.bridgeStatus='received';f.tradeState='EXPIRED';
++ f.proofs[ETH_ASSET]=f.proof(ETH_ASSET,'1990000000000000');
++ assert.equal((await f.worker.tick()).reason,'intermediate_eth_retained_seller_unavailable');assert.equal(f.prepares.length,1);
++});
++test('short native payment requires review and prevents new automatic orders',async t=>{
++ const f=await fixture(t);await f.ethReady();f.ethStatus='confirmed';f.tradeState='COMPLETED';f.proofs[ASSETS.NKN.id]=f.proof(ASSETS.NKN.id,'1',NATIVE);
++ assert.equal((await f.worker.tick()).state,'needs_review');assert.equal((await f.worker.tick()).state,'needs_review');assert.equal(f.accepts,1);
++});
++test('funded expired nBlock trade is not falsely treated as a refund',async t=>{
++ const f=await fixture(t);await f.ethReady();f.ethStatus='confirmed';f.tradeState='EXPIRED';
++ assert.equal((await f.worker.tick()).reason,'nblock_funded_expired');
++});
+diff --git a/test/nblock-wallet.test.mjs b/test/nblock-wallet.test.mjs
+new file mode 100644
+index 000000000..eb442bf40
+--- /dev/null
++++ b/test/nblock-wallet.test.mjs
+@@ -0,0 +1,78 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs/promises';
++import os from 'node:os';
++import path from 'node:path';
++import {privateKeyToAccount} from 'viem/accounts';
++import {parseTransaction,keccak256} from 'viem';
++import {NblockWallet} from '../network/conversion/nblock-wallet.mjs';
++import {ETH_ASSET} from '../network/conversion/relay-deposit.mjs';
++import {ASSETS} from '../network/conversion/policy.mjs';
++const account=privateKeyToAccount('0x'+'13'.repeat(32));
++const TO='0x'+'34'.repeat(20),HASH='0x'+'ab'.repeat(32),BLOCK='0x'+'cd'.repeat(32);
++async function fixture(t) {
++ const directory=await fs.mkdtemp(path.join(os.tmpdir(),'nblock-wallet-'));t.after(()=>fs.rm(directory,{recursive:true,force:true}));
++ const f={now:100000000,signed:0,broadcasts:[],code:'0x',receipt:null,trace:[],tx:null,balance:10n**18n};
++ const client={getChainId:async()=>1,getBlock:async()=>({number:100n,hash:BLOCK,timestamp:100000n}),
++  getBalance:async()=>f.balance,getCode:async()=>f.code,getTransactionCount:async()=>0,
++  getTransactionReceipt:async()=>{if(!f.receipt)throw Error('not found');return f.receipt;},
++  getTransaction:async()=>f.tx,request:async()=>f.trace,
++  sendRawTransaction:async({serializedTransaction})=>{f.broadcasts.push(serializedTransaction);return keccak256(serializedTransaction);}};
++ const provider={account,addresses:async()=>({USDC:account.address,NKN:'native'}),balances:async()=>({usdc6:'1',nkn8:'1'}),
++  prepareTransfer:async x=>({delegated:x}),verifyTransfer:async()=>({native:true}),close:async()=>{f.closed=true;}};
++ const signer={prepareTransactionRequest:async({to,value,data,gas,nonce})=>({to,value,data,gas,nonce,chainId:1,gasPrice:2n,type:'legacy'}),
++  signTransaction:async tx=>{f.signed++;return account.signTransaction(tx);}};
++ f.options={provider,clients:[client,{...client}],wallet:signer,directory,maxGasWei:'100000',now:()=>f.now};
++ f.wallet=new NblockWallet(f.options);
++ f.request={key:'job_eth',transfer:{asset:ETH_ASSET,from:account.address,to:TO,amount:'1000'},maxGasWei:'100000'};
++ return f;
++}
++test('ETH funding is a bounded plain Ethereum transfer and durable across restarts',async t=>{
++ const f=await fixture(t),signed=await f.wallet.prepareTransfer(f.request),tx=parseTransaction(signed.raw);
++ assert.equal(tx.chainId,1);assert.equal(tx.to,TO);assert.equal(tx.value,1000n);assert.equal(tx.gas,21000n);assert.equal(tx.data,undefined);
++ f.wallet=new NblockWallet(f.options);assert.deepEqual(await f.wallet.prepareTransfer(f.request),signed);assert.equal(f.signed,1);
++ await f.wallet.broadcast(signed);await f.wallet.broadcast(signed);assert.equal(f.broadcasts[0],f.broadcasts[1]);
++});
++test('ETH wallet rejects altered raw transactions, destinations, gas and unjournaled broadcasts',async t=>{
++ const f=await fixture(t),signed=await f.wallet.prepareTransfer(f.request);
++ await assert.rejects(f.wallet.validateEth({...signed,hash:HASH},f.request.transfer,'100000'),/differs/);
++ await assert.rejects(f.wallet.validateEth(signed,{...f.request.transfer,to:account.address},'100000'),/differs/);
++ await assert.rejects(f.wallet.validateEth(signed,f.request.transfer,'1'),/gas cap/);
++ await assert.rejects(f.wallet.broadcast({...signed,raw:'0x'}),/journaled/);
++ await assert.rejects(f.wallet.prepareTransfer({...f.request,transfer:{...f.request.transfer,amount:'2'}}),/key reused/);
++});
++test('no ETH funding to contracts, from other senders or without finalized funds',async t=>{
++ const f=await fixture(t);f.code='0x6000';await assert.rejects(f.wallet.prepareTransfer(f.request),/EOA/);
++ f.code='0x';f.balance=1n;await assert.rejects(f.wallet.prepareTransfer(f.request),/insufficient/);
++ f.balance=10n**18n;await assert.rejects(f.wallet.prepareTransfer({...f.request,transfer:{...f.request.transfer,from:TO}}),/provider-owned/);
++});
++test('ETH funding requires finalized canonical receipts',async t=>{
++ const f=await fixture(t),signed=await f.wallet.prepareTransfer(f.request);
++ assert.equal(await f.wallet.fundingStatus(signed),'unknown');
++ f.receipt={blockNumber:101n,blockHash:BLOCK,status:'success'};assert.equal(await f.wallet.fundingStatus(signed),'unknown');
++ f.receipt.blockNumber=99n;assert.equal(await f.wallet.fundingStatus(signed),'confirmed');
++ f.receipt.status='reverted';assert.equal(await f.wallet.fundingStatus(signed),'reverted');
++ f.receipt.blockHash=HASH;await assert.rejects(f.wallet.fundingStatus(signed),/reorganized/);
++});
++test('ETH native receipt requires actual value to the provider, not API metadata',async t=>{
++ const f=await fixture(t);f.receipt={status:'success',blockNumber:99n,blockHash:BLOCK};
++ f.tx={hash:HASH,blockHash:BLOCK,to:account.address,value:1234n};
++ const request={asset:ETH_ASSET,recipient:account.address,hash:HASH,notBefore:99999000};
++ assert.equal((await f.wallet.verifyTransfer(request)).amount,'1234');
++ f.tx.value=0n;assert.equal(await f.wallet.verifyTransfer(request),null);
++ await assert.rejects(f.wallet.verifyTransfer({...request,recipient:TO}),/destination/);
++ f.tx.blockHash=HASH;await assert.rejects(f.wallet.verifyTransfer(request),/block mismatch/);
++});
++test('internal ETH receipt requires anchored traces and excludes reverted call trees',async t=>{
++ const f=await fixture(t);f.receipt={status:'success',blockNumber:99n,blockHash:BLOCK};
++ f.tx={hash:HASH,blockHash:BLOCK,to:TO,value:0n};
++ const call=(traceAddress,value)=>({transactionHash:HASH,blockHash:BLOCK,traceAddress,type:'call',action:{callType:'call',to:account.address,from:TO,value}});
++ f.trace=[call([0],'0x10'),{...call([1],'0x100'),error:'Reverted'},call([1,0],'0x1000')];
++ const result=await f.wallet.verifyTransfer({asset:ETH_ASSET,recipient:account.address,hash:HASH,notBefore:99999000});assert.equal(result.amount,'16');
++ f.trace[0].blockHash=HASH;await assert.rejects(f.wallet.verifyTransfer({asset:ETH_ASSET,recipient:account.address,hash:HASH,notBefore:99999000}),/anchor/);
++});
++test('other assets continue using the existing provider wallet implementation',async t=>{
++ const f=await fixture(t);assert.ok((await f.wallet.prepareTransfer({transfer:{asset:ASSETS.USDC.id}})).delegated);
++ assert.deepEqual(await f.wallet.verifyTransfer({asset:ASSETS.NKN.id}),{native:true});
++ await f.wallet.close();assert.equal(f.closed,true);await assert.rejects(f.wallet.prepareTransfer(f.request),/closed/);
++});
+diff --git a/test/network-controls.test.mjs b/test/network-controls.test.mjs
+index d55af798e..b1aa18dbe 100644
+--- a/test/network-controls.test.mjs
++++ b/test/network-controls.test.mjs
+@@ -55,7 +55,7 @@ test('USDC TUNA authorization cannot turn into free direct or native-NKN fallbac
+  await assert.rejects(appPolicy({deploymentId:lease.id},lease,{}),/USDC TUNA provider path/);
+  lease.connectivity.providers=[{id:'0x'+'bb'.repeat(32)}];
+  const policy=await appPolicy({deploymentId:lease.id},lease,{});
+- assert.equal(policy.currency,'USDC');assert.equal(policy.mode,'guarded');assert.equal(policy.directFallback,false);assert.equal(policy.routes,2);assert.equal(policy.budgetNkn,undefined);
++ assert.equal(policy.currency,'USDC');assert.equal(policy.mode,'guarded');assert.equal(policy.directFallback,false);assert.equal(policy.routes,2);assert.equal(policy.budgetNkn,undefined);assert.equal(policy.diversity,'public-ip');
+ });
+ 
+ 
+diff --git a/test/route-record.test.mjs b/test/route-record.test.mjs
+index d8daf20e0..ff34ac413 100644
+--- a/test/route-record.test.mjs
++++ b/test/route-record.test.mjs
+@@ -26,6 +26,23 @@ test('USDC routes recheck owner authorization and provider qualification, includ
+  const revoked={...opts,lease:{...lease,connectivity:{...connectivity,viaTuna:false}}};
+  assert.deepEqual((await verifyRoute(bundle({...record,sequence:2,routes:[]}),revoked)).routes,[]);
+ });
++test('signed USDC routes require distinct public IPs, not just distinct circuit IDs',async t=>{
++ for(const [addresses,accepted] of [
++  [['8.8.4.4','8.8.4.4'],false],
++  [['2606:4700::ABCD','2606:4700:0:0:0:0:0:abcd'],false],
++  [['8.8.4.4','1.1.1.1'],true],
++  [['2606:4700::1111','2606:4700::1001'],true],
++ ]){
++  const expires=Math.floor(Date.now()/1000)+120;
++  const connectivity={owner:owner.address,address:'0x'+'12'.repeat(20),viaTuna:true,nonce:'1',expires,maxPricePerGiB6:'2000',budget6:'10000',providers:addresses.map((address,i)=>({id:'0x'+String(i+1).repeat(64),operator:operator.address,qualified:true,active:true,qualifiedUntil:expires,pricePerGiB6:'1000',addressHash:keccak256(stringToHex(address))}))};
++  const p=tunaPolicyFromLease({id:app,owner:owner.address,connectivity});
++  const {record,bundle,options}=await fixture(t,p);
++  const r={...record,routes:addresses.map((address,i)=>({...record.routes[0],address,circuit:String(i+1).repeat(32)}))};
++  const checked=verifyRoute(bundle(r),{...options,lease:{...options.lease,owner:owner.address,connectivity}});
++  if(accepted)assert.equal((await checked).routes.length,2);
++  else await assert.rejects(checked,/distinct public IPs/);
++ }
++});
+ async function fixture(t,selectedPolicy=policy) {
+  const dir=await mkdtemp(path.join(os.tmpdir(),'enclave-routes-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+  const now=Date.now(), keys=generateKeyPairSync('ed25519');
+diff --git a/test/tuna-usdc-policy.test.mjs b/test/tuna-usdc-policy.test.mjs
+index b0652043f..890e18684 100644
+--- a/test/tuna-usdc-policy.test.mjs
++++ b/test/tuna-usdc-policy.test.mjs
+@@ -1,20 +1,23 @@
+ import test from 'node:test';import assert from 'node:assert/strict';
+ import {keccak256,stringToHex} from 'viem';
+ import {tunaPolicyFromLease,tunaInventoryForLease,validateTunaPolicy} from '../network/tuna-policy.mjs';
+-import {selectCircuitProviders,providerAllowedForPolicy} from '../network/circuit-policy.mjs';
++import {selectCircuitProviders,providerAllowedForPolicy,independent} from '../network/circuit-policy.mjs';
+ const now=100000,owner='0x'+'ab'.repeat(20);
+ function fixture(){
+  const nodes=Array.from({length:4},(_,i)=>({identity:String(i+1).repeat(64),registryId:'0x'+String(i+1).repeat(64),address:`8.8.${i+1}.1`,beneficiary:'NKN-'+i,price:'0',currency:'USDC',pricePerGiB6:'1000',asn:i+1,expiresAt:200000,services:['reverse','socksproxy']}));
+  const lease={id:'0x'+'aa'.repeat(32),owner,active:true,leaseUntil:200000,validUntil:190000,bandwidthBackingRequired6:'0',connectivity:{address:'0x'+'bb'.repeat(20),owner,viaTuna:true,nonce:1,expires:200,maxPricePerGiB6:4000,budget6:100000,providers:nodes.map((n,i)=>({id:n.registryId,operator:'0x'+String(i+1).repeat(40),qualified:true,active:true,qualifiedUntil:200,pricePerGiB6:'1000',addressHash:keccak256(stringToHex(n.address))}))}};
+  return {nodes,lease,policy:tunaPolicyFromLease(lease)};
+ }
+-test('USDC policy selects two independent circuits from only the exact qualified owner-authorized registry identities',()=>{
++test('USDC policy selects two IP-separated circuits from only the exact qualified owner-authorized registry identities',()=>{
+  const {nodes,lease,policy}=fixture(),available=tunaInventoryForLease(nodes,lease,policy,now);
+  const selected=selectCircuitProviders(policy,available,{now});assert.equal(selected.ready,true);assert.equal(selected.circuits.length,2);
+  for(const circuit of selected.circuits)for(const p of Object.values(circuit)){assert.ok(policy.providerIds.includes(p.registryId));assert.equal(p.beneficiary,lease.connectivity.providers.find(x=>x.id===p.registryId).operator);}
+  assert.equal(selectCircuitProviders(policy,nodes,{now}).ready,false,'unverified advertisements cannot be used');
+  assert.equal(providerAllowedForPolicy({...available[0],currency:'NKN'},policy,'guard',now),false);
+  assert.equal(validateTunaPolicy(policy).routes,2);
++ assert.equal(policy.diversity,'public-ip');
++ assert.throws(()=>validateTunaPolicy({...policy,diversity:'beneficiary-and-network'}));
++ assert.throws(()=>validateTunaPolicy({...policy,diversity:'none'}));
+ });
+ test('changed IP, price, qualification, backing or owner policy withdraws USDC inventory',()=>{
+  for(const alter of [x=>x.nodes[0].address='9.9.9.9',x=>x.nodes[0].pricePerGiB6='999',x=>x.lease.connectivity.providers[0].qualified=false,x=>x.lease.connectivity.providers[0].active=false,x=>x.lease.connectivity.providers[0].qualifiedUntil=99]){
+@@ -24,7 +27,44 @@ test('changed IP, price, qualification, backing or owner policy withdraws USDC i
+   const x=fixture();alter(x);assert.deepEqual(tunaInventoryForLease(x.nodes,x.lease,x.policy,now),[]);
+  }
+ });
+-test('separate addresses on separate networks are insufficient when the USDC beneficiaries are identical',()=>{
+- const x=fixture();for(const p of x.lease.connectivity.providers)p.operator=owner;
+- assert.equal(selectCircuitProviders(x.policy,tunaInventoryForLease(x.nodes,x.lease,x.policy,now),{now}).ready,false);
++test('USDC circuits permit one operator and ASN, including missing ASN metadata, with four public IPs',()=>{
++ for(const asn of [559,undefined,null]){
++  const x=fixture();for(const p of x.lease.connectivity.providers)p.operator=owner;
++  for(const n of x.nodes){n.asn=asn;n.beneficiary='same-native-wallet';}
++  const selected=selectCircuitProviders(x.policy,tunaInventoryForLease(x.nodes,x.lease,x.policy,now),{now});
++  assert.equal(selected.ready,true);assert.equal(selected.circuits.length,2);
++  assert.equal(new Set(selected.circuits.flatMap(c=>Object.values(c).map(n=>n.address))).size,4);
++ }
++});
++test('duplicate public IPs cannot satisfy two USDC circuits even with different identities and ASNs',()=>{
++ for(const address of ['8.8.1.1','2606:4700::1111']){
++  const x=fixture();x.nodes[0].address=address;
++  x.nodes[3].address=address.includes(':')?'2606:4700:0:0:0:0:0:1111':address;
++  for(let i=0;i<x.nodes.length;i++)x.lease.connectivity.providers[i].addressHash=keccak256(stringToHex(x.nodes[i].address));
++  const available=tunaInventoryForLease(x.nodes,x.lease,x.policy,now);
++  assert.equal(available.length,4);
++  const selected=selectCircuitProviders(x.policy,available,{now});
++  assert.equal(selected.ready,false);assert.match(selected.reason,/distinct public IPs/);
++ }
++});
++test('public-IP separation rejects non-public addresses and aliases without requiring owner diversity',()=>{
++ const a={identity:'a',address:'8.8.8.8',beneficiary:'same',asn:559};
++ const b={identity:'b',address:'1.1.1.1',beneficiary:'same',asn:559};
++ assert.equal(independent(a,b,'public-ip'),true);
++ assert.equal(independent(a,{...b,identity:a.identity},'public-ip'),false);
++ for(const address of ['8.8.8.8','8.8.8.8:443','localhost','example.com','127.0.0.1','10.0.0.1','169.254.169.254','100.64.0.1','192.0.2.1','::1','fc00::1','fe80::1','::ffff:8.8.8.8','2606:4700::1111%eth0']){
++  assert.equal(independent(a,{...b,address},'public-ip'),false,address);
++  assert.equal(independent({...b,address},a,'public-ip'),false,address);
++ }
++ assert.equal(independent({...a,address:'2606:4700::ABCD'},{...b,address:'2606:4700:0:0:0:0:0:abcd'},'public-ip'),false);
++ assert.equal(independent({...a,address:'2606:4700::1111'},{...b,address:'2606:4700::1001'},'public-ip'),true);
++ assert.equal(independent(a,b,'beneficiary-and-network'),false,'legacy diversity remains strict');
++});
++test('locked USDC circuits cannot share public IPs with their sibling',()=>{
++ const x=fixture(),available=tunaInventoryForLease(x.nodes,x.lease,x.policy,now);
++ const selected=selectCircuitProviders(x.policy,available,{now});
++ const locked=selected.circuits;
++ assert.equal(selectCircuitProviders(x.policy,available,{now,locked:[locked[0]]}).ready,true);
++ const duplicate={...locked[1],guard:{...locked[1].guard,address:locked[0].guard.address}};
++ assert.throws(()=>selectCircuitProviders(x.policy,available,{now,locked:[locked[0],duplicate]}),/invalid locked circuits/);
+ });
+-- 
+2.56.0
+

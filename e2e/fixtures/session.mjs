@@ -12,12 +12,12 @@ export const stack = JSON.parse(
   fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".stack.json"), "utf8"));
 
 export async function seedStorage(context, page) {
-  await context.addInitScript(({ relay, rpc, router, deployments }) => {
+  await context.addInitScript(({ relay, rpc, router, deployments, catalog }) => {
     localStorage.setItem("enclave_api_base", relay + "/v1");
     localStorage.setItem("enclave_rpc", rpc);
     localStorage.setItem("enclave_accounts", "1");                 // the dark-ship gate, forced on
-    sessionStorage.setItem("enclave_addrbook", JSON.stringify({ paymentRouter: router, deployments }));
-  }, { relay: stack.relay, rpc: stack.rpc, router: stack.router, deployments: stack.deployments });
+    sessionStorage.setItem("enclave_addrbook", JSON.stringify({ paymentRouter: router, deployments, appCatalog: catalog }));
+  }, { relay: stack.relay, rpc: stack.rpc, router: stack.router, deployments: stack.deployments, catalog: stack.catalog });
   // headless Chromium wedges frame production on some navigations (stuck
   // cross-document view transition) and the site's soft-nav awaits the view
   // transition's callback - under reduced motion it applies the swap directly,

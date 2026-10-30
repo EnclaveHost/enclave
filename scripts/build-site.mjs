@@ -13,6 +13,14 @@
        pages make zero template fetches and the header exists at
        first paint without the sessionStorage warm-up
      • pages, openapi.json, assets/, vendor/ are copied through
+     • /recover/ (the passkey account recovery signer) is its own
+       small module bundle beside its page and production config
+     • /credit/ (an existing credit vault without the Enclave API)
+       likewise, with credit-config.json (pins + default endpoints)
+     • optional: --built-in-profile FILE --built-in-profile-digest
+       sha256:… ships an already-reviewed browser network profile as
+       the site's built-in one (scripts/site-built-in-profile.mjs);
+       without it the build is unchanged
 
    Dev flow is unchanged: site/ itself is valid, unbundled ES
    modules — serve it directly and templates load via fetch.
@@ -23,6 +31,8 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { parseBuildArgs, readBuiltInProfile, builtInProfilePlugin } from "./site-built-in-profile.mjs";
+import { takeReadAuthorityArgs, readReadAuthority, readAuthorityPlugin } from "./site-read-authority.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const SITE = path.join(ROOT, "site");
@@ -60,6 +70,17 @@ const inlineTemplates = {
 
 console.log("[build] clean dist/");
 fs.rmSync(DIST, { recursive: true, force: true });
+/* the optional built-in network profile: checked before anything is built and after dist/ is cleared, so a rejected
+   input leaves nothing that could be released */
+const SPLIT = takeReadAuthorityArgs(process.argv.slice(2));       // --read-authority FILE --read-authority-digest sha256:<hex>
+const ARGS = parseBuildArgs(SPLIT.rest);
+const BUILT_IN = ARGS.file ? readBuiltInProfile(ARGS.file, ARGS.digest) : null;
+const READ_AUTH = SPLIT.file ? readReadAuthority(SPLIT.file, SPLIT.digest) : null;
+if (READ_AUTH && BUILT_IN) throw new Error("--read-authority and --built-in-profile are exclusive: a built-in independent profile already decides every chain read");
+if (READ_AUTH) console.log(`[build] release read authority own-rpc sha256:${READ_AUTH.fingerprint}: hosted reads ONLY via ${READ_AUTH.authority.rpcs.map((u) => new URL(u).host).join(", ")} (self-hosted transport, NOT proof-verified)`);
+console.log(BUILT_IN
+  ? `[build] built-in network profile ${JSON.stringify(BUILT_IN.profile.name)} sha256:${BUILT_IN.fingerprint} (a fresh browser starts in independent mode with it)`
+  : "[build] no built-in network profile (hosted defaults; a saved browser profile still applies)");
 fs.mkdirSync(path.join(DIST, "css"), { recursive: true });
 fs.mkdirSync(path.join(DIST, "sso"), { recursive: true });   // /sso/authorize ships as a nested source document
 
@@ -85,9 +106,39 @@ const result = await build({
   outbase: SITE,                              // js/boot.js keeps its path: HTML needs no rewrite
   chunkNames: "js/chunks/[name]-[hash]",
   external: ["https://*", "/vendor/*"],       // same-origin vendor bundles (verifier, webauthn) are loaded at runtime, not inlined into the page graph
-  plugins: [inlineTemplates],
+  plugins: [inlineTemplates, ...(BUILT_IN ? [builtInProfilePlugin(BUILT_IN.text, SITE)] : []), ...(READ_AUTH ? [readAuthorityPlugin(READ_AUTH.text, SITE)] : [])],
   metafile: true,
 });
+
+/* the passkey account recovery signer (site/recover/): a static page at the credit vault's pinned origin, outside the
+   dashboard's module graph. Its one module bundles the shared EIP-191 helper; /vendor/aa.js stays the same-origin vendor
+   bundle; recover-config.json (the production pins) is served beside it. */
+console.log("[build] recover/ (passkey account recovery signer)");
+const recoverResult = await build({
+  entryPoints: [path.join(SITE, "recover/recover.js")],
+  bundle: true, format: "esm", target: ["es2022"], minify: true, sourcemap: true, platform: "browser",
+  outfile: path.join(DIST, "recover/recover.js"),
+  external: ["/vendor/*"],
+  metafile: true,
+});
+for (const f of ["index.html", "recover-config.json"])
+  fs.copyFileSync(path.join(SITE, "recover", f), path.join(DIST, "recover", f));
+
+/* the independent credit-vault page (site/credit/): the same shape as recover/ - a static page at the vault's pinned
+   origin that reads the chain endpoints the owner chooses and signs with the owner's passkey, with no Enclave API.
+   Its module bundles js/core/credit-vault-independent.js + quorum.js; /vendor/credit-vault.js stays a vendor bundle. */
+console.log("[build] credit/ (independent credit vault)");
+const creditResult = await build({
+  entryPoints: [path.join(SITE, "credit/credit.js")],
+  bundle: true, format: "esm", target: ["es2022"], minify: true, sourcemap: true, platform: "browser",
+  outfile: path.join(DIST, "credit/credit.js"),
+  external: ["/vendor/*"],
+  metafile: true,
+  // the SAME reviewed release read authority as the main site (its credit page defaults then follow it; see read-authority.js)
+  plugins: [...(READ_AUTH ? [readAuthorityPlugin(READ_AUTH.text, SITE)] : [])],
+});
+for (const f of ["index.html", "credit-config.json"])
+  fs.copyFileSync(path.join(SITE, "credit", f), path.join(DIST, "credit", f));
 
 /* ---- build-time prerender ("SSR") ----
    Expand every <c-*> element in the page HTML using its component template:
@@ -187,6 +238,9 @@ const chunksOf = (outFile, seen = new Set()) => {
   return seen;
 };
 const bootOut = Object.keys(outs).find(f => outs[f].entryPoint && outs[f].entryPoint.endsWith("js/boot.js"));
+// Returning browsers can retain the stable entry URL after a deploy. Bind its
+// URL to these bytes so fresh HTML always imports this build's chunk graph.
+const bootVersion = createHash("sha256").update(fs.readFileSync(path.join(DIST, "js/boot.js"))).digest("hex").slice(0, 16);
 const PAGE_HTML = { overview: "index.html", apps: "apps.html", develop: "develop.html", dashboard: "dashboard.html", admin: "admin.html", terms: "terms.html", checkout: "checkout.html", link: "link.html", host: "host.html", architecture: "architecture.html", authorize: "authorize.html", "sso-authorize": "sso/authorize.html", grant: "grant.html", sessions: "sessions.html", funding: "funding.html" };   // deploy.html is a redirect stub now
 const preloads = {};
 for (const [outFile, o] of Object.entries(outs)) {
@@ -209,10 +263,17 @@ for (const f of ["index.html", "deploy.html", "apps.html", "develop.html", "dash
     s = s.replace("<head>", "<head>\n" + SKEW_HEAL);   // must be first: it watches every later load
   }
   if (preloads[f]) s = s.replace('<script type="module" src="js/boot.js">', preloads[f] + '\n<script type="module" src="js/boot.js">');
+  if (f.endsWith(".html")) s = s.replace(/src="((?:\.\.\/)?js\/boot\.js)"/g, `src="$1?v=${bootVersion}"`);
   fs.writeFileSync(path.join(DIST, f), s);
 }
-for (const d of ["assets", "vendor", ".well-known"])
+for (const d of ["assets", "vendor", ".well-known", "wallet-release"])
   fs.cpSync(path.join(SITE, d), path.join(DIST, d), { recursive: true });
+// every same-origin module the recovery and credit pages load at runtime must be in this build
+for (const [name, result] of [["recover/recover.js", recoverResult], ["credit/credit.js", creditResult]])
+  for (const o of Object.values(result.metafile.outputs))
+    for (const imp of o.imports || [])
+      if (imp.external && !fs.existsSync(path.join(DIST, imp.path)))
+        throw new Error(name + " imports " + imp.path + ", which this build does not ship");
 // /funding needs site/vendor/funding.js built from THIS sdk/funding core (scripts/build-funding-vendor.mjs; client-site-repair-r2)
 {
   const { createHash } = await import("node:crypto");

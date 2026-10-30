@@ -21,8 +21,6 @@ Across both trials: 23.599 seconds in receive spans, 22.455 seconds in poll call
 
 Trial 1 (4 MiB receive window): **0.9569 tok/s**. Trial 2 (256 KiB): **0.7833 tok/s**. Both generated the same expected 16 tokens with matching work and MTP decisions. A single order does not establish a window speedup.
 
-Validation: route b27-recv-detail-2 completed in 542.06 seconds including cleanup. All 6,820 receive records passed the corrected setup/timed-mode checks and exact joins. All 13 standard analyses plus receive, TCP, fault, traffic and pad-delivery analyses passed. The phone stopped, owned processes exited, and the pad bank cleared. An incomplete owned shipment was quarantined and never reused.
-
 The earlier failed-run postmortem remains separately preserved: [report](/home/steven/Documents/Codex/2026-09-07/i-w/outputs/27b-receive-operations-v46-first-postmortem.md). Its original failure has not been relabelled as a passing live run.
 
 [Detailed measurements and provenance](/home/steven/Documents/Codex/2026-09-07/i-w/outputs/27b-receive-operations-v46.json).

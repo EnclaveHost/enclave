@@ -1,0 +1,47 @@
+{
+  "qualification": "local source + normal-size actual EVM tests; NOT production deployment or full service integration",
+  "registrySourceSha256": "68310acc3bda76be0c7bf06ad5149ac1b354e3687f8268223bc8589457c071a8",
+  "tests": {
+    "passed": 50,
+    "failed": 0,
+    "skipped": 0
+  },
+  "runtimeBytes": 23968,
+  "initBytes": 23994,
+  "runtimeHeadroomBytes": 608,
+  "rowAbiMatches": true,
+  "links": [],
+  "guardPeaksMiB": {
+    "inner": 439,
+    "outer": 501
+  },
+  "minimumHostAvailableMiB": 33919,
+  "evidenceSha256": {
+    "validation-result/result.json": "85e76a852cc6d81ea6f78e9e510b18b2572cd3313dfbe60be1fc752ea72e2c62",
+    "validation-result/compile.log": "9bdc6ae4c3b97dce8d49ec6d5a44e52e09cb874a12ca601a32220920fbefd9ce",
+    "validation-result/tests.log": "3ead6c35619bf38e4dd4d84a74744418200735d8abc9839d650d39c1bbd6e68a",
+    "validation-result/registry-abi.json": "a738e8202f360cb19e01fe66894b9593ac24c220acebaac1c5f178be070d05ee",
+    "validation-result/registry-storage.json": "914a4c2dd15c7b60eb9966e061fab01c6bce62dc99af2523c6870b836c654ba2",
+    "validation-result/artifacts/EnclaveHostLifecycleRegistry.sol/EnclaveHostLifecycleRegistry.json": "2fab590b6f066bdca465d26994b48b1581cfc55cc7b991c3e16ba9a4999defe4",
+    "validation-inner.guard.log": "9e3a340252ac1673a782f4ffd246cf0f991ef0777618f38c34c35b973ccc4971",
+    "validation-outer.guard.log": "731c9b0582d5fd9207f8d10607340e0a918f38d85d0ea31abfb67e14a71b8649",
+    "frozen-input.json": "dfdde23cd7fb749a4012089a2c78ce6fe09586859f25fc3cc116b23d88cabd12",
+    "review-repairs.diff": "35a1686af478a011e8fb4e447e290093ef8accae063b0869275a501e1a8ec6dc",
+    "author-delivery-manifest.json": "e5b0fb16311ee2eb7ddfd6ad8c137b740c5dea57722cbbfaa095e97b73b0f153",
+    "finished.json": "9608bdebeb4877bb29f9b8a0414ee76f2370742c0a4bacf133e2c5950f14e309",
+    "validation-result-r2/result.json": "3ff88733fc50263e07b709a52d0faa76fed7c3d121b4aea394178c2b79d454f4",
+    "validation-result-r2/compile.log": "8ee610f159196da097a317f20e84cdc06f49e41ec5b5e5fccbb99d4382c13573",
+    "validation-result-r2/tests.log": "434cf910557540d9ab6a7942f58c2b40735ff5987c4adcec64616e83e512c3a3",
+    "validation-result-r2/registry-abi.json": "a738e8202f360cb19e01fe66894b9593ac24c220acebaac1c5f178be070d05ee",
+    "validation-result-r2/registry-storage.json": "914a4c2dd15c7b60eb9966e061fab01c6bce62dc99af2523c6870b836c654ba2",
+    "validation-result-r2/artifacts/EnclaveHostLifecycleRegistry.sol/EnclaveHostLifecycleRegistry.json": "e8690734c4fae1f1adfa3525061d5542b314704c997feec2daa09fdecd49f23a",
+    "validation-r2-inner.guard.log": "9e14ea341ac7f1c9e2d54746d0589ed9ba4b8ed7e290e12c4cfa4db8ce4e99ad",
+    "validation-r2-outer.guard.log": "094533f2be5afda6c56d0826d28e97415ed25261ab1025a16bdd44578e22038c",
+    "frozen-input-r2.json": "d8f9e9e09a1a3245b26f51eaa36a8aaaaad10ad1c34cfecc25caeb9bb31a9dca",
+    "validate-r2.py": "9ad044ba614bfc3142e8ec3e25090a4d0316a5588836e022550b1e814bd72332"
+  },
+  "latestValidation": "validation-result-r2/result.json",
+  "publicAbiMatchesR1": true,
+  "storageLayoutMatchesR1": true,
+  "executableRuntimeMatchesR1": true
+}

@@ -1,0 +1,2 @@
+10-08 03:03:38.702  9332  9332 I anchor-host: HOST FAIL: tier pvm-cpu: a pVM CPU build runs mode app only: CPU-only Wasm components (asked for mode local)
+10-08 03:03:45.420  9565  9565 I anchor-host: HOST FAIL: tier pvm-cpu: a pVM CPU build carries no model (app_graph was given): it runs CPU-only Wasm components

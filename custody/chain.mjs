@@ -48,6 +48,7 @@ export const BOOK_KEYS = { deployments: key("deployments"), registry: key("regis
 export const endpointIdOf = (endpoint) => keccak256(toBytes(endpoint));   // EnclaveRegistry: id = keccak256(bytes(endpoint))
 
 const ZERO = "0x0000000000000000000000000000000000000000";
+const VERIFIER_MARK = Symbol.for("enclave.chain-authority.local-verifier");   // network/chain-authority.mjs VERIFIER_CLIENT
 const b = (h) => hexToBytes(h === "0x" ? "0x" : h);
 const err = (code, message, status = 503) => Object.assign(new Error(message), { code, status });
 
@@ -91,6 +92,9 @@ export function createChainReader({ rpcs, vault, minAgree, confirmations = 0, cl
   const clients = given || (rpcs || []).map((url) => createPublicClient({ transport: http(url, { timeout: timeoutMs, retryCount: 1 }) }));
   if (!clients.length) throw new Error("chain: no RPC configured");
   if (!Number.isInteger(minAgree) || minAgree < 1 || minAgree > clients.length) throw new Error(`chain: minAgree must be 1..${clients.length} (state it explicitly)`);
+  // the local verifier is ONE authority (custody/chain-source.mjs): never a vote among RPCs, never mixed with them
+  if (clients.some((c) => !!c && !!c[VERIFIER_MARK]) && (clients.length !== 1 || minAgree !== 1 || (rpcs && rpcs.length)))
+    throw new Error("chain: the local verifier is one chain authority: clients [verifier], minAgree 1, no RPC URLs");
   async function agreed(fn) {
     const heads = await Promise.allSettled(clients.map((c) => c.getBlockNumber({ cacheTime: 0 })));   // never a cached head: it would read a state older than the caller knows
     const ok = heads.filter((h) => h.status === "fulfilled").map((h) => h.value);

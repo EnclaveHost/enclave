@@ -164,7 +164,7 @@ minting before the load left the bundle's pages to be evicted by it, and decode 
 What was ruled out as "cheap pads": mixing a small pool of `(b, W b)` pairs (every pad then lies in a low-dimensional
 subspace that the host, who sees many masked rows, can estimate and strip), sparse or reused pads (unmasked or correlated
 entries), sensor noise for `r` (the sensors belong to the host, and drawing `r` was never the cost), and minting on the
-TPU or GPU (they would see `r`). A trusted dealer remains possible (dealt-pad plumbing exists for the split engine).
+TPU or GPU (they would see `r`).
 
 ## Can a mask survive the nonlinear steps? (investigated 2026-09-18)
 
@@ -391,7 +391,7 @@ so this is a placement choice, not a saving: the window is simply the cheapest p
 large bank for short turns and the window for sustained generation.
 
 **LPN-structured pads (`shielded/lpn`) do NOT transfer.** The construction is sound and its REPORT.md
-names this case as one where it pays -- "a TEE that cannot batch pads at all (a per-token dealer mint, a
+names this case as one where it pays -- "a TEE that cannot batch pads at all (a
 phone anchor filling one pad at a time), where the 2-3.6x byte figure is real". That premise is out of
 date: the batched minter (2026-09-18) took this phone from 12.7 to 78.8 positions per second, and one
 position is exactly one token's worth of pads. Decode at 0.93 tok/s spends **4.5 % of ONE vCPU** on
@@ -2938,8 +2938,7 @@ Two things this makes explicit that "35 of 35" hid.
   in 2.0-2.8 s on six threads, about 190 core-ms per token-row) or inline when the bank runs dry. Counting
   them, the TPU does 44 % of the arithmetic. That is the honest ceiling of "most compute on the TPU" for
   any design where the trusted side computes its own pad corrections, and it holds whatever the link
-  does. Moving the pads off the phone means a trusted dealer (the dealt-pads design, which adds a party to
-  the trust boundary); structured pads (LWE/LPN) cut the VM's share but were measured to buy 1.1-1.2x
+  does. Structured pads (LWE/LPN) cut the VM's share but were measured to buy 1.1-1.2x
   here (`shielded/lpn`), and they widen the reply.
 
 ## The int4 lane: a stale bundle, then an exact one (2026-09-22)

@@ -4,7 +4,7 @@
    EnclaveDeployments / EnclaveAppCatalog contract surface.
    No web3 library loads on the site.
    ============================================================ */
-import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, FEATURED_ADDRESS, REVIEWS_ADDRESS, HOST_REVIEWS_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS } from "./config.js";
+import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, FEATURED_ADDRESS, REVIEWS_ADDRESS, HOST_REVIEWS_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS, INDEPENDENT, READ_AUTHORITY } from "./config.js";
 import { EnclaveError, Enclave } from "./api.js";
 import { wait } from "./util.js";
 import { fleetPrice } from "./pricing.js";
@@ -84,7 +84,7 @@ export async function depSchemaRev(){
 
 /* ---- EnclaveAppCatalog ---- */
 export const CAT_SEL = {
-  appCount:"b55ca2c3", getAppsPage:"a0483de1", getVersionsPage:"2eb7c1f0", owner:"8da5cb5b",
+  getApp:"42c71f1d", appCount:"b55ca2c3", getAppsPage:"a0483de1", getVersionsPage:"2eb7c1f0", owner:"8da5cb5b",
   publishVersion:"47910c23",   // rev >= 5: publishVersion(...,uint32[4] res,string ports,string config,uint256 feePerSec6)
   publishVersionV4:"ffd9de8f", // rev-4 catalogs: same without the fee arg (kept until the cutover)
   publishVersionV2:"adbf439a", // rev-2 catalogs: same without the config arg (kept until the cutover)
@@ -273,9 +273,16 @@ export async function revOwner(){ const r = await revCall("0x" + REV_SEL.owner);
    REVERT), so under the flag an empty result rotates like any transport
    error; if every endpoint agrees it throws, and callers keep their
    error paths instead of caching a zero. */
-let _rpcIdx = 0;
+
 export async function baseRpc(method, params, opts){
+  // independent mode with an unconfirmed or invalid profile pins no RPC at all: refuse, never fall back
+  // ... and a release read authority that is invalid pins none either (js/core/read-authority.js): refuse, never fall back
+  if (!APP_CATALOG_RPCS.length) throw new EnclaveError(INDEPENDENT.state === "invalid"
+    ? "The saved independent profile is invalid (" + INDEPENDENT.error + "). Fix or remove it in Settings."
+    : INDEPENDENT.state !== "off" ? "Confirm the independent profile in Settings before reading the chain."
+    : "This site release's chain read authority is invalid (" + (READ_AUTHORITY && READ_AUTHORITY.error) + "): reads are refused, never sent to another server.", 0);
   let lastErr = null;
+  let _rpcIdx = 0; // Every call starts with the cached Alchemy gateway.
   for (let attempt = 0; attempt < APP_CATALOG_RPCS.length * 2; attempt++){
     const url = APP_CATALOG_RPCS[_rpcIdx % APP_CATALOG_RPCS.length];
     try {
@@ -558,6 +565,9 @@ export async function catVersionConfigCid(appId, index){
 export async function catMaxFeePerSec6(){
   if ((await catSchemaRev()) < 5) return 0n;
   return hexBig(await ethCall("0x" + CAT_SEL.maxFeePerSec6));
+}
+export async function catGetApp(appId){
+  return decodeStruct(await ethCall(encCall(CAT_SEL.getApp, [{t:"bytes32",v:appId}])), APP_SCHEMA);
 }
 export async function catGetAppsPage(start, n){
   return decodeStructArray(await ethCall(encCall(CAT_SEL.getAppsPage, [{t:"uint",v:start},{t:"uint",v:n}])), APP_SCHEMA);

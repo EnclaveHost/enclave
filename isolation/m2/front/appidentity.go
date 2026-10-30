@@ -26,6 +26,10 @@ import (
 )
 
 func loadedAppID(bundlePath, wasmPath, statedPath string) ([]byte, string, error) {
+	return loadedAppIDWithParser(bundlePath, wasmPath, statedPath, contract.Parse, false)
+}
+
+func loadedAppIDWithParser(bundlePath, wasmPath, statedPath string, parse func([]byte) (contract.Manifest, []byte, error), requireBundle bool) ([]byte, string, error) {
 	wasm, err := os.ReadFile(wasmPath)
 	if err != nil {
 		return nil, "", fmt.Errorf("the app the runtime loads (%s): %w", wasmPath, err)
@@ -35,7 +39,7 @@ func loadedAppID(bundlePath, wasmPath, statedPath string) ([]byte, string, error
 	b, err := os.ReadFile(bundlePath)
 	switch {
 	case err == nil:
-		_, artifact, perr := contract.Parse(b)
+		_, artifact, perr := parse(b)
 		if perr != nil {
 			return nil, "", fmt.Errorf("%s: %w", bundlePath, perr)
 		}
@@ -44,7 +48,7 @@ func loadedAppID(bundlePath, wasmPath, statedPath string) ([]byte, string, error
 		}
 		id = contract.AppID(b)
 		how = "sha256 of the bundle whose artifact is the loaded component"
-	case errors.Is(err, os.ErrNotExist):
+	case errors.Is(err, os.ErrNotExist) && !requireBundle:
 		id = sha256.Sum256(wasm)
 		how = "sha256 of the loaded bare component (no bundle in this image)"
 	default:
@@ -54,6 +58,8 @@ func loadedAppID(bundlePath, wasmPath, statedPath string) ([]byte, string, error
 		if strings.TrimSpace(string(raw)) != hex.EncodeToString(id[:]) {
 			return nil, "", fmt.Errorf("%s states %.16s..., but the loaded code is %x...: refusing a broken image", statedPath, strings.TrimSpace(string(raw)), id[:8])
 		}
+	} else if requireBundle {
+		return nil, "", fmt.Errorf("%s: %w", statedPath, err)
 	}
 	return id[:], how, nil
 }

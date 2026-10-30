@@ -26,7 +26,7 @@ The existing project SHA-256 and OpenSSL digests cross-check in the tests. The
 OpenSSL dependency is experimental and would need inclusion in any measured
 production image. Encrypted pad spooling and a crash-safe producer/consumer
 queue are not implemented. This tests the weight-reading and field-product
-component, not end-to-end inference or a deployed dealer service.
+component, not end-to-end inference.
 
 ## Reproduce
 

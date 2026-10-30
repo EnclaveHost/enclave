@@ -1,0 +1,17 @@
+/home/steven/enclave-bench/official-nofix-tree/ggml/src/ggml.c:2263: GGML_ASSERT(ggml_can_repeat(b, a)) failed
+#0  ?? () from /usr/lib/libc.so.6
+#1  wait4 () from /usr/lib/libc.so.6
+#2  ggml_print_backtrace () from /home/steven/enclave-bench/official-nofix-build/bin/libggml-base.so.0
+#3  ggml_abort () from /home/steven/enclave-bench/official-nofix-build/bin/libggml-base.so.0
+#4  ggml_mul_impl.part () from /home/steven/enclave-bench/official-nofix-build/bin/libggml-base.so.0
+#5  ggml_mul () from /home/steven/enclave-bench/official-nofix-build/bin/libggml-base.so.0
+#6  llama_model_qwen35::graph::build_layer_attn(llm_graph_input_attn_kv*, ggml_tensor*, ggml_tensor*, int*, int) () from /home/steven/enclave-bench/of
+#7  llama_model_qwen35::graph::graph(llama_model const&, llm_graph_params const&) () from /home/steven/enclave-bench/official-nofix-build/bin/libllama
+#8  llama_model_qwen35::build_arch_graph(llm_graph_params const&) const () from /home/steven/enclave-bench/official-nofix-build/bin/libllama.so.0
+#9  llama_model::build_graph(llm_graph_params const&) const () from /home/steven/enclave-bench/official-nofix-build/bin/libllama.so.0
+#10 llama_context::graph_reserve(unsigned int, unsigned int, unsigned int, llama_memory_context_i const*, bool, unsigned long*, ggml_backend_sched*) (
+#11 llama_context::ensure_slot_alt(unsigned int, int) () from /home/steven/enclave-bench/official-nofix-build/bin/libllama.so.0
+#12 llama_context::process_ubatch(llama_ubatch const&, llm_graph_type, llama_memory_context_i*, ggml_status&) () from /home/steven/enclave-bench/offic
+#13 llama_context::decode(llama_batch const&) () from /home/steven/enclave-bench/official-nofix-build/bin/libllama.so.0
+#14 llama_decode () from /home/steven/enclave-bench/official-nofix-build/bin/libllama.so.0
+#15 decode_seq(llama_context*, int, int, std::vector<int, std::allocator<int> > const&, int, char const*) ()

@@ -1,14 +1,22 @@
-# GATED_DELTA_NET, register-resident row kernel (ENCLAVE_GGML_GDN_REGROW, default
-# on while under test; =0 restores the four vector calls). For the scalar gate
-# and S_v = 128 (both qwen35 models here), each state row is loaded once, taken
-# through scale, dot(k), d*k update and dot(q) in registers, and stored once,
-# using ggml's own GGML_F32_VEC operations in exactly the order of
-# ggml_vec_scale_f32 / ggml_vec_dot_f32 / ggml_vec_mad_f32 -- bit-identical by
-# construction, checked by wasm/llamacpp-conv-inplace/gdn-equiv.cpp and the
-# real-graph test. Compiled only at 16 floats per vector (AVX-512): on the
-# production AVX2 build a row is all 16 ymm registers and measured ~55% slower,
-# so there it compiles out and the vector calls run. Applies AFTER
-# llamacpp-conv-inplace.patch (and NOT with the unapplied llamacpp-gdn-tokfuse.patch).
+# NOT APPLIED -- validated but not integrated (shielded/REPORT.md 18.51, 18.53-18.54).
+#
+# GATED_DELTA_NET, register-resident row kernel (ENCLAVE_GGML_GDN_REGROW; =0
+# restores the four vector calls). For the scalar gate and S_v = 128 (both
+# qwen35 models here), each state row is loaded once, taken through scale,
+# dot(k), d*k update and dot(q) in registers, and stored once, using ggml's own
+# GGML_F32_VEC operations in exactly the order of ggml_vec_scale_f32 /
+# ggml_vec_dot_f32 / ggml_vec_mad_f32 -- bit-identical by construction, checked
+# by wasm/llamacpp-conv-inplace/gdn-equiv.cpp and the real-graph test. Compiled
+# only at 16 floats per vector (AVX-512): on the production AVX2 build a row is
+# all 16 ymm registers and measured ~55% slower, so there it compiles out.
+#
+# Why it is not in the llamacpp-toolchain workflow: that build is AVX2-only
+# (GGML_NATIVE=OFF), where this kernel compiles out, so it would ship dead code.
+# And this diff is FORK-RELATIVE: its context is the development fork's
+# fused-rows delta-net loop (ENCLAVE_GGML_GDN_SWEEPS, rejected as neutral in
+# section 16 and carried by no patch in this repo) plus llamacpp-conv-inplace.patch;
+# it does not apply to the workflow's tree. Porting it means writing it against
+# the four-sweep loop the workflow builds, and only pays on an AVX-512 build.
 --- a/ggml/src/ggml-cpu/ops.cpp	2026-09-23 17:35:02.724488683 -0700
 +++ b/ggml/src/ggml-cpu/ops.cpp	2026-09-23 17:35:02.725191964 -0700
 @@ -11003,6 +11003,69 @@

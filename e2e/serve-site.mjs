@@ -18,8 +18,12 @@ export function serveSite(root, port) {
     let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
     if (p === "/") p = "/index.html";
     if (PRETTY[p]) p = PRETTY[p];
-    const file = path.join(root, p);
-    if (!file.startsWith(root) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+    // Browser source imports these maintained, browser-safe shared modules.
+    // Production esbuild bundles them; the unbundled local rig must serve them.
+    const shared = new Set(["/network/host-policy-mirrors.mjs", "/network/host-liveness.mjs"]);
+    const base = shared.has(p) ? path.dirname(root) : root;
+    const file = path.resolve(base, "." + p);
+    if (!file.startsWith(base + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
       res.writeHead(404, { "content-type": "text/plain" }); return res.end("not found");
     }
     res.writeHead(200, { "content-type": TYPES[path.extname(file)] || "application/octet-stream",

@@ -197,8 +197,47 @@ function rm(name) {
   log(`removed ${name}`);
 }
 
+// ---- dist / fetch / table: pinned, chunked, replica-fetched volumes ---------------------------------------------
+// dist   <name> --out <dir>                      the volume's chunk manifest + chunks (content-named) for any replica
+// fetch  <name> --table <file> --gateways a,b    a COLD fetch from replicas into the store, every byte digest-checked
+// table  <dir> <pin>...                          rt/model-volumes.table lines for the measured runtime
+async function dist(name) {
+  const { buildDistribution } = await import('../sdk/storage/model-volumes.mjs');
+  const out = path.resolve(arg('out', '') || die('--out <dir> is required'));
+  const { pin, manifest } = await buildDistribution(volumeDir(name), out, arg('chunk-bytes') ? { chunkBytes: Number(arg('chunk-bytes')) } : {});
+  log(`${name}: ${manifest.chunks.length} chunk(s), pin ${pin}`);
+  console.log(pin);
+}
+async function fetchCmd(name) {
+  const { parseTable, fetchVolume } = await import('../sdk/storage/model-volumes.mjs');
+  const { RawArtifacts } = await import('../sdk/storage/raw-artifacts.mjs');
+  const table = parseTable(fs.readFileSync(arg('table', '') || die('--table <rt/model-volumes.table> is required'), 'utf8'));
+  const entry = table.get(name) || die(`${name} is not in the pinned table`);
+  const gateways = (arg('gateways', '') || die('--gateways <http://ip:port,...> is required')).split(',');
+  const artifacts = new RawArtifacts({ gateways, timeoutMs: Number(arg('timeout-ms', '120000')) });
+  if (!fs.existsSync(STORE)) die(`no volume store at ${STORE}`);
+  const vol = await fetchVolume({ artifacts, entry, store: STORE });
+  log(`${name}: fetched ${(vol.imageBytes / 1e9).toFixed(2)} GB, root ${vol.verity.root}`);
+  for (const r of artifacts.receipts) log(`  ${r.sha256.slice(0, 16)}… from ${r.origin}`);
+}
+// vhd    <name>                                 store/<name>/volume.vhd: the image as a fixed VHD, for a Windows host's partitions
+async function vhd(name) {
+  const { writeFixedVhd } = await import('../sdk/storage/model-volumes.mjs');
+  const { path: out, bytes } = await writeFixedVhd(volumeDir(name));
+  log(`${name}: ${out} (${bytes} bytes, the image and a fixed-VHD footer)`);
+}
+async function table(dir, pins) {
+  const { decodeManifest, tableText } = await import('../sdk/storage/model-volumes.mjs');
+  const rows = pins.map((pin) => ({ pin, manifest: decodeManifest(fs.readFileSync(path.join(dir, pin)), pin) }));
+  process.stdout.write(tableText(rows));
+}
+
 // ---- main -------------------------------------------------------------------
 switch (CMD) {
+  case 'dist': await dist(argv[1] || die('usage: volumes.mjs dist <name> --out <dir>')); break;
+  case 'fetch': await fetchCmd(argv[1] || die('usage: volumes.mjs fetch <name> --table <file> --gateways <list>')); break;
+  case 'vhd': await vhd(argv[1] || die('usage: volumes.mjs vhd <name>')); break;
+  case 'table': await table(argv[1] || die('usage: volumes.mjs table <dir> <pin>...'), argv.slice(2).filter((a) => !a.startsWith('--'))); break;
   case 'build': {
     const name = argv[1];
     if (!name || name.startsWith('--')) die('usage: volumes.mjs build <name> --src <dir> [--gguf <file>] [--sd] [--force]');
@@ -220,6 +259,9 @@ switch (CMD) {
   node metal/volumes.mjs list
   node metal/volumes.mjs inspect <name>
   node metal/volumes.mjs rm <name> --yes
+  node metal/volumes.mjs dist <name> --out <dir> [--chunk-bytes N]
+  node metal/volumes.mjs fetch <name> --table <rt/model-volumes.table> --gateways http://ip:port,...
+  node metal/volumes.mjs table <dir> <pin>...
 
   --store <dir>   volume store (default ${STORE}, or METAL_VOLUME_STORE)
   --gguf <file>   pick ONE gguf out of a multi-quant tree (the MODEL_VOLUMES third field)

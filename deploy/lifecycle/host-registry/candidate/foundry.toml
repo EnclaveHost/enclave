@@ -1,0 +1,15 @@
+[profile.default]
+src = "contracts"
+test = "test"
+out = "out"
+libs = []
+solc_version = "0.8.35"
+optimizer = true
+optimizer_runs = 1
+via_ir = true
+evm_version = "prague"
+offline = true
+ffi = false
+remappings = [
+  "forge-std/=/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/contracts/foundry/lib/forge-std/src/",
+]

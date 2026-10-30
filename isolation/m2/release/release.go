@@ -106,8 +106,20 @@ type Release struct {
 	// Custody points at the deployment's custody state (EnclaveSecretVault) when its secrets are held by custodians
 	// rather than the relay: Secrets is then empty, and the front fetches them itself (custody.go, isolation/m2/custody).
 	Custody *Custody `json:"custody,omitempty"`
+	// Facts are what the RELAY established for this release, never the owner's (storage writer fencing,
+	// work/storage-front-binding-interface.txt): the writer authority of the lease the release was made for. The front
+	// reads them strictly (appconfig.ParseWriterAuthority) and hands them to the app under reserved names only.
+	Facts *ReleaseFacts `json:"facts,omitempty"`
 
 	opened bool // set ONLY by SealKey.Open: this release came through the attested channel
+}
+
+// ReleaseFacts: relay-established facts. WriterAuthority is the lease16 fact as JSON (relay/lease-generation.mjs). Runner
+// is the lease holder (endpoint id, 0x bytes32) the release was authorized for, sent whenever the config refers to the
+// writer authority: a front that establishes the authority itself binds it to this runner.
+type ReleaseFacts struct {
+	WriterAuthority json.RawMessage `json:"writerAuthority,omitempty"`
+	Runner          string          `json:"runner,omitempty"`
 }
 
 // Attested reports whether this Release was produced by SealKey.Open, i.e. decrypted from the relay's sealed reply.

@@ -36,6 +36,8 @@
 // Values never reach a log line or an error message here, only NAMES and byte counts: a log on this
 // box is readable by whoever holds the machine, and an error string ends up on /v1/deployments.
 
+import { originRequest } from "./origin-request.mjs";
+
 // The relay's own bounds, spelled here so a refusal can name the suspect. FETCH_SKEW_SEC is why a
 // box with a wrong clock is refused rather than served, and this is the only refusal an operator
 // fixes by looking at their own machine instead of the chain.
@@ -77,7 +79,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  *   "not-on-ledger" the relay's ledger view has no such deployment, or no fetch route (404)
  * and throws on every other outcome.
  */
-export async function fetchSecrets({ id, endpoint, sign, base = "https://api.enclave.host", log = () => {} }) {
+export async function fetchSecrets({ id, endpoint, sign, base = "https://api.enclave.host", log = () => {}, lookup }) {
   // Checked against the relay's own parser first, because a request it would 422 is a request we
   // should not have signed: a signature is a small commitment, but it is the box's identity, and
   // signing tuples built from junk is how a key ends up over a message nobody audited.
@@ -123,12 +125,12 @@ export async function fetchSecrets({ id, endpoint, sign, base = "https://api.enc
     try {
       // No `sig` field at all: this box holds no fleet key and sending an empty one would only
       // make the relay's refusal log read as a failed HMAC instead of what it is.
-      const r = await fetch(`${api}/v1/secrets/fetch`, {
+      const r = await originRequest(`${api}/v1/secrets/fetch`, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: idL, endpoint: ep, ts, opSig }),
-        signal: AbortSignal.timeout(TIMEOUT_MS) });
+        timeoutMs: TIMEOUT_MS, ...(lookup ? { lookup } : {}) });
       status = r.status;
-      text = await r.text();
+      text = r.text;
     } catch (e) { last = e.message || String(e); continue; }   // the wire: worth another go
 
     if (status === 200) {
@@ -219,8 +221,10 @@ export function mergeEnv(base, secrets) {
  * lease holder's fetch it works BEFORE a claim, and for a lease holder the relay does not hold eligible - the fetch
  * refuses both (409 not_lease_holder; 403 host_ineligible since U7), which left d1's live test 1 held as "not known".
  * Anything but a 200 that names this id with a boolean is a throw (unknown): never "no". A 5xx or the wire is retried once.
+ * Each go may use any of the relay origin's resolved addresses (origin-request.mjs); when none of them answers it is
+ * still a throw, never "no".
  */
-export async function secretsExist({ id, base = "https://api.enclave.host" } = {}) {
+export async function secretsExist({ id, base = "https://api.enclave.host", lookup } = {}) {
   const idL = String(id || "").toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(idL)) throw new Error(`secrets: "${id}" is not a bytes32 deployment id`);
   const api = String(base || "").trim().replace(/\/+$/, "");
@@ -230,9 +234,9 @@ export async function secretsExist({ id, base = "https://api.enclave.host" } = {
     if (attempt) await sleep(1000);
     let status = 0, text = "";
     try {
-      const r = await fetch(`${api}/v1/secrets/exists`, { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: idL }), signal: AbortSignal.timeout(TIMEOUT_MS) });
-      status = r.status; text = await r.text();
+      const r = await originRequest(`${api}/v1/secrets/exists`, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: idL }), timeoutMs: TIMEOUT_MS, ...(lookup ? { lookup } : {}) });
+      status = r.status; text = r.text;
     } catch (e) { last = e.message || String(e); continue; }
     if (status === 200) {
       let b; try { b = JSON.parse(text); } catch { throw new Error("secrets: the relay's exists answer is not JSON"); }
@@ -244,4 +248,62 @@ export async function secretsExist({ id, base = "https://api.enclave.host" } = {
     if (status < 500) break;                              // 4xx (429 included) is not fixed by asking again now
   }
   throw new Error(`secrets: whether ${idL} has staged secrets is not known (${last})`);
+}
+
+// ---- owner-committed custody-v2 (the transport boundary for a Shield guest) ------------------------------------------
+//
+// A deployment started from an owner-committed package (shield-startup.mjs) never uses the relay pull above. Its secrets,
+// when it has any, are custody-v2's: the GUEST proves itself to the owner's committee and opens the shares with a key that
+// never leaves it. This host's only part is the one the Linux host has (supervisor.js authorizeCustody, v2): as the lease
+// holder's registered operator it signs the guest's release binding - a hash - for the exact vault the owner committed.
+// It never sees a share, a bundle key or a value, and it signs for nothing else.
+//
+// ACTIVE ONLY behind the manager's supports.custodyV2 (a stated custody image, windows/vbslike/manager/custody-transport.mjs):
+// shield-startup.mjs refuses a custody-v2 package otherwise. The node's pump (shield-custody.mjs) re-verifies the startup
+// and this host's lease before it calls this, and each custodian challenges this node's TPM itself (shield-sessions.mjs).
+// The message is custody/v2/protocol.mjs operatorMessage's, byte for byte.
+export const CUSTODY_SIG_TTL_SEC = 300;
+export const custodyOperatorMessageV2 = ({ chainId, vault, id, endpoint, binding, expiry }) =>
+  `enclave-custody-release-v2:${chainId}:${String(vault).toLowerCase()}:${id}:${endpoint}:${binding}:${expiry}`;
+const CUSTODY_ID = /^0x[0-9a-f]{64}$/;
+/**
+ * custodyAuthorization({ startup, record, instance, request, endpoint, sign, chainId, now }) -> { binding, endpoint, sig, expiry }
+ *   startup   the FRESHLY verified startup (secretsMode custody-v2, custody: the package's pointer, deployment: its id)
+ *   record    the host's record for that deployment (record.id must BE startup.deployment): starting, provisioning or running
+ *   instance  the manager's view of the exact partition asking: this deployment's, on this package, app and runtime
+ *   request   { v: 2, vault, id?, binding } as the guest stated it through the manager
+ * Throws, naming the refusal, for anything else. One deployment's pointer can never sign for another's record or partition.
+ */
+export async function custodyAuthorization({ startup, record, instance, request, endpoint, sign, chainId = 8453, now = () => Date.now() }) {
+  if (!startup || startup.secretsMode !== "custody-v2" || !startup.custody) throw new Error("custody: the deployment's package does not keep secrets in custody-v2");
+  const vault = String(startup.custody.vault || "").toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/.test(vault) || Number(startup.custody.chainId) !== chainId) throw new Error("custody: the package's custody pointer names no vault on this chain");
+  // ONE deployment throughout: the verified startup's, exactly, with no fallback between the record and the pointer
+  const id = typeof startup.deployment === "string" ? startup.deployment : "";
+  if (!CUSTODY_ID.test(id)) throw new Error("custody: the verified startup names no deployment");
+  if (!record || record.id !== id) throw new Error("custody: the host record is another deployment's than the verified startup's");
+  if (!["starting", "provisioning", "running"].includes(record.status))
+    throw new Error("custody: no partition of this deployment is starting or running here");
+  const v = instance;
+  if (!v || typeof v !== "object" || v.name !== id || v.secretDeployment !== id || v.recovered === true || !["starting", "running"].includes(v.status))
+    throw new Error("custody: the asking partition is not this deployment's live secret domain");
+  if (v.bootstrapSha256 !== startup.sha256 || v.appId !== startup.appId || v.runtimeId !== startup.runtimeId)
+    throw new Error("custody: the asking partition does not run the verified package, app and runtime");
+  if (String(v.custody?.vault || "") !== vault) throw new Error("custody: the asking partition's channel is for another vault");
+  // on the Shield-direct image whose IGVM is THIS node's pin (F3), never on another image that happens to share the RuntimeID
+  if (v.imageRole !== "shield-direct" || !startup.imageSha256 || v.igvmSha256 !== startup.imageSha256)
+    throw new Error("custody: the asking partition is not on this host's pinned Shield-direct image");
+  const held = record.isolation?.instance ?? record.isolationHeld ?? null;
+  if (held && held !== v.id) throw new Error("custody: the host record holds another partition of this deployment");
+  if (!request || request.v !== 2 || String(request.vault || "").toLowerCase() !== vault) throw new Error("custody: the guest asked for a vault its owner did not commit");
+  if (request.id !== undefined && request.id !== id) throw new Error("custody: the guest asked for another deployment");
+  const binding = String(request.binding || "");
+  if (!/^[0-9a-f]{64}$/.test(binding)) throw new Error("custody: the guest's release binding is not 32 bytes of hex");
+  const ep = String(endpoint || "").replace(/\/+$/, "");
+  if (!/^https?:\/\//.test(ep)) throw new Error("custody: endpoint must be this box's registered origin");
+  if (typeof sign !== "function") throw new Error("custody: no operator sign function was passed");
+  const expiry = Math.floor(now() / 1000) + CUSTODY_SIG_TTL_SEC;
+  const sig = String(await sign(custodyOperatorMessageV2({ chainId, vault, id, endpoint: ep, binding, expiry })) || "");
+  if (!/^0x[0-9a-fA-F]{130}$/.test(sig)) throw new Error("custody: sign() did not return a 65-byte personal_sign hex");
+  return { binding, endpoint: ep, sig, expiry };
 }

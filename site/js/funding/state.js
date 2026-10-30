@@ -1,3 +1,4 @@
+// migration-cutover-site-r1: DERIVED (pinned) from source/site/js/funding/state.js; only the appended cutover block is new.
 /* ============================================================
    Funding page UI state (pure: no DOM, no network, no storage).
    UNREVIEWED SOURCE (client-site-repair-r2; repairs r1).
@@ -396,3 +397,56 @@ export function createMemory() {
   };
   return api;
 }
+
+// ---- migration-cutover-site-r1: explicit reviewed cutover mode (pause after the original session ends) ------------------
+// The SDK decides (terms.cutover in termsHash, full-plan signatures before terminate, durable pause, resumeCutover);
+// this only selects the mode, mirrors the journal for display and narrows what the page OFFERS to sign.
+
+export const CUTOVER_CONFIG_SCHEMA = "enclave-funding-migration-cutover-r1";
+/** null -> null (normal mode, unchanged). Otherwise the reviewed pause terms for THIS owner, chain and original session. */
+export function validateCutover(c, { owner, chainId, oldSid }) {
+  if (c === null || c === undefined) return null;
+  exactKeys(c, ["schema", "chainId", "owner", "oldSid", "terms"], "cutover");
+  if (c.schema !== CUTOVER_CONFIG_SCHEMA) fail("schema", `cutover.schema must be ${CUTOVER_CONFIG_SCHEMA}`);
+  if (Number(c.chainId) !== Number(chainId)) fail("chain", "the cutover is for another chain");
+  if (!ADDR.test(String(c.owner)) || lower(c.owner) !== lower(owner)) fail("owner", "the cutover is for another wallet");
+  if (!HEX32.test(String(c.oldSid)) || lower(c.oldSid) !== lower(oldSid)) fail("sid", "the cutover is for another session");
+  exactKeys(c.terms, ["pauseAfter", "activationPlanSha256", "rollbackPlanSha256"], "cutover.terms");
+  if (c.terms.pauseAfter !== "terminate") fail("shape", "the only reviewed pause is right after the original ends");
+  for (const k of ["activationPlanSha256", "rollbackPlanSha256"]) {
+    if (!HEX32.test(String(c.terms[k])) || c.terms[k] === ZERO32) fail("shape", `cutover.terms.${k} must be a lower-case sha256`);
+  }
+  if (c.terms.activationPlanSha256 === c.terms.rollbackPlanSha256) fail("shape", "the activation and rollback plans must differ");
+  return Object.freeze({ pauseAfter: "terminate", activationPlanSha256: c.terms.activationPlanSha256, rollbackPlanSha256: c.terms.rollbackPlanSha256 });
+}
+
+/** A journaled plan is used only in ITS OWN mode: never silently moved into or out of the reviewed pause. */
+export function planMode(plan, cut) {
+  const pc = plan?.terms?.cutover ?? null;
+  if (!pc && !cut) return { mode: "normal", ok: true };
+  if (pc && cut && pc.pauseAfter === cut.pauseAfter && pc.activationPlanSha256 === cut.activationPlanSha256
+    && pc.rollbackPlanSha256 === cut.rollbackPlanSha256) return { mode: "cutover", ok: true };
+  return { mode: pc ? "cutover" : "normal", ok: false, reason: pc ? (cut ? "cutover_terms_differ" : "cutover_not_configured") : "plan_without_pause" };
+}
+
+/** The pause as the journal records it (display only; the core's cutoverHeld decides admission). */
+export function cutoverView(plan) {
+  if (!plan?.terms?.cutover) return { kind: "none" };
+  const t = plan.steps?.terminate;
+  const c = plan.cutover;
+  if (t?.status !== "proven") return { kind: "before" };
+  if (c?.paused !== true || c.terminate?.txHash !== t.txHash) return { kind: "marker_missing" };
+  if (c.resumed && c.resumed.terminateTxHash === t.txHash) return { kind: "resumed", txHash: t.txHash };
+  return { kind: "paused", txHash: t.txHash, block: c.terminate.block };
+}
+
+/** Cutover mode: before the original ends ONLY the whole plan at once (terminate, replacement, every gas part); while
+ *  paused, nothing; after the recorded activation, the normal rule. Never a bundle across an unknown/admitted step. */
+export function cutoverSignable(plan, nowSec) {
+  const v = cutoverView(plan);
+  if (v.kind === "paused" || v.kind === "marker_missing") return [];
+  const next = nextSignable(plan, nowSec);
+  if (next[0] === "terminate" && next.length !== (plan.terms.order || []).length) return [];
+  return next;
+}
+export const signableOf = (plan, nowSec, cut) => (cut ? cutoverSignable(plan, nowSec) : nextSignable(plan, nowSec));

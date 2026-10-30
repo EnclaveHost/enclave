@@ -1,0 +1,1059 @@
+--- a/network/shield-expectation.mjs
++++ b/network/shield-expectation.mjs
+@@ -1,8 +1,11 @@
++import { desktopExpectation } from './desktop-expectation.mjs';
+ // The app expectation a Windows (Enclave Shield) host's privacy agent pins for one leased deployment, from the node
+ // manager's record of the partition it launched: shared by the platform's SSH reconcile (reconcile-shield-apps.mjs) and
+ // the host's own enrollment (windows/node/tuna-enroll.mjs), so both pin exactly the same thing.
+ //
+-// A record is used only when it is running and ready, names the lease's CURRENT catalog app and version, carries that
++// Native V8 enrollment independently derives a starting/ready identity using the
++// approved desktop release, public configuration and rehashed controller bytes.
++// A legacy record is used only when it is running and ready, names the lease's CURRENT catalog app and version, carries that
+ // version's catalog CID (and, for a raw-leaf CID, a component sha256 equal to the CID's digest), and runs the runtime the
+ // agent's admitted Shield policy pins; so a partition from before an upgrade is never pinned. The agent still verifies
+ // every proof against the policy itself, and the relay derives its own expectation from the chain before it routes.
+@@ -18,13 +21,18 @@
+ /** The catalog reference of a lease's appRef, or null. */
+ export const catalogRef = appRef => { const m = String(appRef || '').match(/^catalog:\/\/(0x[0-9a-f]{64})\/(\d+)$/i); return m ? { app: m[1].toLowerCase(), version: Number(m[2]) } : null; };
+ /**
+- * shieldExpectation({ row, version, vms, policy, previous }) -> { expected } | { wait } | { skip }:
++ * shieldExpectation({ row, version, vms, policy, previous, desktopInputs }) -> { expected } | { wait } | { skip }:
+  * row = the ledger deployment (id, appRef, configCid), version = its catalog version record ({ cid }), vms = the
+  * manager's /vms list, policy = the admitted Shield policy, previous = the expectation pinned before (or null).
+  */
+-export function shieldExpectation({ row, version, vms, policy, previous = null }) {
++export function shieldExpectation({ row, version, vms, policy, previous = null, desktopInputs }) {
+   const id = String(row.id).toLowerCase(), appRef = String(row.appRef), ref = catalogRef(appRef);
+   if (!ref) return { skip: `appRef ${appRef} is not a catalog reference` };
++  if (policy?.desktop?.controllerCid === version?.cid)
++    return desktopExpectation({row,version,vms,policy,inputs:desktopInputs});
++  // A V8 partition may never inherit the legacy GPU-inference approval path.
++  if (vms.some(v=>String(v.name).toLowerCase()===id&&(v.derivation==='enclave-catalog-bundle/8'||v.imageRole==='desktop'||v.desktop!=null)))
++    return {skip:'native desktop has no independently approved controller release'};
+   const vm = vms.filter(v => String(v.name).toLowerCase() === id && v.status === 'running' && v.appReady === true && !v.launching &&
+       String(v.catalog?.app).toLowerCase() === ref.app && Number(v.catalog?.version) === ref.version && v.cid === String(version?.cid))
+     .sort((x, y) => Number(y.startedAt) - Number(x.startedAt))[0];
+--- a/windows/node/agent.mjs
++++ b/windows/node/agent.mjs
+@@ -1049,6 +1049,7 @@
+       log('[network] enrollment: off (independent mode needs ENCLAVE_NETWORK_DIRECTORIES: the public directories to use)');
+     else if (netReady) {
+       const { createNetworkEnroll, fileSha256 } = await import('./network-enroll.mjs');
++      const { nativeEnrollmentInputs } = await import('./desktop-inputs.mjs');
+       const chainMod = await import('./chain.mjs');
+       const relayBase = ID.mode === 'relay' ? ID.relayHttp : ID.relayBase;
+       let enroll = null, enrolling = false, lastEnrollError = '', enrollWaiting = 0;
+@@ -1077,6 +1078,7 @@
+               "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'privacy-agent\\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
+               { timeout: 30000, windowsHide: true }, () => res())); },
+             rows: () => chainMod.allDeployments(), version: (appRef) => chainMod.resolveAppRef(appRef),
++            desktopInputs: (row, version) => nativeEnrollmentInputs(host, row, version),
+             vms: async () => { const r = await fetch(`${host.cfg.isolationManager}/vms`, { signal: AbortSignal.timeout(15000) });
+                                if (!r.ok) throw new Error(`the manager answered /vms ${r.status}`); const j = await r.json(); return Array.isArray(j) ? j : j.vms || []; },
+             log: (m) => log('[network]', m) });
+@@ -1141,6 +1143,7 @@
+         const certs = createHvCertPass({
+           client: new IsolationManagerClient({ base: host.cfg.isolationManager }), dataAddr: host.cfg.isolationDataAddr,
+           runtimeId: rec => Number(rec.gpuShare) > 0 ? host.managerInference?.runtimeId : host.cfg.isolationRuntimeId,
++          desktopRelease: host.desktopRelease,
+           endpoint: host.cfg.endpoint, sign: (message) => acct.signMessage({ message }), ...(ID.mode === 'relay' ? {} : { base: host.cfg.relayBase }),
+           served: (owner) => host.servingScope() === "market" || host.ownerSet().has(owner), log: (m) => log(m) });
+         let running = false;
+--- a/windows/node/host.mjs
++++ b/windows/node/host.mjs
+@@ -22,6 +22,8 @@
+ import path from "node:path";
+ import http from "node:http";
+ import * as chain from "./chain.mjs";
++import { desktopReleaseFromEnv, desktopAdoptionRefusal } from './desktop-release.mjs';
++import { DESKTOP_DERIVATION } from '../../relay/shield-desktop-derive.mjs';
+ import {hostAdmissionFromEnv,createHostServiceGate} from './host-admission.bundle.mjs';
+ import { App, EnclaveApp, fetchArtifact, wasmLayer, appEnv, missingHostInterfaces, precompile } from "./apprun.mjs";
+ import { worldOf } from "./appframe.mjs";
+@@ -215,6 +217,9 @@
+     // other code path can half-enable it: the deployed build has no such config and is unaffected.
+     this.cfg.isolationManager   = this.cfg.isolationManager   || process.env.ENCLAVE_ISOLATION_MANAGER || "";
+     this.cfg.isolationRuntimeId = this.cfg.isolationRuntimeId || process.env.ENCLAVE_ISOLATION_RUNTIME_ID || "";
++    // Snapshot independent operator pins once. A manager cannot supply or replace
++    // this release through /health; changing it requires a host restart.
++    Object.defineProperty(this, "desktopRelease", { value: desktopReleaseFromEnv(), enumerable: true });
+     // host:port of the manager's data plane. Without it the app zone has no splicer, so an
+     // isolated deployment is refused at the route rather than served through this agent.
+     this.cfg.isolationDataAddr  = this.cfg.isolationDataAddr  || process.env.ENCLAVE_ISOLATION_DATA_ADDR || "";
+@@ -1100,6 +1105,7 @@
+       waf: envRead ? (envOpts.waf || {}) : null,
+       volumes,
+       runtimeId: this.cfg.isolationRuntimeId,
++      desktopRelease: this.desktopRelease,
+       require: envRead && chain.isolationForBackend(envOpts, this.isolationBackend) ? this.isolationBackend : (envOpts.isolationRequire ?? null),
+       manager: managerHealth,
+       appConfigCid: envRead ? String(envOpts.configCid || "") : null,
+@@ -1214,7 +1220,8 @@
+     // What this partition must run, when an owner committed it: recorded before the spawn so the adoption checks below
+     // and a restart judge the manager's view against it, and so the names come only from this package.
+     const startup = plan.startup || null;
+-    this.#record(id, { startup, startupVerifiedAt: startup ? Date.now() : null });
++    this.#record(id, { startup, startupVerifiedAt: startup ? Date.now() : null,
++      desktopRecord: plan.derivation === DESKTOP_DERIVATION ? plan.spawn.derive : null });
+ 
+     // A lapsed hosting lease or readiness timeout may already have retired the
+     // ended VM. Keep its service cooldown before reconcile can spawn an absent
+@@ -1243,10 +1250,11 @@
+     let stale = await IsolationManagerClient.staleVersion(client, id, body.derive).catch(() => null);
+     // ...and for an owner-committed startup, a domain running ANOTHER AppID (the same catalog version with an older
+     // package's config, say) is not adopted either: the version check above cannot see a config change.
+-    if (!stale && startup) {
++    // Native desktop records additionally bind configuration/resources and independent release pins.
++    if (!stale && (startup || plan.derivation === DESKTOP_DERIVATION)) {
+       const held = await client.findByName(id).catch(() => undefined);
+       if (held === undefined) return this.#record(id, { status: "provisioning", reason: "isolation: the manager could not be asked which app it holds" });
+-      const wrong = held ? startupAdoptionRefusal(held, startup) : null;
++      const wrong = held ? (startupAdoptionRefusal(held, startup) || desktopAdoptionRefusal(held, plan, this.desktopRelease)) : null;
+       if (wrong) stale = `${held.id}: ${wrong}`;
+     }
+     if (stale) {
+@@ -1424,12 +1432,13 @@
+       return this.#record(id, { status: "held", boundaryHeld: true, isolation: null, reason: boundaryWrong,
+                                 ...(inst.id ? { isolationHeld: inst.id } : {}) });
+     }
+-    // THE OWNER'S COMMITMENT, on the manager's own view of what it started or adopted: anything else is retired, never
++    // Recheck the owner commitment or native planned identity after reconcile, closing an adoption race.
++    // Anything else is retired, never
+     // routed, and the deployment waits (provisioning) for the next pass to start the committed app.
+-    const notCommitted = startupAdoptionRefusal(inst, startup);
++    const notCommitted = startupAdoptionRefusal(inst, startup) || desktopAdoptionRefusal(inst, plan, this.desktopRelease);
+     if (notCommitted) {
+       this.log(`${id.slice(0, 10)} isolation: ${notCommitted}; retiring it`);
+-      const gone = await this.#retireIsolated(id, `owner-committed startup: ${notCommitted}`);
++      const gone = await this.#retireIsolated(id, `planned identity: ${notCommitted}`);
+       return this.#record(id, { status: "provisioning", isolation: null, reason: `isolation: ${notCommitted}`
+         + (gone ? "" : "; it could not be confirmed removed, so nothing new is started"), ...(gone || !inst.id ? {} : { isolationHeld: inst.id }) });
+     }
+--- a/windows/node/hvcert.mjs
++++ b/windows/node/hvcert.mjs
+@@ -32,6 +32,11 @@
+ import { runtimeId } from "../../isolation/contract/runtime.mjs";
+ import { appHostFor, requestCert } from "./apptls.mjs";
+ 
++import { validateDesktopRelease } from "../../relay/shield-desktop-release.mjs";
++import { DESKTOP_DERIVATION } from "../../relay/shield-desktop-derive.mjs";
++import { desktopAdoptionRefusal } from "./desktop-release.mjs";
++import { BOOT_STATEMENTS } from "../vbslike/verify/boot-statements.mjs";
++
+ const HEX64 = /^[0-9a-f]{64}$/;
+ 
+ /**
+@@ -57,7 +62,7 @@
+  * manager's own readiness rule uses (server.mjs #judgeReadiness), taken from `view`. It refuses, before judging, a view
+  * without a launcher key or the partition it signs for, and a runtime that is not the pinned one.
+  */
+-export function hvJudge(view, pinnedRuntimeId) {
++export function hvJudge(view, pinnedRuntimeId, { desktopRecord, desktopRelease } = {}) {
+   return async (doc, spki, nonce, want) => {
+     const no = (why) => ({ verdict: "reject", reasons: [why] });
+     if (!view) return no("no manager view of the partition to judge it against");
+@@ -71,7 +76,16 @@
+     let rid;
+     try { rid = Buffer.from(runtimeId(doc && doc.runtime)).toString("hex"); } catch (e) { return no(`the domain states no admissible runtime identity: ${e.message}`); }
+     if (rid !== pin) return no(`the domain states runtime ${rid.slice(0, 16)}…, not the pinned ${pin.slice(0, 16)}…`);
+-    const gi = view.guestIdentity;
++    const native = desktopRecord != null || view.derivation === DESKTOP_DERIVATION || view.imageRole === "desktop" || view.desktop != null;
++    if (native) {
++      const why = desktopAdoptionRefusal(view, { derivation: DESKTOP_DERIVATION, spawn: { derive: desktopRecord } }, desktopRelease);
++      if (why) return no(why);
++      if (pin !== desktopRelease.runtimeId) return no("native desktop certificate runtime differs from the approved release");
++      const fixed = BOOT_STATEMENTS["linux-direct"];
++      if (view.guestIdentity?.partition !== fixed.partition || view.guestIdentity?.guestImageKind !== fixed.guestImageKind)
++        return no("native desktop launch statement differs from linux-direct");
++    }
++    const gi = native ? BOOT_STATEMENTS["linux-direct"] : view.guestIdentity;
+     const statement = gi && gi.partition ? { expectedStatement: { partition: gi.partition, guestImageKind: gi.guestImageKind },
+                                             expectedImageSha256: view.image } : {};
+     return judgeHv({ doc, spki, nonce, expectedAppSha256: want.appSha, launcherKey: view.launcherKey,
+@@ -117,7 +131,8 @@
+ export const CERT_RETRY_BASE_MS = 30_000;
+ 
+ export function createHvCertPass({ client, dataAddr, runtimeId: pinned, endpoint, sign, base, zone = "app.enclave.host",
+-                                   served = () => false, log = () => {}, now = Date.now, _ensure = ensureGuestCert, _deps } = {}) {
++                                   served = () => false, log = () => {}, now = Date.now, desktopRelease, _ensure = ensureGuestCert, _deps } = {}) {
++  const approvedDesktop = desktopRelease == null ? null : validateDesktopRelease(desktopRelease);
+   const st = new Map();       // id -> { instanceId, key, name, serial, notAfter, renewAt, issuer } | { instanceId, backoffUntil, failures, why }
+   const transport = viewTransport(client);
+   const issue = issuer({ endpoint, sign, base });
+@@ -127,9 +142,12 @@
+     if (s && s.instanceId === iso.instance && s.backoffUntil && t < s.backoffUntil) return;
+     if (s && s.instanceId === iso.instance && s.renewAt && t < s.renewAt) return;           // installed and fresh
+     try {
+-      const selectedPin = typeof pinned === "function" ? pinned(rec) : pinned;
++      const native = rec.desktopRecord != null || (approvedDesktop && rec.cid === approvedDesktop.controllerCid);
++      if (native && (!approvedDesktop || rec.desktopRecord?.derivation !== DESKTOP_DERIVATION))
++        throw new Error("native desktop certificate needs an independently pinned planned record");
++      const selectedPin = native ? approvedDesktop.runtimeId : typeof pinned === "function" ? pinned(rec) : pinned;
+       const got = await _ensure({ transport, dataAddr, instanceId: iso.instance, expectAppId: iso.appId, deploymentId: id, name,
+-        judge: (doc, spki, nonce, want) => hvJudge(transport.seen(iso.instance), selectedPin)(doc, spki, nonce, want),
++        judge: (doc, spki, nonce, want) => hvJudge(transport.seen(iso.instance), selectedPin, native ? { desktopRecord: rec.desktopRecord, desktopRelease: approvedDesktop } : {})(doc, spki, nonce, want),
+         judgeOk: ["monitor-signed"], requirePrediction: false, issue, ...(_deps ? { _deps } : {}) });
+       st.set(id, { ...got, instanceId: iso.instance });
+       log(got.reused
+--- a/windows/node/isolation-client.mjs
++++ b/windows/node/isolation-client.mjs
+@@ -102,6 +102,12 @@
+       throw new Error("hasSecrets must be stated: absent secrets must be KNOWN absent, not assumed");
+     const b = { image, name, cpuShare, gpuShare, appPort, ports, config, configCid, egress, derive,
+                 isPublic, hasSecrets };
++    if (derive.derivation === "enclave-catalog-bundle/8") {
++      if (config !== "" || configCid !== "") throw new Error("native desktop configuration must be carried in its measured record");
++      // The V8 record carries configBase64. Do not inject the legacy empty
++      // configuration fields as a second, unmeasured configuration source.
++      delete b.config; delete b.configCid;
++    }
+     if (id) b.id = id;
+     if (hosts) b.hosts = hosts;
+     // an owner-committed startup package (base64), for a Shield-direct partition's own verification (shield-startup.mjs)
+@@ -211,6 +217,10 @@
+       appId: o.appId ?? null,
+       runtimeId: o.runtimeId ?? null,
+       recordSha256: o.recordSha256 ?? null,
++      derivation: typeof o.derivation === "string" ? o.derivation : null,
++      componentSha256: typeof o.componentSha256 === "string" ? o.componentSha256 : null,
++      desktop: o.desktop && typeof o.desktop === "object" && !Array.isArray(o.desktop)
++        ? { profile: o.desktop.profile, profileSha256: o.desktop.profileSha256, gpuMilli: o.desktop.gpuMilli } : null,
+       // the owner-committed package a Shield-direct partition was given (server.mjs), for the node's adoption check
+       bootstrapSha256: typeof o.bootstrapSha256 === "string" ? o.bootstrapSha256 : null,
+       // the pinned image it runs on (F3): absent means legacy (a manager or VM from before image selection), and the IGVM
+--- a/windows/node/network-enroll.mjs
++++ b/windows/node/network-enroll.mjs
+@@ -93,7 +93,7 @@
+  * name, endpoint and transportKey are accepted (and unused) so older callers keep working.
+  */
+ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, config, rows, version, vms,
+-                                   fetch: fetchFn = globalThis.fetch, restartAgent = async () => {}, log = () => {} }) {
++                                   desktopInputs, fetch: fetchFn = globalThis.fetch, restartAgent = async () => {}, log = () => {} }) {
+   if (!config?.enclaveNetwork) throw new Error("the Enclave network configuration (trusted checkers) is required: TUNA is retired");
+   const file = (f) => path.join(agentDir, f);
+   const readJSON = async (f, d) => { try { return JSON.parse(await fs.readFile(f, "utf8")); } catch (e) { if (e.code === "ENOENT") return d; throw e; } };
+@@ -160,7 +160,7 @@
+     }
+     if (retired.length) { changed = true; log(`retired TUNA settings dropped from the config: ${retired.join(", ")}`); }
+     const policy = await readJSON(config.policyFile, null);
+-    if (!policy?.cpu?.runtimeId) throw new Error(`no admitted Shield policy at ${config.policyFile}`);
++    if (!policy?.cpu?.runtimeId && !policy?.desktop) throw new Error(`no admitted Shield policy at ${config.policyFile}`);
+     const now = Math.floor(Date.now() / 1000), me = String(runner).toLowerCase();
+     const mine = (await rows()).filter((d) => String(d.runner).toLowerCase() === me && d.active === true && d.isPublic === true &&
+       Number(d.leaseUntil) > now && ID.test(String(d.id).toLowerCase()));
+@@ -173,7 +173,13 @@
+       if (!catalogRef(row.appRef)) { log(`${short}: not a catalog app; skipped`); continue; }
+       const expectedFile = path.join(dir, "expected.json");
+       const previous = await readJSON(expectedFile, null);
+-      const v = shieldExpectation({ row, version: await version(row.appRef), vms: list, policy, previous });
++      const catalogVersion = await version(row.appRef);
++      let nativeInputs;
++      if (policy?.desktop?.controllerCid === catalogVersion?.cid && desktopInputs) {
++        try { nativeInputs = await desktopInputs(row, catalogVersion); }
++        catch (e) { waiting++; log(`${short}: native inputs unavailable: ${e.message}`); continue; }
++      }
++      const v = shieldExpectation({ row, version: catalogVersion, vms: list, policy, previous, desktopInputs: nativeInputs });
+       if (!v.expected) { if (v.wait) waiting++; log(`${short}: ${v.wait || v.skip}`); continue; }
+       const existing = cfg.apps.find((a) => a.deploymentId === id);
+       await fs.mkdir(dir, { recursive: true });
+@@ -182,11 +188,15 @@
+         if (existing) log(`${short}: expectation now ${v.expected.appRef.split("/").pop()} app ${v.expected.appSha256.slice(0, 8)}`);
+       }
+       if (existing) {
++        if (v.startupEgress === true && existing.startupEgress !== true) { existing.startupEgress = true; changed = true; }
++        else if (previous?.requiresDesktop === true && v.expected.requiresDesktop !== true && existing.startupEgress === true) {
++          delete existing.startupEgress; changed = true;
++        }
+         if (domains) { const n = namesFor(id); if (JSON.stringify(n) !== JSON.stringify(existing.names)) { existing.names = n; changed = true; } }
+         continue;
+       }
+       if (!domains) { log(`${short}: new, but the relay's domain map is unavailable; enrolling next pass`); continue; }
+-      cfg.apps.push({ deploymentId: id, names: namesFor(id), expectedFile, internetMode: "enclave-network", publishToMirror: true });
++      cfg.apps.push({ deploymentId: id, names: namesFor(id), expectedFile, internetMode: "enclave-network", publishToMirror: true, ...(v.startupEgress === true ? { startupEgress: true } : {}) });
+       changed = true; log(`${short}: enrolled on the Enclave network (${namesFor(id).join(", ")})`);
+     }
+     if (changed && cfg.apps.length) {
+--- a/windows/node/shield-secrets.mjs
++++ b/windows/node/shield-secrets.mjs
+@@ -3,7 +3,7 @@
+ import https from 'node:https';
+ const ID=/^0x[0-9a-f]{64}$/;
+ const message=(id,endpoint,ts)=>`enclave-shield-secrets:${id}:${endpoint}:${ts}`;
+-export function createShieldSecrets({base,endpoint,relayBase,sign,fetchImpl=fetch,log=()=>{},exchangeTimeoutMs=20000,egressReady=id=>startupEgressReady(id,{configFile:process.env.ENCLAVE_STARTUP_EGRESS_CONFIG,routeFile:process.env.ENCLAVE_EGRESS_APP_ROUTES})}){
++export function createShieldSecrets({base,endpoint,relayBase,sign,fetchImpl=fetch,log=()=>{},exchangeTimeoutMs=20000,egressReady=(id,required)=>startupEgressReady(id,{configFile:process.env.ENCLAVE_STARTUP_EGRESS_CONFIG,routeFile:process.env.ENCLAVE_EGRESS_APP_ROUTES,required})}){
+  const done=new Set(),retry=new Map();let active=false;
+  const inventory=async()=>{const r=await fetchImpl(base+'/vms',{signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('manager inventory unavailable');return (await r.json()).vms;};
+  async function target(id){
+@@ -44,7 +44,7 @@
+      retry.set(v.id,Date.now()+15000);
+      const ts=Math.floor(Date.now()/1000),ep=endpoint.replace(/\/+$/,''),opSig=await sign(message(v.name,ep,ts));
+      try{
+-      if(!await egressReady(v.name)){log(`sealed secrets for ${v.name.slice(0,10)} waiting for its startup egress route`);continue;}
++      if(!await egressReady(v.name,v.derivation==='enclave-catalog-bundle/8'||v.imageRole==='desktop'||v.desktop!=null)){log(`sealed secrets for ${v.name.slice(0,10)} waiting for its startup egress route`);continue;}
+       const r=await fetchImpl(relayBase.replace(/\/+$/,'')+'/v1/secrets/shield-release',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:v.name,endpoint:ep,ts,opSig}),signal:AbortSignal.timeout(90000)});
+       const b=await r.json();if(!r.ok||b.ok!==true)throw Error(`relay HTTP ${r.status}`);
+       done.add(v.id);retry.delete(v.id);log(`sealed secrets delivered to ${v.name.slice(0,10)} (${b.count} names)`);
+--- a/windows/node/startup-egress.mjs
++++ b/windows/node/startup-egress.mjs
+@@ -3,14 +3,15 @@
+ // A command may need outbound storage before binding its HTTP port. Its secret
+ // release waits for an independently attested, lease-bound private circuit.
+ // The guest's own destination allowlist still governs every outbound request.
+-export function startupEgressReady(id,{configFile,routeFile,now=Date.now(),read=readJSON}={}) {
+- if(!configFile&&!routeFile)return true;
++export function startupEgressReady(id,{configFile,routeFile,now=Date.now(),read=readJSON,required=false}={}) {
++ if(!configFile&&!routeFile)return !required;
+  if(!configFile||!routeFile)throw Error('startup egress needs config and routes');
+- // no privacy config yet (the network enrollment writes it with the first app): no app is configured for startup egress, so none waits on it
+- if(read===readJSON&&!fs.existsSync(configFile))return true;
++ // Legacy apps without configuration keep their existing behavior. Native apps
++ // require an explicit startup route even before enrollment writes the first config.
++ if(read===readJSON&&!fs.existsSync(configFile))return !required;
+  const config=read(configFile);
+  if(config.version!==2||!Array.isArray(config.apps))throw Error('invalid startup egress config');
+- if(!config.apps.some(a=>a.deploymentId===id&&a.startupEgress===true))return true;
++ if(!config.apps.some(a=>a.deploymentId===id&&a.startupEgress===true))return !required;
+  const routes=read(routeFile),app=routes.apps?.[id];
+  if(routes.version!==1||!Number.isSafeInteger(routes.expiresAt)||routes.expiresAt<=now||routes.expiresAt>now+120000||!Array.isArray(app?.proxies)||app.proxies.length<1||app.proxies.length>2)return false;
+  return new Set(app.proxies).size===app.proxies.length&&app.proxies.every(p=>/^127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(p)&&Number(p.split(':')[1])<=65535);
+--- a/windows/vbslike/datapath/node-bridge.mjs
++++ b/windows/vbslike/datapath/node-bridge.mjs
+@@ -21,6 +21,8 @@
+ import { spliceStream } from "../../../isolation/m4/guestd/supervisor-splice.mjs";
+ import { createDataPlane } from "./datapath.mjs";
+ import { appConfigText, DERIVATION_V5, DERIVATION_V6, DERIVATION_V7 } from "../manager/derive.mjs";
++import { validateDesktopRelease } from "../../../relay/shield-desktop-release.mjs";
++import { nativeDesktopPlan } from "./desktop-plan.mjs";
+ 
+ export const BACKEND = "hyperv-partition-per-app";
+ export const V1 = "enclave-catalog-bundle/1";
+@@ -130,7 +132,7 @@
+  * -> { ok: false, input, why, unknown }
+  */
+ export function isolationPlan({ deploymentId, deployment, version, appConfig, hasSecrets, waf, volumes, runtimeId,
+-                                require, manager, appConfigCid, configSourceCid, backend = BACKEND } = {}) {
++                                require, manager, appConfigCid, configSourceCid, desktopRelease, backend = BACKEND } = {}) {
+   if (!/^0x[0-9a-f]{64}$/.test(String(deploymentId || ""))) return refused("deploymentId", `${deploymentId} is not a deployment id`);
+   if (!deployment || typeof deployment !== "object") return unknownInput("deployment", "the ledger record");
+   // the tenant's opt-in, then the manager's identity: supervisor.js checks these first, in this order
+@@ -152,6 +154,14 @@
+   if (deployment.isPublic !== true && deployment.isPublic !== false) return unknownInput("deployment.isPublic", "whether the deployment is public");
+   if (deployment.isPublic === false)
+     return refused("deployment.isPublic", "the deployment is private, and its owner gate needs the request's plaintext, which exists only inside the partition");
++  if (desktopRelease !== undefined && desktopRelease !== null) {
++    let release;
++    try { release = validateDesktopRelease(desktopRelease); }
++    catch (e) { return refused("desktopRelease", e.message); }
++    if (version.cid === release.controllerCid)
++      return nativeDesktopPlan({ release, deploymentId, deployment, version, appConfig,
++        hasSecrets, waf, volumes, manager, appConfigCid, configSourceCid });
++  }
+   const gpu = Number(deployment.gpuMilli);
+   if (deployment.gpuMilli === undefined || deployment.gpuMilli === null || !Number.isFinite(gpu)) return unknownInput("deployment.gpuMilli", "the deployment's GPU share");
+   const inf = gpu > 0 ? manager.inference : null;
+--- a/windows/vbslike/manager/backend.mjs
++++ b/windows/vbslike/manager/backend.mjs
+@@ -80,6 +80,7 @@
+   }
+   /** What Hyper-V holds that is ours, or null when there is no launcher to ask (nothing can run). */
+   async survey() { return this.launcher && typeof this.launcher.survey === "function" ? await this.launcher.survey() : null; }
++  get desktopPlatform() { return this.launcher?.desktopPlatform ?? null; }
+   get canSurvey() { return !!(this.launcher && typeof this.launcher.survey === "function"); }
+   /** Remove every domain this backend owns. Scoped inside the launcher, by prefix and marker. */
+   async teardown() { return this.launcher ? await this.launcher.teardown() : { removed: 0 }; }
+--- a/windows/vbslike/manager/derive.mjs
++++ b/windows/vbslike/manager/derive.mjs
+@@ -89,6 +89,7 @@
+  */
+ export function derive({ record, component }) {
+   const r = record || {};
++  if (Object.hasOwn(r,"desktop")) throw new Error("desktop requires its dedicated V8 derivation");
+   if (!DERIVATIONS.includes(r.derivation)) throw new Error(`unknown derivation ${JSON.stringify(r.derivation ?? null)}`);
+   const v2 = r.derivation === DERIVATION_V2;
+   const v3 = r.derivation === DERIVATION_V3;
+--- a/windows/vbslike/manager/main.mjs
++++ b/windows/vbslike/manager/main.mjs
+@@ -6,6 +6,10 @@
+    fetcher. The manager then asks the host what it can actually do (probe) before it answers
+    /health, so "canStart" is the host's answer rather than a configuration detail. */
+ import { profile, probeWorker, startBridge, ProfileLauncher } from "./shield-profile.mjs";
++import { DESKTOP_DERIVATION } from "./desktop-derive.mjs";
++import { loadDesktopConfig, probeDesktopWorker } from "./desktop-config.mjs";
++import { startDesktopWorkerTransport } from "./desktop-worker-transport.mjs";
++import { DesktopLauncher } from "./desktop-router.mjs";
+ import fs from "node:fs";
+ import os from "node:os";
+ import { createHash } from "node:crypto";
+@@ -94,7 +98,7 @@
+ }
+ // the launcher's hook: a secret deployment's partition gets its egress path; every other mapping gets none
+ const egressHook = egress
+-  ? (vmId, deploymentId, mapping) => [DERIVATION_V6,DERIVATION_V7].includes(mapping?.record?.derivation) ? startEgress({ cfg: egress, vmId, deploymentId }) : null
++  ? (vmId, deploymentId, mapping) => [DERIVATION_V6,DERIVATION_V7,DESKTOP_DERIVATION].includes(mapping?.record?.derivation) ? startEgress({ cfg: egress, vmId, deploymentId }) : null
+   : null;
+ 
+ let launcher = null;
+@@ -190,6 +194,35 @@
+   setInterval(refresh,15000).unref();
+ }
+ 
++// The native config is public and pinned in full; owner secrets still use the
++// separate measured release path. Existing CPU/GPU launchers retain their pins.
++let desktopConfig=null,desktopWorker=null;
++const desktopFile=env("ENCLAVE_DESKTOP_CONFIG"),desktopFileSha=env("ENCLAVE_DESKTOP_CONFIG_SHA256").toLowerCase();
++if(desktopFile||desktopFileSha){
++  try {
++    if(!launcherOptions||!serve||!egress||!env("NODE_APP_RAM_GB")||!env("NODE_VM_RAM_GB"))
++      throw new Error("desktop needs the existing launcher, wmiserve, egress and both RAM pools");
++    for(const flag of ["ENCLAVE_CONFIG_BUNDLE_V5","ENCLAVE_SECRETS_V1","ENCLAVE_CONFIG_SOCKET_SERVER_V1","ENCLAVE_PROTECTED_PORTS_V1"])
++      if(env(flag)!=="1")throw new Error(`desktop needs ${flag}=1`);
++    const cfg=loadDesktopConfig(desktopFile,desktopFileSha),admission=cfg.admission;
++    desktopConfig={platform:cfg.platform,runtime:cfg.runtime};
++    const nativeLauncher=new WmiHyperVLauncher({...launcherOptions,
++      imageRole:"desktop",imagePath:cfg.imagePath,imageSha256:admission.platform.igvmSha256,
++      desktopPlatform:cfg.platform,boot:"linux-direct",medium:null,mediumSha256:null,guestCpuAllowance:true,
++      startTransport:(vmId,mapping)=>startDesktopWorkerTransport({bridge:cfg.bridge,vmId,mapping,
++        runtimeId:admission.platform.runtimeId,workerPort:cfg.workerPort}),
++    });
++    await nativeLauncher.verifyImage();
++    desktopWorker={ready:false,card:null,error:null};
++    const refresh=async()=>{
++      try {const card=await probeDesktopWorker(cfg);Object.assign(desktopWorker,{ready:true,card,error:null,checkedAt:Date.now()});}
++      catch(e){Object.assign(desktopWorker,{ready:false,card:null,error:e.message,checkedAt:Date.now()});}
++    };
++    await refresh();setInterval(refresh,15000).unref();
++    launcher=new DesktopLauncher(launcher,nativeLauncher);
++  }catch(e){console.error(`[winmgr] REFUSING TO START: native desktop configuration: ${e.message}`);process.exit(2);}
++}
++
+ // THE CPU POOL the node sells shares of, by the node's own rule (agent.mjs: NODE_VCPUS || os.cpus().length, on this same
+ // host) and never from a spawn. An explicit value that is not a positive integer is refused, never replaced by the
+ // fallback; either way the pool must fit Hyper-V's LogicalProcessorCount before any deployment starts (server.mjs).
+@@ -213,6 +246,9 @@
+   // Match the node agent's advertised hosting RAM, not physical machine RAM.
+   ramPoolMiB: env("NODE_APP_RAM_GB") ? Number(env("NODE_APP_RAM_GB")) * 1024 : null,
+   cpuPoolVcpus, cpuPoolSource,
++  physicalRamPoolMiB: env("NODE_VM_RAM_GB") ? Number(env("NODE_VM_RAM_GB"))*1024 : null,
++  images: {legacy:{igvmSha256:imageSha256.toLowerCase()||null},...(desktopConfig?{desktop:desktopConfig}:{})},
++  desktopWorker,
+   runtime,
+   shield,
+   runtimeId,
+--- a/windows/vbslike/manager/server.mjs
++++ b/windows/vbslike/manager/server.mjs
+@@ -21,6 +21,12 @@
+ import { appMemoryForShare } from "./memory-share.mjs";
+ import { cpuForShare, cpuFixedPolicy, validCpuPool, CPU_UNITS_PER_VCPU } from "./cpu-share.mjs";
+ import { inferenceRefusal } from "./shield-profile.mjs";
++import { DESKTOP_DERIVATION, deriveDesktop } from "./desktop-derive.mjs";
++import { validateDesktopAdmission, desktopSpawnRefusal } from "./desktop-admission.mjs";
++import { validateDesktopMapping } from "./desktop-platform.mjs";
++import { desktopVmMemMiB } from "./desktop-memory.mjs";
++import { type1VmMemMiB } from "./wmi-launcher.mjs";
++import { BOOT_STATEMENTS } from "../verify/boot-statements.mjs";
+ import { runtimeId as runtimeId_ } from "../../../isolation/contract/runtime.mjs";
+ import crypto from "node:crypto";
+ import { derive, appConfigText, MAX_CONFIG_BYTES, DERIVATION, DERIVATION_V2, DERIVATION_V4, DERIVATION_V5, DERIVATION_V6, DERIVATION_V7, DERIVATIONS } from "./derive.mjs";
+@@ -68,6 +74,7 @@
+ }
+ 
+ export class Manager {
++  #desktop = null;
+   /**
+    * @param judgeReady  ({host, port, appId, launcherKey, expectRuntime, deadlineMs}) -> verdict.
+    *                    Injected so a test drives it; defaults to ready.mjs's judgeRunning.
+@@ -75,13 +82,19 @@
+    */
+   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
+                 runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, protectedPorts = false, wasmSet = false, memory64 = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
+-                egress = null, ramPoolMiB = null, cpuPoolVcpus = null, cpuPoolSource = "NODE_VCPUS" } = {}) {
++                egress = null, ramPoolMiB = null, cpuPoolVcpus = null, cpuPoolSource = "NODE_VCPUS", physicalRamPoolMiB = null, images = null, desktopWorker = null } = {}) {
+     if (ramPoolMiB !== null && (!Number.isSafeInteger(ramPoolMiB) || ramPoolMiB <= 0))
+       throw new Error("ramPoolMiB must be a positive integer");
+     if (cpuPoolVcpus !== null && !validCpuPool(cpuPoolVcpus)) throw new Error("cpuPoolVcpus must be a positive integer");
+     // One purchased share sizes both pools; a RAM pool without a CPU pool is the fixed-1-VP defect.
+     if ((ramPoolMiB === null) !== (cpuPoolVcpus === null)) throw new Error("ramPoolMiB and cpuPoolVcpus must be configured together");
+     this.ramPoolMiB = ramPoolMiB;
++    if (physicalRamPoolMiB !== null && (!Number.isSafeInteger(physicalRamPoolMiB) || physicalRamPoolMiB <= 0))
++      throw new Error("physicalRamPoolMiB must be a positive integer");
++    this.physicalRamPoolMiB = physicalRamPoolMiB;
++    const legacyPin = images?.legacy?.igvmSha256;
++    if (legacyPin != null && (typeof legacyPin !== "string" || !/^[0-9a-f]{64}$/.test(legacyPin))) throw new Error("invalid legacy image pin");
++    this.images = Object.freeze({ legacy: legacyPin ? Object.freeze({igvmSha256:legacyPin}) : null });
+     this.cpuPoolVcpus = cpuPoolVcpus;
+     this.cpuPoolSource = cpuPoolSource;
+     // Hyper-V's own LogicalProcessorCount from preflight, kept once read: the pool must fit inside it.
+@@ -98,6 +111,21 @@
+     // bridge and egress endpoint; this states it on /health and fails a domain whose path exits. Only secret (V6)
+     // domains use it, so it is stated only where they are served.
+     this.egress = egress && egress.enabled === true && this.secretsEnabled ? { mode: String(egress.mode || "") } : null;
++    this.desktopWorker = desktopWorker;
++    if (images?.desktop != null) {
++      const admission = validateDesktopAdmission(images.desktop);
++      const p = admission.platform, selected = backend.desktopPlatform;
++      if (!this.images.legacy) throw new Error("native desktop admission requires the legacy image pin for distinct image selection");
++      if (!this.protectedPorts || !this.egress || ramPoolMiB === null || cpuPoolVcpus === null || physicalRamPoolMiB === null || typeof judgeReady !== "function")
++        throw new Error("native desktop admission needs protected ports, sealed-secret delivery, egress, both RAM pools and a readiness judge");
++      if (!backend.canSurvey) throw new Error("native desktop admission requires authoritative VM inventory");
++      if (!desktopWorker || typeof desktopWorker !== "object") throw new Error("native desktop admission needs worker availability state");
++      if (!selected || ["igvmSha256", "runtimeId", "profileSha256"].some(k => selected[k] !== p[k]))
++        throw new Error("native desktop admission differs from the selected desktop launcher");
++      if ([this.images.legacy?.igvmSha256, shield?.imageSha256].includes(p.igvmSha256))
++        throw new Error("native desktop needs an image distinct from every existing image role");
++      this.#desktop = admission;
++    }
+     this.fetchComponent = fetchComponent;       // (cid) -> Buffer, CID-verified by the caller's fetcher
+     // THE RUNTIME IDENTITY, not just its hash. judge-hv hands `expectRuntime` to the shared
+     // checkRuntime as `want.runtime`, which DIFFS IT FIELD BY FIELD against the identity the
+@@ -187,7 +215,7 @@
+       const v = await judge({ host: rec.relay.host, port: rec.relay.port, appId: rec.appId,
+                               launcherKey: handle.launcherKey, expectedVmId: handle.launcherVmId, ...statement,
+                               // the IDENTITY object, which is what checkRuntime compares; never the hash
+-                              expectRuntime: rec.inference ? this.shield?.runtime : this.runtime ?? undefined,
++                              expectRuntime: rec.imageRole === "desktop" ? this.#desktop.runtime : rec.inference ? this.shield?.runtime : this.runtime ?? undefined,
+                               deadlineMs: [DERIVATION_V6,DERIVATION_V7].includes(rec.derivation) ? Math.max(300_000,this.readyDeadlineMs) : this.readyDeadlineMs });
+       if (this.domains.get(rec.id) !== rec) return;         // removed, or replaced, while we were judging (63's P3: identity, not presence)
+       // A relay/Shield bridge may exit while the evidence request is pending.
+@@ -257,12 +285,12 @@
+         unattributed++; continue;
+       }
+       const rec = { id: identity.id, name: identity.name, instanceId: identity.instanceId, appId: identity.appId ?? null,
+-        recovered: true, status: "starting", appReady: false, hostExcluded: false, boundary: this.backend.boundary ?? null,
++        imageRole: identity.imageRole || "legacy", recovered: true, status: "starting", appReady: false, hostExcluded: false, boundary: this.backend.boundary ?? null,
+         vmName: vm.name ?? null, vmState: vm.state ?? null, relay: null, transportKeySha256: null, image: null,
+         reason: `recovered after a manager restart: the VM (${vm.state}) is still on this host, but its relay and `
+               + "readiness belonged to the previous manager, so it is not serving and will NOT become running under "
+               + "this manager. It blocks a second spawn for this deployment; remove it (DELETE) to stop and delete the VM.",
+-        handle: { name: vm.name ?? null, vmId, recovered: true } };
++        handle: { name: vm.name ?? null, vmId, imageRole: identity.imageRole || "legacy", recovered: true } };
+       this.domains.set(rec.id, rec); recovered++;
+     }
+     this.inventory = { state: "ready", recovered, unattributed, at: new Date().toISOString() };
+@@ -279,6 +307,19 @@
+     return [...this.domains.values()].reduce((n, r) => n + (r.cpu?.grantedUnits ?? (r.policy?.vcpus ?? 0) * CPU_UNITS_PER_VCPU), 0);
+   }
+   cpuPoolFits() { return this.hostLogicalProcessors !== null && this.cpuPoolVcpus <= this.hostLogicalProcessors; }
++  physicalRamAllocated() {
++    let held = 0;
++    for (const r of this.domains.values()) {
++      if (r.recovered || r.unattributed || !Number.isSafeInteger(r.physicalMemoryMiB) || r.physicalMemoryMiB <= 0) return null;
++      held += r.physicalMemoryMiB;
++      if (!Number.isSafeInteger(held)) return null;
++    }
++    return held;
++  }
++  get desktopReady() {
++    return !!this.#desktop && this.desktopWorker?.ready === true && this._preflight?.ok === true
++      && this._preflight?.roles?.desktop?.ok === true && this.inventoryReady;
++  }
+   health() {
+     return {
+       managerEpoch: this.epoch,
+@@ -286,9 +327,13 @@
+       ...(this.cpuPoolVcpus !== null ? { cpu: { rule: "cpu-share", poolVcpus: this.cpuPoolVcpus, source: this.cpuPoolSource,
+         hostLogicalProcessors: this.hostLogicalProcessors, unitsPerVcpu: CPU_UNITS_PER_VCPU, allocatedUnits: this.cpuAllocated(),
+         freeUnits: this.cpuPoolFits() ? Math.max(0, this.cpuPoolVcpus * CPU_UNITS_PER_VCPU - this.cpuAllocated()) : null } } : {}),
++      ...(this.physicalRamPoolMiB !== null ? { physicalMemory: {
++        poolMiB: this.physicalRamPoolMiB, allocatedMiB: this.physicalRamAllocated(),
++        freeMiB: this.physicalRamAllocated() === null ? 0 : Math.max(0, this.physicalRamPoolMiB - this.physicalRamAllocated()),
++      } } : {}),
+       inventory: this.inventory,
+       backend: this.backend.backend,
+-      supports: { ...this.backend.supports, gpu: !!this.shield?.ready, config: this.configEnabled, configCid: this.configEnabled, secrets: this.secretsEnabled, ports: this.protectedPorts, set: this.wasmSet, mem64: this.memory64,
++      supports: { ...this.backend.supports, gpu: !!this.shield?.ready || this.desktopReady, ...(this.#desktop ? { desktop: this.desktopReady } : {}), config: this.configEnabled, configCid: this.configEnabled, secrets: this.secretsEnabled, ports: this.protectedPorts, set: this.wasmSet, mem64: this.memory64,
+                   // outbound HTTPS from a secret domain to its owner's config's origins (egress.mjs). NOT the spawn's
+                   // `egress` (a dedicated exit, always refused) and not the node's networkOptions (PARTITION_OFFERS.egress)
+                   egress: !!this.egress },
+@@ -296,6 +341,12 @@
+                               allowlist: "derived in the guest from the measured config resolved with its released secrets" } : null,
+       configMaxBytes: this.configEnabled ? MAX_CONFIG_BYTES : 0,
+       inference: this.shield ? { ...this.shield, allocatedGpuMilli: this.gpuAllocated(), freeGpuMilli: this.shield.ready ? Math.max(0, 1000-this.gpuAllocated()) : 0 } : null,
++      ...(this.#desktop ? { desktop: {
++        ready: this.desktopReady, runtime: this.#desktop.runtime, runtimeId: this.#desktop.platform.runtimeId,
++        igvmSha256: this.#desktop.platform.igvmSha256, profileSha256: this.#desktop.platform.profileSha256,
++        controllerSha256: this.#desktop.platform.controllerSha256,
++        allocatedGpuMilli: this.gpuAllocated(), freeGpuMilli: this.desktopReady ? Math.max(0, 1000-this.gpuAllocated()) : 0,
++      } } : {}),
+       // DEFECT 4: /health had no boundary at all, so a reader could learn everything about this
+       // manager EXCEPT what its isolation actually is. It is carried verbatim from the backend,
+       // including hostExcluded:false, because that is the word that must never be lost.
+@@ -308,8 +359,8 @@
+       // free. Silence in this list is the refusal the gate understands. (enclave-5d, who owns the
+       // consumer, asked for exactly this, and they are right.)
+       catalog: {
+-        derivations: [...SERVES, ...(this.shield?.ready ? [DERIVATION_V4] : []), ...(this.configEnabled ? [DERIVATION_V5] : []), ...(this.secretsEnabled ? [DERIVATION_V6] : []), ...(this.protectedPorts ? [DERIVATION_V7] : [])],                    // what it can serve: the gate reads this
+-        derives: DERIVATIONS,                   // what it can COMPUTE, byte-exactly: information only
++        derivations: [...SERVES, ...(this.shield?.ready ? [DERIVATION_V4] : []), ...(this.configEnabled ? [DERIVATION_V5] : []), ...(this.secretsEnabled ? [DERIVATION_V6] : []), ...(this.protectedPorts ? [DERIVATION_V7] : []), ...(this.desktopReady ? [DESKTOP_DERIVATION] : [])],                    // what it can serve: the gate reads this
++        derives: [...DERIVATIONS, DESKTOP_DERIVATION],                   // what it can COMPUTE, byte-exactly: information only
+         runtimeId: this.runtimeId || null,
+       },
+       runtime: { v2SocketServer: false, configSocketServer: this.configSocketServer,
+@@ -348,18 +399,25 @@
+       e.status = 503; throw e;
+     }
+     if (["secrets", "env", "secretValues"].some(k => k in body)) throw badRequest("plaintext secrets are not manager inputs");
++    const native = body.derive?.derivation === DESKTOP_DERIVATION;
++    // Own native inputs before any asynchronous fetch. Later policy checks and
++    // reservation must describe the same request that was validated here.
++    if (native) body = structuredClone(body);
+     const d = body.derive || {};
+-    if (!DERIVATIONS.includes(d.derivation)) throw badRequest(`unknown derivation ${JSON.stringify(d.derivation ?? null)}`);
++    if (native) {
++      if (!this.desktopReady) throw badRequest("native desktop image or worker is unavailable");
++      const why = desktopSpawnRefusal(d, body); if (why) throw badRequest(why);
++    } else if (!DERIVATIONS.includes(d.derivation)) throw badRequest(`unknown derivation ${JSON.stringify(d.derivation ?? null)}`);
+     // Refuse rather than approximate. The identity is right either way - derive() proves that -
+     // but a /2 app is a command with its own socket, and serving one needs a runtime this backend
+     // does not have. Taking it and running something else would be the worst of both.
+     if (d.derivation === "enclave-catalog-bundle/2")
+       throw badRequest("this backend derives enclave-catalog-bundle/2 but cannot serve it yet: "
+         + "a command serving its own socket needs wasi:sockets inside the partition and an in-guest TLS front");
+-    const shieldWhy = inferenceRefusal(d, body, this.shield);
++    const shieldWhy = native ? null : inferenceRefusal(d, body, this.shield);
+     if (shieldWhy) throw badRequest(shieldWhy);
+     if (d.derivation === DERIVATION_V4 && !this.shield?.ready) throw badRequest("Shield profile unavailable");
+-    if (d.derivation !== DERIVATION && d.derivation !== DERIVATION_V4 && !(d.derivation === DERIVATION_V5 && this.configEnabled) && !(d.derivation === DERIVATION_V6 && this.secretsEnabled) && !(d.derivation === DERIVATION_V7 && this.protectedPorts))
++    if (!native && d.derivation !== DERIVATION && d.derivation !== DERIVATION_V4 && !(d.derivation === DERIVATION_V5 && this.configEnabled) && !(d.derivation === DERIVATION_V6 && this.secretsEnabled) && !(d.derivation === DERIVATION_V7 && this.protectedPorts))
+       throw badRequest("derivation is not served");
+     // The new config lives only in the measured record; never ignore a second, unmeasured input.
+     if ([DERIVATION_V5,DERIVATION_V6,DERIVATION_V7].includes(d.derivation)) {
+@@ -372,15 +430,16 @@
+         if (appConfigText(text) !== d.config) throw badRequest("configuration differs from its verified CID");
+       }
+     }
+-    if (!d.inference && this.runtimeId && d.runtimeId !== this.runtimeId)
++    if (!native && !d.inference && this.runtimeId && d.runtimeId !== this.runtimeId)
+       throw badRequest(`the mapping is pinned to runtime ${d.runtimeId}, and this host runs ${this.runtimeId}`);
+     if ([DERIVATION_V6,DERIVATION_V7].includes(d.derivation) && (body.hasSecrets !== true || body.name !== d.secretDeployment)) throw badRequest("secret deployment differs from spawn identity");
+-    const refusal = refuseUnsupported(body, { ...SUPPORTS, gpu: !!this.shield?.ready, secrets: this.secretsEnabled && [DERIVATION_V6,DERIVATION_V7].includes(d.derivation) });
++    const refusal = refuseUnsupported(body, { ...SUPPORTS, ports: native, gpu: native ? this.desktopReady : !!this.shield?.ready, secrets: this.secretsEnabled && (native || [DERIVATION_V6,DERIVATION_V7].includes(d.derivation)) });
+     if (refusal) throw badRequest(`this backend does not honour ${refusal}`);
+     if (!this.fetchComponent) throw badRequest("no component fetcher configured");
+ 
+     const component = await this.fetchComponent(d.cid);
+-    const mapping = derive({ record: d, component });     // throws on anything the rule refuses
++    const mapping = native ? validateDesktopMapping(deriveDesktop({record:d,component}),this.#desktop.platform) : derive({ record: d, component });
++    if (native && !this.desktopReady) throw badRequest("native desktop became unavailable while fetching the controller");     // throws on anything the rule refuses
+     // Synthetic readiness witnesses have no ledger purchase. Real deployment
+     // names always use the full share of this node's advertised RAM pool.
+     let memory = null;
+@@ -397,6 +456,10 @@
+                           : cpuForShare(this.cpuPoolVcpus, body.cpuShare, mapping.record.policy); }
+       catch (e) { throw badRequest(e.message); }
+     }
++
++    if (native && (!cpu || !Number.isSafeInteger(cpu.appCpuPercent) || cpu.appCpuPercent < 400 || cpu.appCpuPercent > 1600 ||
++        cpu.vcpus < Math.max(mapping.record.policy.vcpus,Math.ceil(cpu.appCpuPercent/100)) || cpu.vcpus > 16))
++      throw badRequest("purchased native CPU allocation is outside the 400..1600-percent desktop bounds");
+ 
+     // DEFECT 6: a second spawn for a live deployment is an ADOPTION, not a silent overwrite. The
+     // first version replaced the record and forgot the first handle, orphaning a running partition
+@@ -423,7 +486,7 @@
+     // failed | stopped). The old "guest-booted" was a fifth word no consumer knew, so a booted
+     // domain read as dead every tick and was respawned.
+     // No await between reservation check and insertion: concurrent fetches cannot oversell.
+-    const gpuMilli = mapping.record.inference?.gpuMilli || 0;
++    const gpuMilli = (native ? mapping.record.desktop.gpuMilli : mapping.record.inference?.gpuMilli) || 0;
+     if (gpuMilli + this.gpuAllocated() > 1000) throw badRequest("Shield GPU allocation is full");
+     if (memory) {
+       if ([...this.domains.values()].some(r => r.recovered || r.unattributed)) {
+@@ -446,8 +509,26 @@
+         const e = new Error("the CPU pool cannot fit the full purchased allowance"); e.status = 507; throw e;
+       }
+     }
++    // Native desktop partitions use their measured profile allocation policy;
++    // existing roles retain the ordinary type-1 overhead rule.
++    let physicalMemoryMiB;
++    if (this.physicalRamPoolMiB !== null) {
++      const held = this.physicalRamAllocated();
++      if (held === null) {
++        const e = new Error("physical RAM allocation is unknown until existing partitions are reconciled"); e.status = 503; throw e;
++      }
++      try { physicalMemoryMiB = native ? desktopVmMemMiB(memory.appMiB)
++        : type1VmMemMiB(memory?.appMiB ?? mapping.record.policy.memMiB, { name, appId: mapping.appId }); }
++      catch (e) { throw badRequest(e.message); }
++      if (physicalMemoryMiB > this.physicalRamPoolMiB - held) {
++        const e = new Error("the physical RAM pool cannot fit the partition including its overhead"); e.status = 507; throw e;
++      }
++    }
+     const rec = { derivation: mapping.record.derivation, secretDeployment: mapping.record.secretDeployment || null, launching: true, inference: mapping.record.inference || null, gpuMilli, id, name, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
+                   componentSha256: mapping.componentSha256, policy: mapping.record.policy, memory, cpu,
++                  imageRole: native ? "desktop" : mapping.record.inference ? "gpu" : "legacy", igvmSha256: null,
++                  ...(native ? {desktop:mapping.record.desktop} : {}),
++                  ...(physicalMemoryMiB !== undefined ? {physicalMemoryMiB} : {}),
+                   catalog: mapping.record.catalog, cid: mapping.record.cid,
+                   runtimeId: mapping.record.runtimeId, status: "starting", startedAt: null, reason: null,
+                   // DEFECT 4: what the data plane needs to route, and what the boundary IS. 5d's
+@@ -462,6 +543,25 @@
+         // the witness keeps its qualified launch exactly (Hyper-V's default, no processor step); every deployment is sized
+         ...(cpu?.rule === "cpu-share" ? { appCpu: { vcpus: cpu.vcpus, limit: cpu.limit, reservation: cpu.reservation, appCpuPercent: cpu.appCpuPercent } } : {}),
+         identity: { id, name, instanceId, appId: mapping.appId } });
++      if (h) { rec.handle = h; rec.igvmSha256 = /^[0-9a-f]{64}$/.test(String(h.firmware?.sha256 || "")) ? h.firmware.sha256 : null; }
++      if (physicalMemoryMiB !== undefined && h?.memory?.vmMiB !== physicalMemoryMiB) {
++        const actual = h?.memory?.vmMiB;
++        // Never shrink a reservation based on a contradictory launcher answer.
++        // Missing/invalid allocation blocks all further physical admission.
++        rec.physicalMemoryMiB = Number.isSafeInteger(actual) && actual > 0 ? Math.max(actual, physicalMemoryMiB) : null;
++        throw new Error("the launcher did not confirm the reserved physical RAM allocation");
++      }
++      if (native) {
++        const p = this.#desktop.platform, statement = BOOT_STATEMENTS["linux-direct"];
++        if (h?.imageRole !== "desktop" || rec.igvmSha256 !== p.igvmSha256 || h?.desktop?.profileSha256 !== p.profileSha256
++            || h?.desktop?.runtimeId !== p.runtimeId || h?.desktop?.gpuMilli !== gpuMilli
++            || h?.image !== p.igvmSha256 || h?.guestIdentity?.partition !== statement.partition
++            || h?.guestIdentity?.guestImageKind !== statement.guestImageKind || h?.appId !== mapping.appId
++            || h?.memory?.appMiB !== memory.appMiB || h?.cpu?.appCpuPercent !== cpu.appCpuPercent
++            || typeof h?.transport?.stop !== "function" || typeof h?.transport?.exited?.then !== "function"
++            || typeof h?.egress?.stop !== "function" || typeof h?.egress?.exited?.then !== "function")
++          throw new Error("the launcher did not confirm the pinned native desktop and its transports");
++      }
+       if (h?.transport?.exited) h.transport.exited.then(() => {
+         if (this.domains.get(id) === rec && !this.#stopping.has(rec) && rec.status !== "stopped") {
+           rec.status="failed"; rec.appReady=false; rec.reason="Shield transport exited";
+@@ -483,8 +583,8 @@
+       // mean the component was delivered, compiled or served: there is no app-readiness handshake
+       // on this backend, so there is no evidence for "running" and the record does not claim it.
+       // "guest-booted" is a state a reader can act on; "running" would be a guess.
+-      rec.status = h && h.appReady === true ? "running" : "starting";
+-      rec.appReady = !!(h && h.appReady === true);
++      rec.status = !native && h && h.appReady === true ? "running" : "starting";
++      rec.appReady = !!(!native && h && h.appReady === true);
+       rec.startedAt = Date.now(); rec.handle = h;
+       if (memory && h?.memory) rec.memory = { ...memory, vmMiB: h.memory.vmMiB };
+       if (cpu && h?.cpu) {
+@@ -554,7 +654,8 @@
+         pj.catch(() => {});
+       }
+     } catch (e) {
+-      // The identity is still real and worth keeping: it is what was asked for and what would run.
++      // Failed launches keep their private transports until DELETE confirms cleanup.
++      if (!rec.handle && e.launchHandle) rec.handle = e.launchHandle;
+       rec.status = "failed";
+       rec.reason = e.message;
+       if (e.prerequisites) rec.prerequisites = e.prerequisites;
+@@ -695,7 +796,7 @@
+       for (const vm of inventory.vms) {
+         const parsed=parseNotes(vm.notes);
+         if (!parsed.identity) throw new Error("unattributed VM prevents releasing the GPU reservation");
+-        if (parsed.identity.id===r.id) r.handle={vmId:vm.vmId,name:vm.name};
++        if (parsed.identity.id===r.id) r.handle={vmId:vm.vmId,name:vm.name,imageRole:parsed.identity.imageRole || "legacy"};
+       }
+     }
+     this.#stopping.add(r);
+--- a/windows/vbslike/manager/wmi-launcher.mjs
++++ b/windows/vbslike/manager/wmi-launcher.mjs
+@@ -42,6 +42,10 @@
+ import fs from "node:fs";
+ import { runWmiserve, writeBundle, freePort, CERT_NAME } from "./wmiserve-run.mjs";
+ import { GCS_KEY, EGRESS_VSOCK_PORT } from "./egress.mjs";
++import { validateDesktopPlatform, validateDesktopMapping } from "./desktop-platform.mjs";
++import { desktopMediaScript, checkDesktopMedia } from "./desktop-media.mjs";
++import { desktopVmMemMiB, DESKTOP_MEMORY_RULE } from "./desktop-memory.mjs";
++import { DESKTOP_WORKER_SERVICE_GUID } from "./desktop-worker-transport.mjs";
+ import { CPU_UNITS_PER_VCPU, CPU_MIN_LIMIT, CPU_WMI_UNITS, cpuFixedPolicy } from "./cpu-share.mjs";
+ 
+ /** The preflight check egress adds (egress.mjs): its hv_sock service is registered, read and never written. */
+@@ -235,10 +239,10 @@
+  * spawn while one exists rather than guess which deployment it belonged to.
+  */
+ export const MANAGER_NOTES_PREFIX = OWNER_MARKER + "/manager|";
+-export function notesFor({ id, name, instanceId, appId }) {
++export function notesFor({ id, name, instanceId, appId, imageRole = "legacy" }) {
+   for (const [k, val] of Object.entries({ id, name, instanceId }))
+     if (typeof val !== "string" || !val) throw new Error(`notesFor: ${k} must be a non-empty string`);
+-  return MANAGER_NOTES_PREFIX + Buffer.from(JSON.stringify({ v: 1, id, name, instanceId, appId: appId ?? null })).toString("base64url");
++  return MANAGER_NOTES_PREFIX + Buffer.from(JSON.stringify({ v: 1, id, name, instanceId, appId: appId ?? null, ...(imageRole !== "legacy" ? { imageRole } : {}) })).toString("base64url");
+ }
+ /** -> { owned, identity }: owned means the ownership marker is present; identity only when it parses completely. */
+ export function parseNotes(notes) {
+@@ -673,20 +677,29 @@
+    */
+   removeById: ({ vmId }) => ps(`
+     ${ENUMERABLE}
+-    $v = $null; try { $v = Get-VM -Id ${q(vmId)} -ErrorAction Stop } catch { $v = $null };
++    function FindRemovalVm {
++      try { $v = Get-VM -Id ${q(vmId)} -ErrorAction Stop; if ($v) { return $v } } catch {};
++      <# A failed lookup is not absence. Enumeration must succeed before saying gone. #>
++      $matches = @(Get-VM -ErrorAction Stop | Where-Object { [string]$_.Id -eq ${q(vmId)} });
++      if ($matches.Count -gt 1) { throw 'duplicate VM Id in removal inventory' };
++      if ($matches.Count -eq 1) { return $matches[0] };
++      return $null
++    };
++    $v = FindRemovalVm;
+     if (-not $v) { @{found=$false; removed=$false} | ConvertTo-Json -Compress; exit 0 };
+     if (-not ${OWNED("$v")}) { @{found=$true; removed=$false; error='not ours: the ownership marker is absent'} | ConvertTo-Json -Compress; exit 0 };
+     try {
+       Stop-VM -VM $v -TurnOff -Force -ErrorAction SilentlyContinue;
+       $dl = (Get-Date).AddSeconds(20);
+-      while ((Get-Date) -lt $dl -and [string](Get-VM -Id ${q(vmId)} -ErrorAction SilentlyContinue).State -ne 'Off') { Start-Sleep -Milliseconds 500 };
++      while ((Get-Date) -lt $dl -and [string](FindRemovalVm).State -ne 'Off') { Start-Sleep -Milliseconds 500 };
+       $last = '';
+       for ($a = 0; $a -lt 5; $a++) {
+-        $now = Get-VM -Id ${q(vmId)} -ErrorAction SilentlyContinue;
++        $now = FindRemovalVm;
+         if (-not $now) { break };
++        if (-not ${OWNED("$now")}) { throw 'ownership marker changed during removal' };
+         try { Remove-VM -VM $now -Force -ErrorAction Stop } catch { $last = [string]$_.Exception.Message; Start-Sleep -Seconds 2 }
+       };
+-      if (Get-VM -Id ${q(vmId)} -ErrorAction SilentlyContinue) { @{found=$true; removed=$false; error=('still present after removal: ' + $last)} | ConvertTo-Json -Compress }
++      if (FindRemovalVm) { @{found=$true; removed=$false; error=('still present after removal: ' + $last)} | ConvertTo-Json -Compress }
+       else { @{found=$true; removed=$true} | ConvertTo-Json -Compress }
+     } catch { @{found=$true; removed=$false; error=[string]$_.Exception.Message} | ConvertTo-Json -Compress }`),
+ 
+@@ -829,6 +842,8 @@
+   + "PATH READS ITS PCRs: its presence is not attestation and must never be reported as any.";
+ 
+ export class WmiHyperVLauncher {
++  #desktopPlatform = null;
++  get desktopPlatform() { return this.#desktopPlatform; }
+   /**
+    * @param run  async (script) => { code, stdout, stderr }   injected; nothing here spawns anything
+    * @param imagePath / imageSha256  the IGVM the worker loads, and the hash it must have, checked on the host
+@@ -846,7 +861,7 @@
+                 guestStateMaster = null, guestStateMasterSha256 = null, guestStateRunDir = null, guestStateArchiveDir = null,
+                 hypervModule = null, hypervModuleSha256 = HYPERV_MODULE_SHA256, hypervUtilitiesSha256 = null,
+                 prefix = "enclave-app-", pipeFor = null, serve = null, startTransport = null,
+-                startEgress = null, egressService = null, guestCpuAllowance = false }) {
++                startEgress = null, egressService = null, guestCpuAllowance = false, imageRole = "legacy", desktopPlatform = null }) {
+     if (typeof run !== "function") throw new Error("a PowerShell runner must be injected");
+     // THE BOOT FORM IS STATED. Inferring it from whether a medium happens to be set would let a
+     // missing variable silently turn a medium boot into a linux-direct one, and the identity with it.
+@@ -884,6 +899,7 @@
+     // THE APP AND ITS RELAY (wmiserve-run.mjs, enclave-5d), opt-in: { exe, bundleDir, portFor?, readyTimeoutMs?, run? }.
+     // Without it this launcher boots the VM and stops there, exactly as before (no relay, and the domain stays starting).
+     this.serve = serve;
++    if (startTransport !== null && typeof startTransport !== "function") throw new Error("startTransport must be a function");
+     this.startTransport = startTransport;
+     // OUTBOUND HTTPS (egress.mjs), opt-in: (vmId, deploymentId, mapping) -> { exited, stop } | null, run after the VM
+     // starts and before the app is served; null when this mapping gets none. egressService is the hv_sock service GUID
+@@ -895,6 +911,20 @@
+     // raises a domain's cgroup cpu.max to the allocation and says so. Never inferred: an older monitor ignores it.
+     this.guestCpuAllowance = guestCpuAllowance === true;
+     this.egressService = egressService ? String(egressService).toLowerCase() : null;
++    if (!["legacy", "desktop"].includes(imageRole)) throw new Error("unsupported installed image role");
++    this.imageRole = imageRole;
++    if (imageRole === "desktop") {
++      this.#desktopPlatform = validateDesktopPlatform(desktopPlatform);
++      if (boot !== BOOT_LINUX_DIRECT || this.imageSha256 !== this.#desktopPlatform.igvmSha256)
++        throw new Error("native desktop requires its pinned linux-direct IGVM");
++      if (!startTransport || !startEgress || !egressService || !serve?.exe || !serve?.bundleDir)
++        throw new Error("native desktop requires worker transport, egress and app delivery");
++      if (!guestStateMasterSha256 || !hypervUtilitiesSha256 || !this.guestCpuAllowance)
++        throw new Error("native desktop requires pinned guest state/utilities and guest CPU allowance");
++      this.serve = Object.freeze({ ...serve });
++    } else if (desktopPlatform !== null) {
++      throw new Error("native desktop platform requires the dedicated desktop image role");
++    }
+   }
+ 
+   async #ps(script) {
+@@ -973,6 +1003,14 @@
+         detail: `${GCS_KEY}\\${this.egressService} (vsock port ${EGRESS_VSOCK_PORT}) is ${got.egressService === true ? "registered" : "NOT registered"}`
+               + ": the egress bridge binds this partition's service there. Reported only; this manager never writes the registry." }] : []),
+     ];
++
++    if (this.imageRole === "desktop") {
++      let registered = false;
++      try { registered = (await this.#ps(`@{registered=[bool](Test-Path -LiteralPath ${q(GCS_KEY + "\\" + DESKTOP_WORKER_SERVICE_GUID)})} | ConvertTo-Json -Compress`)).registered === true; }
++      catch { /* unavailable is not registered */ }
++      checks.push({ name: "native desktop worker service (vsock 19595) registered", ok: registered,
++        detail: "read-only registration check; this launcher never writes the registry" });
++    }
+     const lp = got.logicalProcessors;
+     return { ok: checks.every((c) => c.ok), checks, hostLogicalProcessors: Number.isSafeInteger(lp) && lp > 0 ? lp : null };
+   }
+@@ -1006,7 +1044,36 @@
+    * the define script removes it itself if it fails before returning - both, because a leak here is a
+    * VM nobody owns.
+    */
+-  async start(mapping, { instanceId, identity = null, guestReadySec = 25, appMemoryMiB = null, appCpu = null } = {}) {
++  async start(mapping, { instanceId, identity = null, guestReadySec = 25, appMemoryMiB = null, appCpu = null, bootstrap = null, custody = null } = {}) {
++    // Capture all native launch inputs before the first await. Catalog identity
++    // stays fixed; purchased CPU/RAM are separate availability allocations.
++    const native = this.imageRole === "desktop";
++    let nativeMemory = null;
++    if (native) {
++      if (!this.#desktopPlatform || this.boot !== BOOT_LINUX_DIRECT || this.imageSha256 !== this.#desktopPlatform.igvmSha256)
++        throw new Error("native desktop platform differs from the launcher's image");
++      if (bootstrap != null || custody != null) throw new Error("native desktop does not use bootstrap or custody packages");
++      mapping = validateDesktopMapping(mapping, this.#desktopPlatform);
++      if (!identity || identity.name !== mapping.record.secretDeployment || identity.appId !== mapping.appId || identity.instanceId !== instanceId
++          || typeof identity.id !== "string" || !identity.id)
++        throw new Error("native desktop deployment identity differs from its measured mapping");
++      identity = Object.freeze({ id: identity.id, name: identity.name, instanceId, appId: mapping.appId });
++      const appMiB = appMemoryMiB ?? mapping.record.policy.memMiB;
++      if (appMiB < mapping.record.policy.memMiB) throw new Error("allocated app RAM is below its catalog minimum");
++      nativeMemory = { appMiB, vmMiB: desktopVmMemMiB(appMiB) };
++      if (appCpu !== null) appCpu = Object.freeze({ ...appCpu });
++      const quota = appCpu?.appCpuPercent ?? mapping.record.policy.cpuPercent;
++      const processors = appCpu?.vcpus ?? mapping.record.policy.vcpus;
++      if (!Number.isSafeInteger(quota) || quota < 400 || quota > 1600 ||
++          !Number.isSafeInteger(processors) || processors < Math.max(mapping.record.policy.vcpus, Math.ceil(quota / 100)) || processors > 16)
++        throw new Error("native desktop CPU allocation is outside its qualified bounds");
++      if (appCpu !== null && (!Number.isSafeInteger(appCpu.limit) || appCpu.limit < CPU_MIN_LIMIT || appCpu.limit > CPU_UNITS_PER_VCPU ||
++          !Number.isSafeInteger(appCpu.reservation) || appCpu.reservation < 0 || appCpu.reservation > appCpu.limit || appCpu.appCpuPercent !== quota))
++        throw new Error("native desktop CPU allocation lacks an exact purchased quota");
++    } else if (mapping?.record?.desktop != null) {
++      throw new Error("native desktop requires its dedicated qualified image; this WMI launcher does not support desktop admission");
++    }
++
+     if (!instanceId || !/^[A-Za-z0-9._-]{4,64}$/.test(String(instanceId)))
+       throw new Error("a unique instanceId is required: naming a domain by its AppID alone collides when the same app is deployed twice");
+     const miss = this.unconfigured();
+@@ -1035,7 +1102,7 @@
+     if (this.boot === BOOT_UEFI) await this.verifyMedium();
+     const name = `${this.prefix}${instanceId}`;
+     const pipe = this.pipeFor(name);
+-    const notes = identity ? notesFor({ ...identity, instanceId }) : OWNER_MARKER;
++    const notes = identity ? notesFor({ ...identity, instanceId, imageRole: this.imageRole }) : OWNER_MARKER;
+     const guestStateRun = this.guestStateRunFor(name);
+     if (!guestStateRun) throw new Error(`no per-run guest-state path can be made for ${name}`);
+     // The runtime CPU allowance (server.mjs, cpu-share.mjs), or with none the fixed catalog policy at a full VP each.
+@@ -1049,8 +1116,8 @@
+     const appMiB = appMemoryMiB ?? mapping.record.policy.memMiB;
+     if (!Number.isSafeInteger(appMiB) || appMiB < mapping.record.policy.memMiB)
+       throw new Error("allocated app RAM is below its catalog minimum");
+-    const memMiB = type1VmMemMiB(appMiB, {name:identity?.name, appId:mapping.appId});
+-    let created = null, served = null, transport = null, egress = null;
++    const memMiB = nativeMemory?.vmMiB ?? type1VmMemMiB(appMiB, {name:identity?.name, appId:mapping.appId});
++    let created = null, served = null, transport = null, egress = null, desktopMedia = null;
+     try {
+       created = await this.#ps(CMD.defineType1({
+         name, memMiB, vcpus, notes, pipe, boot: this.boot,
+@@ -1063,6 +1130,11 @@
+       checkDefinition(created, { notes, pipe, boot: this.boot, vcpus, memMiB, firmware: this.imagePath, firmwareSha256: this.imageSha256,
+                                  hypervModuleSha256: this.hypervModuleSha256, hypervUtilitiesSha256: this.hypervUtilitiesSha256,
+                                  guestStateRun, guestStateMaster: this.guestStateMaster, mediumSha256: this.mediumSha256 });
++      if (native) {
++        if (created.tpmEnabled !== true) throw new Error("native desktop requires its vTPM");
++        const args = { vmId: created.id, name, notes, media: this.#desktopPlatform.media };
++        desktopMedia = checkDesktopMedia(await this.#ps(desktopMediaScript(args)), args);
++      }
+       // THE PURCHASED PROCESSOR SHARE, before the first start; with none, Hyper-V's default (each VP uncapped) as before
+       const cpuBack = appCpu ? await this.#ps(CMD.processor({ vmId: created.id, ...cpu })) : null;
+       if (appCpu) checkProcessor(cpuBack, cpu);
+@@ -1080,6 +1152,7 @@
+       const con = started.console || {};
+       if (con.connected !== true)
+         throw new Error(`could not attach to the guest console at ${pipe}: ${con.note || "no connection"}`);
++      if (native && con.sawUntil !== true) throw new Error("native desktop monitor did not report ready");
+       const booted = Number(con.bytes) > 0;
+       if (!booted)
+         throw new Error(`the VM is Running but the guest produced no output on ${pipe} within ${guestReadySec}s: a silent partition is not a booted one`);
+@@ -1092,22 +1165,37 @@
+       const uefi = this.boot === BOOT_UEFI;
+       // THE APP AND ITS RELAY, when this launcher was given wmiserve to run (enclave-5d, wmiserve-run.mjs): the bundle
+       // into the guest over hv_sock 9000, the report service for THIS VM, and a loopback TCP relay to the domain.
+-      if (this.startTransport) transport = await this.startTransport(created.id);
++      if (this.startTransport) transport = await this.startTransport(created.id, mapping);
++      let nativeTransportEnded = false;
++      if (native) {
++        if (typeof transport?.stop !== "function" || typeof transport?.exited?.then !== "function")
++          throw new Error("native desktop worker transport did not start");
++        transport.exited.then(() => { nativeTransportEnded = true; }, () => { nativeTransportEnded = true; });
++      }
+       // OUTBOUND HTTPS (egress.mjs): the partition's bridge and egress endpoint, now that the VM runs and before its app is
+       // served; the hook decides which mappings get one (main.mjs: secret deployments) and answers null for the rest
+       if (this.startEgress) egress = (await this.startEgress(created.id, identity?.name ?? null, mapping)) || null;
++      if (native) {
++        if (typeof egress?.stop !== "function" || typeof egress?.exited?.then !== "function")
++          throw new Error("native desktop egress transport did not start");
++        egress.exited.then(() => { nativeTransportEnded = true; }, () => { nativeTransportEnded = true; });
++        await Promise.resolve();
++        if (nativeTransportEnded) throw new Error("native desktop transport exited before app delivery");
++      }
+       // THE APP'S OWN CGROUP QUOTA, for EVERY purchased share (cpu-share.mjs appCpuPercent): above the catalog cpuPercent
+       // and below it alike. Under Hyper-V's root scheduler the VM's processor Limit binds nothing, so this quota is the cap;
+       // wmiserve-run refuses to serve unless the monitor states exactly this cpuPercent.
+-      const appCpuPercent = this.guestCpuAllowance && appCpu ? appCpu.appCpuPercent : null;
++      const appCpuPercent = native ? (appCpu?.appCpuPercent ?? mapping.record.policy.cpuPercent) : this.guestCpuAllowance && appCpu ? appCpu.appCpuPercent : null;
+       if (appCpuPercent !== null && !(Number.isSafeInteger(appCpuPercent) && appCpuPercent >= 1 && appCpuPercent <= vcpus * 100))
+         throw new Error(`the app CPU quota ${JSON.stringify(appCpuPercent ?? null)}% is not a whole percent within 1..${vcpus * 100}`);
+       if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB, appMemoryMiB, appCpuPercent, certName: certNameFor(identity && identity.name) });
++      if (native && (nativeTransportEnded || !served || served.cpuPercent !== appCpuPercent))
++        throw new Error("native desktop transport, app delivery or applied CPU quota differs");
+       const guestIdentity = uefi
+         ? uefiImageIdentity({ mediumSha256: created.mediumSha256, mediumPath: created.mediumPath ?? this.medium })
+         : linuxDirectIdentity({ igvmSha256: created.firmwareSha256, igvmPath: this.imagePath });
+       return { transport, egress, instanceId, name, vmId: created.id, pipe, state: started.state,
+-               boot: this.boot, isolationType: 1,
++               boot: this.boot, isolationType: 1, imageRole: this.imageRole,
+                image: uefi ? guestIdentity.guestImageSha256 : guestIdentity.igvmSha256,
+                guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
+                vtpm: { enabled: created.tpmEnabled === true, pcrsRead: false, note: VTPM_NOTE },
+@@ -1115,8 +1203,10 @@
+                cpu: { rule: appCpu ? "allocated" : "catalog-policy-fixed", vcpus, limit: cpu.limit, reservation: cpu.reservation,
+                       grantedUnits: vcpus * cpu.limit, readback: cpuBack, guestOnlineVcpus: guestOnlineVcpus(con.head),
+                       appCpuRequested: appCpuPercent, appCpuPercent: served?.cpuPercent ?? null },
++               ...(native ? { desktop: { profileSha256: this.#desktopPlatform.profileSha256, runtimeId: this.#desktopPlatform.runtimeId,
++                 gpuMilli: mapping.record.desktop.gpuMilli }, media: desktopMedia } : {}),
+                memory: { policyMiB: mapping.record.policy.memMiB, appMiB, vmMiB: memMiB,
+-                         rule: memMiB === 512 ? "qualified pinned readiness witness: 512 MiB" : `align2(max(${TYPE1_VM_MEM_FLOOR_MIB}, app + ${TYPE1_VM_MEM_OVERHEAD_MIB}))` },
++                         rule: native ? DESKTOP_MEMORY_RULE : memMiB === 512 ? "qualified pinned readiness witness: 512 MiB" : `align2(max(${TYPE1_VM_MEM_FLOOR_MIB}, app + ${TYPE1_VM_MEM_OVERHEAD_MIB}))` },
+                definition: { recipe: "petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)",
+                              hypervModuleSha256: created.hypervModuleSha256, hypervUtilitiesSha256: created.hypervUtilitiesSha256 ?? null,
+                              featureSet: created.featureSet, vtl2Mode: created.vtl2Mode, vbsOptOut: created.vbsOptOut,
+@@ -1135,8 +1225,12 @@
+                               guestPort: served.guestPort, boot: served.boot, relayNote: served.note, wmiserve: served } : {}),
+                stop: async () => await this.stop({ name, vmId: created.id, wmiserve: served, transport, egress }) };
+     } catch (e) {
+-      if (transport) await transport.stop();
+-      if (egress) await egress.stop().catch(() => {});
++      const failedVmId = created && GUID.test(String(created.id || "")) ? String(created.id) : null;
++      if (failedVmId) Object.defineProperty(e, "launchHandle", { value: {
++        name, vmId: failedVmId, imageRole: this.imageRole, transport, egress, wmiserve: served,
++      } });
++      if (transport) { try { await transport.stop(); } catch (x) { e.transportCleanup = { closed: false, error: String(x?.message ?? x) }; } }
++      if (egress) { try { await egress.stop(); } catch { /* VM cleanup must still run. */ } }
+       if (served) { e.relay = await this.#closeServed(served); }       // before its VM goes
+       const vmId = created && GUID.test(String(created.id || "")) ? String(created.id) : null;
+       let swept;
+@@ -1185,16 +1279,22 @@
+   }
+   /** Close a relay and remove its bundle file; the outcome, never a throw. */
+   async #closeServed(run) {
+-    const closed = await run.stop().catch((x) => ({ closed: false, how: `stop failed: ${x.message}` }));
++    let closed;
++    try { closed = await run.stop(); }
++    catch (x) { closed = { closed: false, how: `stop failed: ${x.message}` }; }
+     try { if (run.bundleFile) fs.rmSync(run.bundleFile, { force: true }); } catch (x) { closed.bundle = `not removed: ${x.message}`; }
+     return closed;
+   }
+ 
+   /** Stop, and SAY when it did not: "ok" for a VM that is still running is how one gets orphaned. */
+   async stop(handle) {
+-    if (handle?.transport) await handle.transport.stop();
++    let transportError = null;
++    if (handle?.transport) {
++      try { await handle.transport.stop(); }
++      catch (x) { transportError = new Error(`worker transport cleanup failed: ${String(x?.message ?? x)}`); transportError.code = "stop_failed"; }
++    }
+     // its egress path has nothing to carry once the domain stops; it ends before the VM goes, and never blocks that
+-    if (handle?.egress) await handle.egress.stop().catch(() => {});
++    if (handle?.egress) { try { await handle.egress.stop(); } catch { /* VM cleanup must still run. */ } }
+     // The relay and report service first (wmiserve closes on a stdin line), then the VM. Its outcome is REPORTED on the
+     // result and never blocks the removal: a relay that will not close is killed, and the VM must go either way.
+     const relay = handle && handle.wmiserve ? await this.#closeServed(handle.wmiserve) : null;
+@@ -1203,8 +1303,8 @@
+       // recovered as live by the next manager, and a VM left Off is one nobody owns (63's P2).
+       if (!GUID.test(String(handle.vmId))) throw Object.assign(new Error(`not a VM Id: ${handle.vmId}`), { code: "stop_failed" });
+       const r = await this.#ps(CMD.removeById({ vmId: handle.vmId }));
+-      if (r && r.found === true && r.removed !== true) {
+-        const e = new Error(`could not stop and remove ${handle.name || handle.vmId}: ${r.error || "unknown"}`);
++      if (!(r?.found === false && r.removed === false) && !(r?.found === true && r.removed === true)) {
++        const e = new Error(`could not stop and remove ${handle.name || handle.vmId}: ${r?.error || "removal was not confirmed"}`);
+         e.code = "stop_failed"; throw e;
+       }
+       if (handle.name) this.created.delete(handle.name);
+@@ -1214,8 +1314,10 @@
+       // result, not thrown - the domain has stopped, and saying otherwise would be the lie in reverse.
+       if (this.#retires() && handle.name)
+         out.guestState = await this.#retire({ vmId: handle.vmId, name: handle.name }).catch((x) => ({ retired: false, error: x.message }));
++      if (transportError) { transportError.cleanup = out; throw transportError; }
+       return out;
+     }
++    if (transportError) throw transportError;
+     if (!handle || !handle.name) return { stopped: false, reason: "no handle" };
+     const r = await this.#ps(CMD.stop({ name: handle.name }));
+     if (r && r.ok === false) {

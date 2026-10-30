@@ -24,12 +24,20 @@
    carried across, and it is re-checked at the app origin too.
    One consequence, deliberately accepted: a private app reached
    through a custom domain lands back on its canonical subdomain.
+
+   INDEPENDENT MODE (an owner-selected sign-in frontend; see
+   js/core/app-access.js): no token is minted here and nothing goes
+   to enclave.host. The app origin comes from an agreed chain read
+   (the runner's registry endpoint), the platform host policy must
+   admit the runner, and this browser's session signs one hand-off
+   for exactly that origin. Every refusal says why and offers a
+   retry; nothing falls back to another origin.
    ============================================================ */
 import "../../components/header/header.js";
 import "../../components/footer/footer.js";
 import "../../components/toast/toast.js";
 import "../../components/section-head/section-head.js";
-import { Enclave } from "../core/api.js";
+import { Enclave, INDEPENDENT_MODE } from "../core/api.js";
 import { $, esc, showToast } from "../core/util.js";
 import { connectWallet, authenticate } from "../core/wallet.js";
 import { appEndpoint } from "../../components/deployments/deployments.js";
@@ -87,6 +95,43 @@ async function ownedHere(owner){
   } catch(e){ return false; }
 }
 
+/* Independent mode: the owner-selected frontend's flow. */
+async function mountIndependent(body, id){
+  const A = await import("../core/app-access.js");
+  let want = "/";
+  try { want = new URLSearchParams(location.hash.slice(1)).get("p") || "/"; } catch(e){}
+  const say = (note) => { body.innerHTML = card('<p class="co-note" role="status">' + esc(note) + '</p>'); };
+  const refused = (e) => {
+    const kind = (e && e.kind) || "refused";
+    const extra = kind === "session" || kind === "scope" ? '<a class="btn" href="sessions">Open Sessions</a> '
+      : kind === "owner" ? '<button class="btn" id="azSwitch" type="button">Switch wallet</button> ' : '';
+    body.innerHTML = card('<p class="co-note" role="alert">' + esc((e && e.message) || String(e)) + '</p>' +
+      '<button class="btn btn-primary" id="azRetry" type="button">Try again</button> ' + extra +
+      '<a class="btn" href="dashboard">Go to your dashboard</a>');
+    $("#azRetry").addEventListener("click", () => run(), { once: true });
+    const sw = $("#azSwitch");
+    if (sw) sw.addEventListener("click", async () => { try { await connectWallet(); } catch(_){} run(); }, { once: true });
+    $("#azRetry").focus();
+  };
+  async function run(){
+    try {
+      say("Checking your wallet…");
+      await walletReady(1500);
+      if (!Enclave.address){
+        body.innerHTML = card('<p class="co-note">Connect the wallet that owns this app.</p>' +
+          '<button class="btn btn-primary" id="azGo" type="button">Connect wallet</button>');
+        await new Promise((r) => $("#azGo").addEventListener("click", r, { once: true }));
+        await connectWallet();
+      }
+      say("Reading this app's lease from the chain…");
+      const out = await A.openPrivateApp(id, { path: want });
+      say("Opening the app at " + out.origin + "…");
+      location.replace(out.url);
+    } catch(e){ refused(e); }
+  }
+  await run();
+}
+
 function fatal(body, msg){
   body.innerHTML = card('<p class="co-note">' + esc(msg) + '</p>' +
     '<a class="btn" href="dashboard">Go to your dashboard</a>');
@@ -96,6 +141,7 @@ async function mount(){
   const body = $("#azBody"); if (!body) return;
   const id = String(new URL(location.href).searchParams.get("d") || "").trim();
   if (!id) return fatal(body, "This link is missing a deployment. Open the app from your dashboard instead.");
+  if (INDEPENDENT_MODE) return mountIndependent(body, id);
 
   const go = (label, note) => {
     body.innerHTML = card('<p class="co-note">' + esc(note) + '</p>' +
@@ -128,7 +174,10 @@ async function mount(){
     }
     if (!dep) return fatal(body, "No such deployment.");
     const origin = appOrigin(dep);
-    if (!origin) return fatal(body, "This app has no browser-reachable address yet.");
+    // independent mode has no Enclave app names (appEndpoint yields no https origin), so no token is ever minted for one
+    if (!origin) return fatal(body, INDEPENDENT_MODE
+      ? "Independent mode does not use Enclave's app names. Open this app with the native client (its Connect tab), or at a name you committed for it; for a private app, take its app token from the dashboard's Manage tab."
+      : "This app has no browser-reachable address yet.");
     if (dep.public){
       // Nothing to authorize - send them straight in rather than mint a token
       // the enclave would refuse (the mint endpoint 400s on a public row).

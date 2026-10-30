@@ -1,12 +1,18 @@
 // `enclave custody … --v2` (docs/security/secret-custody-v2.md): the owner's side of custody v2. The values are encrypted
 // HERE to the host-run committee's KEY and written to EnclaveSecretVaultV2; the relay never holds them.
 import { createChainReaderV2 } from "../custody/v2/chain.mjs";
+import { custodyVaultKind, checkCustodyVaultIdentity } from "../network/custody-vaults.mjs";
 import { buildBundleV2, makeUpdateV2, UPDATE_V2_ABI } from "../custody/v2/owner.mjs";
 import { configTextOf, configTextFromEnvelope, configSha256 } from "../custody/protocol.mjs";
 import { validateRules, parseRules, rulesFromPrediction } from "../custody/rules.mjs";
 
 // the committee the Enclave seat created on Base at genesis (2026-10-14), used when nothing else names one
 export const PLATFORM_COMMITTEE_V2 = "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3";
+// A reviewed vault (network/custody-vaults.mjs) is read with its explicit kind - the production vault 0xE486… through the
+// administrator's EnclaveAddressBook - after its code and immutables are checked at an agreed block. Any other vault
+// (a local rig, an explicit ENCLAVE_SECRET_VAULT_V2) is read as a pinned-authority release, as before; a vault is never
+// reclassified by a failed read.
+export const readerKindFor = (vault) => { const k = custodyVaultKind(vault); return k ? { vaultKind: k.vaultKind, ...(k.book ? { book: k.book } : {}) } : { vaultKind: "pinned" }; };
 
 export async function cmdCustodyV2(sub, f, h) {
   const account = h.loadKey();
@@ -14,9 +20,10 @@ export async function cmdCustodyV2(sub, f, h) {
   if (!/^0x[0-9a-f]{64}$/.test(id)) throw new Error("custody needs an on-chain deployment (bytes32 id)");
   const vault = (await h.vaultV2Address()).toLowerCase();
   const clients = h.pubEachClients();
-  const minAgree = Math.min(2, clients.length);
+  const minAgree = Math.floor(clients.length / 2) + 1;
   if (minAgree < 2) h.warn("! one RPC configured: the committee key your secrets are encrypted to is only as trustworthy as it (pass --rpc a,b)");
-  const reader = createChainReaderV2({ clients, vault, minAgree });
+  const reader = createChainReaderV2({ clients, vault, minAgree, chainId:h.chainId, ...readerKindFor(vault) });
+  if (custodyVaultKind(vault)) checkCustodyVaultIdentity(vault, await reader.readVaultIdentity());
   const chainId = h.chainId;
   const st = await reader.readRelease({ id, endpoint: null });
   const pol = st.policy;

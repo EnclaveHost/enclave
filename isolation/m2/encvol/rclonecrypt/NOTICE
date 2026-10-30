@@ -1,0 +1,22 @@
+rclonecrypt: rclone's crypt cipher, vendored so a per-app guest reads and writes the SAME format the standard runtime's
+rclone does (scripts/enclave-encvol.sh, wasm/wasm_manager.py) without carrying the 61.6 MB rclone binary in every guest.
+
+Sources (upstream sha256 of the exact files copied):
+  cipher.go          rclone v1.67.0 backend/crypt/cipher.go           679fd339ae503d6dd2ac4de922ecb41ae8cdcd3e544b05c7f98f781abc0868ad
+  pkcs7/pkcs7.go     rclone v1.67.0 backend/crypt/pkcs7/pkcs7.go       81b4792f2d4f72b8ab6988a5b4eeb2f38cadd97d8d238efdc202414913618224
+  version/version.go rclone v1.67.0 lib/version/version.go             9e6f2b384454a60b8c64c9023419486f4dac07496d876781507e0db96eefee74
+  shims.go readFill  rclone v1.67.0 lib/readers/readfill.go            38df8298666f82d943b1d386974a31cdd9e26f41159908f1175f084f59bd0e34
+  eme/eme.go         github.com/rfjakob/eme v1.1.2 eme.go             7388e8650520f2c7f3008c9ca64667d029c9b48f88b5d433cae08a39762fdb57
+Licenses: rclone MIT (RCLONE-COPYING, Copyright (C) 2012 by Nick Craig-Wood), eme MIT (EME-LICENSE, Jakob Unterwurzacher).
+rclone v1.67.0 module sum h1:yLRNgHEG2vQ60HCuzFqd0hYwKCRuWuvPUhvhMJ2jI5E=; eme v1.1.2 h1:SxziR8msSOElPayZNFfQw4Tjx/Sbaeeh3eRvrHVMUs4=.
+
+Changes to cipher.go (all mechanical; work/volume-parity/vendor-src/cipher.diff shows them):
+  - package crypt -> package rclonecrypt; a header comment;
+  - imports: pkcs7, version and eme from the vendored subpackages; rclone's fs, accounting and readers dropped;
+  - fs.RangeSeeker -> rangeSeeker (shims.go, the same interface); fs.Errorf -> logf (a no-op);
+    accounting.UnWrap -> unWrap (identity: no accounting here); readers.ReadFill -> readFill (verbatim);
+  - NewNameEncoding loses its "base32768" case (the github.com/Max-Sum/base32768 dependency). encVolumes never sets a
+    filename encoding: rclone's default base32 is always used, unchanged.
+pkcs7, version and eme are verbatim apart from a one-line origin comment. api.go is NOT rclone's: the constructor rclone's
+crypt backend performs (New), a fixed-nonce EncryptData (EncryptDataNonce, for hash-then-send) and Forget (zero the keys).
+Compatibility is tested both ways against the pinned rclone v1.67.0 binary (encvol/compat_test.go).

@@ -1,0 +1,24 @@
+[queue] START available=22132MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+=== test/sessions-attest.test.mjs
+✔ report_data: the SDK and the relay compute the same bytes, and they are the documented preimage's sha256 (26553.41773ms)
+✔ the relay's hand-written EnclaveKeyAttestations ABI matches the compiled contract (100.722561ms)
+✔ vcekAuxblob lays out one VCEK entry the way the guest's certificate table does (1.143894ms)
+✔ an attested key opens a measurement-bound grant through the relay, and an unattested one cannot (3655.350772ms)
+✔ refusals: report_data, guest policy, VMPL, signing key, length, evidence type, key - and nothing is written (65.984704ms)
+✔ refusals from the verdict: a bad signature, no VCEK, an unjudged TCB, a verdict that disagrees with the report (35.743232ms)
+✔ a key belongs to one image: a second measurement is refused, and so is anything the allowlist does not name (52.17325ms)
+✔ the route is off without a complete attestor config, and refuses when the relay is not an attestor (154.518163ms)
+✔ the default verifier refuses a report not signed by AMD, a report altered after signing, and one with no VCEK (51.630284ms)
+✔ the relay's keyHash is the vault's keccak256(abi.encode(x, y)) (18.07048ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 31216.962097
+=== rc 0 test/sessions-attest.test.mjs
+[memory-guard] exit=0 peakTreeRssMiB=469 minHostAvailableMiB=21252
+[memory-guard] at peak: node:370 node:57 anvil:32 bash:4 tee:2 timeout:2 tail:2
+[queue] EXIT 0

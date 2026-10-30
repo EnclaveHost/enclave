@@ -19,10 +19,3 @@ calls, and all existing output, MTP, verification, and pad-lifecycle checks stil
 apply. The snapshot never restores pads or spent indices. Trial differences are
 limited to this hook; the ordinary benchmark settings record does not encode it,
 so a comparison must require the explicit experiment and trial lines as well.
-
-This permits an A/B comparison after one registration within the existing
-600-second test budget. Reverse the order in a second run if a gain is observed:
-thermal history, live pad delivery and trial order can still affect the result.
-The experiment does not change CPU_POLL, production defaults or trust boundaries.
-It does not claim that polling samples measure time wasted or that parking is
-faster. Earlier all-pool poll-zero and always-on parking runs are different tests.

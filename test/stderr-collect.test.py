@@ -57,12 +57,13 @@ check("file_bytes above 64 MiB with truncated tail is PARTIAL", export(data[500:
 check("wrong scope token refused", [L[0].replace("scope=snapshot-after-engine-main-cleanup", "scope=full-process-stderr")] + L[1:], "REJECT", "scope")
 check("missing scope field refused", [L[0].replace("scope=snapshot-after-engine-main-cleanup ", "")] + L[1:], "REJECT", "fields")
 import os, tempfile
-d = tempfile.mkdtemp(); fifo = os.path.join(d, "fifo"); os.mkfifo(fifo)
-st, reasons, _, _ = sc.collect_file(fifo); ok = st == "REJECT" and any("regular file" in r for r in reasons); print(("ok   " if ok else "FAIL ") + f"FIFO input refused: {reasons[:1]}"); n += ok; cases.append("fifo")
-link = os.path.join(d, "link"); os.symlink("/etc/hostname", link)
-st, reasons, _, _ = sc.collect_file(link); ok = st == "REJECT" and any("cannot read" in r for r in reasons); print(("ok   " if ok else "FAIL ") + f"symlink input refused (O_NOFOLLOW): {reasons[:1]}"); n += ok; cases.append("symlink")
-big = os.path.join(d, "big.log")
-with open(big, "wb") as f:
-    f.write(("\n".join(L) + "\n").encode()); f.write(b"x" * (sc.MAX_LOG + 10))          # a log that grew past the bound after fstat-time size would also trip the cumulative budget
-st, reasons, _, _ = sc.collect_file(big); ok = st == "REJECT" and any("larger" in r or "exceeds" in r for r in reasons); print(("ok   " if ok else "FAIL ") + f"oversized log refused: {reasons[:1]}"); n += ok; cases.append("oversized")
-print(f"stderr-collect fixture: {n}/{len(cases)} PASS"); raise SystemExit(0 if n == len(cases) else 1)
+with tempfile.TemporaryDirectory() as d:
+    fifo = os.path.join(d, "fifo"); os.mkfifo(fifo)
+    st, reasons, _, _ = sc.collect_file(fifo); ok = st == "REJECT" and any("regular file" in r for r in reasons); print(("ok   " if ok else "FAIL ") + f"FIFO input refused: {reasons[:1]}"); n += ok; cases.append("fifo")
+    link = os.path.join(d, "link"); os.symlink("/etc/hostname", link)
+    st, reasons, _, _ = sc.collect_file(link); ok = st == "REJECT" and any("cannot read" in r for r in reasons); print(("ok   " if ok else "FAIL ") + f"symlink input refused (O_NOFOLLOW): {reasons[:1]}"); n += ok; cases.append("symlink")
+    big = os.path.join(d, "big.log")
+    with open(big, "wb") as f:
+        f.write(("\n".join(L) + "\n").encode()); f.write(b"x" * (sc.MAX_LOG + 10))          # a log that grew past the bound after fstat-time size would also trip the cumulative budget
+    st, reasons, _, _ = sc.collect_file(big); ok = st == "REJECT" and any("larger" in r or "exceeds" in r for r in reasons); print(("ok   " if ok else "FAIL ") + f"oversized log refused: {reasons[:1]}"); n += ok; cases.append("oversized")
+    print(f"stderr-collect fixture: {n}/{len(cases)} PASS"); raise SystemExit(0 if n == len(cases) else 1)

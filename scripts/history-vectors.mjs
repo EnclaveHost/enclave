@@ -1,0 +1,84 @@
+// Writes isolation/m2/bootstrap/testdata/history-vectors.json: owner-history startup packages that the measured guest
+// (Go Reader.Authorize), the SDK and the browser must accept or refuse identically (work/history-owner-tools-interface.txt;
+// the optional "checkpoints" member: work/history-checkpoint-transport-interface.txt).
+// Valid cases are built by the SDK's own preparePackage, so they are the exact bytes the CLI and site produce; invalid
+// cases are the same base with one rule broken. Deterministic.
+//   run: node scripts/history-vectors.mjs
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { preparePackage } from "../sdk/bootstrap/package.mjs";
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const names = JSON.parse(fs.readFileSync(path.join(REPO, "isolation/m2/bootstrap/testdata/names-vectors.json"), "utf8"));
+const base = JSON.parse(names.cases.find((c) => c.valid && !c.manifest.includes('"custody-v2"')).manifest);
+delete base.names;
+const P = "https://base-rpc.polkachu.com", T = "https://gateway.tenderly.co/public/base";
+const valid = (name, history, extra = {}) => ({ name, valid: true, manifest: preparePackage({ ...base, ...extra, history }).bytes.toString() });
+const raw = (name, member) => ({ name, valid: false, manifest: JSON.stringify(base).slice(0, -1) + ',"history":' + member + "}" });
+const bad = (name, rpcs) => raw(name, JSON.stringify({ rpcs }));
+const badMirror = (name, checkpoints) => raw(name, JSON.stringify({ rpcs: [P], checkpoints }));
+const M1 = "https://mirror.example.org/checkpoints/d1.json", M2 = "https://owner.example.net/cp";
+const cases = [
+  valid("one source", { rpcs: [P] }),
+  valid("two operators", { rpcs: [P, T] }),
+  valid("six sources", { rpcs: ["https://a.example", "https://b.example", "https://c.example", "https://d.example", "https://e.example", "https://f.example"] }),
+  valid("path characters", { rpcs: ["https://node.example.org/a.b_c~d/e-f/1"] }),
+  valid("with owner names", { rpcs: [P] }, { names: { hosts: ["shop.example.com"] } }),
+  { name: "no history member (an older package)", valid: true, manifest: preparePackage({ ...base }).bytes.toString() },
+  bad("empty list", []),
+  bad("seven sources", ["https://a.example", "https://b.example", "https://c.example", "https://d.example", "https://e.example", "https://f.example", "https://g.example"]),
+  bad("plain http", ["http://node.example.org"]),
+  bad("userinfo", ["https://user:secret@node.example.org"]),
+  bad("query (a key would be published)", ["https://node.example.org/rpc?apikey=abc"]),
+  bad("empty query", ["https://node.example.org/?"]),
+  bad("fragment", ["https://node.example.org/#x"]),
+  bad("explicit port 443", ["https://node.example.org:443"]),
+  bad("other port", ["https://node.example.org:8545"]),
+  bad("uppercase host", ["https://Node.example.org"]),
+  bad("trailing dot", ["https://node.example.org."]),
+  bad("IP literal", ["https://192.0.2.7"]),
+  bad("IPv6 literal", ["https://[2001:db8::1]"]),
+  bad("single-label host", ["https://localhost"]),
+  bad("numeric last label", ["https://node.example.123"]),
+  bad("label starting with a hyphen", ["https://-node.example.org"]),
+  bad("percent escape", ["https://node.example.org/a%2Fb"]),
+  bad("space", ["https://node.example.org/a b"]),
+  bad("backslash", ["https://node.example.org\\rpc"]),
+  bad("not ascending", [T, P]),
+  bad("duplicate URL", [P, P]),
+  bad("same host twice", ["https://node.example.org/a", "https://node.example.org/b"]),
+  bad("513 bytes", ["https://node.example.org/" + "a".repeat(513 - "https://node.example.org/".length)]),
+  bad("not a string", [7]),
+  bad("null entry", [null]),
+  raw("null member", "null"),
+  raw("rpcs null", '{"rpcs":null}'),
+  raw("rpcs not a list", '{"rpcs":"https://node.example.org"}'),
+  raw("extra key", '{"rpcs":["https://node.example.org"],"window":1000}'),
+  raw("case alias", '{"RPCs":["https://node.example.org"]}'),
+  raw("duplicate key", '{"rpcs":["https://a.example"],"rpcs":["https://b.example"]}'),
+  raw("a list, not an object", '["https://node.example.org"]'),
+  // attested checkpoint mirrors (optional, after "rpcs")
+  valid("sources and checkpoint mirrors", { rpcs: [P, T], checkpoints: [M1, M2] }),
+  valid("checkpoint mirrors only", { checkpoints: [M2] }),
+  valid("four mirrors", { rpcs: [P], checkpoints: ["https://a.example/cp", "https://b.example/cp", "https://c.example/cp", "https://d.example/cp"] }),
+  valid("a mirror on a source's host", { rpcs: ["https://node.example.org/rpc"], checkpoints: ["https://node.example.org/cp.json"] }),
+  raw("empty object", "{}"),
+  raw("checkpoints null", '{"rpcs":["https://node.example.org"],"checkpoints":null}'),
+  raw("checkpoints not a list", '{"rpcs":["https://node.example.org"],"checkpoints":"' + M1 + '"}'),
+  raw("checkpoints case alias", '{"rpcs":["https://node.example.org"],"Checkpoints":["' + M1 + '"]}'),
+  raw("rpcs empty beside mirrors", '{"rpcs":[],"checkpoints":["' + M1 + '"]}'),
+  badMirror("checkpoints empty", []),
+  badMirror("five mirrors", ["https://a.example/cp", "https://b.example/cp", "https://c.example/cp", "https://d.example/cp", "https://e.example/cp"]),
+  badMirror("mirror over plain http", ["http://mirror.example.org/cp"]),
+  badMirror("mirror with a query", ["https://mirror.example.org/cp?sig=abc"]),
+  badMirror("mirror with userinfo", ["https://u:p@mirror.example.org/cp"]),
+  badMirror("mirror with a port", ["https://mirror.example.org:8443/cp"]),
+  badMirror("mirror IP literal", ["https://192.0.2.9/cp"]),
+  badMirror("mirrors not ascending", [M2, M1]),
+  badMirror("mirror host twice", ["https://mirror.example.org/a", "https://mirror.example.org/b"]),
+  badMirror("mirror null entry", [null]),
+];
+const out = path.join(REPO, "isolation/m2/bootstrap/testdata/history-vectors.json");
+fs.writeFileSync(out, JSON.stringify({ generator: "scripts/history-vectors.mjs", cases }, null, 1) + "\n");
+console.log(`wrote ${cases.length} cases (${cases.filter((c) => c.valid).length} valid) to ${path.relative(REPO, out)}`);

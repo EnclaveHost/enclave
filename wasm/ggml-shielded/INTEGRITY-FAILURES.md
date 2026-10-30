@@ -5,38 +5,13 @@ or cache insertion. It also retires the link: its secret Freivalds challenges
 must not be offered to the peer again after a failed check. Reconnecting a
 socket alone retains those challenges and is not recovery.
 
-The caller's monotonic verification-failure counter and an atomic background
-pad-integrity flag are the retirement latches. Once either is set, start,
-registration, remote compute and local fallback calls
+The caller's monotonic verification-failure counter latches retirement.
+After a verification failure, start, registration, remote compute and local fallback calls
 return `SH_ERR_VERIFY` before networking, pad consumption or output writes.
 There is no reset operation. A direct C caller must close the failed link and
 register a new one with fresh verification state. A diagnostic
 `sh_link_verify` call remains a pure check; it does not send data or revive a
 retired link.
-
-Cell authentication failure and a failed private `u = r.W` check permanently
-retire the link even when discovered by a refill thread. Stopping/joining that
-thread clears its scheduling stop flag, but never its integrity flag. The
-reported verification-failure count includes one event for pad retirement.
-A startup integrity failure also retires the GGML backend; it is not classified
-as a retryable bank shortage. The caller checks again after waiting for pads,
-so a rejection during that wait reaches the backend as `SH_ERR_VERIFY`.
-An ordinary missing shipment remains exhaustion and does not set this latch.
-
-Before connecting or uploading, a dealt link also binds already delivered
-shipments against its complete registered group table. If valid shipment
-headers are present but none cover that table, startup reports the missing
-group and retires the link. This catches a target-only dealer feeding an MTP
-consumer before a long upload. An initially empty bank can still receive files
-during upload; binding is repeated before reserving the first pad window.
-Rejected files are closed, not deleted, and no window is reserved by preflight.
-
-Normal reclamation retains every in-flight import. The cursor advances at
-reservation, so the safe file floor subtracts the unpublished ring suffix
-(`generating`), including completed jobs behind an unfinished older job.
-A reader that has not retained its file descriptor yet is protected too.
-This changes only fetching/reclamation; signed windows and one-use consumption
-remain unchanged.
 
 The GGML backend similarly stops every later graph, including other cards,
 before graph planning when any card has recorded an integrity failure.

@@ -1,0 +1,45 @@
+{
+  "schema": "native-runner-config-qualification/1",
+  "preparedManifestSha256": "a1df41f4ac16fd8f37f1c55f35fe0d1c922bc703854aef05ebd1a4d1bde56b77",
+  "modified": [
+    {
+      "path": "run-node.cmd",
+      "beforeSha256": "0fdc3699228c9d7a4c2e971d05804b49f978a56a4c1d9f7a06f3546f3ced09fd",
+      "afterSha256": "9fab3f3e7d58dfe720d0383adbbce82028b7d553fbde09002e2520b71872be3c",
+      "afterBytes": 1300
+    },
+    {
+      "path": "run-shield.cmd",
+      "beforeSha256": "85ef583ad4c60a4bf73643502ae75b5a096775b8462e2a349cbf5c3fa96ac543",
+      "afterSha256": "a524d33bec7d3f4095738a928dcd268a08dd97f37dbbd56211d39a7fed4b3e84",
+      "afterBytes": 609
+    }
+  ],
+  "requiredUnchangedPins": 6,
+  "change": "Exactly one CALL of the permanent native environment followed by an error guard in each runner, immediately after its original base-config CALL. All other bytes are preserved.",
+  "releaseDirectory": "C:\\ProgramData\\Enclave\\native-desktop\\releases\\119701c9197ea9c51d79bb254aec8d79243abf6c13263f06e42d9d82e6f91554",
+  "configSha256": "c8f8eee3fc9015203859f32f8bc5aafceac6ab80cac254de622eed3f2a1c5a89",
+  "releaseSha256": "ac99b8fbdf2c4d1c8197cb4c491e25f697c600a4f77146882be72289f1aeb113",
+  "environmentSha256": "df53c6a5e30c647cc0b41f7279d853700c7e9ad914dbd33b13b505a04ff3869f",
+  "tests": {
+    "linuxPassed": 13,
+    "linuxSkippedWindowsOnly": 3,
+    "windowsPassed": 16,
+    "windowsSkipped": 0,
+    "windowsPython": "Python 3.14.5",
+    "fixtureApplyRollback": true,
+    "privateProductionBaseConfigsCopied": false,
+    "realCmdHookSuccessAndFailures": true
+  },
+  "livePreflight": {
+    "unchangedRunners": true,
+    "unchangedConfigurationPins": 6,
+    "payloadOnlyHookEdits": true,
+    "runningServicesPreventWrites": true
+  },
+  "productionActivated": false,
+  "productionServicesStopped": false,
+  "realServiceRunnersExecuted": false,
+  "completeTaskHandoffRehearsed": false,
+  "scope": "Runner file preparation/guarded transaction, Windows command behavior and fixture rollback; not actual service handoff, VM recovery, API activation, owner provisioning or publication."
+}

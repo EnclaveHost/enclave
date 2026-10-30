@@ -1,0 +1,80 @@
+{
+  "role": "app-zone-replica",
+  "release": {
+    "dir": "C:\\Program Files\\Enclave\\challenge-replica\\release-3e1560f94542",
+    "dnsSha256": "3e1560f94542f57fb4c93aa6008ec35711fb21439c8adb74c9ee72fc22c90574",
+    "runtimeBundleSha256": "3de76b54cf64fc06b5965bcc989290d6653de6e4f6e59f00b0da52e39218d76a"
+  },
+  "zones": {
+    "app": "app.enclave.host",
+    "ip": "ip.enclave.host"
+  },
+  "ns": {
+    "name": "ns-nucbox-k11-4.enclave.host",
+    "names": [
+      "ns-us-west.enclave.host",
+      "ns-eu-central.enclave.host",
+      "ns-ap-southeast.enclave.host",
+      "ns-ca-east.enclave.host",
+      "ns-nucbox-k11-4.enclave.host"
+    ]
+  },
+  "listen": {
+    "dns": "127.0.0.1:18353",
+    "api": "127.0.0.1:18354"
+  },
+  "front": {
+    "listen": "127.0.0.1:18292",
+    "managed": {
+      "zone": "app.enclave.host",
+      "declarationFile": "C:\\ProgramData\\Enclave\\challenge-replica\\challenge-front.json"
+    }
+  },
+  "routeMap": "http://127.0.0.1:18188/v1/network/routes",
+  "chain": {
+    "rpcs": [
+      "https://mainnet.base.org",
+      "https://base-rpc.publicnode.com",
+      "https://base.drpc.org",
+      "https://base.public.blockpi.network/v1/rpc/public"
+    ],
+    "pins": {
+      "addressBook": "0xab214342d5a490150a4a977063a2f88e21f80907",
+      "deployments": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+      "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+      "catalog": "0x18419ca2b502d423a8de6269aeee171a378626e3"
+    }
+  },
+  "shield": {
+    "policyFile": "C:\\Program Files\\Enclave\\network\\admitted-shield-policy.json",
+    "profileFile": "C:\\Program Files\\Enclave\\challenge-replica\\network-profile-base.json",
+    "profileDigest": "sha256:ee957827032cf7208434e4c73f9e859a27e4fc5c6cab5f4a2153308c09eb4cb8",
+    "rpcs": [
+      "https://mainnet.base.org",
+      "https://base-rpc.publicnode.com",
+      "https://base.drpc.org",
+      "https://base.public.blockpi.network/v1/rpc/public"
+    ]
+  },
+  "hostPolicy": {
+    "policy": {
+      "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+      "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
+      "mirrors": [],
+      "activation": "anchor",
+      "rpcs": [
+        "https://mainnet.base.org",
+        "https://base-rpc.publicnode.com",
+        "https://base.drpc.org",
+        "https://base.public.blockpi.network/v1/rpc/public"
+      ],
+      "minAgree": 3
+    },
+    "endpoint": "https://api.enclave.host/t/nucbox-k11-4",
+    "stateDir": "C:\\ProgramData\\Enclave\\network\\state\\challenge-host-policy",
+    "carriers": {
+      "importDir": "C:\\ProgramData\\Enclave\\host-services\\hs2\\data\\policy-import",
+      "policyMirrorStateDir": "C:\\ProgramData\\Enclave\\host-services\\hs2\\state\\policy-mirror-state"
+    }
+  }
+}

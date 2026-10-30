@@ -1,0 +1,261 @@
+{
+  "startedAt": "2026-10-25T17:43:09.372738+00:00",
+  "scope": "VERIFIER-ONLY direct control: hardware quote + bound config + attested TLS key + running supervisor keys + exact runtime; tamper/replay/wrong-measurement/wrong-config rejection; /chain-verifier fails closed while Base is unready. NOT Base chain readiness, native provenance or finality; no registration, no MCP/Platform API/native names, no apps.",
+  "productionActivated": false,
+  "ports": {
+    "controlHostLoopback": 55385,
+    "guestdStandInManager": 53473,
+    "guestdStandInData": 45181,
+    "proofStandIn": 38919,
+    "productionGuestdAvoided": [
+      8095,
+      8096
+    ]
+  },
+  "ownerConfig": {
+    "digest": "0af7ce0726d370ffd6b9ac08f4ae6d34a4f28812cdb95df62a91f787d65d1195",
+    "hostData": "186382b4de462c94de28c55271084ff9259b9d4e84e322bc8483ead3810ed8e4",
+    "controlPort": 8444,
+    "isolation": {
+      "managerUrl": "http://10.0.2.2:53473",
+      "dataAddr": "10.0.2.2:45181"
+    },
+    "chainVerifier": {
+      "format": "enclave-chain-verifier/v1",
+      "unsafeSigner": "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a",
+      "proofSources": [
+        "http://10.0.2.2:38919/"
+      ],
+      "port": 50546,
+      "expose": "attested"
+    },
+    "operator": "0xf3c1a9e76a5138f47833575280d0c52211b37bad",
+    "publicUrl": "https://snp-verifier-canary.invalid"
+  },
+  "wrongConfig": {
+    "digest": "e5fd675342a33e3ffe87711830a20d70970b502ef0e2ee89c8d57282c2f31288",
+    "hostData": "5fd4aac1e8c6e2655905965b14b6b3425037b66081d4a443595ebb627f93a75c"
+  },
+  "pinsAtLaunch": [],
+  "verifierExit": 0,
+  "acceptance": {
+    "pass": true,
+    "required": {
+      "A verifier: statement": true,
+      "A verifier: config + HOST_DATA": true,
+      "A verifier: TLS peer = attested control key": true,
+      "A verifier: AMD report verified with the expected measurement": true,
+      "A verifier: running supervisor holds the minted keys": true,
+      "A verifier-only: status pending with registry null (no registry read)": true,
+      "A verifier-only: attestedOutcome = attested (production acceptance rule)": true,
+      "A evidence: HTTP 200": true,
+      "A evidence: statement config digest = owner config": true,
+      "A evidence: statement HOST_DATA = owner config": true,
+      "A evidence: TLS peer = statement control key": true,
+      "A evidence: same boot as the verifier (control key)": true,
+      "A evidence: mode snp": true,
+      "A evidence: runtime gsup/helper/supervisor = the image manifest": true,
+      "A evidence: no mcpSha256/platformApiSha256 runtime": true,
+      "A evidence: no native member": true,
+      "B offline control: captured evidence re-verifies (non-vacuity)": true,
+      "B tamper: flipped report byte rejected": true,
+      "B tamper: changed statement byte rejected": true,
+      "B replay: another nonce rejected": true,
+      "C wrong measurement rejected at the report": true,
+      "C wrong config rejected at config": true,
+      "D client: replica attested while the backend is unready": true,
+      "D client: read fails closed (HTTP 502)": true,
+      "D route: every read probe 502 service_unreachable": true,
+      "D route: write method 403 method_refused": true,
+      "D client: wrong measurement never attests and its read fails": true,
+      "D client: a different sequencer pin is refused before any connection": true
+    },
+    "failed": [],
+    "diagnostic": {
+      "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
+      "operatorIsTheConfiguredCanaryAddress": true,
+      "offlineFailedChecks": {
+        "control": [],
+        "reportByte": [
+          "signature"
+        ],
+        "statementByte": [
+          "binding"
+        ],
+        "otherNonce": [
+          "binding"
+        ]
+      },
+      "note": "no-key/no-claim authority is proven by the harness from the launcher's own fw_cfg and host config and the restricted QEMU network"
+    }
+  },
+  "verdict": {
+    "hardwarePass": true,
+    "parts": {
+      "statement": true,
+      "config": true,
+      "endpointKey": true,
+      "report": true,
+      "supervisor": true
+    },
+    "wrapperStatus": "pending",
+    "registryCheck": null
+  },
+  "statementChecks": {
+    "configDigest": true,
+    "hostData": true,
+    "peerIsControlTls": true,
+    "runtime": {
+      "gsupSha256": true,
+      "helperSha256": true,
+      "supervisorSha256": true
+    },
+    "noMcpOrPlatformApi": true,
+    "noNative": true,
+    "controlTlsSpkiSha256": "47578d1c1c9fca9508de35064023eb599fe519ae5af0a52a26336a7b0fd74b63",
+    "operatorMatchesConfig": true,
+    "mode": "snp"
+  },
+  "route": {
+    "client": {
+      "attest": [
+        true
+      ],
+      "read": {
+        "ok": false,
+        "error": "attested verifier: no attested replica answered (https://127.0.0.1:55385: HTTP 502)"
+      },
+      "replicaStatus": "attested",
+      "reasons": []
+    },
+    "readProbes": [
+      {
+        "at": "2026-10-25T17:43:20.349Z",
+        "method": "eth_blockNumber",
+        "status": 502,
+        "error": "service_unreachable"
+      },
+      {
+        "at": "2026-10-25T17:43:30.362Z",
+        "method": "eth_blockNumber",
+        "status": 502,
+        "error": "service_unreachable"
+      },
+      {
+        "at": "2026-10-25T17:43:40.376Z",
+        "method": "eth_blockNumber",
+        "status": 502,
+        "error": "service_unreachable"
+      }
+    ],
+    "writeProbe": {
+      "at": "2026-10-25T17:43:40.378Z",
+      "method": "eth_sendRawTransaction",
+      "status": 403,
+      "error": "method_refused"
+    },
+    "wrongClient": {
+      "attest": [
+        false
+      ],
+      "read": {
+        "ok": false,
+        "error": "attested verifier: no attested replica answered (https://127.0.0.1:55385: rejected)"
+      },
+      "replicaStatus": "rejected",
+      "reasons": [
+        "report: AMD chain verified: VCEK -> ASK (SEV-Turin) -> ARK-Turin, ARK pinned by sha256, all three valid at 2026-10-25",
+        "report: CRL verified (ARK-signed, 0 revoked serial(s), valid 2026-09-22 .. 2026-11-09); ASK serial 030001 not revoked",
+        "report: PSP signature over bytes 0..0x2a0 verifies with the VCEK (r, s in range)",
+        "report: VCEK extensions name this chip (fa11afcf54ae9c53...) and the reported TCB (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)",
+        "report: reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117); committed TCB meets it too",
+        "report: REJECT: launch measurement 4287b65e718ff958... is not an allowed measurement"
+      ]
+    },
+    "signerMismatchRefused": true,
+    "signerMismatchError": "attested verifier: replicas[0].config pins sequencer 0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a, not the caller's 0x1111111111111111111111111111111111111111"
+  },
+  "launcherAliveAtVerifyEnd": true,
+  "cleanup": {
+    "steps": [
+      "killpg 3684901 SIGTERM"
+    ],
+    "refused": false,
+    "identities": [
+      {
+        "pid": 3684901,
+        "starttime": 125530375,
+        "alive": false
+      },
+      {
+        "pid": 3684918,
+        "starttime": 125530381,
+        "alive": false
+      }
+    ],
+    "allOwnedAbsent": true
+  },
+  "protectedQemuIdentitiesUnchanged": true,
+  "rpcStateUnchanged": true,
+  "scopeMemoryPeakMiB": 2199,
+  "userServicesUnchanged": true,
+  "fwCfgModes": [
+    "0o600",
+    "0o700"
+  ],
+  "noKeyEvidence": {
+    "hostConfigHasNoKeyOrRelayInput": true,
+    "fwRegistryKeyEmpty": true,
+    "fwFleetSecretEmpty": true,
+    "fwRelayAndTunnelEmpty": true,
+    "fwNoCertificateOrAcmeInput": true,
+    "fwNoVolumes": true,
+    "fwNoLeaseGasOrNomination": true,
+    "fwDirectIsTheOwnerConfig": true,
+    "fwDirectIsVerifierOnly": true,
+    "fwNoHostLevelChainVerifier": true,
+    "proofSourceIsTheRefusedStandIn": true,
+    "fwIsolationIsTheRefusedStandIns": true,
+    "ownerConfigNotSelling": true
+  },
+  "fwCfgKeys": [
+    "certsApi",
+    "direct",
+    "fleetSecret",
+    "ggml",
+    "isolation",
+    "mode",
+    "name",
+    "nodeRamGb",
+    "payoutAddress",
+    "priceCpuUsdHr",
+    "priceGpuUsdHr",
+    "publicUrl",
+    "referral",
+    "registryKey",
+    "relayUrl",
+    "shieldedWorkers",
+    "tunnelToken",
+    "volumes"
+  ],
+  "qemuStarts": 1,
+  "qemuArgvChecks": [
+    {
+      "measuredCmdline": true,
+      "smp": true,
+      "mem": true,
+      "ovmf": true,
+      "kernel": true,
+      "initrd": true,
+      "snpKernelHashesAndHostData": true,
+      "netdevRestrictedOneLoopbackForwardToControlFront": true,
+      "noDrives": true,
+      "realQemu": true
+    }
+  ],
+  "collateralSourceUnchanged": true,
+  "privateRemoved": true,
+  "finishedAt": "2026-10-25T17:43:42.590649+00:00",
+  "ok": true,
+  "failed": []
+}

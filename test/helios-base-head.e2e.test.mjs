@@ -1,0 +1,100 @@
+// OFFLINE head-path test with REAL Base mainnet unsafe heads (run inside `unshare -r -n`).
+// Objects: 52 Base v4 gossip envelopes captured 2026-10-23 01:37Z by the rpc-peer-audit head-listener (maintained
+// base-consensus-gossip @ base/base 5476069f, accepted by BlockHandler::block_valid), copied with their heads.jsonl.
+// Chain: objects dir -> patched opstack-server (--no-gossip --objects-dir) -> Helios consensus API -> (a) our relay
+// and (b) the patched Helios client, both with Base's REAL unsafe signer (no test override).
+// The heads are minutes old by test time: they prove authenticity and decoding, and every "latest" use must refuse.
+//   env: HELIOS_BASE_BIN, OPSTACK_SERVER_BIN, BASE_HEADS_DIR, TEST_TMP
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import net from 'node:net';
+import { createHash } from 'node:crypto';
+import { createHeadRelay, verifyCommitment, BASE_MAINNET } from '../network/op-head-relay.mjs';
+import { createWitnessGateway, WITNESS_METHODS, VERIFIED_METHODS } from '../network/witness-gateway.mjs';
+
+const { HELIOS_BASE_BIN, OPSTACK_SERVER_BIN, BASE_HEADS_DIR } = process.env;
+const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'base-head-'));
+const records = fs.readFileSync(path.join(BASE_HEADS_DIR, 'heads.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((r) => r.type === 'head');
+const top = records.reduce((a, r) => (r.number > a.number ? r : a));
+const children = new Set();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const freePort = () => new Promise((r) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
+async function rpc(url, method, params = []) {
+  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(30000) });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error.message || JSON.stringify(j.error));
+  return j.result;
+}
+function start(cmd, args, env = {}) {
+  const p = spawn(cmd, args, { env: { PATH: process.env.PATH, HOME: TMP, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+  p.log = ''; const keep = (d) => { p.log = (p.log + d).slice(-20000); };
+  p.stdout.on('data', keep); p.stderr.on('data', keep);
+  children.add(p); p.on('exit', () => children.delete(p));
+  return p;
+}
+let server, serverUrl, objects;
+test.before(async () => {
+  objects = path.join(TMP, 'objects'); fs.mkdirSync(objects);
+  for (const f of fs.readdirSync(path.join(BASE_HEADS_DIR, 'objects'))) fs.copyFileSync(path.join(BASE_HEADS_DIR, 'objects', f), path.join(objects, f));
+  // an untrusted extra file: a real object with one byte flipped, correctly renamed to its new hash
+  const one = fs.readFileSync(path.join(objects, top.objectSha256 + '.v4.snappy'));
+  one[one.length - 1] ^= 1;
+  fs.writeFileSync(path.join(objects, createHash('sha256').update(one).digest('hex') + '.v4.snappy'), one);
+  const port = await freePort();
+  server = start(OPSTACK_SERVER_BIN, ['--network', 'base', '--server-address', `127.0.0.1:${port}`, '--execution-rpc', 'http://127.0.0.1:9/',
+    '--no-gossip', '--objects-dir', objects], { RUST_LOG: 'helios_opstack=info,helios::opstack=warn' });
+  serverUrl = `http://127.0.0.1:${port}/`;
+  // the server drains its object queue once per second: wait until it serves the highest captured head
+  for (let i = 0; i < 160; i++) {
+    try {
+      const c = await (await fetch(serverUrl + 'latest')).json();
+      if (c && Number((await verifyCommitment(c, { chainId: 8453, signer: BASE_MAINNET.unsafeSigner })).head.number) === top.number) break;
+    } catch {}
+    await sleep(250);
+  }
+});
+test.after(async () => { for (const p of [...children]) p.kill('SIGKILL'); fs.rmSync(TMP, { recursive: true, force: true }); });
+
+const T = { timeout: 120000 };
+test('the server serves the highest real Base head, verified against the real Base signer; the tampered object is skipped', T, async () => {
+  assert.equal(records.length, 52);
+  const c = await (await fetch(serverUrl + 'latest')).json();
+  const v = await verifyCommitment(c, { chainId: 8453, signer: BASE_MAINNET.unsafeSigner });
+  assert.equal(Number(v.head.number), top.number);
+  assert.equal(v.head.hash, top.hash);
+  assert.equal(v.head.stateRoot, top.stateRoot);
+  assert.equal(await (await fetch(serverUrl + 'chain_id')).json(), 8453);
+  assert.match(server.log, /skipped object/, 'the tampered file was refused');
+  assert.equal(server.exitCode, null);
+});
+
+test('our relay accepts the real signature but refuses to serve heads that are not fresh', T, async (t) => {
+  const relay = createHeadRelay({ sources: [serverUrl], chainId: 8453, signer: BASE_MAINNET.unsafeSigner, maxAgeMs: 60000, pollMs: 60000 });
+  t.after(() => relay.close());
+  await relay.poll();
+  const st = relay.status();
+  assert.equal(st.sources[0].failed, 0, 'the real commitment verified');
+  assert.match(st.sources[0].last, /stale/);
+  assert.equal(relay.latest(), null);
+});
+
+test('the patched Helios client adopts the real Base head with the real signer, and refuses "latest" because it is stale', T, async (t) => {
+  // no source and no witness methods: Helios needs an execution URL here, never a witness (the proof-aware gateway
+  // offers pinned witnesses only with a verifier, witness-failover ce7c1b73)
+  const g = createWitnessGateway({ upstreams: [], methods: WITNESS_METHODS.filter((m) => !VERIFIED_METHODS.includes(m)) });
+  const gUrl = await g.listen(0);
+  const port = await freePort();
+  const home = path.join(TMP, 'home'); fs.mkdirSync(home, { recursive: true });   // no helios.toml: shipped Base config
+  const h = start(HELIOS_BASE_BIN, ['opstack', '--network', 'base', '--consensus-rpc', serverUrl, '--execution-rpc', gUrl, '--rpc-port', String(port)], { HOME: home });
+  t.after(async () => { h.kill('SIGKILL'); await g.close(); });
+  const url = `http://127.0.0.1:${port}/`, num = '0x' + top.number.toString(16);
+  let block = null;
+  for (let i = 0; i < 160 && !block; i++) { try { block = await rpc(url, 'eth_getBlockByNumber', [num, false]); } catch {} if (!block) await sleep(250); }
+  assert.ok(block, 'helios adopted the real head');
+  assert.equal(block.hash, top.hash);
+  assert.equal(block.stateRoot, top.stateRoot);
+  await assert.rejects(rpc(url, 'eth_blockNumber'), /sync/i);
+});

@@ -41,8 +41,8 @@ const SOURCE = path.join(REPO, "contracts", "EnclaveKeyAttestations.sol");
 const OUT_DIR = path.join(REPO, "contracts", "deployments");
 
 export const NETWORKS = {
-  "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org", explorer: "https://sepolia.basescan.org" },
-  base: { chain: base, rpc: "https://mainnet.base.org", explorer: "https://basescan.org", ownerRequired: true },
+  "base-sepolia": { chain: baseSepolia, rpc: "https://api.enclave.host/rpc/base-sepolia", explorer: "https://sepolia.basescan.org" },
+  base: { chain: base, rpc: "https://api.enclave.host/rpc/base", explorer: "https://basescan.org", ownerRequired: true },
   local: { chain: foundry, rpc: "http://127.0.0.1:8545" },
 };
 const ZERO = "0x0000000000000000000000000000000000000000";

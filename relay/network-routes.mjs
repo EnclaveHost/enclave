@@ -15,7 +15,7 @@ export const RETIRED_PUBLICATION='TUNA route publications are retired: only sign
 // A kept route is used only while it is still the latest one the anti-rollback record committed (same hash), and
 // stays subject to its own expiry, the lease and the host's eligibility, exactly as before the restart.
 const keptKey = id => 'p-' + id;
-export function createNetworkRoutes({ operatorOf, endpointId, eligible, now = Date.now, leaseOf, memory, network }) {
+export function createNetworkRoutes({ operatorOf, endpointId, eligible, now = Date.now, leaseOf, memory, network, hostAdmission = null }) {
   const apps = new Map(), restored = new Set();
   async function restore(id) {
     if (!memory || apps.has(id) || restored.has(id)) return;
@@ -46,7 +46,7 @@ export function createNetworkRoutes({ operatorOf, endpointId, eligible, now = Da
       if (!operator || operator.toLowerCase() !== lease.runnerOperator.toLowerCase()) throw new Error('inactive route operator');
       // Only the owner's current network policy (or the default, when the owner never set one) may carry routes.
       if (recordHash(network.currentPolicy(id)) !== recordHash(policy)) throw new Error('route policy is not the owner\'s current network policy');
-      const record = await verifyRoute(bundle, {deploymentId: id, policy, lease, memory, networkProviders: await network.eligible(), providerProbeSigners: network.checkers, now: now()});
+      const record = await verifyRoute(bundle, {deploymentId: id, policy, lease, memory, networkProviders: await network.eligible(), providerProbeSigners: network.checkers, hostAdmission, now: now()});
       if (publication.status) network.noteStatus(id, publication.status);
       const entry = {endpoint, bundle: structuredClone(bundle), record};
       apps.set(id, entry);

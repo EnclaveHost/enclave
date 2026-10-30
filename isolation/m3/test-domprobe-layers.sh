@@ -34,12 +34,15 @@ K="vsock_local_domain1 vsock_local_domain2 vsock_own_control vsock_host_control"
 run_all() {  # <domprobe.c> <app-seccomp.h> -> 0 only if both layers are as specified
   reclaim; rm -rf "$d/b" && mkdir -p "$d/b/m3" "$d/b/m2" "$d/root/plat" "$d/root/run" "$d/root/tmp" "$d/root/proc"
   chmod 0755 "$d/root" "$d/root/plat"; chmod 1777 "$d/root/run"
-  cp "$here/domexec.c" "$d/b/m3/domexec.c" && cp "$1" "$d/b/m3/domprobe.c" && cp "$2" "$d/b/m2/app-seccomp.h" && cp "$here/../m2/sha256-min.h" "$d/b/m2/"
+  cp "$here/domexec.c" "$d/b/m3/domexec.c" && cp "$1" "$d/b/m3/domprobe.c" && cp "$2" "$d/b/m2/app-seccomp.h" && cp "$here/../m2/sha256-min.h" "$here/../m2/modelvol.h" "$d/b/m2/"
   gcc -static -O2 -o "$d/root/plat/domexec" "$d/b/m3/domexec.c" 2>/dev/null || { echo "FAIL domexec did not build"; return 1; }
   gcc -static -O2 -o "$d/root/plat/domprobe" "$d/b/m3/domprobe.c" 2>/dev/null || { echo "FAIL domprobe did not build"; return 1; }
   chmod 0755 "$d/root/plat/domexec" "$d/root/plat/domprobe"
-  # the probe pauses after `done` (the harness ends a domain): the timeout ends it here; "0" MiB skips the memory step
-  timeout 20 unshare --map-root-user --map-auto -mpfn -- sh -c "chown 1001:1001 '$d/root/run' && chmod 0700 '$d/root/run' && exec chroot '$d/root' /plat/domexec 7 1000:1001 probe 0 3<>/dev/null" \
+  # the probe pauses after `done` (the harness ends a domain): the timeout ends it here. 64 MiB is domexec's minimum app
+  # allocation (it refuses less before any mode, domexec.c "invalid app memory"); domexec hands it to the probe, which
+  # uses it only AFTER `done`, for its memory step (4 x 64 MiB touched). Containment is the monitor's cgroup, judged by
+  # test-m3.sh; nothing here reads those lines.
+  timeout 20 unshare --map-root-user --map-auto -mpfn -- sh -c "chown 1001:1001 '$d/root/run' && chmod 0700 '$d/root/run' && exec chroot '$d/root' /plat/domexec 7 1000:1001 probe 64 3<>/dev/null" \
     > "$d/console.txt" 2>&1 || true
   c="$d/console.txt"; rc=0
   line() { sed -n "s/^PROBE[0-9]* $1=//p" "$c" | head -1; }

@@ -474,7 +474,7 @@ range, an uncalibrated site or the pad pool; `SHIELDED_PROFILE=1` on the node wo
 
 Still open, in one line each: tier stays `vbs-dev` until Artifact Signing (SIGNING.md) and Secure
 Boot; the name is not registered on chain, so the row carries no on-chain id and the node earns
-nothing; dealt pads are not wired on Windows.
+nothing.
 
 ## 13. It hosts an app (2026-09-21, later the same day)
 

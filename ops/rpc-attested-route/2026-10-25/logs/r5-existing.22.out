@@ -1,0 +1,14 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/verified-chain-optin-boundary.test.mjs
+✔ without allowCall a pinned client has no raw call: refused by name, nothing sent (1.501308ms)
+✔ with allowCall, call is the proof-backed eth_call pinned to the block hash (no tags) (0.410117ms)
+✔ a snapshot created the default way (as every Windows and hosted caller does) refuses call; opted in, it reads at its block (2.082084ms)
+✔ verifierRequest: pinned state, headers by number and the head only; anything else refused before sending (0.608235ms)
+✔ no Windows, network, relay or metal source opts in (the CLI/MCP additions stay caller-specific) (24.183987ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 172.393566

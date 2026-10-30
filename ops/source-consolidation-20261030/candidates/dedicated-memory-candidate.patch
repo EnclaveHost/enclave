@@ -1,0 +1,1381 @@
+From 6d8fea64c64963937c3add84415b54107690d1ec Mon Sep 17 00:00:00 2001
+From: Steven Batchelor <srbatchelor@ovgl.org>
+Date: Sat, 24 Oct 2026 20:27:23 -0700
+Subject: [PATCH] Preserve unfinished Codex source before disk consolidation
+
+Source: /home/steven/Documents/Codex/2026-10-04/ze/work/runtime-reservation
+Local recovery checkpoint only; not validated for main. Original checkout and index remain unchanged.
+---
+ isolation/m2/run-domain.sh                    |  11 +-
+ isolation/m4/guestd/launcher_test.go          |  70 ++++
+ isolation/m4/guestd/main.go                   |  19 +-
+ isolation/m4/guestd/pool.go                   |  38 +-
+ isolation/m4/guestd/reservation.go            | 255 +++++++++++++
+ isolation/m4/guestd/reservation_test.go       | 144 ++++++++
+ isolation/m4/guestd/server.go                 |  16 +-
+ isolation/m4/memory-reservation/README.md     | 114 ++++++
+ isolation/m4/memory-reservation/partition.py  | 342 ++++++++++++++++++
+ .../m4/memory-reservation/pressure_test.py    |  78 ++++
+ .../m4/memory-reservation/test_partition.py   | 103 ++++++
+ 11 files changed, 1178 insertions(+), 12 deletions(-)
+ create mode 100644 isolation/m4/guestd/reservation.go
+ create mode 100644 isolation/m4/guestd/reservation_test.go
+ create mode 100644 isolation/m4/memory-reservation/README.md
+ create mode 100644 isolation/m4/memory-reservation/partition.py
+ create mode 100644 isolation/m4/memory-reservation/pressure_test.py
+ create mode 100644 isolation/m4/memory-reservation/test_partition.py
+
+diff --git a/isolation/m2/run-domain.sh b/isolation/m2/run-domain.sh
+index e052cbc48..6142998be 100755
+--- a/isolation/m2/run-domain.sh
++++ b/isolation/m2/run-domain.sh
+@@ -91,12 +91,21 @@ start)
+     fi
+   fi
+   unit="m2-$tag-$$"
++  # Production guests belong to the independently reserved pool. The unset
++  # case remains for standalone lab launches, which make no reservation claim.
++  # Keep QEMU's Shield arguments in "$@"; these options belong to systemd only.
++  run_guest() { systemd-run "$@"; }
++  case "${ENCLAVE_GUEST_SLICE:-}" in
++    enclave.slice) run_guest() { systemd-run --slice=enclave.slice -p MemoryMin="$((mem + 768))M" -p MemorySwapMax=0 "$@"; } ;;
++    "") ;;
++    *) echo "run-domain.sh: invalid ENCLAVE_GUEST_SLICE" >&2; exit 2 ;;
++  esac
+   t0=$(date +%s%3N)
+   # CPU domains have only the console and vsock. Shield additionally maps two
+   # untrusted masked-data BARs and, for 27B, a public model block device whose
+   # contents the measured loader copies and authenticates before execution.
+   # shellcheck disable=SC2086
+-  systemd-run --user --unit="$unit" --collect -q \
++  run_guest --user --unit="$unit" --collect -q \
+     -p CPUQuota="${quota}%" -p MemoryMax="$((mem + 768))M" -p TasksMax=256 \
+     qemu-system-x86_64 $MACH -cpu host -smp "$vcpus" -m "${mem}M" -bios "$OVMF" \
+       -kernel "$KERNEL" -initrd "$(realpath "$img")" -append "$APPEND" \
+diff --git a/isolation/m4/guestd/launcher_test.go b/isolation/m4/guestd/launcher_test.go
+index c0fc07e03..4f0686dac 100644
+--- a/isolation/m4/guestd/launcher_test.go
++++ b/isolation/m4/guestd/launcher_test.go
+@@ -3,6 +3,7 @@ package main
+ import (
+ 	"context"
+ 	"os"
++	"os/exec"
+ 	"path/filepath"
+ 	"strings"
+ 	"testing"
+@@ -41,3 +42,72 @@ func TestADeadUnitWithNoSerialEndsTheWaitQuickly(t *testing.T) {
+ 		t.Fatalf("the wait lasted %s: a dead unit held its room for the boot wait", d)
+ 	}
+ }
++
++func TestProductionLauncherRejectsAnOldUnpartitionedLaunchScript(t *testing.T) {
++	l := fakeRunDomain(t, "140000")
++	l.env = append(os.Environ(), "ENCLAVE_GUEST_SLICE=enclave.slice")
++	unit, err := l.Start(context.Background(), "img", "gdtest", t.TempDir(), 1, 1024, 100, "", 140000)
++	if unit == "" || err == nil || !strings.Contains(err.Error(), "reserved enclave.slice") {
++		t.Fatalf("unpartitioned launch was not refused with its unit available for cleanup: %s %v", unit, err)
++	}
++}
++
++// Execute the real shell launcher with a recording systemd-run. Resource
++// options must reach systemd, while both Shield devices must still reach QEMU.
++func TestDomainLauncherKeepsResourceAndShieldArgumentsSeparate(t *testing.T) {
++	for _, slice := range []string{"", "enclave.slice"} {
++		t.Run("slice="+slice, func(t *testing.T) {
++			dir := t.TempDir()
++			for _, sub := range []string{"m1", "m2", "bin", "rings"} {
++				if err := os.Mkdir(filepath.Join(dir, sub), 0700); err != nil {
++					t.Fatal(err)
++				}
++			}
++			write := func(path, content string) {
++				t.Helper()
++				if err := os.WriteFile(filepath.Join(dir, path), []byte(content), 0700); err != nil {
++					t.Fatal(err)
++				}
++			}
++			script, err := os.ReadFile("../../m2/run-domain.sh")
++			if err != nil {
++				t.Fatal(err)
++			}
++			write("m2/run-domain.sh", string(script))
++			write("m1/domain.env", "OVMF=firmware\nKERNEL=kernel\nAPPEND=console=ttyS0\n")
++			write("bin/systemd-run", "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$CAPTURE\"\n")
++			write("guest.cpio.gz", "fixture")
++			write("guest.cpio.gz.shield", "qwen2.5-0.5b-q8-gguf")
++			for _, ring := range []string{"card-0", "card-1"} {
++				write("rings/"+ring, "")
++				if err := os.Truncate(filepath.Join(dir, "rings", ring), 67108864); err != nil {
++					t.Fatal(err)
++				}
++			}
++			capture := filepath.Join(dir, "args")
++			cmd := exec.Command("sh", filepath.Join(dir, "m2/run-domain.sh"), "start", filepath.Join(dir, "guest.cpio.gz"), "snp", "gdtest", dir, "1", "1024", "100")
++			cmd.Env = append(os.Environ(), "PATH="+filepath.Join(dir, "bin")+":"+os.Getenv("PATH"), "CAPTURE="+capture, "ENCLAVE_GUEST_SLICE="+slice, "GUEST_CID=140000", "SHIELDED_SHM_DIR="+filepath.Join(dir, "rings"))
++			if out, err := cmd.CombinedOutput(); err != nil {
++				t.Fatalf("%v: %s", err, out)
++			}
++			out, err := os.ReadFile(capture)
++			if err != nil {
++				t.Fatal(err)
++			}
++			parts := strings.SplitN(string(out), "qemu-system-x86_64\n", 2)
++			if len(parts) != 2 {
++				t.Fatalf("missing QEMU command: %s", out)
++			}
++			for _, opt := range []string{"--slice=enclave.slice", "MemoryMin=1792M", "MemorySwapMax=0"} {
++				if strings.Contains(parts[0], opt) != (slice != "") || strings.Contains(parts[1], opt) {
++					t.Fatalf("misplaced option %s: %s", opt, out)
++				}
++			}
++			for _, dev := range []string{"ivshmem-plain,memdev=sh0,addr=5", "ivshmem-plain,memdev=sh1,addr=6"} {
++				if !strings.Contains(parts[1], dev) || strings.Contains(parts[0], dev) {
++					t.Fatalf("missing/misplaced Shield device %s: %s", dev, out)
++				}
++			}
++		})
++	}
++}
+diff --git a/isolation/m4/guestd/main.go b/isolation/m4/guestd/main.go
+index a81c62e5d..23456ab8f 100644
+--- a/isolation/m4/guestd/main.go
++++ b/isolation/m4/guestd/main.go
+@@ -96,6 +96,16 @@ func (l *realLauncher) Start(ctx context.Context, image, tag, workdir string, vc
+ 		return "", fmt.Errorf("run-domain.sh start: %v %s", err, strings.TrimSpace(out))
+ 	}
+ 	unit := m[1]
++	for _, e := range l.env {
++		if e == "ENCLAVE_GUEST_SLICE=enclave.slice" {
++			check := exec.CommandContext(ctx, "systemctl", "--user", "show", "--property=Slice", "--value", unit)
++			check.Env = l.env
++			got, err := check.Output()
++			if err != nil || strings.TrimSpace(string(got)) != "enclave.slice" {
++				return unit, fmt.Errorf("launcher did not place the guest in the reserved enclave.slice")
++			}
++		}
++	}
+ 	if got, _ := strconv.ParseUint(m[2], 10, 32); uint32(got) != cid {
+ 		// the ticket service and the egress server know this guest only by the CID guestd chose
+ 		return unit, fmt.Errorf("run-domain.sh launched the guest with CID %d, not the %d guestd chose", got, cid)
+@@ -318,6 +328,7 @@ func main() {
+ 	dataIdle := flag.Duration("data-idle", 180*time.Second, "close a spliced connection after this long with no bytes in either direction")
+ 	genKeyFile := flag.String("gen-key", "", "write a NEW pairing key to this file (mode 0600, never overwritten), print its kid, and exit")
+ 	guestMem := flag.Int("guest-mem-mib", 0, "host RAM (MiB) set aside for guests: the guest pool's memory budget; unset = every create is refused (pool.go)")
++	memoryReservation := flag.String("memory-reservation", "/etc/enclave/memory-reservation.json", "administrator-installed hard memory partition; configured pools refuse new work until its live cgroup limits are verified")
+ 	hostFloor := flag.Int("guest-host-floor-mib", 0, "a create must leave the host at least this much LIVE MemAvailable (MiB); 0 = off (pool.go). Deploy with it set, e.g. 16384")
+ 	guestCPUs := flag.Int("guest-cpus", 0, "host cores set aside for guests: the guest pool's CPU budget, against each guest's CPUQuota; unset = every create is refused")
+ 	legacyIso := flag.String("legacy-isolation", "", "with -release: the PREVIOUS isolation/ tree, to build the deployment guests the supervisor does not mark release (their image unchanged); empty = such a deployment is refused")
+@@ -338,6 +349,9 @@ func main() {
+ 	shieldSHM := flag.String("shield-shm-dir", "", "directory with card-0 and card-1 masked transport rings")
+ 	shieldRelease := flag.String("shield-release", "", "64-hex release ID for the Shield template")
+ 	flag.Parse()
++	if *guestMem > 0 && *memoryReservation == "" {
++		log.Fatal("a configured guest pool requires -memory-reservation; an accounting budget alone does not reserve RAM")
++	}
+ 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
+ 		log.Fatal("-guest-mem-mib and -guest-cpus are set together, both positive (or neither: then every create is refused)")
+ 	}
+@@ -388,7 +402,7 @@ func main() {
+ 	if err := os.MkdirAll(filepath.Join(*root, "bin"), 0o700); err != nil {
+ 		log.Fatal(err)
+ 	}
+-	env := append(os.Environ(), "OVMF="+*ovmf)
++	env := append(os.Environ(), "OVMF="+*ovmf, "ENCLAVE_GUEST_SLICE=enclave.slice")
+ 	fwd := filepath.Join(*root, "bin", "fwd")
+ 	build := exec.Command("go", "build", "-trimpath", "-o", fwd, "./fwd")
+ 	build.Dir = filepath.Join(*iso, "m2")
+@@ -495,6 +509,9 @@ func main() {
+ 		log.Fatal("-guest-host-floor-mib is a MiB count, 0 or more")
+ 	}
+ 	s.HostFloorMiB = *hostFloor
++	if *guestMem > 0 {
++		s.MemoryReservation = *memoryReservation
++	}
+ 	// F7: a previous guestd's guests are ADOPTED when they verify again as the same guest (persist.go); every other
+ 	// guest unit is stopped and every other workdir scrubbed, as a boot sweep always did.
+ 	actx, acancel := context.WithTimeout(context.Background(), 10*time.Minute)
+diff --git a/isolation/m4/guestd/pool.go b/isolation/m4/guestd/pool.go
+index a9ac32ed4..66d8fd74e 100644
+--- a/isolation/m4/guestd/pool.go
++++ b/isolation/m4/guestd/pool.go
+@@ -102,6 +102,12 @@ func (s *server) admitLocked(r reservation) map[string]any {
+ 		return map[string]any{"error": "pool_unconfigured", "needs": r,
+ 			"detail": "this host has configured no guest budget (-guest-mem-mib, -guest-cpus), so it admits no guest"}
+ 	}
++	if s.MemoryReservation != "" {
++		if err := s.checkMemoryReservation(); err != nil {
++			return map[string]any{"error": "memory_not_reserved", "needs": r,
++				"detail": "the committed enclave memory is not reserved: " + err.Error()}
++		}
++	}
+ 	a, _ := s.allocatedLocked()
+ 	free := freeOf(s.Budget, a)
+ 	if r.MemMiB > free.MemMiB || r.CPUPct > free.CPUPct {
+@@ -111,7 +117,10 @@ func (s *server) admitLocked(r reservation) map[string]any {
+ 		}
+ 		return map[string]any{"error": "pool_full", "needs": r, "free": free, "detail": why}
+ 	}
+-	return s.hostRefusal(r)
++	if s.MemoryReservation != "" {
++		return nil
++	} // the verified partition already leaves kernel/host headroom
++	return s.hostRefusal(r) // in-process lab/test servers only; production requires the partition
+ }
+ 
+ // The LIVE host check (enclave-99, on the 64 GiB budget). The budget is the operator's promise; MemAvailable is what the
+@@ -283,13 +292,13 @@ func (s *server) poolLocked() map[string]any {
+ 		budget = s.Budget
+ 	}
+ 	host := map[string]any{"floorMiB": s.HostFloorMiB, "memAvailableMiB": nil, "pendingMiB": 0, "unreadUnits": 0} // null = unread (floor off) or unreadable
+-	if s.HostFloorMiB > 0 {
++	if s.HostFloorMiB > 0 && s.MemoryReservation == "" {
+ 		host["pendingMiB"], host["unreadUnits"] = s.pendingLocked()
+ 		if avail, err := s.memAvailableMiB(); err == nil {
+ 			host["memAvailableMiB"] = avail
+ 		}
+ 	}
+-	return map[string]any{
++	out := map[string]any{
+ 		"budget": budget, "allocated": a, "free": freeOf(s.Budget, a), "guests": n, "host": host,
+ 		"overcommitted": overcommitted(s.Budget, a),
+ 		// how a guest's reservation follows from its policy, so a consumer sizes a claim exactly as guestd admits it:
+@@ -299,6 +308,18 @@ func (s *server) poolLocked() map[string]any {
+ 		"ramShareEnforced": true,
+ 		"pricing":          "CPU share bounds app RAM as a fraction of the budget; platform overhead is reserved separately",
+ 	}
++	if s.MemoryReservation != "" {
++		status := map[string]any{"enforced": true, "budgetMiB": s.Budget.MemMiB, "mechanism": "cgroup-v2-partition"}
++		if err := s.checkMemoryReservation(); err != nil {
++			status["enforced"], status["reason"] = false, err.Error()
++			out["free"] = reservation{} // old supervisors also stop offering the unbacked capacity
++		}
++		out["memoryReservation"] = status
++		// A dedicated pool is not discounted by the host's changing MemAvailable.
++		// On failure free is already zero; held guests and the budget stay intact.
++		out["host"] = map[string]any{"floorMiB": 0, "memAvailableMiB": nil, "pendingMiB": 0, "unreadUnits": 0}
++	}
++	return out
+ }
+ 
+ // logPoolAfterRecovery states the pool once adoption has run, loudly when it is unconfigured or overcommitted.
+@@ -307,6 +328,17 @@ func (s *server) logPoolAfterRecovery() {
+ 	a, n := s.allocatedLocked()
+ 	b := s.Budget
+ 	s.mu.Unlock()
++	if s.MemoryReservation != "" {
++		s.mu.Lock()
++		err := s.checkMemoryReservation()
++		s.mu.Unlock()
++		if err != nil {
++			log.Printf("NO ENFORCED MEMORY RESERVATION: %v; held guests remain, new admissions are refused", err)
++		} else {
++			log.Printf("dedicated enclave memory: %d MiB protected by a verified cgroup partition; live host memory does not discount this pool", b.MemMiB)
++		}
++		return
++	}
+ 	switch {
+ 	case !b.configured():
+ 		log.Printf("NO GUEST BUDGET: -guest-mem-mib/-guest-cpus are unset, so every create is REFUSED (%d adopted guest(s) keep running)", n)
+diff --git a/isolation/m4/guestd/reservation.go b/isolation/m4/guestd/reservation.go
+new file mode 100644
+index 000000000..95c5c4df7
+--- /dev/null
++++ b/isolation/m4/guestd/reservation.go
+@@ -0,0 +1,255 @@
++package main
++
++// A configured budget is not a reservation. A dedicated pool must be backed by
++// a cgroup partition: every branch OUTSIDE the pool has a finite hard limit,
++// whose sum leaves the entire pool plus explicit kernel headroom untouched.
++// memory.min alone protects only used pages and cannot reserve an idle pool.
++// This is resource enforcement by the host kernel, not a new attestation claim
++// or a guarantee against a malicious host administrator changing the kernel.
++
++import (
++	"encoding/json"
++	"fmt"
++	"os"
++	"path/filepath"
++	"strconv"
++	"strings"
++	"syscall"
++)
++
++const mib = int64(1 << 20)
++
++type memoryPartition struct {
++	Schema            int              `json:"schema"`
++	PoolCgroup        string           `json:"poolCgroup"`
++	BudgetMiB         int64            `json:"budgetMiB"`
++	KernelHeadroomMiB int64            `json:"kernelHeadroomMiB"`
++	HostCapsMiB       map[string]int64 `json:"hostCapsMiB"`
++}
++
++func cgroupPath(p string) bool {
++	return strings.HasPrefix(p, "/") && p != "/" && filepath.Clean(p) == p
++}
++
++func cgroupNumber(root, path, name string) (int64, error) {
++	b, err := os.ReadFile(filepath.Join(root, path, name))
++	if err != nil {
++		return 0, err
++	}
++	x := strings.TrimSpace(string(b))
++	if x == "max" {
++		return -1, nil
++	}
++	n, err := strconv.ParseInt(x, 10, 64)
++	if err != nil || n < 0 {
++		return 0, fmt.Errorf("invalid %s in %s", name, path)
++	}
++	return n, nil
++}
++
++func memoryTotalMiB(path string) (int64, error) {
++	b, err := os.ReadFile(path)
++	if err != nil {
++		return 0, err
++	}
++	for _, line := range strings.Split(string(b), "\n") {
++		f := strings.Fields(line)
++		if len(f) == 3 && f[0] == "MemTotal:" && f[2] == "kB" {
++			n, e := strconv.ParseInt(f[1], 10, 64)
++			if e == nil && n > 0 {
++				return n / 1024, nil
++			}
++		}
++	}
++	return 0, fmt.Errorf("cannot read physical memory total")
++}
++
++// Kernel threads are covered by explicit kernel headroom. An ordinary process
++// directly in an ancestor (especially the root cgroup) would escape all of the
++// outside branch caps. Inspect PF_KTHREAD, not a process name or PID range.
++func verifyNoUncappedProcesses(pool, root, proc string) error {
++	for path := filepath.Dir(pool); ; path = filepath.Dir(path) {
++		b, err := os.ReadFile(filepath.Join(root, path, "cgroup.procs"))
++		if err != nil {
++			return err
++		}
++		for _, pid := range strings.Fields(string(b)) {
++			if _, err := strconv.ParseUint(pid, 10, 32); err != nil {
++				return fmt.Errorf("invalid ancestor process id")
++			}
++			stat, err := os.ReadFile(filepath.Join(proc, pid, "stat"))
++			if os.IsNotExist(err) {
++				continue
++			} // exited since the snapshot
++			if err != nil {
++				return fmt.Errorf("cannot check ancestor process %s", pid)
++			}
++			end := strings.LastIndexByte(string(stat), ')')
++			if end < 0 {
++				return fmt.Errorf("invalid ancestor process status")
++			}
++			fields := strings.Fields(string(stat)[end+1:])
++			if len(fields) < 7 {
++				return fmt.Errorf("invalid ancestor process status")
++			}
++			flags, err := strconv.ParseUint(fields[6], 10, 64) // /proc/PID/stat field 9
++			if err != nil || flags&0x00200000 == 0 {
++				return fmt.Errorf("userspace process %s escapes the host memory caps", pid)
++			}
++		}
++		if path == "/" {
++			return nil
++		}
++	}
++}
++
++// verifyPartition reads the kernel's current enforcement, never just the
++// configuration. New uncapped sibling groups, lost ancestor protection, or a
++// budget change immediately make the pool unavailable for new admissions.
++func verifyPartition(p memoryPartition, root string, totalMiB, budgetMiB int64) error {
++	if p.Schema != 1 || p.BudgetMiB != budgetMiB || budgetMiB <= 0 || budgetMiB > totalMiB ||
++		p.KernelHeadroomMiB <= 0 || p.KernelHeadroomMiB > totalMiB || !cgroupPath(p.PoolCgroup) {
++		return fmt.Errorf("invalid memory partition or budget mismatch")
++	}
++	var caps int64
++	for path, n := range p.HostCapsMiB {
++		if !cgroupPath(path) || n < 0 || n > totalMiB || caps > totalMiB-n {
++			return fmt.Errorf("invalid host memory cap")
++		}
++		caps += n
++	}
++	if budgetMiB+p.KernelHeadroomMiB > totalMiB-caps {
++		return fmt.Errorf("host caps leave less than the committed enclave memory")
++	}
++	seen := map[string]bool{}
++	below := int64(0)
++	for path := p.PoolCgroup; path != "/"; path = filepath.Dir(path) {
++		min, err := cgroupNumber(root, path, "memory.min")
++		if err != nil || min < budgetMiB*mib {
++			return fmt.Errorf("%s does not protect the full enclave budget", path)
++		}
++		max, err := cgroupNumber(root, path, "memory.max")
++		if err != nil || (max != -1 && max < (budgetMiB+below)*mib) {
++			return fmt.Errorf("%s restricts the committed pool", path)
++		}
++		if path == p.PoolCgroup {
++			if max != budgetMiB*mib {
++				return fmt.Errorf("enclave pool must have its own exact hard limit")
++			}
++			swap, e := cgroupNumber(root, path, "memory.swap.max")
++			if e != nil || swap != 0 {
++				return fmt.Errorf("enclave pool must not use swap")
++			}
++		}
++		parent := filepath.Dir(path)
++		entries, err := os.ReadDir(filepath.Join(root, parent))
++		if err != nil {
++			return err
++		}
++		for _, ent := range entries {
++			if !ent.IsDir() || ent.Name() == filepath.Base(path) {
++				continue
++			}
++			sibling := filepath.Join(parent, ent.Name())
++			capMiB, ok := p.HostCapsMiB[sibling]
++			if !ok {
++				return fmt.Errorf("unbudgeted host cgroup %s", sibling)
++			}
++			limit, e := cgroupNumber(root, sibling, "memory.max")
++			if e != nil || limit < 0 || limit > capMiB*mib {
++				return fmt.Errorf("host cgroup %s lacks its hard memory limit", sibling)
++			}
++			protection, e := cgroupNumber(root, sibling, "memory.min")
++			if e != nil || protection != 0 {
++				return fmt.Errorf("host cgroup %s competes for protected memory", sibling)
++			}
++			seen[sibling] = true
++			below += capMiB
++		}
++	}
++	for path := range p.HostCapsMiB {
++		if !seen[path] {
++			if _, err := os.Stat(filepath.Join(root, path)); !os.IsNotExist(err) {
++				return fmt.Errorf("host cap %s is not a partition boundary", path)
++			}
++			// An inactive, persistently capped mount/slice consumes nothing. Its
++			// full ceiling still counts in the host sum, and is checked on return.
++		}
++	}
++	return nil
++}
++
++func (s *server) checkMemoryReservation() error {
++	if s.ReservationCheck != nil {
++		return s.ReservationCheck()
++	}
++	info, err := os.Stat(s.MemoryReservation)
++	if err != nil {
++		return fmt.Errorf("memory reservation is not installed")
++	}
++	st, ok := info.Sys().(*syscall.Stat_t)
++	if !ok || st.Uid != 0 || !info.Mode().IsRegular() || info.Mode().Perm()&0022 != 0 {
++		return fmt.Errorf("memory reservation must be an administrator-owned configuration")
++	}
++	b, err := os.ReadFile(s.MemoryReservation)
++	if err != nil {
++		return err
++	}
++	var p memoryPartition
++	if json.Unmarshal(b, &p) != nil {
++		return fmt.Errorf("invalid memory reservation configuration")
++	}
++	// The launcher uses the enclave.slice in THIS user manager. A manifest for
++	// a different manager must never certify where these guests will be placed.
++	self, err := os.ReadFile("/proc/self/cgroup")
++	if err != nil {
++		return err
++	}
++	manager := ""
++	for _, l := range strings.Split(string(self), "\n") {
++		if strings.HasPrefix(l, "0::/") {
++			for path := strings.TrimPrefix(l, "0::"); path != "/"; path = filepath.Dir(path) {
++				if strings.HasPrefix(filepath.Base(path), "user@") && strings.HasSuffix(path, ".service") {
++					manager = path
++					break
++				}
++			}
++		}
++	}
++	if manager == "" || filepath.Dir(manager) != "/enclave.slice" || p.PoolCgroup != filepath.Join(manager, "enclave.slice") {
++		return fmt.Errorf("memory reservation is not for this guest manager")
++	}
++	total, err := memoryTotalMiB("/proc/meminfo")
++	if err != nil {
++		return err
++	}
++	if err = verifyPartition(p, "/sys/fs/cgroup", total, int64(s.Budget.MemMiB)); err != nil {
++		return err
++	}
++	if err = verifyNoUncappedProcesses(p.PoolCgroup, "/sys/fs/cgroup", "/proc"); err != nil {
++		return err
++	}
++	// Adoption is non-destructive, but old guests outside the protected slice
++	// block new sales until migrated through a controlled restart.
++	for _, v := range s.vms {
++		if !v.holds() || v.Status == "starting" {
++			continue
++		}
++		unit := v.unit
++		if !strings.HasSuffix(unit, ".service") {
++			unit += ".service"
++		}
++		if filepath.Base(unit) != unit || unit == ".service" {
++			return fmt.Errorf("invalid held guest unit")
++		}
++		limit, e := cgroupNumber("/sys/fs/cgroup", filepath.Join(p.PoolCgroup, unit), "memory.max")
++		if e != nil || limit != int64(v.reservation().MemMiB)*mib {
++			return fmt.Errorf("a held guest is outside the reserved pool or has a changed limit")
++		}
++		minimum, e := cgroupNumber("/sys/fs/cgroup", filepath.Join(p.PoolCgroup, unit), "memory.min")
++		if e != nil || minimum < limit {
++			return fmt.Errorf("a held guest has lost its memory protection")
++		}
++	}
++	return nil
++}
+diff --git a/isolation/m4/guestd/reservation_test.go b/isolation/m4/guestd/reservation_test.go
+new file mode 100644
+index 000000000..4a6313e72
+--- /dev/null
++++ b/isolation/m4/guestd/reservation_test.go
+@@ -0,0 +1,144 @@
++package main
++
++import (
++	"fmt"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++)
++
++func partitionFixture(t *testing.T) (memoryPartition, string, func(string, string, string)) {
++	t.Helper()
++	root := t.TempDir()
++	write := func(path, name, value string) {
++		t.Helper()
++		dir := filepath.Join(root, path)
++		if err := os.MkdirAll(dir, 0755); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.WriteFile(filepath.Join(dir, name), []byte(value), 0644); err != nil {
++			t.Fatal(err)
++		}
++	}
++	p := memoryPartition{Schema: 1, PoolCgroup: "/user.slice/manager/enclave.slice", BudgetMiB: 400,
++		KernelHeadroomMiB: 100, HostCapsMiB: map[string]int64{"/system.slice": 200, "/user.slice/other": 50, "/user.slice/manager/app.slice": 250}}
++	for _, path := range []string{p.PoolCgroup, "/user.slice/manager", "/user.slice"} {
++		write(path, "memory.min", fmt.Sprint(400*mib))
++		write(path, "memory.max", "max")
++	}
++	write(p.PoolCgroup, "memory.max", fmt.Sprint(400*mib))
++	write(p.PoolCgroup, "memory.swap.max", "0")
++	for path, n := range p.HostCapsMiB {
++		write(path, "memory.max", fmt.Sprint(n*mib))
++		write(path, "memory.min", "0")
++	}
++	return p, root, write
++}
++
++func TestDedicatedPartitionLeavesEntireUnusedPoolAvailable(t *testing.T) {
++	p, root, _ := partitionFixture(t)
++	if err := verifyPartition(p, root, 1000, 400); err != nil {
++		t.Fatal(err)
++	}
++	// Exactly 40% remains committed, even if EVERY outside cgroup grows to
++	// its limit. No MemAvailable sample participates in the verification.
++	if err := verifyPartition(p, root, 999, 400); err == nil {
++		t.Fatal("accepted a physically overcommitted pool")
++	}
++}
++
++func TestReservationCannotBeReplacedByAnAccountingPromise(t *testing.T) {
++	for _, scenario := range []string{"uncapped-host", "lost-parent-min", "new-host-group", "pool-too-small", "swap", "competing-min", "parent-cap", "wrong-budget", "bad-path", "stale-cap"} {
++		t.Run(scenario, func(t *testing.T) {
++			p, root, write := partitionFixture(t)
++			switch scenario {
++			case "uncapped-host":
++				write("/system.slice", "memory.max", "max")
++			case "lost-parent-min":
++				write("/user.slice", "memory.min", "0")
++			case "new-host-group":
++				write("/new.slice", "memory.max", "max")
++			case "pool-too-small":
++				write(p.PoolCgroup, "memory.max", fmt.Sprint(399*mib))
++			case "swap":
++				write(p.PoolCgroup, "memory.swap.max", "max")
++			case "competing-min":
++				write("/system.slice", "memory.min", "1")
++			case "parent-cap":
++				write("/user.slice", "memory.max", fmt.Sprint(500*mib))
++			case "wrong-budget":
++				p.BudgetMiB = 399
++			case "bad-path":
++				p.PoolCgroup = "/user.slice/../enclave.slice"
++			case "stale-cap":
++				p.HostCapsMiB["/user.slice/manager/app.slice/nested"] = 0
++				write("/user.slice/manager/app.slice/nested", "memory.max", "0")
++			}
++			if err := verifyPartition(p, root, 1000, 400); err == nil {
++				t.Fatal("unbacked reservation accepted")
++			}
++		})
++	}
++}
++
++func TestDedicatedAdmissionDoesNotDiscountHostActivity(t *testing.T) {
++	s := newServer(nil, t.TempDir())
++	s.Budget = poolBudget{MemMiB: 400, CPUPct: 100}
++	s.MemoryReservation = "/test/partition.json"
++	s.ReservationCheck = func() error { return nil }
++	s.HostFloorMiB = 16384
++	s.MemAvailable = func() (int, error) { t.Fatal("dedicated admission read live host memory"); return 0, nil }
++	if why := s.admitLocked(reservation{MemMiB: 400, CPUPct: 100}); why != nil {
++		t.Fatal(why)
++	}
++	if why := s.admitLocked(reservation{MemMiB: 401, CPUPct: 100}); why["error"] != "pool_full" {
++		t.Fatal(why)
++	}
++	// A lost enforcement configuration immediately stops sales, without
++	// changing the configured size or terminating already-held guests.
++	s.ReservationCheck = func() error { return fmt.Errorf("host limit removed") }
++	if why := s.admitLocked(reservation{MemMiB: 1, CPUPct: 1}); why["error"] != "memory_not_reserved" {
++		t.Fatal(why)
++	}
++	s.MemAvailable = func() (int, error) { return 64000, nil }
++	report := s.poolLocked()
++	if report["free"].(reservation) != (reservation{}) {
++		t.Fatal(report)
++	}
++	if report["budget"].(poolBudget).MemMiB != 400 {
++		t.Fatal("budget changed")
++	}
++	if !strings.Contains(report["memoryReservation"].(map[string]any)["reason"].(string), "removed") {
++		t.Fatal(report)
++	}
++}
++
++func TestUncappedRootUserspaceCannotBorrowIdleCapacity(t *testing.T) {
++	p, root, write := partitionFixture(t)
++	proc := t.TempDir()
++	for path := filepath.Dir(p.PoolCgroup); ; path = filepath.Dir(path) {
++		write(path, "cgroup.procs", "")
++		if path == "/" {
++			break
++		}
++	}
++	if err := os.Mkdir(filepath.Join(proc, "2"), 0755); err != nil {
++		t.Fatal(err)
++	}
++	stat := filepath.Join(proc, "2", "stat")
++	if err := os.WriteFile(stat, []byte("2 (kthreadd) S 0 0 0 0 0 2097152"), 0644); err != nil {
++		t.Fatal(err)
++	}
++	write("/", "cgroup.procs", "2")
++	if err := verifyNoUncappedProcesses(p.PoolCgroup, root, proc); err != nil {
++		t.Fatal(err)
++	}
++	// Naming a userspace process like a kernel thread grants no exemption.
++	if err := os.WriteFile(stat, []byte("2 (kthreadd) S 0 0 0 0 0 4194304"), 0644); err != nil {
++		t.Fatal(err)
++	}
++	if err := verifyNoUncappedProcesses(p.PoolCgroup, root, proc); err == nil {
++		t.Fatal("uncapped userspace accepted")
++	}
++}
+diff --git a/isolation/m4/guestd/server.go b/isolation/m4/guestd/server.go
+index 5ba8c9b46..911a4d0f2 100644
+--- a/isolation/m4/guestd/server.go
++++ b/isolation/m4/guestd/server.go
+@@ -186,13 +186,15 @@ type server struct {
+ 	freedCIDs                                            map[uint32]time.Time // recently freed CIDs, quarantined (release.go)
+ 	held                                                 int                  // ticket connections held now (release.go maxHeld)
+ 	// HostFloorMiB: a create must leave the host at least this much MemAvailable (pool.go); 0 = off
+-	HostFloorMiB int
+-	MemAvailable func() (int, error)            // tests; nil = /proc/meminfo
+-	UnitMem      func(unit string) (int, error) // tests; nil = the unit's cgroup memory.current (pool.go)
+-	mu           sync.Mutex
+-	vms          map[string]*vm
+-	lastBeat     time.Time // zero = never heard one: the lease is INERT
+-	launching    sync.WaitGroup
++	HostFloorMiB      int
++	MemoryReservation string                         // administrator-installed cgroup partition; required by the production CLI
++	ReservationCheck  func() error                   // tests; nil = verify the live kernel partition
++	MemAvailable      func() (int, error)            // tests; nil = /proc/meminfo
++	UnitMem           func(unit string) (int, error) // tests; nil = the unit's cgroup memory.current (pool.go)
++	mu                sync.Mutex
++	vms               map[string]*vm
++	lastBeat          time.Time // zero = never heard one: the lease is INERT
++	launching         sync.WaitGroup
+ }
+ 
+ func newServer(l Launcher, root string) *server {
+diff --git a/isolation/m4/memory-reservation/README.md b/isolation/m4/memory-reservation/README.md
+new file mode 100644
+index 000000000..8529c799e
+--- /dev/null
++++ b/isolation/m4/memory-reservation/README.md
+@@ -0,0 +1,114 @@
++# Dedicated enclave memory
++
++A RAM budget is a commitment, including while the pool is idle. The former
++ledger counted guest ceilings but did not reserve RAM. Unrelated host work could
++consume the unused pool, and the host-memory guard discounted availability.
++
++The new manager runs as a dedicated non-login account under system
++`enclave.slice`. Its guests run in its user manager's own `enclave.slice`.
++Every outside cgroup branch has a hard limit. The sum of those limits, the full
++guest budget, and explicit kernel headroom must fit physical RAM. The protection
++chain and guest limits are verified against the kernel before every admission
++and capacity report. Ordinary users and future sessions share the single host
++`user.slice` limit. **MemoryMin alone does not reserve an idle pool.**
++
++Production guestd requires the administrator-owned
++`/etc/enclave/memory-reservation.json`. Missing or changed enforcement makes
++new capacity zero, without terminating held guests or shrinking the configured
++budget. A verified partition replaces the fluctuating MemAvailable discount.
++Guest runtime/QEMU overhead still counts in the reservation ledger. CPU quota
++allocation is unchanged by this memory fix.
++
++These controls enforce ordinary process resource allocation. They do not add
++an attestation claim or prevent a privileged administrator from disabling the
++controls, powering off the host, or exhausting unaccounted kernel/device memory.
++Size the explicit kernel allowance for the actual drivers and platform. SNP
++remains the boundary protecting private guest contents from the host.
++
++## Rollout
++
++Administrator access, a dedicated account migration, and an application restart
++are required. The installer never stops production guests or migrates live
++processes. It refuses caps already below observed current host usage. Future
++host allocations exceeding a hard cap can be rejected or OOM-killed locally;
++that is how the committed enclave capacity stays available.
++
++1. Keep the old binary, script, service, templates, release pins, and identity
++   inputs available for rollback. Build the updated guestd and matching
++   `isolation/m2/run-domain.sh`. Keep measured guest inputs unchanged.
++2. Prepare the dedicated account; this does not stop or move production apps:
++
++   ```sh
++   sudo python3 partition.py prepare --user enclave-host
++   ```
++
++3. Generate/review the limits using the operator-selected 64 GiB commitment:
++
++   ```sh
++   python3 partition.py plan --user enclave-host --budget-mib 65536 \
++     --kernel-headroom-mib 8192 --output metal0-memory-plan.json
++   ```
++
++   Use sudo for planning if cgroup reads are restricted. Cap estimates are
++   suggestions: review the split between host services, ordinary user work,
++   guestd/build overhead, and other groups. Redistribute caps without increasing
++   their sum or reducing the promised pool to accommodate current host use.
++4. Stage the runtime/service for the dedicated account. Preserve firmware,
++   kernel, templates, release pins, model content, pairing key, and runtime
++   identities. Update absolute paths and HOME-based defaults. Copy keys
++   privately; do not broaden access to the desktop user's home or secrets.
++   Arrange only required KVM/vsock/SEV device permissions and the existing
++   Shield workers' shared-memory access. Keep the production pairing and local
++   ports consistent. Do not reuse the desktop account for the new manager.
++5. Before restarting, verify each app can boot with the new budget and its
++   purchased share. Lowering a pool preserves held guests, but a fresh launch
++   recalculates share-based RAM; a held reservation fitting the total is not
++   evidence that a smaller fresh guest can load its model. Keep the running app
++   until the replacement and rollback paths are validated.
++
++   Suspend the app through the normal deployment lifecycle, confirm its old
++   guest is reclaimed, then stop the old guestd. Free host working sets if
++   needed. This is a restart with ephemeral-state loss, not live migration.
++6. Install the reviewed partition:
++
++   ```sh
++   sudo python3 partition.py apply metal0-memory-plan.json --reclaim-cache
++   ```
++
++   Optional reclamation targets file cache, not anonymous memory. Existing
++   guests outside the new pool block apply. The script persists systemd
++   properties, verifies actual limits, and writes the root-owned manifest last.
++   On configuration failure it attempts to restore previous limits.
++7. Start updated guestd in the dedicated account, then resume the app. Do not
++   bind two managers to the production ports. Verify
++   `health.pool.memoryReservation.enforced == true`, the configured 65536 MiB
++   budget, guest placement, app readiness, and public availability following
++   the reservation ledger. Validate persistence at the next planned reboot.
++
++Inactive configured slices still count at their full ceilings. Unknown outside
++branches stop new admissions; an administrator adding a top-level slice must
++update the partition. Ordinary new login sessions need no manifest changes.
++
++For rollback, suspend the app and remove the manifest before restoring previous
++limits and the old manager/service account. Verify the former host-memory guard
++is active before resuming. Do not operate new guestd against an unreserved pool.
++
++## Checks
++
++```sh
++(cd isolation/m4/guestd && go test -race ./...)
++node --test test/isolation-guest-pool.test.mjs
++python3 -m unittest discover -s isolation/m4/memory-reservation -p 'test_*.py'
++```
++
++The bounded kernel test uses only its own 256 MiB service. A host test process
++is deliberately OOM-killed within its 64 MiB cap, while a 100 MiB enclave
++allocation remains intact in a separate 128 MiB group. It repeats host pressure
++with the enclave pool idle. This validates cgroup behavior, not a production SNP
++boot or reboot migration.
++
++```sh
++systemd-run --user --wait --pipe --collect \
++  -p Delegate=memory -p MemoryMax=256M -p MemorySwapMax=0 -p OOMPolicy=continue \
++  python3 /absolute/path/to/pressure_test.py
++```
+diff --git a/isolation/m4/memory-reservation/partition.py b/isolation/m4/memory-reservation/partition.py
+new file mode 100644
+index 000000000..091e8a280
+--- /dev/null
++++ b/isolation/m4/memory-reservation/partition.py
+@@ -0,0 +1,342 @@
++#!/usr/bin/env python3
++"""Plan/apply an explicit cgroup-v2 memory partition. No changes without apply.
++
++The sum of OUTSIDE hard limits + the guest pool + kernel headroom must fit RAM.
++An idle pool is protected by those outside caps, not by memory.min alone.
++Applying never stops guests, moves processes, lowers a cap below current use,
++or changes the configured size of the guest pool.
++"""
++import argparse
++import json
++import os
++from pathlib import Path
++import pwd
++import re
++import subprocess
++import sys
++
++MIB = 1 << 20
++CG = Path('/sys/fs/cgroup')
++
++
++def read_int(path):
++    value = path.read_text().strip()
++    return None if value == 'max' else int(value)
++
++
++def total_mib():
++    return next(int(line.split()[1]) // 1024 for line in Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemTotal:'))
++
++
++def manager_path(uid):
++    # A separate account/manager keeps ALL ordinary logins under user.slice,
++    # whose single outside cap also covers sessions created in the future.
++    return f'/enclave.slice/user@{uid}.service'
++
++
++def boundaries(pool, root=CG):
++    """All sibling branches on the path from the pool to the cgroup root."""
++    result = []
++    path = Path(pool)
++    while str(path) != '/':
++        parent = path.parent
++        directory = root / str(parent).lstrip('/')
++        if directory.exists():
++            result += [str(parent / p.name) for p in directory.iterdir() if p.is_dir() and p.name != path.name]
++        path = parent
++    return sorted(result)
++
++
++def held_guests(manager, root=CG):
++    return [p for p in (root / manager.lstrip('/')).glob('**/m2-gd*.service')
++            if 'populated 1' in (p / 'cgroup.events').read_text()]
++
++
++def all_guests():
++    return [p for tree in ['user.slice', 'enclave.slice'] for p in (CG / tree).glob('**/m2-gd*.service')
++            if 'populated 1' in (p / 'cgroup.events').read_text()]
++
++
++def dedicated_account(user):
++    account = pwd.getpwnam(user)
++    if account.pw_uid == 0 or account.pw_dir != '/var/lib/' + user or Path(account.pw_shell).name not in ['nologin', 'false']:
++        raise ValueError('use a dedicated non-login enclave account, not the desktop account')
++    return account
++
++
++def prepare(user):
++    """Administrator-only provisioning. Does not move/stop production apps."""
++    if os.geteuid() != 0:
++        raise ValueError('preparing the dedicated account requires administrator access')
++    if not re.fullmatch(r'[a-z][a-z0-9_-]{0,30}', user):
++        raise ValueError('invalid service account name')
++    try:
++        account = dedicated_account(user)
++    except KeyError:
++        subprocess.run(['useradd', '--system', '--create-home', '--home-dir', '/var/lib/' + user,
++                        '--shell', '/usr/bin/nologin', user], check=True)
++        account = dedicated_account(user)
++    expected = manager_path(account.pw_uid)
++    actual = subprocess.run(['systemctl', 'show', f'user@{account.pw_uid}.service', '--property=ControlGroup', '--value'],
++                            capture_output=True, text=True, check=True).stdout.strip()
++    if actual and actual != expected:
++        raise ValueError('the dedicated manager is already running in another slice; stop that manager before preparing it')
++    override = Path(f'/etc/systemd/system/user@{account.pw_uid}.service.d/60-enclave-memory.conf')
++    content = '[Service]\nSlice=enclave.slice\n'
++    if override.exists() and override.read_text() != content:
++        raise ValueError('dedicated manager override already exists with different contents')
++    override.parent.mkdir(parents=True, exist_ok=True)
++    override.write_text(content)
++    subprocess.run(['systemctl', 'daemon-reload'], check=True)
++    subprocess.run(['loginctl', 'enable-linger', user], check=True)
++    subprocess.run(['systemctl', 'start', f'user@{account.pw_uid}.service'], check=True)
++    units = Path(account.pw_dir) / '.config/systemd/user'
++    units.mkdir(parents=True, exist_ok=True)
++    for directory in [units.parent.parent, units.parent, units]:
++        os.chown(directory, account.pw_uid, account.pw_gid)
++    content = '[Unit]\nDescription=Dedicated enclave memory pool\n\n[Slice]\nMemoryAccounting=yes\n'
++    destination = units / 'enclave.slice'
++    if destination.exists() and destination.read_text() != content:
++        raise ValueError('existing enclave.slice has different contents')
++    destination.write_text(content)
++    os.chown(destination, account.pw_uid, account.pw_gid)
++    # The actual guestd service and runtime assets are migrated separately.
++    # This dependency brings the empty reserved pool up BEFORE admission after
++    # reboot, so verification cannot get stuck waiting for the first guest.
++    dep = units / 'enclave-guestd.service.d/60-memory-reservation.conf'
++    dep.parent.mkdir(parents=True, exist_ok=True)
++    os.chown(dep.parent, account.pw_uid, account.pw_gid)
++    dependency = '[Unit]\nRequires=enclave.slice\nAfter=enclave.slice\n'
++    if dep.exists() and dep.read_text() != dependency:
++        raise ValueError('existing guestd memory dependency has different contents')
++    dep.write_text(dependency)
++    os.chown(dep, account.pw_uid, account.pw_gid)
++    subprocess.run(['runuser', '-u', user, '--', 'env', f'XDG_RUNTIME_DIR=/run/user/{account.pw_uid}',
++                    f'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{account.pw_uid}/bus',
++                    'systemctl', '--user', 'daemon-reload'], check=True)
++    for unit in ['enclave.slice', 'app.slice']:
++        systemctl(account, expected, expected + '/' + unit, 'start')
++    print(f'Prepared {user}: {expected}. Production deployments have not been moved or stopped.')
++
++
++def working_mib(path):
++    """Planning estimate only; apply checks actual usage before each limit."""
++    stat = dict(line.split() for line in (path / 'memory.stat').read_text().splitlines())
++    reclaimable = int(stat.get('active_file', 0)) + int(stat.get('inactive_file', 0))
++    return max(0, (read_int(path / 'memory.current') - reclaimable + MIB - 1) // MIB)
++
++
++def make_plan(user, budget, kernel):
++    account = dedicated_account(user)
++    manager = manager_path(account.pw_uid)
++    pool = manager + '/enclave.slice'
++    if not (CG / manager.lstrip('/')).is_dir():
++        raise ValueError('dedicated manager is not prepared; run the administrator prepare command first')
++    guests = all_guests()
++    caps = {}
++    for branch in boundaries(pool):
++        directory = CG / branch.lstrip('/')
++        used = working_mib(directory)
++        # Existing production guests will be restarted into the new pool. Do
++        # not count them a second time in the host-side planning estimate.
++        used -= sum(working_mib(g) for g in guests if g.is_relative_to(directory))
++        used = max(0, used)
++        caps[branch] = max(128, used + max(128, (used + 9) // 10))
++        if branch == '/system.slice':
++            caps[branch] = max(caps[branch], 2048)
++        if branch == manager + '/app.slice':
++            caps[branch] = max(caps[branch], 1024) # guestd/build/control overhead, outside the sold pool
++    room = total_mib() - budget - kernel
++    if budget <= 0 or kernel <= 0 or room <= 0:
++        raise ValueError('pool plus kernel headroom leaves no host memory')
++    # ALL ordinary desktop/build/login workloads live here. Give them the remaining host
++    # budget; operators can redistribute caps without changing their SUM.
++    ordinary = '/user.slice'
++    if ordinary not in caps:
++        raise ValueError('expected host user.slice is missing; supply an explicit topology after reviewing this host')
++    needed = sum(caps.values())
++    caps[ordinary] += room - sum(caps.values())
++    if caps[ordinary] <= 0:
++        raise ValueError('other host groups exhaust the remaining memory; an explicit redistribution is required')
++    if needed > room:
++        print(f'NOT READY: current host working sets plus planning margins need {needed-room} MiB more than their proposed limits. Free host memory before applying; the enclave commitment stays {budget} MiB.', file=sys.stderr)
++    return {'schema': 1, 'user': user, 'poolCgroup': pool, 'budgetMiB': budget,
++            'kernelHeadroomMiB': kernel, 'hostCapsMiB': caps}
++
++
++def validate(plan):
++    if plan.get('schema') != 1:
++        raise ValueError('unsupported partition schema')
++    user = dedicated_account(plan['user'])
++    manager = manager_path(user.pw_uid)
++    if plan['poolCgroup'] != manager + '/enclave.slice':
++        raise ValueError('pool must be this account’s enclave.slice')
++    values = [plan['budgetMiB'], plan['kernelHeadroomMiB'], *plan['hostCapsMiB'].values()]
++    if any(type(n) is not int or n < 0 for n in values) or min(values[:2]) <= 0:
++        raise ValueError('memory sizes must be whole nonnegative MiB; pool and kernel headroom must be positive')
++    if sum(values) > total_mib():
++        raise ValueError('host limits would consume the committed enclave pool')
++    actual = boundaries(plan['poolCgroup'])
++    if any(p not in plan['hostCapsMiB'] for p in actual) or any(
++            p not in actual and (CG / p.lstrip('/')).exists() for p in plan['hostCapsMiB']):
++        raise ValueError('cgroup boundaries changed; regenerate/review the plan')
++    return user, manager
++
++
++def systemctl(user, manager, path, *args):
++    unit = Path(path).name
++    command = ['systemctl', '--no-ask-password']
++    if path.startswith(manager + '/'):
++        command = ['runuser', '-u', user.pw_name, '--', 'env', f'XDG_RUNTIME_DIR=/run/user/{user.pw_uid}',
++                   f'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{user.pw_uid}/bus', *command, '--user']
++    subprocess.run([*command, *args, unit], check=True, stdout=subprocess.DEVNULL)
++
++
++def properties(user, manager, path, entries):
++    unit = Path(path).name
++    command = ['systemctl', '--no-ask-password']
++    if path.startswith(manager + '/'):
++        command = ['runuser', '-u', user.pw_name, '--', 'env', f'XDG_RUNTIME_DIR=/run/user/{user.pw_uid}',
++                   f'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{user.pw_uid}/bus', *command, '--user']
++    subprocess.run([*command, 'set-property', unit, *entries], check=True, stdout=subprocess.DEVNULL)
++
++
++def verify(plan):
++    _, _ = validate(plan)
++    budget = plan['budgetMiB'] * MIB
++    path = Path(plan['poolCgroup'])
++    below = 0
++    while str(path) != '/':
++        directory = CG / str(path).lstrip('/')
++        minimum = read_int(directory / 'memory.min')
++        maximum = read_int(directory / 'memory.max')
++        if minimum is None or minimum < budget:
++            raise ValueError(f'{path}: missing memory.min protection')
++        if maximum is not None and maximum < budget + below:
++            raise ValueError(f'{path}: ancestor limit restricts the committed pool')
++        if str(path) == plan['poolCgroup']:
++            if maximum != budget or read_int(directory / 'memory.swap.max') != 0:
++                raise ValueError('pool needs its exact hard limit and swap disabled')
++        below += sum(n * MIB for p, n in plan['hostCapsMiB'].items() if Path(p).parent == path.parent)
++        path = path.parent
++    for branch, n in plan['hostCapsMiB'].items():
++        directory = CG / branch.lstrip('/')
++        if not directory.exists():
++            continue # its full cap still counts; check it when systemd recreates it
++        maximum = read_int(directory / 'memory.max')
++        if maximum is None or maximum > n * MIB or read_int(directory / 'memory.min') != 0:
++            raise ValueError(f'{branch}: outside limit is not enforced')
++
++
++def apply(plan, reclaim):
++    if os.geteuid() != 0:
++        raise ValueError('apply requires administrator access; plan and verify are read-only')
++    user, manager = validate(plan)
++    outside = [str(p) for p in all_guests() if not p.is_relative_to(CG / plan['poolCgroup'].lstrip('/'))]
++    if outside:
++        raise ValueError('restart migration required: production guests still run outside enclave.slice; no limits changed')
++    # Preflight all host limits before writing any configuration. Reclaim only
++    # file cache, if explicitly requested. Never set a limit that may OOM-kill
++    # an existing host workload simply to make the plan fit.
++    for branch, n in plan['hostCapsMiB'].items():
++        directory = CG / branch.lstrip('/')
++        excess = read_int(directory / 'memory.current') - n * MIB
++        if excess > 0 and reclaim:
++            try:
++                (directory / 'memory.reclaim').write_text(f'{excess} swappiness=0')
++            except OSError:
++                pass
++        if read_int(directory / 'memory.current') > n * MIB:
++            raise ValueError(f'{branch} currently exceeds its {n} MiB host limit; free host memory or review its cap; no limits changed')
++    config = Path('/etc/enclave/memory-reservation.json')
++    if config.exists():
++        raise ValueError('a memory partition is already installed; review/reconfigure it explicitly')
++    units = Path(user.pw_dir) / '.config/systemd/user'
++    slice_file = units / 'enclave.slice'
++    slice_content = '[Unit]\nDescription=Dedicated enclave memory pool\n\n[Slice]\nMemoryAccounting=yes\n'
++    if slice_file.exists() and slice_file.read_text() != slice_content:
++        raise ValueError('enclave.slice already exists; review it before replacing its configuration')
++    units.mkdir(parents=True, exist_ok=True)
++    slice_file.write_text(slice_content)
++    os.chown(slice_file, user.pw_uid, user.pw_gid)
++    subprocess.run(['runuser', '-u', user.pw_name, '--', 'env', f'XDG_RUNTIME_DIR=/run/user/{user.pw_uid}',
++                    f'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{user.pw_uid}/bus',
++                    'systemctl', '--user', 'daemon-reload'], check=True)
++    systemctl(user, manager, plan['poolCgroup'], 'start')
++    changed = []
++    try:
++        # Outside ceilings first: nothing is advertised until all enforcement
++        # is installed and verified. The manifest is the last write.
++        assignments = [(p, {'MemoryMax': n*MIB, 'MemoryMin': 0}) for p, n in plan['hostCapsMiB'].items()]
++        path = Path(plan['poolCgroup'])
++        while str(path) != '/':
++            props = {'MemoryMin': plan['budgetMiB']*MIB}
++            if str(path) == plan['poolCgroup']:
++                props.update(MemoryMax=plan['budgetMiB']*MIB, MemorySwapMax=0)
++            assignments.append((str(path), props))
++            path = path.parent
++        files = {'MemoryMax': 'memory.max', 'MemoryMin': 'memory.min', 'MemorySwapMax': 'memory.swap.max'}
++        for path, props in assignments:
++            directory = CG / path.lstrip('/')
++            old = {key: read_int(directory / files[key]) for key in props}
++            # Recheck immediately before lowering a cap; no background host
++            # growth observed since preflight is silently squeezed out.
++            if 'MemoryMax' in props and read_int(directory / 'memory.current') > props['MemoryMax']:
++                raise ValueError(f'{path}: usage grew past its proposed cap')
++            changed.append((path, old))
++            properties(user, manager, path, [f'{k}={v}' for k, v in props.items()])
++        verify(plan)
++        config.parent.mkdir(parents=True, exist_ok=True)
++        temp = config.with_suffix('.tmp')
++        temp.write_text(json.dumps(plan, indent=2) + '\n')
++        os.chmod(temp, 0o644)
++        os.replace(temp, config)
++    except BaseException:
++        for path, props in reversed(changed):
++            try:
++                properties(user, manager, path, [f'{k}={"infinity" if v is None else v}' for k, v in props.items()])
++            except subprocess.CalledProcessError:
++                print(f'ROLLBACK REQUIRED: restore {path}: {props}', file=sys.stderr)
++        # A failed setup never leaves a certificate claiming the pool exists.
++        raise
++    print('Installed and verified the fixed memory partition. Start the updated guestd and restart migrated guests into enclave.slice.')
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    sub = parser.add_subparsers(dest='action', required=True)
++    p = sub.add_parser('prepare')
++    p.add_argument('--user', default='enclave-host')
++    p = sub.add_parser('plan')
++    p.add_argument('--user', required=True)
++    p.add_argument('--budget-mib', type=int, required=True)
++    p.add_argument('--kernel-headroom-mib', type=int, default=8192)
++    p.add_argument('--output', type=Path, required=True)
++    for action in ['verify', 'apply']:
++        p = sub.add_parser(action)
++        p.add_argument('plan', type=Path)
++        if action == 'apply':
++            p.add_argument('--reclaim-cache', action='store_true')
++    args = parser.parse_args()
++    try:
++        if args.action == 'prepare':
++            prepare(args.user)
++        elif args.action == 'plan':
++            plan = make_plan(args.user, args.budget_mib, args.kernel_headroom_mib)
++            args.output.write_text(json.dumps(plan, indent=2) + '\n')
++            print(f'Plan saved: {args.output}; enclave {plan["budgetMiB"]} MiB, host caps {sum(plan["hostCapsMiB"].values())} MiB, kernel headroom {plan["kernelHeadroomMiB"]} MiB. No host settings changed.')
++        else:
++            plan = json.loads(args.plan.read_text())
++            if args.action == 'verify':
++                verify(plan)
++                print('Kernel memory partition verified.')
++            else:
++                apply(plan, args.reclaim_cache)
++    except (ValueError, OSError, KeyError, subprocess.CalledProcessError) as exc:
++        print(f'ERROR: {exc}', file=sys.stderr)
++        return 1
++    return 0
++
++
++if __name__ == '__main__':
++    sys.exit(main())
+diff --git a/isolation/m4/memory-reservation/pressure_test.py b/isolation/m4/memory-reservation/pressure_test.py
+new file mode 100644
+index 000000000..fe0fea0e0
+--- /dev/null
++++ b/isolation/m4/memory-reservation/pressure_test.py
+@@ -0,0 +1,78 @@
++#!/usr/bin/env python3
++"""Bounded kernel integration test: run only inside a dedicated 256 MiB test service.
++
++systemd-run --user --wait --pipe --collect -p Delegate=memory -p MemoryMax=256M \
++  -p MemorySwapMax=0 -p OOMPolicy=continue python3 /absolute/path/pressure_test.py
++"""
++import os
++from pathlib import Path
++import subprocess
++import sys
++
++MIB = 1 << 20
++
++
++def cgroup():
++    return Path('/sys/fs/cgroup') / next(line[3:] for line in Path('/proc/self/cgroup').read_text().splitlines() if line.startswith('0::')).lstrip('/')
++
++
++def worker(directory, count):
++    (Path(directory) / 'cgroup.procs').write_text(str(os.getpid()))
++    buf = bytearray(count * MIB)
++    for i in range(0, len(buf), 4096):
++        buf[i] = 91
++    print('allocated', flush=True)
++    sys.stdin.readline()
++    assert all(buf[i] == 91 for i in range(0, len(buf), 4096))
++    print('contents intact', flush=True)
++
++
++def main():
++    if len(sys.argv) > 1:
++        worker(sys.argv[1], int(sys.argv[2]))
++        return
++    root = cgroup()
++    if (root / 'memory.max').read_text().strip() != str(256*MIB) or 'memory' not in (root / 'cgroup.controllers').read_text().split():
++        raise RuntimeError('requires its own delegated service with MemoryMax=256M')
++    control = root / 'control'
++    control.mkdir()
++    (control / 'cgroup.procs').write_text(str(os.getpid()))
++    (root / 'cgroup.subtree_control').write_text('+memory')
++    host, pool = root / 'host', root / 'pool'
++    for directory, cap in [(host, 64), (pool, 128)]:
++        directory.mkdir()
++        (directory / 'memory.max').write_text(str(cap*MIB))
++        (directory / 'memory.swap.max').write_text('0')
++        (directory / 'memory.oom.group').write_text('1')
++    (pool / 'memory.min').write_text(str(128*MIB))
++    processes = []
++    try:
++        enclave = subprocess.Popen([sys.executable, __file__, str(pool), '100'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
++        processes.append(enclave)
++        assert enclave.stdout.readline().strip() == 'allocated'
++        outside = subprocess.Popen([sys.executable, __file__, str(host), '100'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
++        processes.append(outside)
++        out, err = outside.communicate('', timeout=15)
++        assert outside.returncode != 0, (out, err)
++        events = dict(line.split() for line in (host / 'memory.events').read_text().splitlines())
++        assert int(events['oom_kill']) >= 1, events
++        result, err = enclave.communicate('\n', timeout=15)
++        assert enclave.returncode == 0 and 'contents intact' in result, (result, err)
++        # When the guest ends, its capacity remains unavailable to the host:
++        # the outside ceiling does not expand just because the pool is idle.
++        outside = subprocess.Popen([sys.executable, __file__, str(host), '100'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
++        processes.append(outside)
++        outside.communicate('', timeout=15)
++        assert outside.returncode != 0
++        events2 = dict(line.split() for line in (host / 'memory.events').read_text().splitlines())
++        assert int(events2['oom_kill']) > int(events['oom_kill'])
++        print('PASS: host over-allocation stopped with pool active AND idle; 100 MiB enclave contents survived host pressure. Test envelope: 256 MiB.')
++    finally:
++        for process in processes:
++            if process.poll() is None:
++                process.kill()
++                process.wait()
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/isolation/m4/memory-reservation/test_partition.py b/isolation/m4/memory-reservation/test_partition.py
+new file mode 100644
+index 000000000..40f518c34
+--- /dev/null
++++ b/isolation/m4/memory-reservation/test_partition.py
+@@ -0,0 +1,103 @@
++import importlib.util
++from pathlib import Path
++import tempfile
++from types import SimpleNamespace
++import unittest
++from unittest.mock import patch
++
++spec = importlib.util.spec_from_file_location('partition', Path(__file__).with_name('partition.py'))
++p = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(p)
++
++
++class PartitionTests(unittest.TestCase):
++    def fixture(self):
++        temp = tempfile.TemporaryDirectory()
++        self.addCleanup(temp.cleanup)
++        root = Path(temp.name)
++        manager = '/enclave.slice/user@991.service'
++        pool = manager + '/enclave.slice'
++        plan = {'schema': 1, 'user': 'enclave-host', 'poolCgroup': pool, 'budgetMiB': 400,
++                'kernelHeadroomMiB': 100, 'hostCapsMiB': {'/system.slice': 100, '/user.slice': 300, manager + '/app.slice': 100}}
++        def write(path, name, value):
++            d = root / path.lstrip('/')
++            d.mkdir(parents=True, exist_ok=True)
++            (d / name).write_text(str(value))
++        for path in [pool, manager, '/enclave.slice']:
++            write(path, 'memory.min', 400*p.MIB)
++            write(path, 'memory.max', 'max')
++        write(pool, 'memory.max', 400*p.MIB)
++        write(pool, 'memory.swap.max', 0)
++        for path, cap in plan['hostCapsMiB'].items():
++            write(path, 'memory.max', cap*p.MIB)
++            write(path, 'memory.min', 0)
++        self.enterContext(patch.object(p, 'CG', root))
++        # Default arguments capture constants, so explicitly point the walker
++        # at this fixture while keeping the production walker itself tested.
++        walker = p.boundaries
++        self.enterContext(patch.object(p, 'boundaries', lambda path: walker(path, root)))
++        self.enterContext(patch.object(p, 'total_mib', lambda: 1000))
++        self.enterContext(patch.object(p, 'dedicated_account', lambda _: SimpleNamespace(pw_uid=991)))
++        return plan, write, root
++
++    def test_verified_partition(self):
++        plan, _, _ = self.fixture()
++        p.verify(plan)
++
++    def test_new_login_stays_inside_host_cap(self):
++        plan, write, _ = self.fixture()
++        write('/user.slice/user-1001.slice/session-c8.scope', 'memory.max', 'max')
++        # New host users/sessions need no per-session plan update. Their
++        # combined allocation is bounded by the ONE user.slice cap.
++        p.verify(plan)
++
++    def test_new_uncapped_root_branch_refuses_verification(self):
++        plan, write, _ = self.fixture()
++        write('/unexpected.slice', 'memory.max', 'max')
++        with self.assertRaisesRegex(ValueError, 'boundaries changed'):
++            p.verify(plan)
++
++    def test_host_caps_cannot_spend_the_pool(self):
++        plan, _, _ = self.fixture()
++        plan['hostCapsMiB']['/user.slice'] += 1
++        with self.assertRaisesRegex(ValueError, 'committed enclave pool'):
++            p.verify(plan)
++
++    def test_manifest_without_kernel_enforcement_is_not_enough(self):
++        plan, write, _ = self.fixture()
++        write('/user.slice', 'memory.max', 'max')
++        with self.assertRaisesRegex(ValueError, 'outside limit'):
++            p.verify(plan)
++
++    def test_absent_mount_keeps_its_budget_reserved(self):
++        plan, _, _ = self.fixture()
++        plan['hostCapsMiB']['/inactive.mount'] = 0
++        p.verify(plan)
++
++    def test_apply_requires_administrator(self):
++        self.enterContext(patch.object(p.os, 'geteuid', lambda: 1000))
++        with self.assertRaisesRegex(ValueError, 'administrator'):
++            p.apply({}, False)
++
++    def test_apply_does_not_stop_existing_guests(self):
++        plan, write, root = self.fixture()
++        write('/user.slice/user-1000.slice/app.slice/m2-gdold.service', 'cgroup.events', 'populated 1')
++        self.enterContext(patch.object(p.os, 'geteuid', lambda: 0))
++        run = self.enterContext(patch.object(p.subprocess, 'run'))
++        with self.assertRaisesRegex(ValueError, 'restart migration required'):
++            p.apply(plan, False)
++        run.assert_not_called()
++
++    def test_apply_refuses_to_squeeze_existing_host_work(self):
++        plan, write, _ = self.fixture()
++        for path, cap in plan['hostCapsMiB'].items():
++            write(path, 'memory.current', (cap + 1)*p.MIB)
++        self.enterContext(patch.object(p.os, 'geteuid', lambda: 0))
++        run = self.enterContext(patch.object(p.subprocess, 'run'))
++        with self.assertRaisesRegex(ValueError, 'currently exceeds'):
++            p.apply(plan, False)
++        run.assert_not_called()
++
++
++if __name__ == '__main__':
++    unittest.main()
+-- 
+2.56.0
+

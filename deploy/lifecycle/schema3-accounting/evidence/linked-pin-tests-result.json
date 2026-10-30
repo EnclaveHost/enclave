@@ -1,0 +1,15 @@
+{
+  "exitCode": 0,
+  "qualification": "pure linking/mock snapshot tests only; no live chain authority",
+  "sourceHashes": {
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/candidate/network/lifecycle-linked-artifacts.mjs": "d9ad52648cf5bda505d2ccebb8a6ea49fb3bc682a7fd0d431d1f5def372808cf",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/candidate/test-js/lifecycle-linked-artifacts.test.mjs": "e2dcb7d9671c1d28fada5f92fc750d2bdfad1e257fcbf3e657dc207a2b96cff9"
+  },
+  "sourcesUnchanged": true,
+  "command": [
+    "node",
+    "--test",
+    "--test-concurrency=1",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-ledger-v3-r1/candidate/test-js/lifecycle-linked-artifacts.test.mjs"
+  ]
+}

@@ -1,129 +1,430 @@
 # pVM CPU: the phone tier
 
-**pVM CPU** is the platform's inference engine running **entirely on the CPU inside an Android protected VM** (AVF/pKVM) on
-the owner's phone. The model, the prompt, the context and the output never leave the VM; the Android host cannot read the
-VM's memory. There is no TPU, NPU or GPU in the product path: the masked-TPU lane was closed at 2.4-2.6 tok/s against the
-15 tok/s required before TPU acceleration is exposed (TPU.md, Status), and nothing of it is carried by this tier.
+**pVM CPU** runs **CPU-only workloads**, portable WebAssembly components, inside an **Android protected VM**
+(AVF/pKVM) on the owner's phone. The component, its requests and its answers never leave the VM in the clear; the Android
+host cannot read the VM's memory. **There is no model, no accelerator and no model requirement** (Steven, 2026-10-08:
+"pVMs are only supposed to accept CPU only workloads"). The tier was first built as an LLM-on-CPU lane (Gemma 4 E2B under
+llama.cpp, then the same model behind wasi:nn). That lane is retired; its lab history is kept below, marked as such.
 
 Its visual identity is **orange**: the design system's amber (`--amber #FF914D`, site/css/src/tokens.css), always paired with
 its name ("pVM CPU" / "pvm cpu"), never colour alone. On the phone the app shows the label from the build's measured
-`assets/tier`; on the site the listing badge is rendered from the relay's verified verdict (site handoff, below). Neither
-label is evidence: admission is.
+`assets/tier`; on the site the listing badge is rendered from the relay's verified verdict. Neither label is evidence:
+admission is.
 
 ## What this tier is not
 
-- **Not the OS-neutral app isolation contract** (isolation/contract, isolation/DESIGN.md T0-T2). That contract hosts tenant
-  app bundles in per-app domains on servers; pVM CPU hosts the platform's own inference engine for the phone's owner. It
-  claims nothing about that contract, admits nothing for tenant app deployments (relay `computeEligible` keeps `avf` out of
-  app compute), and its evidence type is its own. (2026-10: tenant CPU-only apps now reach phones through a separate path,
-  the pVM market, one protected VM per app on per-app evidence the relay verifies: `relay/pvm-market.mjs`,
-  `relay/pvm-app-attest.mjs`. This tier's own engine evidence is unchanged.)
-- **Not a TPU tier.** No TPU/NPU library is in the build (below); the VM refuses the TPU fields.
-- **Not "confidential GPU" or "TEE CPU" in the server sense.** The boundary is pKVM's: the Android host is excluded from the
-  VM's memory; the hypervisor, Google's DICE/RKP chain and the phone's hardware are trusted.
+- **Not a model host.** The runtime links no wasi:nn and no accelerator interface, so a component importing one is
+  refused at open. The VM refuses every model line. The build refuses a model pin. The relay refuses a report that
+  names a model.
+- **Not a GPU or TPU tier.** No GPU, TPU or NPU library is in the build. A pVM runner never claims a deployment that asks
+  for a GPU share (`gpuMilli > 0`; runner/runner-agent.mjs).
+- **Not "TEE CPU" in the server sense.** The boundary is pKVM's: the Android host is excluded from the VM's memory; the
+  hypervisor, Google's DICE/RKP chain and the phone's hardware are trusted.
 
 ## The build (what runs, what does not)
 
-`ANCHOR_TIER=pvm-cpu ./build.sh anchor` produces `out/anchor-pvm-cpu.apk`, a separate APK with its own codeHash:
+`ANCHOR_TIER=pvm-cpu ANCHOR_MODE=protected ./build.sh anchor` produces `out/anchor-pvm-cpu.apk`, a separate APK with its own
+codeHash (15.5 MB):
 
 | in the build | not in the build |
 |---|---|
-| the payload `libanchor.so`, compiled with `ANCHOR_TIER_PVM_CPU` | the split engine (`libengine.so`, `libggml-shielded.so`, `model.calib`) |
-| the CPU engine: `liblocalengine.so`, `libllama.so`, `libllama-common.so`, `libggml.so`, `libggml-base.so`, `libggml-cpu-repack.so`, `libc++_shared.so` | the TPU backend `libggml-tpu.so`, the TPU worker `libanchortpu.so`, the Tensor dispatch library, the manifest's `libedgetpu_litert` declaration |
-| `assets/tier` = `pvm-cpu`, `assets/anchor.mode`, and in a protected build `assets/model.sha256` | the app-side echo/bridge diagnostics; the pad-ledger, shared-prefix and catalog pins |
+| the payload `libanchor.so`, compiled with `ANCHOR_TIER_PVM_CPU` | any engine (`liblocalengine.so`, `libllama*.so`, `libggml*.so`, `libengine.so`), `libc++_shared.so`, `model.calib` |
+| the portable runtime `libpvm_rt.so` (wasmtime 49 -> Pulley, no JIT; needs only libc/libm/libdl) | the TPU backend, worker and dispatch library |
+| `assets/tier` = `pvm-cpu`, `assets/anchor.mode` | every pin: model digest, pad ledger, shared prefix, catalogs |
 
-Inside the VM the tier is enforced, not just packaged: the payload serves **one** mode, `LOCAL` (the whole model on the VM's
-own vCPUs). Any other mode, the LOCAL line's TPU tail or benchmark links, and any pad/prefix/worker/shape control line are
-refused before anything runs (`TIER pvm-cpu refused: ...`). The app refuses the same launches first (host/app/Tier.java).
-A protected pvm-cpu build needs the **model pin only**; carrying a split-engine pin is an error (anchor_pins.c).
+Inside the VM the tier is enforced, not just packaged:
+- the payload serves **one** mode, `APP`, a verified component, and binds only its control port;
+- a `MODEL` or `LOCAL` line, an APP graph, and any pad/prefix/worker/shape line are refused before anything runs;
+- the host app refuses the same launches first (host/app/Tier.java: mode app only, and no model extra);
+- a pvm-cpu build carries no pin at all, and a model pin is refused by name (payload/anchor_pins.c;
+  cpu/test/pins-pvm-cpu-test.c).
 
-**Masking.** The pads, masks, digit split, kernel verification and repair existed to protect activations sent to an
-untrusted accelerator. In this tier no activation leaves the VM, so none of it is in the product path; the payload binary
-still contains the (unreachable, refused) split-engine code until the payload is split, noted under Gaps. What stays is what
-serves a real boundary: the attestation and its key binding, the model pin and the per-tensor verified loader, the encrypted
-store, the fail-closed evidence checks.
+The payload source still contains the research build's model and split-engine code. It is unreachable in this build
+(refused lines, unbound ports), and splitting it out of the source is a cleanup, noted under What remains.
+
+**Defaults (host/app/Main.java):**
+- a 2048 MiB VM. MEASURED: 1024 MiB aborted at the first request (results/pvm-cpu-only-20261008);
+- an encrypted store of max(256 MiB, component + 64 MiB);
+- vCPUs matching the host's topology.
+Each request runs in a fresh instance with a 256 MiB memory cap and a 60 s wall-clock deadline.
+
+## Publishing a signed Android host release
+
+From the repository root, publish the standalone, non-debuggable release APK and its matching `.idsig` to explicitly
+chosen SSH targets:
+
+```sh
+scripts/publish-android-host.sh shielded/anchor/avf/out/anchor-pvm-cpu-release.apk \
+  2026.10.20.1 --target releases-a --target releases-b --directory /srv/android
+```
+
+Use SSH configuration aliases for ports, proxies or IPv6. The script has no default server; the destination directory
+defaults to `/opt/enclave-get/android`. Each target needs SSH access, `sha256sum`, and a web server configured to serve
+that directory. APK signature, debug-mode and v4 Merkle-root checks run before any upload. Each uploaded APK's checksum
+is checked before `latest.json` is replaced; earlier versions remain available.
+
+Targets update sequentially. A failure stops the command, so already-updated targets may serve the new release while
+others retain the previous one. Inspect those targets before retrying, and avoid concurrent publication commands.
+Publishing does not alter platform admission: the admitting relays must separately trust the approved release code
+hash and signing authority. This distribution path alone does not establish independent Android host discovery or
+attestation verification.
 
 ## Capability and eligibility contract
 
-A phone is admitted as a pVM CPU host by the relay from **evidence**, never from its model name (relay/pvm-cpu-tier.mjs,
-`admitPvmCpu`). All of the following must hold:
+A phone is admitted as a pVM CPU host by the relay from **evidence** (relay/pvm-cpu-tier.mjs, `admitPvmCpu`). All of the
+following must hold:
 
 1. **Attested VM.** The AVF attestation chain verifies to a pinned Google attestation root (relay/avf-verify.mjs), the
    challenge is this attach's, and `isVmSecure` is true (protected VM, no debuggable or unverified DICE link).
-2. **The pvm-cpu build.** The APK component's `codeHash` is an admitted pvm-cpu build (`PVM_CPU_CODE_HASHES`, from pins.py)
-   and its `authorityHash` a pinned signing authority. The research build is a different codeHash and is never this tier.
-3. **Bound capability report.** Produced inside the VM after the model loaded, signed by the VM's attested transport key
-   (the Ed25519 key the `android-avf-pvm/v2` transcript binds) over `enclave-pvm-cpu-caps-v1\n || report`, and naming this
-   attach's nonce. Strict schema: tier, build mode, model digest/size/ctx, VM threads and memory, a fixed self-test's
-   prefill and decode rates and output digest, the VM clock at attach and at report, and the device name.
-4. **Protected build.** `mode` is `protected`: the model digest is pinned in the measured APK, so the VM refuses any
-   other model before READY.
-5. **A served model, run correctly.** The model digest is on the tier's list (`PVM_CPU_MODELS`) and the self-test's output
-   digest equals that model's reference digest: the parity check, computed natively from the same engine and model.
-6. **Measured capability.** The self-test decode rate meets the model's floor and the VM's memory its minimum; the report
-   is no older than the window (default 15 minutes) and not older than the attach.
+2. **The pvm-cpu build.** The APK component's `codeHash` is an admitted pvm-cpu build (`PVM_CPU_CODE_HASHES`) and its
+   `authorityHash` a pinned signing authority. The research build is a different codeHash and is never this tier.
+3. **Bound capability report, version 2.** It is produced inside the VM at the start of the APP run and signed by the VM's
+   attested transport key (the Ed25519 key the `android-avf-pvm/v2` transcript binds) over
+   `enclave-pvm-cpu-caps-v1\n || report`. It names this attach's nonce.
+   - Its strict schema: `{v:2, tier, nonce, mode, runtime, vm{threads, mem_mib}, vm_ms, attach_vm_ms, device}`.
+   - `runtime` is the RuntimeID: the SHA-256 of pvm-rt's identity string as printed, e.g. `d3370878…` for wasmtime 49 /
+     pulley64 / no cache / W^X enforced.
+4. **Protected build.** `mode` is `protected`.
+5. **A CPU-only runtime.** `runtime` is on `PVM_CPU_RUNTIME_IDS`; the APK's codeHash pins the runtime's bytes, and the
+   runtime links no wasi:nn.
+6. **Freshness and floors.** The report is no older than the window (default 15 minutes) and not older than the attach.
+   Optional floors: `PVM_CPU_MIN_MEM_MIB`, `PVM_CPU_MIN_THREADS`.
 
-The device name in the report is shown in listings and read by no rule. A phone that passes is admitted as `pvm-cpu`, with
-its measured capability attached for routing; a phone that fails is not admitted, with reasons.
+Refused **by name** and failing closed: a version-1 report (the retired model tier's), a `models` policy, and a set
+`PVM_CPU_MODELS` (the relay then runs no pVM CPU policy at all until it is removed). The device name is shown in listings
+and read by no rule.
+
+Proven on a real phone (test/avf-real-pixel10.test.mjs): the version-2 report of 2026-10-08 is admitted. It is refused for
+another runtime, another signature, another nonce or a memory floor above the VM's.
+
+## Capacity (GFLOPS, measured)
+
+The tier's GFLOPS are measured inside the VM, under the runtime its apps get. They are never estimated from cores; the
+fleet's 62.5-per-vCPU convention describes native execution, and these apps run on the Pulley interpreter.
+- **Benchmark.** `runtime/conformance/flops-probe` performs an exactly counted number of f32x4 multiply-adds (steps × 128
+  flops). It is an APK asset, pinned beside it by `assets/flops-probe.sha256`.
+- **Run.** pvm-rt's `bench` (`pvmrt_bench`) compiles it once and runs one instance per vCPU, all released at once from a
+  barrier.
+  - The payload (`measure_gflops`) rescales the work until a run lasts at least a second.
+  - Every instance must print the same work.
+  - GFLOPS = instances × flops / wall time.
+- **Reporting.** The figure goes into the signed capability report as `gflops`, once per boot. The relay carries it to the
+  row's pool (nodeGflops, all unallocated), and the site's live-enclaves panel shows it beside RAM.
+- **Measured.** Pixel 10 Pro XL, 8 vCPUs, 2048 MiB VM: 1.43-1.65 GFLOPS (results/pvm-cpu-prod-20261008, prod-2).
 
 ## Devices
 
 | device | status |
 |---|---|
-| **Pixel 10 Pro XL** (mustang, Tensor G5, 16 GB, Android 17 CP2A.260805.005) | **validated 2026-09-23** (below): the protected pvm-cpu build runs; its AVF chain verifies to a pinned Google root with isVmSecure; its signed capability report is admitted by the relay's rules; self-test parity with native execution; the baseline under Model and settings |
+| **Pixel 10 Pro XL** (mustang, Tensor G5, 16 GB, Android 17) | **CPU-only build validated 2026-10-08** (results/pvm-cpu-only-20261008): protected build, AVF chain to a pinned Google root with isVmSecure, a v2 report admitted by the relay's rules, cpu-probe served with exact values |
 | **Pixel 10 / 10 Pro** | same SoC and AVF stack; expected to qualify, **not separately run** |
-| **Pixel 11** | **not validated.** Structured for: nothing in the build, the VM or the admission rules names a device; a Pixel 11 is admitted exactly when its evidence passes the contract above. No runtime claim, and no availability claim, until an actual Pixel 11 is run and its results recorded here. |
+| **Pixel 11** | **not validated.** Nothing in the build, the VM or the admission rules names a device; a Pixel 11 is admitted exactly when its evidence passes the contract above |
 
 Eligibility on the phone itself (`Main.gate()`): vendor API level >= 202404, protected-VM capability, remote attestation
 supported. These gate whether the app tries; the relay's contract decides admission.
 
-## Model and settings
+## Production path (2026-10-08) and serving buyers (2026-10-09)
 
-**Model: Gemma 4 E2B, Q4_0** (3,360,161,216 bytes, sha256 `5bf274a5…89fc48`), llama.cpp `ddd4ec14` with the repacking CPU
-module, 6 threads (the Tensor G5's six big cores), ctx 4096, greedy, no drafter (the MTP drafter measured slower on the CPU:
-LOCAL.md). The 27B is not a phone model: its weights alone exceed the VM's 7 GiB. Smaller models and other quantisations are
-the first optimisation lever (below), not assumed.
+- **Workloads:** CPU-only. Ledger deployments with `gpuMilli == 0`, or a GPU share whose owner (`{"gpu":{"optional":true}}`)
+  or publisher (`gpuOptional`) said the card is optional: it runs on cores, as on the CPU hosts. Nothing with a model.
+- **The release build** is `host.enclave.pvmcpu`, built with `ANCHOR_TIER=pvm-cpu ANCHOR_MODE=protected` and signed with
+  the release key `~/.config/enclave/pvm-cpu/release.jks` (password file beside it; never in git) through
+  `ANCHOR_RELEASE_KEYSTORE` / `ANCHOR_RELEASE_PASS_FILE`. It installs beside the lab app. A dev-mode build is refused by the
+  relay ("build mode dev"). nan pins it: `PVM_CPU_CODE_HASHES`, `PVM_CPU_AUTHORITY_HASHES` (the release key's authority),
+  `PVM_CPU_RUNTIME_IDS`; every rebuild changes the code hash, so the pin moves with each release.
 
-### Measured baseline, Pixel 10 Pro XL, 2026-09-23 (before any optimisation)
+### Serving buyers (the marketplace host)
 
-results/cpu-baseline-20260923 (cpu/bench-baseline.sh; every run through the fail-closed driver with GRAPHS=none; the live
-thermal trace across all of it; SUMMARY.md has every turn). The build measured is the research APK smp2 in mode local, dev
-(model hashed, unpinned); the CPU engine is the same code the pvm-cpu build ships.
+A phone is bought like any other host: it is registered on chain with the owner's price, listed with an availability pool
+and a price, takes claim hints and placement pins, claims, serves the buyer's app under a public certificate at
+`https://<label>.app.enclave.host` through TUNA, renews, proves its time and is paid.
 
-| | measured |
-|---|---|
-| cold start, launch -> first token (model cached in the encrypted store) | **88.3-90.5 s** (load 56.4-58.4 s of it; the rest VM boot and the stage re-hash) |
-| short turn (28-token prompt, 59 tokens out), 3 cold runs | decode **13.12 / 13.99 / 14.09 tok/s**, time to first token **249-283 ms**, prefill 102-117 tok/s |
-| sustained: 4 x 512 tokens back to back in one VM, 3 runs | per turn **12.4-12.6 -> 7.4-10.5 -> 6.6-6.8 -> 5.8-6.6 tok/s**; **7.55 / 7.62 / 8.44 tok/s** over the 2,048 tokens; time to first token 290 -> 990 ms |
-| CPU | 5.7-6.0 cores busy (all six threads); 406-488 core-ms per token cool, 771-991 hot |
-| thermals | short turns: status 0, BIG peaks 80-96 C, caps unthrottled. Sustained: status 1 after ~1.5 min, big-core caps down to 1.785 / 2.208 GHz (58 % of max), skin 41.2 C; the cool gate then waited 28-29 checks (~5 min) before the next run |
-| memory | VM 7,168 MiB effective (8,192 requested; the instance keeps its creation size); phone MemAvailable 1.14-1.55 GiB while it runs |
-| crash (crosvm killed mid-turn) | fail-closed: the app saw the stream reset, closed the capture `failed:no-end`, the run was refused, never scored. **No automatic restart.** Manual relaunch -> first token 89.5 s, model reused from the encrypted store (re-hashed). The driver itself waited on the dead run (fixed: lane-run2 now stops on an app-failed capture) |
-| parity, quality | self-test parity: measured on the pvm-cpu build (next). Quality on this engine and model: 22/24 automatic, 24/24 with the review rows read (results/qc7, earlier build) |
+| piece | where | what it does |
+|---|---|---|
+| VM (`serve=https-p256`) | the pVM | the deployment's options as `APPENV`/`APPWAF`/`APPEGRESS` control lines (held in memory, checked by `pvm-rt` parse_env and waf.rs); serves the app with TLS 1.3 under a P-256 key derived from the instance secret for THIS app and deployment; v4 evidence binds that key (the attested transport key signs it); answers `/.well-known/enclave-attestation` and `/.well-known/enclave-ready` on the app's own TLS port; `CSR`/`CERT` on the evidence endpoint; one thread per connection |
+| host app (`app_tls 2`) | the phone | the launch's options file (`app_opts`: staged by the agent in the app's private files, read once and deleted); the egress pool; loopback bridges: 17786 to the TLS app port (ciphertext only), 17787 to the evidence endpoint behind `AUTH <token>` (the token is in the app's own external files dir); forwards the relay's host requests to the host agent; attach co-signature from the owner's co-signer |
+| host agent (`runner/host-agent.mjs`) | the owner's machine, beside the phone on USB | the host surface (`/availability`, `/v1/claim-hint`, `/v1/pvm/evidence`, `/v1/pvm/sibling`, `/v1/deployments[/<id>[/logs]]`); registers at the owner's price and re-states the entry on a new build or price; sweeps the ledger (`pvmClaimRefusal`, then room in the slots); fetches the component by CID, starts a slot VM sized to it with the lease's proof pins (the host's key handed over when the slot lacks it), claims, renews while proofs land, proves every 5 min, releases when the lease is over (refunding the tail) and frees the slot; resolves the app's config and secrets, stages the launch's options and serves its egress; follows config edits and share resizes on the live lease; asks the relay for the app's certificate and installs it (again after a VM relaunch; renewed 30 days before expiry); the attach co-signer for the owner's own instance |
+| relay (`relay/pvm-market.mjs`, `PVM_MARKET=1`) | nan | the row is a market host only when tiered pvm-cpu, its attach was signed by the registered operator, and its id is the registered endpoint's; each app is served (routes, `servesDeployments`, dns-01) and given a certificate only after fresh v4 evidence over the relay's own nonce, for the component the relay fetched itself by the catalog's CID, from the VM attached as this host, binding exactly that TLS key |
+| TUNA (`network/` `pvm` mode) | the owner's machine | a privacy-agent instance with the phone's runner and operator: guarded circuits in Docker forward admitted streams to the host agent's SNI router, which picks the slot VM's TLS bridge (adb forward) by the ClientHello's name; the local proof verifies the VM's evidence on the app's own TLS connection (`probeGuest` pvm branch); `runner/tuna-enroll.mjs` enrolls each served app (wallets, funding, config) |
 
-Reading: one answer of a few hundred tokens on a cool phone runs at 12-14 tok/s; the phone cannot hold that. After about a
-minute and a half of continuous decode the big cores are capped at 58 % and the same work costs twice the CPU time.
+What a buyer can buy here (the CPU hosts' terms, windows/PARITY.md, judged by `pvmClaimRefusal`): a public, approved
+catalog version that is a `wasi:http/incoming-handler` component or a socket server on ONE http port (`ports: http:8000`,
+wasi:cli/run + wasi:sockets, run as one long-lived instance on the VM's in-process loopback), within the VM's memory (the
+version's `memMb`, raised by its `cpuFallback`), with an isolation requirement absent or `avf-pvm-per-app`. With it come:
 
-### Product acceptance target
+- **its configuration**: the version's config (inline, or a rev-7 config document fetched and CID-verified), or the
+  deployment's `config` / `configCid` override, as `ENCLAVE_CONFIG`; `ENCLAVE_HOSTS`; `ENCLAVE_PORTS`/`ENCLAVE_MEM_MB`
+  for socket apps. A 64-bit memory runs (wasmtime's default features, bounds-checked in Pulley).
+- **its owner's secrets, sealed to the VM**: the relay never gives an app-evidence host's operator plaintext secrets. The
+  VM states its X25519 seal key for (app, deployment) -- derived from the instance's secret, so it survives a relaunch --
+  signed by its attested transport key over the relay's nonce (`SEALKEY` on the evidence endpoint); the relay
+  (`relay/pvm-secrets.mjs`, `POST /v1/secrets/pvm-release`, asked by the agent with the operator's signature) verifies the
+  v4 evidence and that statement, seals the secrets to the key and signs the release with its release key (keyId
+  `06212e5df9c3779a`), which this build pins. The agent and the phone carry the ciphertext (`SEALED` / `APPSEALED`); `pvm-rt`
+  (`sealed_release.rs`) checks the relay's signature first, opens the seal, checks the deployment and the names, adds them
+  to the environment and resolves `$NAME` in `ENCLAVE_CONFIG` -- inside the VM. A new claim launches without them and
+  relaunches once they are released (only when `/v1/secrets/exists` says there are any); a relaunch reuses the held
+  release; a restart or a config edit re-releases.
+- **its protection rules** (`waf`): validated by the platform's `parseWaf`, enforced in the VM's front (`pvm-rt` waf.rs:
+  methods, path and scanner blocks, user agents, body size with unsized bodies read bounded, rate and concurrency),
+  answered as the platform answers. Buckets are per deployment: the app's hostname arrives as TLS through TUNA, with no
+  client address the VM could trust.
+- **egress** (below), and **live edits**: `setConfig` relaunches the app on the new options (same lease, same key);
+  `setShares` is admitted against what the other slots hold (and relaunches only when it changes the VM's vCPUs); options
+  this host no longer applies release the lease.
 
-Measured on a Pixel 10 through the fail-closed driver, protected pvm-cpu build, every figure from COMPLETE windows:
+Not offered (refused with the reason): private deployments (no owner-session check in the VM yet), owner-attached
+domains, pending versions (`devDeploy`, private only), raw tcp/udp ports, shared-everything or cooperative threads,
+wasi 0.3, model volumes.
 
-| # | criterion | target | baseline |
+### Slots by share (2026-10-09)
+
+The phone serves several apps at once, ONE protected VM per app, each sized to what its app bought -- per-app VM isolation
+kept, nothing shared between apps but the phone.
+
+| VM | process / instance | serves | ports (phone loopback = owner's `adb forward`) |
 |---|---|---|---|
-| 1 | interactive turn (<= 512-token prompt, <= 256 tokens out, thermal status <= 1) | decode median >= 12 tok/s, p10 >= 10; time to first token p90 <= 1.0 s (warm engine) | 13.1-14.1; 249-305 ms (**meets**, cool phone) |
-| 2 | sustained 2,048 tokens back to back | >= 10 tok/s over the run and >= 8 in every 512-token window, thermal status <= 1 | 7.6-8.4, worst window 5.8, status 1 (**fails**) |
-| 3 | cold start, launch -> first token, model cached | <= 60 s; a kept-alive engine answers at target 1 | 88-91 s (**fails**) |
-| 4 | memory | VM <= 7 GiB, phone MemAvailable >= 1 GiB throughout | 7 GiB, 1.14 GiB (**meets**, no margin) |
-| 5 | crash recovery | an interrupted turn is reported failed, never as an answer; the engine is serving again within 90 s with no user action | fail-closed yes, auto-restart **no** (**fails**) |
-| 6 | parity | every boot's self-test digest equals the model's native reference | **meets** (pc-01: identical to native) |
-| 7 | quality | >= 22/24 on the 24-prompt contract set (lane-score.py), default profile | 22/24 (earlier build) |
-| 8 | trust | protected build (model pinned), chain verified to Google's roots, capability report admitted by the relay's rules | **meets offline** (pc-01); a live relay attach not yet run |
-| 9 | stability | 50 consecutive mixed turns with no engine error | not yet run |
+| host VM | `host.enclave.pvmcpu` / `pvmprod1` | the idle app; the tunnel to the relay; the host's registered proof key | 17786 app, 17787 evidence |
+| slot k (1..32) | `host.enclave.pvmcpu:slotk` (`AnchorServiceSlotK`) / `pvmprod1s<k>` | one deployment | 17786+10k app, 17787+10k evidence |
 
-Targets 2, 3 and 5 are where the work is. The levers, in order: keep one engine alive across conversations (3, and the
-cold start disappears for every turn after the first); restart a dead VM automatically (5); for sustained throughput, fewer
-threads and a lower operating point that the phone can hold, and a smaller quantisation of the same model, each measured for
-quality against target 7 (2).
+- **Sizes.** A slot VM is the app's memory (its version's `memMb`, raised by `cpuFallback`; 256 MiB when unstated; the
+  `mem=` limit of its socket server, or of each request's instance of a handler) plus 96 MiB for Microdroid, the payload
+  and the runtime, at least 192 MiB, resized with `VirtualMachine.setConfig` before each launch. Measured 2026-10-11:
+  hello-world serves at 160 MiB (55 MiB used in the guest), 192 (61) and 256 (73); a small VM costs ~130 MB of the
+  phone's memory (10 VMs at once: the host, one app and eight 192 MiB VMs, all answering).
+- **No fixed count.** The APK declares `ANCHOR_SLOTS` slot services (build.sh, default 32: Android needs every process
+  declared); the agent takes an app whenever its VM fits the memory left in `slots.poolMemMb` (4096 on the Pixel 10 Pro
+  XL) and its CPU share fits the per mille left -- with 64 MiB apps that is ~21 at once. `nodeSlotsFree` is how many
+  more smallest VMs fit. A share of at most 1/8 (`cpuMilli <= 125`) gets one vCPU, more as many as
+  the host (AVF offers only those two topologies; the share is admission and billing, not a CPU cap). The apps divide
+  the owner's pool (`slots.poolMemMb`) and 1000 per mille of CPU share: a deployment is taken only when its VM and its
+  share fit what is free. `/availability` states `slots`, `nodeSlotsFree`, `cpuShareFree`,
+  `poolMemMb`, `poolMemMbFree`; the relay shows the pool as the node's memory (`pvmCpuAvailability`, bounded at 16 GiB)
+  beside the attested host VM's vCPUs and GFLOPS.
+- **One proof key.** The ledger holds one proof key per host, and every slot signs its app's checkpoints with it. A slot
+  that does not hold it is given it by the host VM, verified IN the VM (`pvm-rt` `avf.rs`, `keygrant.rs`): the host VM's
+  single-use nonce (`KEYNONCE`); the slot's one-time X25519 key attested over `sha256(domain || nonce || key)` (`KEYREQ`);
+  the host VM verifies that chain against Google's roots and its OWN code and authority hashes (a protected VM of this very
+  build, `isVmSecure`) and seals the key to it (`KEYGRANT`); the slot opens it, checks the address the agent expects (the
+  registered key) and keeps it in its encrypted store for every later boot (`KEYINSTALL`). The agent carries bytes. A slot's
+  runner never re-keys the entry (`syncProofKey: false`); it pins its slot's instance.
+- **The relay** accepts a slot's app evidence as the host's when the slot proves the registered key: `SIBLING <nonce>`, the
+  slot's attested transport key, instance and deployment signed with the proof key, recovered to `registry.proofKey`
+  (`relay/pvm-market.mjs` `checkHostVm`, also for sealed secrets). Secrets are sealed to the slot's own seal key.
+- **The router.** The TUNA privacy agent has one app port (`pvm.appPort` = `slots.routerPort`, 17780): the host agent's
+  `runner/sni-router.mjs` reads the server name in each ClientHello and copies the ciphertext to the slot serving it.
+- **Transactions.** One operator key: the agent ticks the host runner and the slot runners in turn, and while any has a
+  transaction pending only that one is followed.
+- A slot VM is stopped by killing its own process (`run-as <pkg> kill`): the VM ends with it and the other VMs run on.
+  `am force-stop` would end them all.
+
+In production since 2026-10-09 09:40Z (build `9f38fd61…`): the served deployment `0x77e75476…` moved from the host VM to
+slot 1 (384 MiB): its key handed over in 0.3 s, its runner attesting the host's key, its secret re-sealed by the relay to
+slot 1 after the sibling check.
+
+### The Enclave app (2026-10-11)
+
+**The screen is the hosting panel (2026-10-13).** Steven: "a change to one is mirrored to the other" and "the exact same
+GUI" as the desktop app. The Enclave app's screen is `host-ui/` (the repository's), the same HTML, CSS and JavaScript the
+Windows tray shows: the Hosting switch, then Limits (one **CPU & RAM** share: a phone has no GPU to offer), Price,
+Earnings and the payout wallet, Apps, and the node's state. `host/app/Status.java` is only its shell: a WebView that
+serves the page from the APK's `assets/host-ui/` (staged by `build.sh` from every file `index.html` loads) at
+`https://hosting.enclave.example/`, and a bridge that carries the page's requests to the agent with the agent's token
+(`files/agent/hosting-admin.token`); the page never holds the token. Back closes a question, then the open section, then
+leaves the app. A lab (debuggable) build lets the page be driven over `chrome://inspect`; a release build never does.
+
+The agent answers the panel on `127.0.0.1:18191` (`standalone.mjs` `PANEL_PORT`), never on the tunnel's host surface,
+with the Windows node's local hosting API (`windows/node/hosting.mjs`, host-ui/README.md): the view says
+`device {noun: "phone"}`, `axes ["cpu"]`, `cpuLabel "CPU & RAM"`. The agent now WRITES `files/offer.json` itself (the
+screen no longer does) and reads it every round as before. The rules are the PC's: a share below what runs, or turning
+hosting off with apps here, answers `409 would_drop` with what it would stop (newest first, until what stays fits the CPU
+and the share's memory) and changes nothing until the owner confirms that list; confirmed, the round releases them (a
+final proof, then release) and keeps them from being re-claimed for 10 minutes. The price is the owner's own
+(`state/pricing.json`; the price posted before the panel existed is kept as the owner's, so no live price moves) or the
+market's default for the pVM CPU tier (`windows/node/price-guide.mjs`: the cheapest other pVM host's unit, else the
+starting unit, times this phone's pool GB and its measured GFLOPS from its relay row); the host runner re-states the
+registry entry when it changes. "Pay out now" asks the host runner to withdraw any amount with its next transaction (one
+in flight at a time), so the panel says it is pending; `DELETE /payout-wallet` pays nobody (earnings wait on the ledger,
+even with a config `payout.to`). The operator's gas is measured as the PC measures it (`windows/node/gas-runway.mjs`).
+
+The host VM runs in the app's main process, which also hosts that screen: Android brings the process back for the screen
+after an update with no VM in it, so the agent counts a VM as alive only while its own `crosvm_<instance>` runs.
+
+### Off the cable (2026-10-10)
+
+Everything between the owner's machine and the phone rides adb: the app's TLS (TUNA -> the agent's router -> `adb forward`
+-> the slot's LocalBridge), the evidence endpoint (proofs, certificates, sealed secrets), the relay's host requests and
+the attach co-signature (`adb reverse` 18187/18188), and egress (`adb reverse` 18189). With the cable out and no other
+adb transport, none of it reaches the phone: the VMs keep running, but nothing gets in or out of them.
+
+So the agent picks the transport every round (`pvm-device.mjs` `selectTransport`): USB while the cable is in -- and then
+it keeps the phone's Wi-Fi address (`state/phone-wifi.json`) and puts the phone's adbd in TCP mode (`device.wifi.port`,
+5555; once per phone boot, which restarts adbd and drops the doors for a few seconds) -- else `adb connect
+<address>:<port>`, and the doors are made on that transport (forwards re-pointed; the reverse doors, which are device-wide,
+cleared at each switch). Neither answers: the round judges no VM (a VM that cannot be asked is not a VM that ended),
+launches and takes nothing, and only the runners' chain work goes on. A launch commits its new label only once it reached
+the phone, so a round cut short never makes a serving VM look gone.
+
+Limits: the owner's machine still runs the agent, TUNA and egress, and must reach the phone's Wi-Fi address; adbd's TCP
+mode ends when the phone reboots (one plug-in restores it); a new DHCP address needs a plug-in to be learned (reserve it on
+the router); adb over TCP is key-authorized but not encrypted -- the apps' traffic inside is TLS end to end, while the
+bridge tokens and the staged options (config, sealed-secret ciphertext) cross the LAN in the clear. Android's wireless
+debugging (TLS, paired on the phone) would close that last point. Measured: the doors over Wi-Fi made in 175 ms, an app
+served (200, 0.97 s) and a proof landed through them.
+
+### Egress (2026-10-09)
+
+The VM has no network, and nothing in it can open a connection to the phone. So the phone's host app keeps idle vsock
+streams open to the VM's egress port 7790 (`host/app/EgressPool.java`); `pvm-rt` takes one per outbound connection or
+name lookup (`egress.rs`: a wasi:http app's outgoing handler; a socket app's `start-connect` and `ip-name-lookup` in
+`loopnet.rs`), writes `CONNECT <host> <port>` or `RESOLVE <name>`, and gets `OK` (the stream is then the connection),
+`OK <ip>,...`, or `ERR <reason>`. The phone carries each line to the owner's host agent (`runner/egress.mjs`, adb reverse
+18189) with the launch's random token, and the agent answers with the platform's guest-egress rules: the app's OWN TUNA
+circuits (the privacy agent's `egress-routes.json`, expiring; no direct fallback), DNS over HTTPS through the same route
+to pinned resolvers, public destinations only (a name with any private answer is refused whole; the judged literal is
+dialled), no port 25, 96 open and 2400 new connections a minute per app, the sibling circuit on failure. TLS for an https
+request is made in the VM against the public web roots: the phone, the agent and the circuit carry ciphertext, and a host
+answering with its own certificate fails the check in the VM.
+
+What is trusted: TLS ends inside the protected VM under a key only the VM holds; the phone's Android, the owner's machine,
+TUNA providers and the relay carry ciphertext. The relay and the route probe each verify the VM's own evidence (Google's
+attestation roots, the pinned build, runtime and instance) before routing or certifying. The owner holds the operator
+key and the phone; the operator is not excluded from availability (it can stop serving), only from the app's memory and
+its TLS key.
+
+First purchase (results/pvm-cpu-market-e2e-20261009): deployment `0x7f45af3e…` (hello-world 1.0.4, 25% CPU, $0.25 at
+1 µUSDC/s) pinned to `pixel10-pvm-cpu`: claimed and proved on Base, evidence verified by the relay, a ZeroSSL certificate
+for `7f45af3e.app.enclave.host` on the VM's key, a TUNA route, "Hello World!" at the public URL; then stopped by the buyer
+(the phone released and went idle) and resumed (the phone took it back and served it again).
+
+> **History.** The sections from here to "What remains" record the lab work of 2026-09-23..26 on the retired model lane:
+> wasi:nn, the llama.cpp engine, token rates, ggml-probe/stream-probe. They are kept for the record. The
+> runtime, sealed channel, ABI/2 evidence and client sections still describe live machinery. Wherever they say "model",
+> "tokens" or "decode", the CPU-only tier now serves a component's own output (cpu-probe in the tests).
+
+## The app runtime: the same portable component, compiled inside the pVM (direction 2026-09-23)
+
+**The app artifact is the portable WebAssembly component**, the same bundle every Enclave host runs; no host compiles an app
+to x86-64 or ARM64 outside a protected domain, and native code is never part of the app contract. The llama.cpp engine
+measured above is not the app: it becomes the platform's in-VM **wasi-nn** inference backend (native, in the measured APK),
+which the component calls.
+
+**JIT to ARM64 is not possible in a stock Pixel pVM** (measured: results/jit-probe-20260923). The payload's SELinux domain
+`microdroid_app` is denied `execmem`, so neither an RWX page nor the W^X route (write RW, then mprotect R+X) is allowed;
+it may not write a memfd either, and every writable filesystem it has is `noexec`. The only executable code is what the
+measured APK carries. So inside the pVM the runtime **compiles the verified component to wasmtime's portable Pulley
+bytecode and interprets it**: compilation still happens inside the protected boundary, the output is data, never native
+code, and no executable page is ever created. Where a protected domain permits executable pages (Linux guests), the same
+runtime compiles to the local ISA with Cranelift (the Windows tier now runs Hyper-V partitions with the same Linux guest;
+a VBS enclave, measured earlier, refuses executable pages just as the pVM does). One runtime
+abstraction, the execution strategy chosen per domain by a measured capability probe, and the same component everywhere.
+
+Security contract for the runtime in the pVM (each item fail-closed):
+
+| requirement | how |
+|---|---|
+| runtime and compiler inside the measured boundary | wasmtime (Cranelift -> Pulley) and the Pulley interpreter are native libraries in the measured APK; the APK's codeHash is attested |
+| bundle verified before compilation | the component's SHA-256 (and its publisher signature, when the bundle is signed) is checked inside the VM against the pin or the signed manifest before wasmtime sees a byte; a mismatch refuses |
+| W^X | no executable page is created at all (Pulley); the platform's `execmem` denial enforces it, and the runtime also refuses to start if /proc/self/maps shows any writable+executable mapping |
+| no host-supplied native code, no unverified compiled cache | deserialising precompiled modules is disabled; every component is compiled inside the VM. A compiled-artifact cache, if added, is keyed by bundle hash + runtime version + target + CPU-feature policy and MACed with a key derived from the VM's instance secret, in the VM's encrypted store; anything else is recompiled |
+| identity bound into attestation | runtime name, version, config/policy digest, execution strategy (`pulley64`), the CPU-feature policy (hwcap/hwcap2) and the bundle's SHA-256 go into the capability report the attested transport key signs over the attach nonce (relay/pvm-cpu-tier.mjs) |
+| lifecycle and limits | a Store per session with memory limits and epoch/fuel deadlines; deterministic teardown at session end; the VM's supervised restart (target 5) on death |
+| cross-platform conformance | the same component and test vectors on the Linux host (Cranelift), Linux Pulley and the Pixel pVM (Pulley): identical outputs |
+
+### Runtime milestones
+
+| # | milestone | status |
+|---|---|---|
+| 1 | `runtime/pvm-rt` (wasmtime =49.0.0, Cranelift -> Pulley) runs the conformance component inside the pVM: verify before compile, W^X, limits, deadline, the contract's identity | **PASS on the Pixel 10** (results/rt-probe-20260923; host tests `cargo test` 5/5); a 512 MiB VM aborted on memory, open |
+| 2 | the component delivered from outside the APK (streamed and verified like the drafter), and the runtime inside the anchor payload beside the engine | **PASS on the Pixel 10** (results/app-m2c, rt8: every case byte-identical; a wrong digest refused before compiling AND before any certificate. results/app-m2, rt4, is kept as recorded: its bad-digest run exposed a certificate requested before the digest check, fixed since; `test/anchor-app.test.mjs`) |
+| 3 | `wasi:nn` (ggml) backed by the in-VM llama.cpp engine, so an inference app runs unchanged | **PASS on the Pixel 10** (results/app-m3: the component's self-test digest through wasi:nn equals the engine's own, 12/12 refusals; host tests 8/8 in tests/nn.rs) |
+| 4 | `wasi:http` served over the vsock bridge | **PASS on the Pixel 10** (results/app-m4: enclave-apps' ggml-probe, unchanged, served over the verified model; host tests 4/4 in tests/httpd.rs); the relay tunnel in place of the app's test hook, and TLS into the VM, not built |
+| 5 | Bind2 in the 64-byte attestation challenge and the runtime identity + bundle hash in the capability report; the relay's ABI/2 AVF attach | **evidence verified on the Pixel 10** (results/app-m5: three apps, chain to Google's root, challenge = Bind2 \|\| AppID; `test/pvm-app-attest.test.mjs` 5/5, contract vectors byte-exact); a relay-bound nonce and the relay's attach wiring not yet (handoff) |
+| 6 | cross-domain conformance: the same vectors on Linux (Cranelift), Linux (Pulley), Windows, the pVM | host Cranelift + host Pulley + pVM Pulley agree |
+
+The compiled-module cache is **absent by construction**, not switched off: pvm-rt builds wasmtime with default features
+off and without the `cache` feature (`cargo tree -e features`; no `wasmtime-cache` in Cargo.lock), and it only ever calls
+`Component::from_binary` on the verified bytes, never `deserialize`. So `cache: "none"` in the identity does not depend on a
+flag or on HOME. `cpuFeatures: "baseline"` is literal: the engine targets `pulley64` explicitly, so Cranelift reads no host
+CPU features and the bytecode is the same on every host.
+
+For milestone 5's runtime self-test tuple (the shared judge rejects an ABI/2 document without one): wasmtime is a library
+in the payload process, so a scan of that one process is complete coverage and the tuple is `exec_pages=refused:EACCES
+wx=clean maps=1 scope=self` (jit_probe measured the EACCES). `scope=self` stops being honest if the runtime ever moves into
+a process of its own. Measured on the Pixel 10 exactly so (results/app-m5).
+
+### wasi:http in the pVM (milestone 4)
+
+An Enclave HTTP app is a `wasi:http/proxy` component; the pVM serves it unchanged. `APP ... serve=http` (payload/anchor_app.h)
+makes the payload verify, compile and pre-instantiate it once (runtime/pvm-rt `httpd.rs`: `pvmrt_http_open`), then accept
+connections on vsock 7786 one at a time and hand each to `pvmrt_http_serve_fd`, which speaks HTTP/1.1 on it (hyper) until the
+peer closes. Every request gets a fresh instance in a fresh Store (256 MiB, its own epoch deadline: 60 s, 600 s over a
+model) that is dropped when the request ends; with `graph=`, every request's wasi:nn is the same one graph, so the engine's
+single sequence is never shared between requests. The component cannot make an outgoing request (the build has no TLS
+client and `send_request` refuses; the VM has no network anyway). The server stops on the owner's `STOP`, when the control
+channel closes, or after an hour with neither a connection nor a word.
+
+The conformance app is enclave-apps' ggml-probe (runtime/conformance/bundles/ggml-probe.wasm, sha256 `1ad17b45…`, the
+bytes built from enclave-apps, not rebuilt here): `/ping`, then a greedy generation through wasi:nn. On the host it decodes
+exactly what a mock model predicts, over keep-alive, a fresh instance per request; a request past its deadline gets no answer
+and the next connection is served. On the phone the app's `--es app_http` hook sends five GETs and then STOP
+(cpu/app-http-run.sh, check-app-http.py); the product path puts the relay tunnel where that hook is, and TLS for the app
+terminates in the VM (not built: today the owner's app sees the plaintext requests, as it sees the chat).
+
+### ABI/2 for the app (milestone 5)
+
+Once the component has arrived, and before it runs, the payload (`app_attest_abi2`) measures its own code-page rights and
+asks the VM for a second AVF certificate:
+
+- the runtime self-test tuple, measured in this process: map a page RW and ask for R+X (`exec_pages=refused:EACCES` in a
+  stock Microdroid), then scan /proc/self/maps for a writable+executable mapping; any at all refuses the run.
+  `maps=1 scope=self` because the runtime is a library in this process;
+- the 64-byte challenge `Bind2 || AppID`, with Bind2 = SHA-256(`enclave-bind-v2\n` || transport SPKI || attach nonce ||
+  RuntimeID) and RuntimeID = SHA-256 of the identity exactly as printed (pvm-rt prints the contract's canonical JSON);
+- the chain as `ABI2_LINK<i>[k]` lines, apart from the attach chain, beside `ABI2 runtime`, `ABI2 selftest` and
+  `ABI2 binding`.
+
+Who states the identity matters: here it is measured code. libpvm_rt.so (whose constants `pvmrt_identity` returns) and
+the payload that computes the binding are both in the APK, and the APK's codeHash is a vmComponent of the same AVF
+certificate that carries the challenge, so an identity stated by any other runtime build comes with a different codeHash.
+(Under IGVM on the Linux lane the guest image is outside the launch measurement, and the identity there is asserted by
+unmeasured code.)
+
+`relay/pvm-app-attest.mjs` `verifyPvmAppAbi2` is the verifier. It checks the identity against the contract's rules, then
+that the identity is canonical and a pinned runtime ID, then the tuple under the shared judge's rules. It then asks
+`verifyAvfEvidence` for the challenge it recomputes from its own nonce, the transport key it holds and the app it expects:
+a restated identity, another nonce, key or app is a different challenge. The contract's `runtime.mjs` is not on main yet,
+so RuntimeID/Bind2/Validate are restated there and pinned to the contract's vectors (fb5e466c) in the test; import the
+contract once it lands. The relay's attach does not call it yet (handoff below).
+
+### wasi:nn in the pVM (milestone 3)
+
+The app reaches the model only through `wasi:nn@0.2.0-rc-2024-10-28`, the WIT the server's ggml backend
+(wasm/wasmtime-nn-ggml.patch) and ggml-probe use, with the server's verbs cut to what a portable app needs:
+`load-by-name(<graph>)`, `{"tokenize": U8}` -> `"ids"`, `{"tokens": I32 [1,n]}` -> `"logits"` (the last position),
+`{"vocab_pieces"}` -> `"bytes"` + `"offsets"`. The chain, each link fail-closed:
+
+1. The owner's launch names the graph (`--es app_graph`); the host sends the engine's LOCAL line and `APP ... graph=<name>`.
+   The payload receives the component first, then stages the model exactly as mode local does (whole-file digest against
+   the pin, then every tensor hashed before use) and loads it in the CPU engine.
+2. The engine runs the tier's capability self-test on its own path and emits the signed CAPS report, then hands the loaded
+   model to the payload as an ops table (payload/pvmrt_nn.h, the C mirror of nn.rs `NnOps`; the layout is asserted on
+   both sides) instead of opening the chat port.
+3. pvm-rt links wasi:nn only for such a run and registers exactly one graph under the APP line's name. `load` from bytes
+   is refused (a component cannot bring weights into the attested VM); an unknown name is not found; one execution context
+   at a time (`[sessions_busy]`, as the server's default); every token id range-checked; any input beside `"tokens"` other
+   than `"more"` refused rather than ignored (the server's `"all"`, `"topk"`, `"mtp"` change the answer's shape); a
+   failed decode ends its context; the sequence is cleared when a context is dropped and when the Store is dropped.
+4. The conformance component `runtime/conformance/nn-cli` (bundles/nn-v1.wasm) runs the engine's own self-test through
+   this path. Its digest must equal the CAPS report's `output_sha256` from the same VM and the same model load: parity of
+   the app path with the engine, checked by runtime/conformance/check-app-nn.py.
+
+Not in this cut: the server's speculative and prefix-cache verbs (`caps`, `all`, `topk`, `mtp_*`, `prompt`/`marks`,
+`copy_from`, `rewind`), vision, and more than one concurrent sequence. An app that needs them is refused, not misserved.
+
+Measured (results/app-m3): parity exact; the app path decodes at 10.7 tok/s against the engine's 14.0 in the same VM, the
+difference being the 262,144 logits crossing into the guest and a Pulley argmax over them each token; the server's `topk`
+verb (host-side top-k) is the remedy, not built here yet.
 
 ## On-device validation, Pixel 10 Pro XL, 2026-09-23
 
@@ -144,20 +445,353 @@ Not yet exercised on the device: a relay-bound attach (the report's nonce here i
 built on both sides and tested, not yet run against a live hub), and the payload's own refusal of a non-LOCAL run (the app
 refuses first).
 
-## Handoff: site and relay (owned by the site-refresh session)
+## Handoff (2026-09-23, 21:35): where the pVM CPU tier stands
 
-- `relay/tunnel.js` / `relay/api-relay.js`: after an AVF attach whose codeHash is in `PVM_CPU_CODE_HASHES`, accept one
-  `{t:"caps", report, sig}` frame and call `admitPvmCpu({ attach, reportBytes, signature, nonce }, pvmCpuPolicyFromEnv(env))`;
-  on `eligible`, set the row's relay-owned tier to `pvm-cpu` and add a capability-based branch to `computeEligible` for the
-  inference lane (not app deployments), with the verdict's `reasons` as the ineligible reason otherwise.
-- `site/js/core/pricing.js` / `fleet-list.js`: the amber "pvm cpu" badge only for rows whose relay-owned tier is `pvm-cpu`;
-  Pixel 11 copy stays future tense until this file records a Pixel 11 run.
+The orange **pVM CPU** tier (Tier.java; the relay-owned tier value `pvm-cpu`): CPU-only inference and apps inside the
+protected VM of a Pixel 10, no TPU/NPU anywhere in the product path. Branch `pvm-cpu/portable-runtime` (not on main).
 
-## Gaps (open, in order)
+**The app runtime and its identity.** The app is the portable WebAssembly component every Enclave domain runs (the same
+bytes: runtime/conformance/bundles). A stock pVM may not hold an executable page (execmem denied, measured), so pvm-rt
+(wasmtime =49.0.0 as a library in the measured APK) compiles the verified component to Pulley bytecode inside the VM and
+interprets it. Identity (the isolation contract's RuntimeIdentity; RuntimeID `d3370878…`):
+`{"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}`.
+Milestones M1-M5 PASS on the Pixel 10 (table above): conformance, delivery from outside the APK, wasi:nn with exact parity,
+wasi:http serving enclave-apps' ggml-probe unchanged, and the ABI/2 app attestation. One-bundle conformance: the Linux
+SNP domains and the Windows Hyper-V partitions share one guest (`wasmtime serve`, JIT, x86_64) whose common world with the
+pVM is wasi:http (their image links neither wasi:cli commands nor wasi:nn). enclave-d1's harness (isolation/conformance,
+record + compare) takes the pVM as a third column; the agreed shape is one isolation/contract/conformance/ holding both
+kinds of bundle with vectors, each backend's record declaring the worlds it runs ("not run", never a pass by omission).
 
-1. A live relay attach from the phone (both sides built and tested; not yet run against a hub).
-2. Crash recovery: the app neither restarts a dead VM nor keeps one engine across conversations (measured below).
-3. The payload binary still contains the split-engine code (unreachable in the pvm-cpu build). Split it.
-4. The signing key is the spike key (keys/anchor.jks); a release key and a non-debuggable manifest before any admission.
-5. Prompt and answer text pass through the Android app (the owner's own UI); an end-to-end channel to the VM's attested
-   key for remote use is not built.
+**ABI/2 AVF challenge and admission status.**
+
+| piece | status |
+|---|---|
+| tier admission: AVF attach (chain to Google root, isVmSecure, pinned codeHash + authority) + one signed capability report -> `admitPvmCpu` | **ADMITTED live** by the relay's own hub (results/pvm-cpu-live-attach la-04: relay nonce, codeHash = pins.py's, `tier: pvm-cpu`), after two fixes the live run found: the hub's attestation gate ignored the v2 build lists (401 for a tier-only relay; relay/tunnel.js), and the payload printed the attested-key signature with a trailing zero (rt9). The hub was local; production configuration and deployment are the owner's |
+| app attestation: second AVF certificate over `Bind2(transport SPKI, nonce, RuntimeID) \|\| AppID` + the self-test tuple | **verified by the relay's own hub over ITS fresh nonce** (LAB: results/pvm-cpu-tls-serving, two boots); earlier results (app-m5, app-m2c) carry the owner's challenge and read "binding verified" only |
+| relay verification of an app's ABI/2 | relay/tunnel.js: a fresh single-use nonce per attach (`abi2-challenge`), the `abi2` frame verified with `verifyPvmAppAbi2` against the attach's transport key, the row's `pvmApp`, raw streams (`spliceRaw`) only to a verified app -- enabled only when a hub is given `attest.pvmApp` (the lab hub); **api-relay.js does not configure it** (production) |
+| signing | spike key (keys/anchor.jks, debuggable); a release key and a non-debuggable manifest are required before any production admission (the owner's call: key custody) |
+
+**Pixel 10 results** (Pixel 10 Pro XL, Gemma 4 E2B Q4_0, protected pvm-cpu build):
+
+| measure | result | source |
+|---|---|---|
+| interactive decode | 13.1-14.1 tok/s (cool), TTFT 250-300 ms warm | cpu-baseline-20260923, pvm-cpu-p5 |
+| sustained (4 x 512 tokens) | 7.33-7.65 tok/s whatever the threads; worst turn 5.9-6.5 | pvm-cpu-threads1 |
+| thermal | status up to 1, big cores 86 C, frequency caps halved (cpu7 3.78 -> 1.92 GHz) | pvm-cpu-threads1 |
+| CPU | 4-thread decode pool (now the default): 537 vs 790 core-ms per token, same rate | pvm-cpu-threads1, pvm-cpu-d4default |
+| cold start | 88-91 s; stage 18.3 s + load 59.5 s (36.8 s of it a second read of the model) | cpu-baseline, pvm-cpu-p5 |
+| crash recovery | automatic, fail-closed; 123 s to the next first token | pvm-cpu-p5 rs-01 |
+| memory | 7,168 MiB VM, phone MemAvailable >= 1.14 GiB | cpu-baseline |
+| parity | self-test digest identical native / pVM engine / pVM app via wasi:nn | pvm-cpu-p2, app-m3 |
+| app path | wasi:nn decode 10.7 tok/s (engine 14.0) -- the logits crossing into Pulley | app-m3 |
+
+**Pixel 11: nothing is verified.** No Pixel 11 has run anything. What is structured for it: sizing from the kernel
+(DeviceProfile: cores by cpu_capacity, VM memory from RAM), admission from evidence not the device name. What is assumed
+and must be measured on one: the AVF chain's root and extension shape (Pixel 10 on Android 17 already needed an avf-verify
+fix), execmem still denied to microdroid_app (else the identity could be `jit`), the thermal envelope (sustained rate),
+the memory fit, and the rates in the capability floor.
+
+### Serving prototype (LAB, 2026-09-23): TLS terminating inside the pVM
+
+Not production: test signing, a relay hub on the bench, the phone over adb reverse. results/pvm-cpu-tls-serving (PASS, two
+boots). The app (enclave-apps' ggml-probe, unchanged) is served by pvm-rt over TLS 1.3 whose server key is the VM's attested
+Ed25519 transport key, in a self-signed certificate made in the VM (`pvmrt_https_open`; `APP ... serve=https`). The relay
+hub issues a fresh nonce at attach; the VM binds it into the app's ABI/2 evidence (`APPNONCE`); the hub verifies that
+evidence itself and publishes the app and the key; the phone's Android app forwards each relay stream to the VM's app port
+as opaque bytes, logging sizes only; the client pins the published key and writes nothing until the handshake proves it.
+Measured: 200 with 8 tokens in 794-842 ms; a wrong key refused before sending; one flipped byte refused by the VM's TLS
+(`bad_record_mac`); a replayed session and plaintext HTTP get no HTTP; after the owner's STOP the relay has no app and the
+client sends nothing; a reconnect brings a new nonce and a new key, and the old key is refused; each app counted only the
+requests that got a 200; neither the Android captures nor the relay's log hold the request or the response. Host tests:
+pvm-rt tests/httpd_tls.rs (5), tunnel.test.mjs "pvm-app (lab)" (nonce, replay, reconnect, substitution, splice, detach).
+
+### Client-verified channel (LAB, 2026-09-24): the client verifies the VM, the relay carries bytes
+
+results/pvm-cpu-client-verified (PASS, 22 checks, two boots). The serving prototype's client pinned whatever key the relay
+published, so it trusted the relay's verdict. Here the client trusts no key or verdict from the relay:
+- **Evidence on demand.** While the app is served over https, the VM answers on vsock 7787 (`EVIDENCE <64 hex>`, one line
+  in, one JSON line out; at most one answer every 2 s and 120 per session). Each answer is a fresh AVF certificate over
+  `Bind2(transport SPKI, the CLIENT's nonce, RuntimeID) || AppID`, in the closed envelope `enclave-pvm-app-evidence/v1`
+  `{format, nonce, app, spki, identity, selftest, chain}`. The relay reaches it as a raw `pvm-evidence` stream: before the
+  app is verified, only while an attested attach is up, refused after a detach. The phone's Android app maps the kind to
+  the port (RelayAttach.portOf).
+- **The client's verifier.** `relay/pvm-app-attest.mjs` `verifyPvmAppEvidence(envelope, { nonce, appId,
+  allowedRuntimeIds, allowedCodeHashes, allowedAuthorityHashes, rootPins?, now? })` is a pure function that fails closed:
+  - the shape is closed: an unknown field is refused, every field is held to its exact form, and every pin list must be
+    non-empty;
+  - the envelope's `nonce` and `app` are compared with the caller's and never used; the challenge is recomputed from the
+    caller's nonce and expected app;
+  - it returns the transport SPKI to pin only on success.
+
+  The Enclave verifier session consumes this interface as it stands (its adapter on research/independent-verifier). Its
+  gate keeps a used nonce refused and releases a native client only when that client's own TLS peer key equals the
+  returned SPKI.
+- **Then TLS.** `cpu/app-verify-client.mjs` writes the request only after the TLS 1.3 peer key equals the verified SPKI.
+- **Attacks.** A malicious relay (`cpu/evil-relay.mjs`) was refused before any request was sent in every mode but the
+  control:
+  - replayed evidence and launch 1's evidence after a reconnect: another nonce;
+  - its own key swapped into genuine evidence: the challenge does not match;
+  - a well-formed envelope from its own CA over its own key, with the pinned code hash and app: an unpinned root;
+  - its own TLS behind genuine evidence: the peer key is not the attested one.
+
+  A client expecting another app, or pinning another runtime, refuses. After STOP there is no evidence and nothing is sent.
+  A reconnect verifies with the new boot's key. The malicious relay's TLS never received a request, each app counted only
+  the requests that got a 200, and no log holds plaintext.
+- Host tests: test/pvm-app-attest.test.mjs "client-verified evidence" (key swap, other build, stale and stale-relabelled,
+  wrong or relabelled app, restated or other runtime, expiry, closed shape, fail-closed pins); tunnel.test.mjs
+  (`pvm-evidence` before app verification, unknown kinds refused).
+
+### The browser channel (LAB, 2026-09-24): a page verifies the VM and seals its request to it
+
+**Why a certificate is not the answer.** A page's JavaScript cannot see the TLS peer's certificate, so it cannot perform
+the native client's last step (pin the attested key). Changing the key type does not help:
+- a **self-signed** certificate, Ed25519 or P-256, is not browser-trusted, and a user clicking through the warning trusts
+  whoever answered;
+- a **Web PKI** certificate (ACME, any public CA) authenticates a *name*, not a VM. Whoever controls the name's DNS or its
+  ACME account can obtain a certificate for the same name, and the relay and platform are exactly the parties to exclude.
+  Certificate Transparency makes such issuance visible afterwards; it does not prevent it.
+
+An "approved certificate path" would make the browser's trust rest on the platform's issuance policy (issue only to a key
+found in verified evidence, keep the account and CAA locked to that service, and pass TLS through by SNI to the VM). That
+is a platform-trust design: sound for "the platform promises", not for "the relay is excluded". It is left as a
+production option (memory: in-enclave app TLS, app-zone SNI) and not built here.
+
+**What is built instead: an actually verified channel.** The page verifies the VM itself and encrypts to a key only that
+VM holds. The relay carries bytes both ways and can do nothing but deny service.
+1. **Evidence v2.** When the app is served (serve=https), pvm-rt makes an X25519 app key in the VM process
+   (`pvmrt_http_sealed_enable`; runtime/pvm-rt/src/sealed.rs). Each evidence answer becomes
+   `enclave-pvm-app-evidence/v2`: the v1 fields plus `appKey` and `appKeySig`. appKeySig is the attested transport key's
+   Ed25519 signature over `"enclave-pvm-app-key-v1\n" || nonce || AppID || appKey`. The two fields are mandatory in v2 and
+   forbidden in v1. A relay that strips them gets v1 evidence: it verifies, but it carries no key, so the page has nothing
+   to encrypt to and sends nothing.
+2. **The page verifies it on WebCrypto alone** (web/pvm-verify.js). The checks are the node verifier's, with parity
+   asserted case by case on the real Pixel chain and on synthetic chains (test/pvm-web-verify.test.mjs, including the
+   verifier session's adversarial cases):
+   - the chain arrives leaf first, each link is issued by the next, and the root is pinned to Google's roots;
+   - the challenge is recomputed from the page's own nonce and expected app;
+   - the runtime identity and self-test are checked;
+   - appKeySig verifies under the attested transport key.
+
+   A browser without Ed25519 or X25519 in SubtleCrypto is refused; there is no fallback.
+3. **Sealed requests** (web/pvm-sealed.js ↔ sealed.rs):
+   - HPKE (RFC 9180) base mode, X25519 / HKDF-SHA256 / AES-128-GCM;
+   - `info = "enclave-pvm-sealed-http/v1 request" || 0x00 || hdr || AppID || RuntimeID`, `aad = the evidence nonce`;
+   - the response takes the Oblivious HTTP shape (RFC 9458 section 4.4): exported secret, a fresh response nonce,
+     salt = enc || nonce;
+   - the plaintext is HTTP/1.1, fed to the same hyper service as TLS, so the app is unchanged.
+
+   The VM opens a request only under a nonce it answered this boot, within 600 s and 256 requests, and each (nonce, enc)
+   once: a replayed request is refused before it runs. When a nonce's window closes it is forgotten, so replay memory is
+   bounded by time. The app key lives for one boot. Any refusal (a one-byte, unauthenticated hint) means: fetch fresh
+   evidence and encrypt again, never re-send a ciphertext. The window constants are part of the v2 format; the verifier
+   returns them, so a client can expire its pin on its own clock.
+4. **Carriers.**
+   - The relay: tunnel.js raw stream kind `pvm-app-sealed`, allowed only for a verified app, like TLS.
+   - The phone's Android app: RelayAttach.portOf maps it to vsock 7788.
+   - The browser: the lab hub's carrier (cpu/web-carrier.mjs), `POST /evidence` and `POST /sealed`. It passes bytes, logs
+     sizes, and allows CORS for the site's origin only.
+   - The page and its pins come from the site (web/lab-site.mjs), an origin other than the relay's, under a CSP of
+     `script-src 'self'` and `connect-src` limited to the relays.
+
+Host evidence (before any device run):
+- RFC 9180's own test vector (A.1.1);
+- a cross-language vector: Rust opens the page's JS-sealed bytes, and its sealed response equals the page's expected
+  bytes (runtime/pvm-rt/tests/sealed-vectors.json, tests/sealed.rs);
+- admission, window, budget, replay, and wrong app/runtime/key/nonce;
+- a sealed request through a socketpair to the real ggml-probe component, with no plaintext on the wire or in the notes;
+- real headless Chromium 152 and Firefox 155 against a fake VM speaking the wire protocol (test/pvm-browser-lab.test.mjs).
+
+**Device evidence** (results/pvm-cpu-browser-channel, PASS, 35 checks, rt13, two boots):
+- Headless **Chromium 152** and **Firefox 155** each verified the Pixel's real v2 evidence and got 200 with 8 tokens:
+  0.7-0.8 s to fetch and verify, 1.5-1.8 s in all.
+- A malicious relay got nowhere:
+  - replayed evidence, its own app key, a v1 downgrade and a forged chain from its own CA were each refused by the page
+    before anything was sent;
+  - a flipped request was refused by the VM ("cannot open"); a flipped response did not open in the page;
+  - its second send of a page's request was refused by the VM before it ran ("replayed request");
+  - after a reconnect, the first boot's evidence and sealed request were refused (the latter by the VM: "unknown evidence
+    nonce"), and the new boot had a new app key.
+- Wrong app and wrong runtime were refused; after STOP there was no evidence and nothing was sent; the native TLS client
+  verified the same v2 evidence.
+- The apps counted only what reached them, and no log held the request or the response.
+
+Limits, exactly:
+- **Code delivery.** The page's verifier is only as trustworthy as whoever serves the page. In the lab that is a separate
+  origin. In production it must be something the relay cannot change: the site's pinned build, an extension, or an
+  installed app. That is the platform's call and not built.
+- **No per-request forward secrecy against the VM's own key.** The app key lives in VM memory for one boot. An attacker
+  who later learned it could open that boot's recorded requests.
+- ~~Whole-message sealing~~ answers now stream (next section); the whole mode remains beside it.
+- One sealed connection at a time in the VM, as for TLS. Requests up to 1 MiB.
+- Refusal hints are unauthenticated: a relay can fake them, but that is only denial of service.
+- No client identity: the VM sees an anonymous page.
+
+### Streaming sealed responses (LAB, 2026-09-24): tokens as they are decoded, each piece authenticated
+
+The protocol is SEALED-STREAMING.md, agreed with the Enclave verifier session before it was built (its
+`docs/security/pvm-sealed-streaming-review.md` records the revision verbatim).
+- A page asks for a stream with request key id 1. The key id sits inside the HPKE info, so a flipped mode does not open.
+- The VM answers `0x00 || rn` and then chunks.
+  - Key schedule and counter nonces follow draft-ietf-ohai-chunked-ohttp-08.
+  - Each chunk is `type || varint(len) || AES-GCM`, with `aad = label || evidence nonce || rn || index || type`.
+  - Types are DATA, FIN (the authenticated end) and ABORT (an authenticated in-stream error). Nothing may follow FIN,
+    and a stream without FIN is incomplete.
+- The page (web/pvm-sealed.js `openStream`) releases a chunk's plaintext only after its tag verifies, in order.
+  Completion is a distinct signal. The error classes are refused, truncated, aborted, tamper, oversize, malformed,
+  trailing and cancelled.
+- Cancel is a closed connection: the VM stops the guest's decode and logs it, and nothing resumes.
+- Buffering is bounded on every hop. Only the hub's phone-to-client direction lacks real backpressure; it is capped at
+  1 MiB and fails closed.
+- Libraries: the page's HPKE is @hpke/core 1.9.0 (vendored, integrity-pinned, MIT) plus WebCrypto; the VM uses the hpke
+  crate and ring.
+- The lab app is runtime/conformance/stream-probe: ggml-probe's decode, one 128-byte padded NDJSON line per token.
+- Host evidence:
+  - cross-language vectors: Rust reproduces the page's stream and its ABORT byte for byte;
+  - the agreed adversarial list against the reader;
+  - a streamed request through the real component, and a cancelled 256-token stream that stops decoding;
+  - real headless Chromium on a fake VM.
+- **Device evidence** (rt14): results/pvm-cpu-streaming (34 of 35 checks) and results/pvm-cpu-streaming-cancel (PASS).
+  - Streaming: Chromium 152 and Firefox 155 each received 24 tokens chunk by chunk. The first token reached the page at
+    1.2-1.3 s (0.7 s of it the evidence), and the rest arrived over 1.7-1.8 s, complete only after FIN.
+  - A malicious relay's stream mutations were each refused with their class and never called complete: swap,
+    duplicate, drop, forged FIN, bit flip, FIN flag, forged chunk and replay (tamper); truncation (truncated, with an
+    authentic prefix); a byte after FIN (trailing). A flipped request mode did not open in the VM.
+  - All 13 traces re-check offline (test/pvm-stream-traces.test.mjs).
+  - Cancellation: the first run's page consumed one token past its cancel, a line inside the same authenticated chunk.
+    Fixed and re-run: exact cancels at 1, 4 and 10, the VM stopping after 2, 4 and 7 chunks and serving the next stream
+    at once.
+- Limits, beyond the browser channel's:
+  - the relay sees chunk sizes and timing, so it learns token count and cadence;
+  - it can always drop or stall the stream (denial of service);
+  - production code delivery remains unsolved.
+
+### The installed client (LAB, 2026-09-24): trusted code delivery and bootstrap
+
+A web page cannot authenticate its own malicious replacement, so the lab page (web/lab.html) is not the trust path. The
+client is now an **artifact installed before first contact** that never evaluates fetched code (client/DESIGN.md,
+agreed with the Enclave verifier session, all nine of its fail-closed refinements adopted).
+- **Anchors.** The only anchors are the artifact's bytes, three values given out of band at install, and Google's
+  attestation roots built in.
+  - The artifact is built reproducibly by client/build.sh. The verifier session rebuilt 4e55879b independently and got
+    the same bytes, and re-runs that on every strict run.
+  - The install values are the policy key fingerprint, a policy serial floor, and a distinct release key fingerprint.
+  - A policy can only narrow Google's roots.
+- **Policy.** Signed over its exact bytes, with a closed shape and short validity. The serial is monotonic, and rollback
+  and equivocation are refused. The key rotates only by a signed next key, and `minClientVersion` disables a bad
+  version. The policy binds the gate's formats, modes and sealed window.
+- **Release rule.** The verifier session's admission rule, held to its 40 vectors (all 37 pVM and technology-neutral
+  decisions match; its 3 SNP releases are held here).
+- **Updates.** The release key signs and the policy key countersigns, and the delivered bytes must match. The version
+  lives inside the artifact's own bytes. A verified update is staged for the next start and never imported. The lab
+  manifest is the stand-in for a Sigstore bundle.
+- **Forms.** A CLI (one file) and an MV3 extension: CSP `script-src 'self'`, no web-accessible pages, so a site cannot
+  plant an anchor (tested in Chrome for Testing).
+- **Device evidence.** results/pvm-cpu-client-artifact (PASS, 30 checks). Under a signed lab policy fetched from an
+  untrusted carrier, both built clients streamed the Pixel's answer complete and followed a newer policy.
+  - Both refused an attacker-signed policy, a rollback, and a relay swapping the app key, before sending anything.
+  - The CLI also refused roots narrowed off the Pixel's own root (the real chain, at verify), a minimum version above
+    it, and a policy not admitting the app.
+  - The extension refused a truncated stream as incomplete.
+  - Run 1 (-run1) failed on run-script flaws, kept and explained.
+- **Not solved.** The first install's out-of-band channel; a compromised host or browser; the extension store's
+  delivery (bounded by `minClientVersion`); production keys and Sigstore provenance (the owner's).
+- **0.2.0: the rollback memory is committed first.** An audit found that 0.1.0 saved its state only after the whole
+  exchange. A carrier stalling after the new policy, then a kill, left the old floor, and two runs could overwrite a
+  newer serial with an older one. Both were reproduced on the shipped 0.1.0 bytes, in the CLI and in Chrome, with
+  deterministic barriers.
+  - 0.2.0 commits the policy durably before any evidence request: a cross-process compare-and-swap log in the CLI, a
+    browser-wide lock with read-back in the extension. A failed commit sends nothing.
+  - Just before sealing, it refuses a request whose policy was superseded meanwhile.
+  - client/DESIGN.md "State" has the rules. test/pvm-client-durability and -ext-durability cover crash and stall,
+    equivocation, concurrent old and new policies, failed persistence, rotation and update concurrency.
+  - The 0.1.0 device evidence above is kept as it was.
+  - Device: results/pvm-cpu-client-0.2.0 (PASS, 36 checks: the 30 above, plus each accepted extension page's commit
+    before its outcome, and no refused policy committed). The verifier session ran its own 11 persistence cases
+    against the same reproduced bytes, and all passed.
+- **0.2.1: update publication is immutable.** The verifier session found that 0.2.0 staged an update by renaming over
+  `pvm-client-<version>.mjs` before its monotonic decision. A validly signed second build of the same version was
+  refused, yet had already replaced the staged bytes.
+  - 0.2.1 publishes each artifact under a content-addressed name with `link()`, which never replaces a file, and
+    decides inside the store's compare-and-swap. A refused, crashed or uncommitted attempt cannot change what a
+    committed state names. The same artifact again is idempotent.
+  - Reproduced on the shipped 0.2.0 bytes and tested in client/DESIGN.md "State".
+- **0.3.0: explicit activation.** A staged update runs only after `pvm-client activate`. This is client/DESIGN.md
+  "Activation", agreed with the verifier session first.
+  - The installed artifact is the launcher. It runs all maintenance itself, and only `run` executes a newer active
+    version.
+  - The launcher reads those bytes once, verifies them, and runs exactly them from memory over stdin, never a path
+    twice. A start check runs first in a scrubbed environment.
+  - `active` is recorded through the compare-and-swap and only grows. A missing or changed file fails closed with no
+    fallback. One hop, never re-delegating.
+  - Tested with harmless canaries and real next builds in child processes, including a forced swap between
+    verification and execution, which a naive path-based launcher loses.
+  - Limits stay as they were: the first install and the launcher's own bytes are the out-of-band root, and
+    whole-machine power loss is untested.
+  - Device: results/pvm-cpu-client-activation, on the real Pixel 10 VM.
+    - The accepted 0.3.0 staged and explicitly activated a labelled LAB next-version artifact (0.3.1 `ed82869d…`,
+      client/tools/lab-next.mjs, reproduced independently by the verifier session).
+    - Every later run was answered by 0.3.1, which verified the real evidence and streamed sealed answers. That
+      includes a policy-key rotation it committed.
+    - The tampered and missing active files were refused and repaired; the repair needed a successor-countersigned
+      manifest. A final rollback was refused, and no state moved on any failure.
+    - The run's own checker failed on its own miscount (9 expected, 10 results, all 0.3.1). The kept check.txt shows
+      that; the corrected check passes 43/43 on the same results.
+  - Repeat with raw evidence capture: results/pvm-cpu-client-activation-2, same bytes and sequence.
+    - The relay's lab carrier recorded all 10 attestation exchanges as received, each with its request nonce, UTC times
+      and run label. The verifier session re-verifies the chains offline itself.
+    - Everything else passed again. The run's own check FAILED on a script defect: the per-exchange state copy was
+      recorded as null, because a heredoc took the pipe's stdin.
+    - The correlation rests on the client's own stateGen and the generation log instead (split check: 48 ok, 1 FAIL).
+      The script is fixed for future runs, and the failure is kept.
+  - Run 3, to close that (the verifier session's F3): results/pvm-cpu-client-activation-3, same bytes.
+    - The capture was first preflighted: every capture failure stops the run with exit 3. The earlier fix still
+      swallowed failures, and the preflight shows it.
+    - PASS, 51 checks: all 20 per-call state snapshots are present and equal the generation log, and the 10 raw
+      envelopes are captured and mapped.
+    - Closing F3 and re-verifying the chains offline are the verifier session's steps.
+- **0.4.0: deployment selection with caller-owned trust.** This is the verifier plan's catalog-to-expectation gap.
+  - The signed policy may map ledger deployment ids to the app each is expected to run. `run --deployment ID` takes the
+    app from that table, after the policy is verified and committed.
+  - Unknown, mismatched, ambiguous and non-canonical selections are refused before any evidence request.
+  - A catalog or relay is never consulted for identity. `deployments` lists the verified table.
+  - Limit: the evidence names no deployment, so a relay can route to another genuine instance of the same app
+    (client/DESIGN.md "Deployments").
+  - 0.4.1: the browser extension's page follows the same rules (`?deployments=1` lists, `?deployment=ID` selects),
+    through the same code.
+
+### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
+
+The Android app (the host) relays every line the VM prints; any field it relays is a claim until something the host cannot
+produce binds it. Per claim:
+
+| claim | bound by | a host that changes it |
+|---|---|---|
+| runtime identity (the `ABI2 runtime` JSON) | RuntimeID = SHA-256 of that JSON is inside the 64-byte AVF challenge the VM computed from its own `pvmrt_identity()`; the verifier recomputes it and requires canonical form + a pinned RuntimeID | changes the RuntimeID, so the certificate's challenge no longer matches: refused |
+| that the identity is TRUE (Pulley, no JIT, no cache) | the constants and `Config::target("pulley64")` live in libpvm_rt.so inside the APK; the APK's codeHash is a vmComponent of the same certificate, and the verifier pins it | would need another APK: another codeHash, refused by the pin. (Offline, cpu/verify-app-attest.mjs takes the codeHash from the attach chain unless `--code-hash` is given: it then proves only "same build as the attach"; the relay path pins it) |
+| the app (AppID) | the challenge's second half; the payload now hashes the received bytes and refuses a mismatch BEFORE requesting the certificate (fixed 21:30: before, a host could obtain a genuine certificate naming an app the VM then refused -- seen in results/app-m2 ap-baddigest, gone in app-m2c) | a certificate only ever names bytes that are about to run |
+| the nonce | the verifier's own: the relay's nonce (v2 transcript) when relay-bound; today's runs carry the owner's challenge | freshness only; that is why the results say "binding verified", not "attested to a relay" |
+| the transport key | Bind2 includes it; the attach certificate's v2 transcript carries the same key; its private half never leaves the VM | a different SPKI changes Bind2: refused |
+| W^X / exec_pages tuple | printed by measured code (the payload, same process as the runtime) | would need another APK; it is the payload's word, not the hardware's (stated in every verdict) |
+| model identity, rates (CAPS report) | signed by the attested transport key; the model pin is an APK asset (in the codeHash) | signature fails |
+| `APP ran`, `APPOUT`, `nn digest`, `serve=http` bodies | nothing: that output reaches the host in the clear | could be faked to the owner's own screen; no admission depends on them (M3's parity is the owner's observation, the CAPS digest is the signed one) |
+| `serve=https` requests and responses (LAB) | TLS 1.3 terminating in the VM under the attested transport key; the client pins the key and checks the handshake signature before writing | sees ciphertext only (results/pvm-cpu-tls-serving: nothing in the Android or relay logs); a flipped byte is refused, a replay cannot complete a handshake |
+| the key a client pins (LAB) | the client's own verification: a fresh AVF certificate over Bind2(spki, the CLIENT's nonce, RuntimeID) \|\| AppID, checked with the client's own pins (`verifyPvmAppEvidence`); the relay-published key is no longer an input | a host or relay that swaps the key, replays evidence, forges a chain or terminates TLS itself is refused before a request is sent (results/pvm-cpu-client-verified) |
+| the key a page encrypts to (LAB, v2) | an X25519 key made in the VM process; the attested transport key signs it into the evidence with the page's nonce and the app; the page verifies chain, challenge and signature itself (web/pvm-verify.js) | a relay that swaps, strips (downgrade to v1) or forges it is refused before anything is sent; a flipped or replayed sealed request is refused by the VM before it runs; a flipped response does not open (results/pvm-cpu-browser-channel) |
+| the orange label (Tier.java, assets/tier) | display only; the relay admits from the chain + report, never the label or the device name | cannot change the relay's verdict |
+
+Two host-side attestation surfaces remain and are acceptable as stated: the attach path certifies any 32-byte challenge the
+owner sends (routing), but ABI/2 certificates are 64 bytes and only `app_attest_abi2` requests them; and the owner app can
+deny service (never deliver lines), which a verifier sees as missing evidence, not as a pass.
+
+### What remains, in order
+
+1. **TUNA on the phone** (the production carrier): the Android TUNA adapter, route publication and the phone's NKN wallet.
+2. **Owner decisions** (Production path, above): the release signing key, `PVM_CPU_*` on nan, the on-chain registration,
+   the client release keys, the first app.
+3. **Port the lab drivers** in cpu/ and runtime/conformance to CPU-only apps. Most still assume a model; the new
+   cpu/app-cpu-run.sh + check-app-cpu.py are the template.
+4. **Split the research build's model and split-engine code out of the payload source** (unreachable in pvm-cpu today).
+5. **One connection at a time** in the VM: the payload serves serially.
+
+The earlier list (2026-09-26) is superseded by the CPU-only decision; its serving, client and evidence items are done or
+listed above.

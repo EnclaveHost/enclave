@@ -1,0 +1,412 @@
+--- author-delivery/REPORT.md
++++ candidate/REPORT.md
+@@ -1,7 +1,7 @@
+ # EnclaveHostLifecycleRegistry — author report (r1, source only)
+ 
+-**Status:** this is source only. Nothing has been compiled, tested, size-checked, deployed or wired into production.
+-No `forge`, `solc`, shell, network or Git was used. Root owns the bounded EIP-170, ABI and real-contract runs.
++**Status:** this is source only. See `REVIEW-REPAIRS.md` for the independently reviewed corrections after author completion. Nothing has been compiled, tested, size-checked, deployed or wired into production.
++The Claude author used no `forge`, `solc`, shell, network tools or Git. Root owns the bounded EIP-170, ABI and real-contract runs.
+ The plan's SHA256 `11ef2fe1…f633` matches the entry in `input-manifest.json`. The author did NOT recompute it
+ (no shell). The original `EnclaveRegistry`, `EnclaveHostOwnership` and `EnclaveHostPaymaster` were read and left
+ unchanged.
+@@ -13,6 +13,7 @@
+ | `contracts/EnclaveHostLifecycleRegistry.sol` | A single new contract. It has no imports, libraries or linking, and `pragma solidity 0.8.35`. |
+ | `test/HostLifecycleRegistry.t.sol` | `MockWallet` (an ERC1271 test owner), `LifecycleBase` (deterministic keys, intent builders) and 26 enrollment/offline/authority/recovery tests. |
+ | `test/HostLifecycleSponsorBudget.t.sol` | 16 tests for sponsor dedup, reservation, protected budget, zero-safe reimbursement and recovery funding. |
++| `test/HostLifecycleReview.t.sol` | Eight independent post-author review regressions, not yet executed. |
+ | `foundry.toml` | solc 0.8.35, optimizer runs 1, via_ir, prague, offline, ffi=false. forge-std is remapped to the pinned path. No `code_size_limit`. |
+ 
+ The tests use `vm.prank/warp/deal/sign/txGasPrice/expectRevert/expectCall/startStateDiffRecording`. They do NOT use
+@@ -77,7 +78,7 @@
+ - `authority(bytes32)`, `reporterPolicy(bytes32)`, `hostState(bytes32)`
+ 
+ Operator configuration (never lifecycle):
+-- `setPrices`, `setProofKey`, `setCaps` (must keep `CAP_HOST`; region ≤64 bytes)
++- `setPrices`, `setCaps` (must keep `CAP_HOST`; region ≤64 bytes). `setProofKey` only acknowledges the same key; a new key requires fresh qualified recovery.
+ - `setPayoutWallet`, `clearPayoutWallet` (semantics unchanged; cleared when recovery rotates the operator)
+ 
+ Qualification and sponsors:
+@@ -140,10 +141,10 @@
+   asserted with `expectCall(…,0)` and a state-diff call scan while the ERC1271 owner wallet reverts.
+ - **Fenced replay.** The intent binds the domain (chain and contract), hostId, generation, operator, revision,
+   target, evidence, deadline, payee and maxCharge. Duplicate signers are refused by strictly ascending recovery.
+-  An exact retry returns `false` and charges nothing. Any other report against an already Offline host reverts
++  An exact retry returns `false` and charges nothing only after current binding, deadline and quorum/caller validation. Any other report against an already Offline host reverts
+   `NotOnline`. Authentication failures revert before any state write.
+ - **Zero-safe reimbursement.** The state write and events come first. Then
+-  `charge = min(min(maxCharge, perTransitionCap, balance), sat(sat(gasUsed+overhead) × min(tx.gasprice, maxGasPrice)) + l1FeeAllowance)`.
++  `charge = min(min(maxCharge, perTransitionCap, balance), sat((gasUsed+overhead) × min(tx.gasprice, maxGasPrice)))`.
+   This cannot revert: `charge ≤ balance`, the multiply and add saturate, and the credit is backed by the same wei.
+   A zero balance, zero maxCharge or zero payee yields a charge of 0, and the transition is still recorded.
+ - **Zero-ETH operator.** The operator and owner only sign, and any account submits. The submitter is reimbursed
+@@ -165,7 +166,7 @@
+ - **Protected funds.** While Online, the payer can release only the balance above `protectedReserve`. Only the
+   payer funds or releases. A foreign party cannot touch it. Once Offline, the whole remaining balance is
+   releasable, because owed reimbursements already sit in `credits`. Recovery requires
+-  `balance ≥ protectedAmount`. A new payer can take over only a zero-balance budget, so funds are never mixed.
++  `balance ≥ protectedAmount ≥ perTransitionCap`. New reservations must match the recovery protected amount exactly. A new payer can take over only a zero-balance budget, so funds are never mixed.
+   Recovery never touches `credits`.
+ - **No global veto.** There are no admin selectors. A new anchor never affects existing hosts.
+ 
+@@ -186,8 +187,9 @@
+    - `OFFLINE_GAS_OVERHEAD = 40k` and `LISTING_GAS_OVERHEAD = 90k` are flat estimates of intrinsic and calldata
+      gas.
+    - `tx.gasprice` includes the priority fee and is capped by `maxGasPrice`.
+-   - Base L1 data fees are NOT measured. They are covered only by a flat, payer-signed `l1FeeAllowance` that is
+-     also capped by `perTransitionCap`.
++   - Base L1 data fees are NOT measured or reimbursed. `l1FeeAllowance` remains an inert signed ceiling;
++     this version has no authenticated L1 fee settlement mechanism and creates no L1 reimbursement debt.
++     A submitter must cover actual L1 fees; this contract must not be described as fully funding inclusion.
+    - None of this is "fully funded" against arbitrary fee spikes.
+ 6. **Self-reimbursement churn.** The operator or owner can churn Offline→recover cycles to pull up to
+    `perTransitionCap` per transition into a payee they choose. Each cycle needs a fresh payer-anchor receipt and
+@@ -281,7 +283,7 @@
+ - reservation does not list; a consumed reservation cannot be reused; submitter binding
+ - cancel/refund
+ - protected reserve locked while Online; budget survives later failure; pull claims
+-- zero maxCharge, extreme gas price clamp, zero gas price (L1 allowance only), 1-wei budget clamp
++- zero maxCharge, extreme gas price clamp, zero gas price (no unproven L1 allowance), 1-wei budget clamp
+ - recovery payer handover without touching credits
+ 
+ Not covered:
+--- author-delivery/REVIEW-REPAIRS.md
++++ candidate/REVIEW-REPAIRS.md
+@@ -0,0 +1,12 @@
++# Independent source review repairs
++
++Source only, not yet compiled or tested. Frozen terminal author delivery is preserved separately, with SHA256 manifest and complete Claude output. The initial Write versions also preserve the fixture alias defects the author fixed during its own review. No original repository or production files were changed.
++
++1. Offline accounting now pays only measured/bounded execution gas. The prior unconditional L1 allowance is not evidence of actual L1 fees and has been removed from the calculation. The signed L1 ceiling is inert; there is no pending L1 debt or qualified L1 fee settlement in this version. Actual L1 fees remain the submitter's burden. Finite reserve availability does not guarantee chain inclusion.
++2. Recovery requires its protected reserve to cover the payer-authorized per-transition cap. A fresh sponsor reservation must match the recovery's protected amount exactly. Existing pull credits remain separate and fully backed. A 1-wei test now uses an explicitly payer-signed 1-wei cap at initial enrollment rather than silently reducing a larger reserve through recovery.
++3. Offline retries validate current stored operator/generation/authority revision/deadline plus reporter quorum or direct current caller before returning an idempotent acknowledgement. Stale authority or forged/absent approval cannot receive an accepted no-op. An unchanged valid request remains idempotent and pays once.
++4. The operator's proof-key setter only accepts the existing key. Different keys require fresh qualified recovery whose exact intent includes the new key and current accepted owner/generation. Ordinary pricing/caps writes cannot activate a host or imply verified capacity.
++
++Eight independent review regressions cover unproven fees, too-small recovery reserve, mismatched new reservation, stale-revision retry, missing-quorum retry, unauthorized direct retry, proof-key rotation through recovery, and failing recipient debt preservation. Existing assertions were updated for the corrected behavior, not weakened. The author fixed two memory-alias fixtures before final delivery; those final fixes were retained.
++
++Still missing: authenticated real attestation/test verifiers and independent policy operations; sponsor paid-work eligibility/verified-absence fallback service; durable host report sender and receipt reconciliation; shared verified capacity projection; full recursive profile/consumer integration; operational host re-enrollment. Legacy relay-only listing is not part of this compute-host registry and needs an explicit separate profile/path decision. No production migration is claimed.
+--- author-delivery/contracts/EnclaveHostLifecycleRegistry.sol
++++ candidate/contracts/EnclaveHostLifecycleRegistry.sol
+@@ -128,7 +128,7 @@
+         uint128 protectedAmount;
+         uint128 listingGasCap;
+         uint128 perTransitionCap;
+-        uint128 l1FeeAllowance;
++        uint128 l1FeeAllowance;    // signed ceiling only; inactive until an independently qualified fee mechanism exists
+         uint64  maxGasPrice;
+         address submitter;          // 0 = any submitter may consume and be reimbursed
+         uint256 nonce;
+@@ -167,7 +167,7 @@
+         uint128 balance;
+         uint128 protectedReserve;
+         uint128 perTransitionCap;
+-        uint128 l1FeeAllowance;
++        uint128 l1FeeAllowance;    // signed ceiling only; inactive until an independently qualified fee mechanism exists
+         uint64  maxGasPrice;
+     }
+ 
+@@ -184,7 +184,7 @@
+         uint128 protectedAmount;
+         uint128 listingGasCap;
+         uint128 perTransitionCap;
+-        uint128 l1FeeAllowance;
++        uint128 l1FeeAllowance;    // signed ceiling only; inactive until an independently qualified fee mechanism exists
+     }
+ 
+     struct TrustAnchor {
+@@ -584,11 +584,15 @@
+         _checkConsent(v.owner, digest, ownerConsent);
+ 
+         if (v.reservationId != 0) {
+-            _fundBudget(hostId, _consumeReservation(v.reservationId, hostId, v.hardwareId, v.trustAnchorId));
++            Reservation storage r = _consumeReservation(v.reservationId, hostId, v.hardwareId, v.trustAnchorId);
++            if (r.protectedAmount != v.protectedAmount) revert BadReservation();
++            _fundBudget(hostId, r);
+         } else if (v.trustAnchorId != st.trustAnchorId) {
+             revert ReceiptMismatch();      // without a new payer authorization only the payer's prior anchor applies
+         }
+         Budget storage b = hostBudget[hostId];
++        // A recovery may not lower the live reserve below the payer-authorized maximum transition liability.
++        if (v.protectedAmount < b.perTransitionCap) revert BadBudget();
+         if (b.balance < v.protectedAmount) revert Insufficient();   // recovery funds its own protected reserve
+         b.protectedReserve = v.protectedAmount;
+ 
+@@ -625,10 +629,11 @@
+         uint256 g0 = gasleft();
+         bytes32 digest = hashOffline(o);
+         HostState storage st = hostState[o.hostId];
+-        if (st.status == STATUS_OFFLINE && st.lastOfflineDigest == digest) return false;
+         _checkOfflineIntent(o, st);
+         Reporters storage rs = _reporters[o.hostId];
+         _verifyQuorum(digest, reporterApprovals, rs.keys, rs.threshold);
++        if (st.status == STATUS_OFFLINE && st.lastOfflineDigest == digest) return false;
++        if (st.status != STATUS_ONLINE) revert NotOnline();
+         _recordOffline(o, st, digest, g0);
+         return true;
+     }
+@@ -638,9 +643,10 @@
+         uint256 g0 = gasleft();
+         bytes32 digest = hashOffline(o);
+         HostState storage st = hostState[o.hostId];
+-        if (st.status == STATUS_OFFLINE && st.lastOfflineDigest == digest) return false;
+         if (msg.sender != _rows[o.hostId].operator && msg.sender != authority[o.hostId].owner) revert NotAuthorized();
+         _checkOfflineIntent(o, st);
++        if (st.status == STATUS_OFFLINE && st.lastOfflineDigest == digest) return false;
++        if (st.status != STATUS_ONLINE) revert NotOnline();
+         _recordOffline(o, st, digest, g0);
+         return true;
+     }
+@@ -678,8 +684,9 @@
+         emit PricesSet(id, cpuPricePerSec6, gpuPricePerSec6);
+     }
+ 
++    /// @notice Compatibility no-op only. A different proof key requires fresh qualified recovery.
+     function setProofKey(bytes32 id, address proofKey) external {
+-        _operatorRow(id).proofKey = proofKey;
++        if (_operatorRow(id).proofKey != proofKey) revert BadListing();
+         emit ProofKeySet(id, proofKey);
+     }
+ 
+@@ -865,7 +872,7 @@
+ 
+     /// @dev Pure local reads. Unknown hosts fail here (status NONE).
+     function _checkOfflineIntent(HostOffline calldata o, HostState storage st) private view {
+-        if (st.status != STATUS_ONLINE) revert NotOnline();
++        if (st.status != STATUS_ONLINE && st.status != STATUS_OFFLINE) revert NotOnline();
+         if (o.generation != st.generation || o.operator != _rows[o.hostId].operator
+             || o.authorityRevision != authority[o.hostId].revision || o.targetStatus != STATUS_OFFLINE
+             || o.evidenceDigest == 0) revert IntentMismatch();
+@@ -888,7 +895,9 @@
+         uint256 charge;
+         if (cap != 0 && o.payee != address(0)) {
+             uint256 used = g0 - gasleft() + OFFLINE_GAS_OVERHEAD;
+-            charge = _min(_satAdd(_satMul(used, _min(tx.gasprice, b.maxGasPrice)), b.l1FeeAllowance), cap);
++            // No authenticated Base L1-fee mechanism exists in this version. The signed L1 cap is inert:
++            // no unproven allowance is paid, no L1 debt is invented, and actual L1 fees remain unreimbursed.
++            charge = _min(_satMul(used, _min(tx.gasprice, b.maxGasPrice)), cap);
+             b.balance -= uint128(charge);
+             credits[o.payee] += charge;
+         }
+@@ -948,10 +957,6 @@
+ 
+     function _min(uint256 a, uint256 b) private pure returns (uint256) { return a < b ? a : b; }
+ 
+-    function _satAdd(uint256 a, uint256 b) private pure returns (uint256) {
+-        unchecked { uint256 c = a + b; return c < a ? type(uint256).max : c; }
+-    }
+-
+     function _satMul(uint256 a, uint256 b) private pure returns (uint256) {
+         if (a == 0 || b == 0) return 0;
+         unchecked { uint256 c = a * b; return c / a == b ? c : type(uint256).max; }
+--- author-delivery/test/HostLifecycleRegistry.t.sol
++++ candidate/test/HostLifecycleRegistry.t.sol
+@@ -779,6 +779,7 @@
+         }
+         vm.startPrank(operator);
+         reg.setPrices(hostId, 11, 0);
++        vm.expectRevert(R.BadListing.selector);
+         reg.setProofKey(hostId, address(0x1234));
+         reg.setCaps(hostId, 1, "us-west");
+         vm.stopPrank();
+--- author-delivery/test/HostLifecycleReview.t.sol
++++ candidate/test/HostLifecycleReview.t.sol
+@@ -0,0 +1,136 @@
++// SPDX-License-Identifier: MIT
++pragma solidity 0.8.35;
++
++// Independent review regressions, added after preserving the terminal author delivery.
++import {LifecycleBase} from "./HostLifecycleRegistry.t.sol";
++import {EnclaveHostLifecycleRegistry as R} from "../contracts/EnclaveHostLifecycleRegistry.sol";
++
++contract RejectHostReimbursement {
++    receive() external payable { revert("recipient unavailable"); }
++}
++
++contract HostLifecycleReviewTest is LifecycleBase {
++    function _resignRecovery(RecoveryCase memory c) internal view {
++        bytes32 digest = reg.hashRecovery(c.v);
++        c.opSig = _sig(OPERATOR_PK, digest);
++        c.ownSig = _sig(OWNER_PK, digest);
++        c.q.intentDigest = digest;
++        c.approvals = _quorum(verifierPks, 2, reg.hashReceipt(c.q));
++    }
++
++    function test_unprovenL1AllowanceIsNotPaid() public {
++        bytes32 hostId = _enrolled();
++        uint128 balanceBefore = _balance(hostId);
++        vm.txGasPrice(0);
++        _reportOffline(hostId, reporterPks);
++        assertFalse(_active(hostId));
++        assertEq(reg.credits(payee), 0, "unproven L1 fee is not actual reimbursement");
++        assertEq(_balance(hostId), balanceBefore);
++    }
++
++    function test_recoveryCannotShrinkReserveBelowTransitionCap() public {
++        bytes32 hostId = _enrolled();
++        _reportOffline(hostId, reporterPks);
++        uint128 balanceBefore = _balance(hostId);
++        uint256 creditBefore = reg.credits(payee);
++        RecoveryCase memory c = _recovery(hostId, OPERATOR_PK);
++        c.v.protectedAmount = 1;
++        _resignRecovery(c);
++        vm.prank(submitter);
++        vm.expectRevert(R.BadBudget.selector);
++        reg.recoverQualifiedHost(c.v, c.q, c.opSig, c.ownSig, c.approvals);
++        assertFalse(_active(hostId));
++        assertEq(_balance(hostId), balanceBefore);
++        assertEq(reg.credits(payee), creditBefore);
++    }
++
++    function test_recoveryNewReservationRequiresExactProtectedAmount() public {
++        bytes32 hostId = _enrolled();
++        _reportOffline(hostId, reporterPks);
++        uint128 balanceBefore = _balance(hostId);
++        R.SponsorReservation memory s = _reservation(hostId, HW, keccak256("recovery-new-budget"), anchorId);
++        s.nonce = 9;
++        bytes32 reservationId = _reserve(s);
++        RecoveryCase memory c = _recovery(hostId, OPERATOR_PK);
++        c.v.reservationId = reservationId;
++        c.v.protectedAmount = s.protectedAmount - 1;
++        _resignRecovery(c);
++        vm.prank(submitter);
++        vm.expectRevert(R.BadReservation.selector);
++        reg.recoverQualifiedHost(c.v, c.q, c.opSig, c.ownSig, c.approvals);
++        assertFalse(_active(hostId));
++        assertEq(_balance(hostId), balanceBefore);
++        assertEq(_resStatus(reservationId), reg.RES_RESERVED());
++    }
++
++    function test_exactOfflineRetryRejectsObsoleteAuthorityRevision() public {
++        bytes32 hostId = _enrolled();
++        R.HostOffline memory o = _offline(hostId);
++        bytes[] memory signatures = _quorum(reporterPks, 2, reg.hashOffline(o));
++        assertTrue(reg.recordHostOffline(o, signatures));
++        uint256 creditBefore = reg.credits(payee);
++        vm.prank(owner);
++        reg.setHostPolicy(hostId, _policy(newReporterPks, 2), keccak256("new-authority"));
++        vm.expectRevert(R.IntentMismatch.selector);
++        reg.recordHostOffline(o, signatures);
++        vm.prank(owner);
++        vm.expectRevert(R.IntentMismatch.selector);
++        reg.deactivateHost(o);
++        assertEq(reg.credits(payee), creditBefore);
++        assertFalse(_active(hostId));
++    }
++
++    function test_exactOfflineRetryStillRequiresReporterQuorum() public {
++        bytes32 hostId = _enrolled();
++        R.HostOffline memory o = _offline(hostId);
++        bytes[] memory signatures = _quorum(reporterPks, 2, reg.hashOffline(o));
++        assertTrue(reg.recordHostOffline(o, signatures));
++        vm.expectRevert(R.Quorum.selector);
++        reg.recordHostOffline(o, new bytes[](0));
++        assertFalse(reg.recordHostOffline(o, signatures));
++    }
++
++    function test_exactGracefulRetryStillRequiresCurrentOwnerOrOperator() public {
++        bytes32 hostId = _enrolled();
++        R.HostOffline memory o = _offline(hostId);
++        vm.prank(owner);
++        assertTrue(reg.deactivateHost(o));
++        vm.prank(stranger);
++        vm.expectRevert(R.NotAuthorized.selector);
++        reg.deactivateHost(o);
++        vm.prank(operator);
++        assertFalse(reg.deactivateHost(o));
++    }
++
++    function test_proofKeyCannotChangeWithoutFreshQualification() public {
++        bytes32 hostId = _enrolled();
++        address original = reg.get(hostId).proofKey;
++        vm.prank(operator);
++        vm.expectRevert(R.BadListing.selector);
++        reg.setProofKey(hostId, address(0xBAD));
++        assertEq(reg.get(hostId).proofKey, original);
++        vm.prank(operator);
++        reg.setProofKey(hostId, original); // idempotent compatibility only
++        _reportOffline(hostId, reporterPks);
++        RecoveryCase memory c = _recovery(hostId, OPERATOR_PK);
++        _recover(c);
++        assertEq(reg.get(hostId).proofKey, c.v.proofKey);
++    }
++
++    function test_rejectingRecipientPreservesCreditAndOfflineState() public {
++        bytes32 hostId = _enrolled();
++        _reportOffline(hostId, reporterPks);
++        uint256 owed = reg.credits(payee);
++        RejectHostReimbursement receiver = new RejectHostReimbursement();
++        vm.prank(payee);
++        vm.expectRevert(R.TransferFailed.selector);
++        reg.claimHostReimbursement(payable(address(receiver)));
++        assertEq(reg.credits(payee), owed);
++        assertFalse(_active(hostId));
++        uint256 before = payee.balance;
++        vm.prank(payee);
++        assertEq(reg.claimHostReimbursement(payable(payee)), owed);
++        assertEq(payee.balance, before + owed);
++        assertEq(reg.credits(payee), 0);
++    }
++}
+--- author-delivery/test/HostLifecycleSponsorBudget.t.sol
++++ candidate/test/HostLifecycleSponsorBudget.t.sol
+@@ -224,37 +224,33 @@
+         bytes32 hostId = _enrolled();
+         vm.txGasPrice(1_000_000 gwei);                             // far above the payer's maxGasPrice
+         R.HostOffline memory o = _offline(hostId);
+-        o.maxCharge = uint128(L1 / 2);                             // below the flat L1 allowance => exact clamp
++        o.maxCharge = uint128(L1 / 2);                             // below measured execution at the capped gas price
+         bytes[] memory s = _quorum(reporterPks, 2, reg.hashOffline(o));
+         assertTrue(reg.recordHostOffline(o, s));
+         assertEq(reg.credits(payee), L1 / 2);
+     }
+ 
+-    function test_zeroGasPriceChargesOnlyDeclaredL1Allowance() public {
++    function test_zeroGasPriceDoesNotChargeUnprovenL1Allowance() public {
+         bytes32 hostId = _enrolled();
+         vm.txGasPrice(0);
+         _reportOffline(hostId, reporterPks);
+-        assertEq(reg.credits(payee), L1);
++        assertEq(reg.credits(payee), 0);
+     }
+ 
+     function test_nearEmptyBudgetClampsChargeAndStillRecords() public {
+-        bytes32 hostId = _enrolled();
+-        R.HostOffline memory o = _offline(hostId);
+-        o.payee = address(0);
+-        vm.prank(operator);
+-        reg.deactivateHost(o);
+-        vm.startPrank(payer);
+-        reg.releaseHostBudget(hostId, PROTECTED);
+-        reg.fundHostOffline{value: 1}(hostId);
+-        vm.stopPrank();
++        // A deliberately tiny payer-signed cap, not recovery bypassing a larger protected reserve floor.
++        bytes32 hostId = keccak256(bytes(ENDPOINT));
++        R.SponsorReservation memory budget = _reservation(hostId, HW, JOB, anchorId);
++        budget.protectedAmount = 1;
++        budget.perTransitionCap = 1;
++        budget.l1FeeAllowance = 0;
++        bytes32 rid = _reserve(budget);
++        Prepared memory c = _preparedFor(rid);
++        c.e.protectedAmount = 1;
++        _resign(c, verifierPks);
++        _submit(c);
++        assertTrue(_active(hostId));
+         assertEq(_balance(hostId), 1);
+-
+-        RecoveryCase memory c = _recovery(hostId, OPERATOR_PK);
+-        c.v.protectedAmount = 1;
+-        _signRecovery(c, OPERATOR_PK);
+-        _recover(c);
+-        assertTrue(_active(hostId));
+-
+         _reportOffline(hostId, reporterPks);
+         assertFalse(_active(hostId));
+         assertEq(reg.credits(payee), 1, "charge clamped to the 1 wei actually available");
+@@ -286,6 +282,7 @@
+ 
+         RecoveryCase memory c = _recovery(hostId, OPERATOR_PK);
+         c.v.reservationId = rid;
++        c.v.protectedAmount = PROTECTED;
+         _signRecovery(c, OPERATOR_PK);
+         _recoverReverts(c, R.BadBudget.selector);                  // never mix two payers' funds
+ 

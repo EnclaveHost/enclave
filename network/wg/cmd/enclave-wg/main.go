@@ -7,8 +7,10 @@
 //	                                                              control port and a SOCKS limited to exactly the listed
 //	                                                              provider ports, both through it -> outer-ready
 //	{"type":"inner","peer":{...},"egress":{"user","pass","listen"},"ingress":{"443":"127.0.0.1:p","80":"127.0.0.1:q"},
-//	 "own":["<ip>",...]}                                          tunnel to the exit (inside the outer tunnel when
+//	 "udpIngress":{"53":"127.0.0.1:r"},"own":["<ip>",...]}      tunnel to the exit (inside the outer tunnel when
 //	                                                              there is one) + SOCKS egress + ingress -> ready
+//	                                                              (ingress "53" and udpIngress "53": a host's own DNS
+//	                                                              role, which the exit forwards as packets)
 //	{"type":"admission","open":false}                             cut every open connection (the runtime gates new ones)
 //	{"type":"close"}
 //
@@ -47,8 +49,9 @@ type msg struct {
 		Pass   string `json:"pass"`
 		Listen string `json:"listen"`
 	} `json:"egress,omitempty"`
-	Ingress map[string]string `json:"ingress,omitempty"`
-	Own     []string          `json:"own,omitempty"`
+	Ingress    map[string]string `json:"ingress,omitempty"`
+	UDPIngress map[string]string `json:"udpIngress,omitempty"`
+	Own        []string          `json:"own,omitempty"`
 	// the host's uplink in Mbps: the tunnel's real UDP socket is paced to it (pace.go); 0 = unpaced
 	PaceMbps float64 `json:"paceMbps,omitempty"`
 	Open     *bool   `json:"open,omitempty"`
@@ -232,8 +235,8 @@ func (s *state) innerUp(m msg) {
 	}
 	for p, to := range m.Ingress {
 		port, err := strconv.Atoi(p)
-		if err != nil || (port != 443 && port != 80) {
-			fail("ingress ports are 443 and 80")
+		if err != nil || (port != 443 && port != 80 && port != 53) {
+			fail("ingress ports are 443, 80 and 53")
 		}
 		if ap, err := netip.ParseAddrPort(to); err != nil || !ap.Addr().IsLoopback() {
 			fail("ingress forwards only to loopback")
@@ -244,6 +247,21 @@ func (s *state) innerUp(m msg) {
 	}
 	if len(m.Ingress) > 0 {
 		ready["ingress"] = true
+	}
+	for p, to := range m.UDPIngress {
+		port, err := strconv.Atoi(p)
+		if err != nil || port != 53 {
+			fail("udp ingress port is 53")
+		}
+		if ap, err := netip.ParseAddrPort(to); err != nil || !ap.Addr().IsLoopback() {
+			fail("udp ingress forwards only to loopback")
+		}
+		if err := s.fwd.UDPIngress(d, uint16(port), to); err != nil {
+			fail("udp ingress listener: " + err.Error())
+		}
+	}
+	if len(m.UDPIngress) > 0 {
+		ready["udpIngress"] = true
 	}
 	emit(ready)
 }

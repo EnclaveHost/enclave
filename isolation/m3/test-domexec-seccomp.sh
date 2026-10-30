@@ -27,7 +27,7 @@ gcc -static -pthread -O2 -o "$d/probe" "$m2/app-seccomp-probe.c" 2>/dev/null
 run_all() {  # <domexec.c> <app-seccomp.h>
   reclaim; rm -rf "$d/b" && mkdir -p "$d/b/m3" "$d/b/m2" "$d/root/plat/rt" "$d/root/run" "$d/root/tmp" "$d/root/proc" "$d/root/probe-out"
   chmod 0755 "$d/root" "$d/root/plat" "$d/root/plat/rt"; chmod 1777 "$d/root/probe-out"
-  cp "$1" "$d/b/m3/domexec.c" && cp "$2" "$d/b/m2/app-seccomp.h" && cp "$(dirname "$0")/../m2/sha256-min.h" "$d/b/m2/"
+  cp "$1" "$d/b/m3/domexec.c" && cp "$2" "$d/b/m2/app-seccomp.h" && cp "$(dirname "$0")/../m2/sha256-min.h" "$(dirname "$0")/../m2/modelvol.h" "$d/b/m2/"
   gcc -static -O2 -o "$d/root/plat/domexec" "$d/b/m3/domexec.c" 2>/dev/null || { echo "FAIL domexec did not build"; return 1; }
   cp "$d/probe" "$d/root/plat/rt/ld-linux-x86-64.so.2"; cp "$d/probe" "$d/root/plat/front"
   chmod 0755 "$d/root/plat/domexec" "$d/root/plat/rt/ld-linux-x86-64.so.2" "$d/root/plat/front"
@@ -64,8 +64,9 @@ k=0
 mut "filter: no AF_VSOCK rule" '/APP_ARG0_EQ(APP_NR_socket, APP_AF_VSOCK, APP_EPERM),/d' header || k=1
 mut "filter: pidfd_getfd allowed" '/APP_RULE(APP_NR_pidfd_getfd, APP_EPERM),/d' header || k=1
 mut "the filter applied to the front" 's/front_pid = spawn(front, front_uid, 0, 0);/front_pid = spawn(front, front_uid, 0, 1);/' || k=1
-mut "the runtime unfiltered (serve)" 's/rt_pid = spawn(rt, uid, 1, 1);/rt_pid = spawn(rt, uid, 1, 0);/' || k=1
-mut "the runtime unfiltered (run)" 's/rt_pid = spawn(run, uid, 1, 1);/rt_pid = spawn(run, uid, 1, 0);/' || k=1
+# the two runtime spawns (secret_app or shield_app) differ only in the spacing before their comment: run 17, serve 18
+mut "the runtime unfiltered (serve)" 's#shield_app, uid, 1, 1);                  /\* the runtime#shield_app, uid, 1, 0);                  /* the runtime#' || k=1
+mut "the runtime unfiltered (run)" 's#shield_app, uid, 1, 1);                 /\* the runtime#shield_app, uid, 1, 0);                 /* the runtime#' || k=1
 mut "no no_new_privs (the filter cannot install)" 's/if (filter \&\& (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0 || app_seccomp_install() != 0)) {/if (filter \&\& app_seccomp_install() != 0) {/' || k=1
 [ $k = 0 ] && echo "domexec seccomp mutants: all killed" || echo "domexec seccomp mutants: FAIL"
 [ $g = 0 ] && [ $k = 0 ]

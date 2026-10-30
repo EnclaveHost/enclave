@@ -1,0 +1,2 @@
+{"committed":{"serial":4,"gen":5}}
+{"result":{"label":"cli","mode":"stream","step":"verify","refused":"the evidence answers another nonce (stale or replayed)","sent":false,"verifyMs":747,"policySerial":4,"stateGen":5,"clientVersion":"0.5.0","deployment":{"id":"0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2","app":"29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373","instance":null,"bound":true}}}

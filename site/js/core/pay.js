@@ -118,6 +118,8 @@ export async function payOrderWithUsdc(pay, log){
     message: { owner: Enclave.address, spender: router,
                value: amt6.toString(), nonce: nonce.toString(), deadline: deadline.toString() },
   };
+  // the permit names its spender: under an address book, confirm that binding before the wallet signs
+  await (await import("./platform-addresses.js")).assertPlatformTransactionCurrent(router);
   say("pend", "Sign the USDC permit in your wallet (free - it authorizes this one payment)…");
   let sig;
   try {

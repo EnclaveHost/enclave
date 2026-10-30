@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"enclave.host/isolation/contract"
+	"enclave.host/isolation/m2/bootstrap"
 	"enclave.host/isolation/m2/egress"
 	"enclave.host/isolation/m2/release"
 	"enclave.host/isolation/m2/vsock"
@@ -328,12 +329,16 @@ func main() {
 	isoRelease := flag.String("isolation-release", "", "the domain release(s) the -isolation tree was installed from, comma-separated: a 64-hex id, or @<release.json> (its sha256 IS the id). Named to the judge for every guest this tree builds and recorded with it; the judge's table (m2/judge.mjs LEGACY_WX_RELEASES) decides what that release may state. REQUIRED when the tree predates per-release W^X")
 	legacyIsoRelease := flag.String("legacy-isolation-release", "", "the same, for the -legacy-isolation tree (REQUIRED with it when that tree predates per-release W^X)")
 	unrecordedRel := flag.String("unrecorded-releases", "", "the release(s) named when ADOPTING an instance whose record names none (written by a guestd before per-release records): the pre-chain releases this host ran; empty = none named, and such a pre-chain guest is not adopted")
+	directOn := flag.Bool("direct-bootstrap", false, "serve owner-committed packages on vsock 9446; requires -release and a dedicated bootstrapdirect measured tree")
+	bootstrapPort := flag.Uint("bootstrap-port", bootstrap.PackagePort, "vsock port for bounded owner startup packages")
 	releaseOn := flag.Bool("release", false, "deliver attested-release tickets (vsock host port 9444) and serve deployment guests' egress (9443) (release.go); off = neither, and /health says supports.release=false")
 	adoptCheck := flag.Bool("adopt-check", false, "verify adoption of every existing guest without sweeping, stopping guests, or serving")
 	adoptRuntimes := flag.String("adopt-runtimes", "", "explicit historical release=runtime.json pins, comma-separated; verified again on adoption")
 	cpuTemplate := flag.String("cpu-template", "", "pinned CPU release template")
+	cpuRelease := flag.String("cpu-release", "", "complete verified CPU release directory (scripts/network/fetch-runtime.mjs); kernel, firmware, template and cmdline come from its one explicit -isolation-release pin. Needs an explicit -gateway JSON list and no competing firmware/template flag")
 	shieldTemplate := flag.String("shield-template", "", "pinned measured Shield inference release template")
 	shieldModel := flag.String("shield-model-file", "", "read-only public Q4 GGUF; hash verified inside the measured guest")
+	modelStore := flag.String("model-volumes", "", "model volume store (metal/volumes.mjs layout); offered only as the pinned template's table pins them")
 	shieldSHM := flag.String("shield-shm-dir", "", "directory with card-0 and card-1 masked transport rings")
 	shieldRelease := flag.String("shield-release", "", "64-hex release ID for the Shield template")
 	flag.Parse()
@@ -369,6 +374,24 @@ func main() {
 	if *chain == "" {
 		*chain = filepath.Join(*iso, "..", "test/fixtures/amd", *product+"-cert_chain.pem")
 	}
+	if *cpuRelease != "" {
+		set := map[string]bool{}
+		flag.Visit(func(f *flag.Flag) { set[f.Name] = true })
+		dir, id, e := cpuReleaseMode(*cpuRelease, *isoRelease, *gateway, set, os.Getenv)
+		if e != nil {
+			log.Fatal(e)
+		}
+		out, e := exec.Command("python3", filepath.Join(*iso, "m4/release-manifest.py"), "verify", dir, "--expect", id).CombinedOutput()
+		if e != nil {
+			log.Fatalf("CPU release does not verify: %s", out)
+		}
+		if e := cpuReleaseFiles(dir); e != nil {
+			log.Fatal(e)
+		}
+		*cpuRelease, *isoRelease = dir, id
+		*cpuTemplate = filepath.Join(dir, "template")
+		*ovmf = filepath.Join(dir, "firmware.fd")
+	}
 	// A measured table over a firmware that does not verify it proves nothing, and every structural check still
 	// passes (isolation/m4/verifying-firmware.txt). So the firmware is pinned by digest, or guestd does not start.
 	fw, err := sha256File(*ovmf)
@@ -388,6 +411,11 @@ func main() {
 		log.Fatal(err)
 	}
 	env := append(os.Environ(), "OVMF="+*ovmf)
+	if *cpuRelease != "" {
+		env = append(env, "DOMAIN_RELEASE_DIR="+*cpuRelease, "DOMAIN_RELEASE_ID="+*isoRelease)
+	} else if os.Getenv("DOMAIN_RELEASE_DIR") != "" || os.Getenv("DOMAIN_RELEASE_ID") != "" {
+		log.Fatal("use explicit -cpu-release rather than inherited domain release environment")
+	}
 	fwd := filepath.Join(*root, "bin", "fwd")
 	build := exec.Command("go", "build", "-trimpath", "-o", fwd, "./fwd")
 	build.Dir = filepath.Join(*iso, "m2")
@@ -395,14 +423,18 @@ func main() {
 	if out, err := build.CombinedOutput(); err != nil {
 		log.Fatalf("building m2/fwd: %v %s", err, out)
 	}
-	wt, err := exec.LookPath("wasmtime")
-	if err != nil {
-		log.Fatal("no wasmtime on PATH: the guest image carries the host's runtime")
-	}
 	rid := filepath.Join(*root, "expected-runtime.json")
-	ridOut, err := exec.Command(filepath.Join(*iso, "contract", "runtime-identity.sh"), wt).Output()
+	var ridOut []byte
+	var wt string
 	if *cpuTemplate != "" {
 		ridOut, err = os.ReadFile(filepath.Join(*cpuTemplate, "rt/runtime.json"))
+	} else {
+		var e error
+		wt, e = exec.LookPath("wasmtime")
+		if e != nil {
+			log.Fatal("no wasmtime on PATH: the guest image carries the host's runtime")
+		}
+		ridOut, err = exec.Command(filepath.Join(*iso, "contract", "runtime-identity.sh"), wt).Output()
 	}
 	if err != nil || os.WriteFile(rid, ridOut, 0o600) != nil {
 		log.Fatalf("runtime identity: %v", err)
@@ -416,6 +448,20 @@ func main() {
 	s := newServer(l, *root)
 	if *cpuTemplate != "" {
 		l.env = append(l.env, "APP_IMAGE_TEMPLATE="+*cpuTemplate)
+	}
+	if *directOn {
+		if !*releaseOn || *legacyIso != "" || !filepath.IsAbs(*cpuTemplate) {
+			log.Fatal("direct bootstrap requires -release, an explicit CPU template and no legacy tree")
+		}
+		for _, template := range []string{*cpuTemplate, *shieldTemplate} {
+			if template == "" {
+				continue
+			}
+			b, err := os.ReadFile(filepath.Join(template, "rt/direct-bootstrap.enabled"))
+			if err != nil || string(b) != "1\n" {
+				log.Fatal("direct bootstrap template lacks its measured mode marker")
+			}
+		}
 	}
 	if *shieldTemplate != "" || *shieldRelease != "" {
 		ids, e := parseReleaseIDs(*shieldRelease)
@@ -448,25 +494,52 @@ func main() {
 	// Same executable and probe as runtime-set.sh, which emits the measured
 	// marker dominit needs before passing SET flags. Legacy guests do not gain
 	// this capability merely because the new release has it.
-	probeCtx, probeCancel := context.WithTimeout(context.Background(), 25*time.Second)
-	probeOut, probeErr := exec.CommandContext(probeCtx, "sh", filepath.Join(*iso, "m4", "probe-set.sh"), wt).Output()
-	probeCancel()
-	s.RuntimeSET = probeErr == nil && string(probeOut) == "1\n"
-	probeCtx, probeCancel = context.WithTimeout(context.Background(), 25*time.Second)
-	probeOut, probeErr = exec.CommandContext(probeCtx, "sh", filepath.Join(*iso, "m4", "probe-mem64.sh"), wt).Output()
-	probeCancel()
-	s.RuntimeMem64 = probeErr == nil && string(probeOut) == "1\n"
+	if *cpuTemplate == "" {
+		probeCtx, probeCancel := context.WithTimeout(context.Background(), 25*time.Second)
+		probeOut, probeErr := exec.CommandContext(probeCtx, "sh", filepath.Join(*iso, "m4", "probe-set.sh"), wt).Output()
+		probeCancel()
+		s.RuntimeSET = probeErr == nil && string(probeOut) == "1\n"
+		probeCtx, probeCancel = context.WithTimeout(context.Background(), 25*time.Second)
+		probeOut, probeErr = exec.CommandContext(probeCtx, "sh", filepath.Join(*iso, "m4", "probe-mem64.sh"), wt).Output()
+		probeCancel()
+		s.RuntimeMem64 = probeErr == nil && string(probeOut) == "1\n"
+	}
 	if *cpuTemplate != "" {
 		set, e := os.ReadFile(filepath.Join(*cpuTemplate, "rt/set.enabled"))
 		s.RuntimeSET = e == nil && string(set) == "1\n"
 		mem, e := os.ReadFile(filepath.Join(*cpuTemplate, "rt/mem64.enabled"))
 		s.RuntimeMem64 = e == nil && string(mem) == "1\n"
+		// only a PINNED template states this: an image built from the tree at launch is a lab path and claims nothing
+		enc, e := os.ReadFile(filepath.Join(*cpuTemplate, "rt/encvol.enabled"))
+		s.RuntimeEncvol = e == nil && string(enc) == "1\n"
+		nn, e := os.ReadFile(filepath.Join(*cpuTemplate, "rt/nn-ggml.enabled"))
+		s.RuntimeNN = e == nil && string(nn) == "1\n"
+		// model volumes: the pinned template's measured table, against this host's store
+		table, e := parseModelTable(filepath.Join(*cpuTemplate, "rt/model-volumes.table"))
+		switch {
+		case e == nil:
+			s.ModelTable = true
+			if *modelStore != "" {
+				s.ModelVolumes, s.ModelMissing = storeVolumes(table, *modelStore)
+			}
+		case !errors.Is(e, os.ErrNotExist):
+			log.Fatalf("the pinned template's model-volume table: %v", e)
+		}
 	}
 	if why := releaseNamingRefusal(*releaseOn, *isoRelease, *legacyIso, *legacyIsoRelease); why != "" {
 		log.Fatal(why)
 	}
 	if s.TreeReleases, err = parseReleaseIDs(*isoRelease); err != nil {
 		log.Fatalf("-isolation-release: %v", err)
+	}
+	if *directOn {
+		if len(s.TreeReleases) != 1 {
+			log.Fatal("direct bootstrap requires exactly one pinned CPU release")
+		}
+		out, err := exec.Command("python3", filepath.Join(*iso, "m4/release-manifest.py"), "verify", filepath.Dir(*cpuTemplate), "--expect", s.TreeReleases[0]).CombinedOutput()
+		if err != nil {
+			log.Fatalf("direct bootstrap release does not verify: %s", out)
+		}
 	}
 	if s.LegacyTreeReleases, err = parseReleaseIDs(*legacyIsoRelease); err != nil {
 		log.Fatalf("-legacy-isolation-release: %v", err)
@@ -596,13 +669,22 @@ func main() {
 			}
 			log.Printf("non-release deployment guests are built from %s", *legacyIso)
 		}
-		tl, err := vsock.Listen(uint32(*ticketPort))
-		if err != nil {
-			log.Fatalf("release tickets: %v", err)
+		if *directOn {
+			s.DirectBootstrap = true
+			bl, err := vsock.Listen(uint32(*bootstrapPort))
+			if err != nil {
+				log.Fatalf("bootstrap packages: %v", err)
+			}
+			go func() { log.Fatal(s.serveBootstrap(context.Background(), bl, vsockCID)) }()
+		} else {
+			tl, err := vsock.Listen(uint32(*ticketPort))
+			if err != nil {
+				log.Fatalf("release tickets: %v", err)
+			}
+			go func() {
+				log.Fatal(s.serveTickets(context.Background(), tl, vsockCID, log.New(os.Stderr, "release: ", log.LstdFlags)))
+			}()
 		}
-		go func() {
-			log.Fatal(s.serveTickets(context.Background(), tl, vsockCID, log.New(os.Stderr, "release: ", log.LstdFlags)))
-		}()
 		cl, err := vsock.Listen(uint32(*custodyAuthPort))
 		if err != nil {
 			log.Fatalf("custody authorization: %v", err)
@@ -619,7 +701,11 @@ func main() {
 			CIDOf:  vsockCID, Admit: s.admitCID, Log: log.New(os.Stderr, "egress: ", log.LstdFlags),
 		}
 		go func() { log.Fatal(es.Serve(context.Background(), el)) }()
-		log.Printf("attested release ON: tickets on vsock %d, egress on vsock %d (guests guestd launched only)", *ticketPort, *egressPortFlag)
+		if *directOn {
+			log.Printf("direct bootstrap ON: packages on vsock %d, egress on vsock %d", *bootstrapPort, *egressPortFlag)
+		} else {
+			log.Printf("attested release ON: tickets on vsock %d, egress on vsock %d (guests guestd launched only)", *ticketPort, *egressPortFlag)
+		}
 	}
 	if *authKey != "" {
 		k, err := loadKey(*authKey)

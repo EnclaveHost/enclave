@@ -1,0 +1,34 @@
+[queue] START available=21501MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+[r6] candidate diff sha 472a6ee5f5caf897 (r4 tested 472a6ee5f5caf897)
+[suite] r6-base-storage: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-stage/tmp/base-head head 04c2dea3ee3b04afde3a9a5abe7f47261e52bd7e dirty=0; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=1 tests=1 pass=0 fail=1 cancelled=0 skip=0 notrun-native=0 63.2s test/storage-indexer-host.test.mjs
+        ✖ storage-indexer host role: platform-policy admission, refusals, and a real PostgreSQL 18 + indexd lifecycle (62962.725346ms)
+        ✖ storage-indexer host role: platform-policy admission, refusals, and a real PostgreSQL 18 + indexd lifecycle (62962.725346ms)
+[suite] r6-base-storage: files=1 tests=1 pass=0 fail=1 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/storage-indexer-host.test.mjs
+[suite] r6-cand-storage-1: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head dba7b4fdc091441ac8b85cca2738f19efa1003e0 dirty=4; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=1 tests=1 pass=0 fail=1 cancelled=0 skip=0 notrun-native=0 63.1s test/storage-indexer-host.test.mjs
+        ✖ storage-indexer host role: platform-policy admission, refusals, and a real PostgreSQL 18 + indexd lifecycle (62860.317034ms)
+        ✖ storage-indexer host role: platform-policy admission, refusals, and a real PostgreSQL 18 + indexd lifecycle (62860.317034ms)
+[suite] r6-cand-storage-1: files=1 tests=1 pass=0 fail=1 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/storage-indexer-host.test.mjs
+[suite] r6-cand-storage-2: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head dba7b4fdc091441ac8b85cca2738f19efa1003e0 dirty=4; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=1 tests=1 pass=0 fail=1 cancelled=0 skip=0 notrun-native=0 62.8s test/storage-indexer-host.test.mjs
+        ✖ storage-indexer host role: platform-policy admission, refusals, and a real PostgreSQL 18 + indexd lifecycle (62661.700098ms)
+        ✖ storage-indexer host role: platform-policy admission, refusals, and a real PostgreSQL 18 + indexd lifecycle (62661.700098ms)
+[suite] r6-cand-storage-2: files=1 tests=1 pass=0 fail=1 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/storage-indexer-host.test.mjs
+[r6] storage-indexer-host: baseline=fail candidate-failures=2/2
+[r6] fails on both trees (see the per-file logs for the reason comparison)
+[r6] b2 rc=9
+diff sha256 472a6ee5f5caf89772fd3d93f58a4ab8ca9477948612b92ab153c9c675ff893e
+network/build.mjs exit=1 (1 go denials)
+network/build.mjs exit=1 (1 go denials)
+admission bundles: --check FAILED (stale)
+network/build.mjs exit=1 (1 go denials)
+admission bundles: --check FAILED (stale)
+NOT REPRODUCIBLE
+[r6] rc=1
+[memory-guard] exit=1 peakTreeRssMiB=590 minHostAvailableMiB=17031
+[memory-guard] at peak: esbuild:212 esbuild:171 node:121 node:70 bash:4 bash:4 bash:4 timeout:2
+[queue] EXIT 1

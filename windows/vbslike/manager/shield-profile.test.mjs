@@ -56,3 +56,22 @@ test('profile budgets twelve GiB, with six GiB for each half-pool allocation',()
  assert.equal(shield.cardBudgetBytes,12*2**30);
  assert.equal(shield.cardBudgetBytes*500/1000,6*2**30);
 });
+
+test('failed start retains cleanup handles and holds GPU capacity until carrier stop succeeds',async()=>{
+ let stopFails=true,stops=0;
+ const handle={vmId:'00000000-0000-4000-8000-000000000001',transport:{privateCapability:true}};
+ const failure=Object.defineProperty(new Error('delivery failed; VM removed, worker close uncertain'),'launchHandle',{value:handle});
+ const m=new Manager({shield,fetchComponent:async()=>Buffer.from('0061736d0d000100','hex'),
+  backend:{backend:'hyperv-partition-per-app',supports:{},canSurvey:true,survey:async()=>({vms:[]}),
+   start:async()=>{throw failure;},stop:async h=>{assert.equal(h,handle);stops++;if(stopFails)throw Error('worker close uncertain');}}});
+ await m.recover();
+ const failed=await m.spawn(body);
+ assert.equal(failed.status,'failed');
+ assert.equal(m.domains.get(failed.id).handle,handle);
+ assert.ok(!JSON.stringify(failed).includes('privateCapability'));
+ await assert.rejects(m.remove(failed.id),/worker close uncertain/);
+ assert.equal(m.gpuAllocated(),1000);
+ await assert.rejects(m.spawn({...body,name:'second'}),/GPU allocation is full/);
+ stopFails=false;await m.remove(failed.id);
+ assert.equal(stops,2);assert.equal(m.gpuAllocated(),0);
+});

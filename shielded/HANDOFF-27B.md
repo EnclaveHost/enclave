@@ -1,5 +1,21 @@
 # Handoff: getting the shielded 27B past 20 tok/s
 
+> **Status 2026-09-23 (wrap-up, `shielded/REPORT.md` 18.50-18.54).** The goal
+> moved to **25 tok/s sustained** and is **not reached**. Best validated: the
+> official build (llamacpp-toolchain patches, production AVX2 flags) runs the
+> shielded 27B at 21.05 / 21.40 / 19.69 tok/s (median 21.05); the development
+> fork's clean baseline median is 21.30, and the best single valid run of the
+> campaign is 24.51. Nothing from the late CPU-kernel work ships: the register
+> row is AVX-512 only; streaming-store snapshots made the op cheaper but the
+> verify round ~5 ms SLOWER on the official path. Read 18.52-18.54 before trying
+> another recurrent-op kernel, and gate any candidate with
+> `wasm/llamacpp-conv-inplace/official-toolchain-check.sh` plus 27B round timing,
+> never the op profile alone. The bench harness lives in `shielded/bench-harness/`
+> (it used to live in a tmpfs scratchpad and was lost once). Merge readiness,
+> the open acceptance gaps (Freivalds rejections, no model-matched quality eval,
+> multi-sequence abort in the official graph-slot patch, since FIXED on the branch,
+> REPORT 18.55): `shielded/WRAPUP-27B-INTEGRATION.md`.
+
 You are picking up a performance campaign on Enclave's **shielded inference**
 tier. Read all of this before touching anything. It is written for an agent
 with no prior context, and most of its value is in the parts that say *this
@@ -206,13 +222,6 @@ rewinds.
 The cheap knobs are exhausted. What is left needs an idea, not a sweep. In
 rough order of how much I would bet on them:
 
-1. **Dealt pads.** The 8 refill threads exist only because the enclave mints
-   its own pads (`u = W·r` is a matmul). The architecture for pads minted by a
-   separate user-trusted dealer and shipped in **already exists** (P1-P4a
-   built, GPU mint path exists) and was never wired up for this model. If it
-   works, half the machine's committed cores come back for decode. This is the
-   largest structural lever I did not get to. Note the constraint: a dealer is
-   allowed, the untrusted host is not.
 2. **Cut the serial field arithmetic.** `C` is serial, and the box has idle
    cores. Parallelising the elementwise mask/encode across helper threads
    failed on dispatch overhead -- but the diagnosis was dispatch, not the idea.

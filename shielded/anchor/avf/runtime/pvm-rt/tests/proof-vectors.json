@@ -1,0 +1,47 @@
+{
+ "note": "made with viem's privateKeyToAccount / hashTypedData / signTypedData (RFC 6979, low-s): an independent implementation",
+ "vectors": [
+  {
+   "seed": "0ff57077f58c02035f96fa16669a38fb195b676e6b11134809b168cd42659b2e",
+   "address": "0x08117d3ec1b46b6ae5eca05854fc30bb9d577321",
+   "chainId": 8453,
+   "proofOfTime": "0xeebb1cd2d04d575a51a36331d20a29c45d35ccfd",
+   "id": "0x475adb1a0adcf762731200b5e9d0d20b3b307af71687d3c3bf55e12b65119bfe",
+   "enclaveId": "0x0f083c81dc3d82d8178cc9c397dca8b9c7973d260a77bd0706ec97b18194c466",
+   "operator": "0x0aee831b4ae337115b3800aeb639b9ca423b6824",
+   "upto": 1790000000,
+   "anchorBlock": 30000000,
+   "anchorHash": "0xb280d41aeb995be37ebe7594ca13036fefa9d29b194015a137077017bbe0e947",
+   "digest": "0x6c0592949c6204bbdaa555088116db1fbc830e0e6495f01af28e50f9820fa101",
+   "sig": "0xbb5ebe97ddc4164781e7c322b3ee3e6932dd30f294d94bf69bb3451a8464267816b7bdf2c01d88b83e18261c551cd05644c8ae8feaae760f89efdbd8c70565f51c"
+  },
+  {
+   "seed": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "address": "0xb61ddf38f3bc3fd934cfebc95a380beb59e8c1b0",
+   "chainId": 31337,
+   "proofOfTime": "0xe7f2528fa316c019aaf3ada03f39051a6002e1fb",
+   "id": "0x1a502f5b57aea6c12eb20e0373a31d3b26da9e975453053cdddaaf3417c0ed80",
+   "enclaveId": "0x8b8ecc3f8e4af54b383ed2048af1ea7dfb67940d99eae15c49e61dd940f846e1",
+   "operator": "0xf7f124941b87816ec275dfc2c1d0014efcd7761b",
+   "upto": 1790000600,
+   "anchorBlock": 30000001,
+   "anchorHash": "0xcabdbdfa02c612a9652e5e4965db9180b25e68ffcdb4deb4b278992a3967c67f",
+   "digest": "0x25de254140be43d12656d1001ef06c3404e5336afa5d2ac25205c6958c69f32b",
+   "sig": "0x22c0aab6f082f917b56180c02df9decb08f7866516689d937e6ffccf2df491693b14a94f177e9dd600efb50ce54fe42609498838f0cf6d66b3530d0e0d850a641c"
+  },
+  {
+   "seed": "0000000000000000000000000000000000000000000000000000000000000000",
+   "address": "0x82b29d6353591cd08d9259d530b643b15929dd2f",
+   "chainId": 84532,
+   "proofOfTime": "0xd61648cf86bedfcf4e6fe7c30a2bc628cb98c2d5",
+   "id": "0x606ac8840c86bd2f883d09996070efe98d676fa03ca774aca3f70aa82f2491a6",
+   "enclaveId": "0xbfc601ffe9bc5e05ac272c2eef9f3ff82dea7a058a76806244aa3a47952a880f",
+   "operator": "0xe1d53661ab0be0cfb1a1c4b6c51cd391e0fe1966",
+   "upto": 1790001200,
+   "anchorBlock": 30000002,
+   "anchorHash": "0x3c2001aacceab201c95baff79bd10da83adf2ee27bf846777c8b78de5eed6ea5",
+   "digest": "0xcc5fb45daa0c2abfc1bfb85de3b7fbec62405ef1bdeec108ec94a5c1c05540d3",
+   "sig": "0x3e910c1fd3b388357487cfec0ed83def5e74097e40d4e2e011335ea7bd58d41e35ac11a0109aa6f178b2408b2316d4de3e5c8465f58a373d206688e9dde5e89d1b"
+  }
+ ]
+}

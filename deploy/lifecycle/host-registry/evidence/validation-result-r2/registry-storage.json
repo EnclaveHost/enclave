@@ -1,0 +1,734 @@
+{
+  "storage": [
+    {
+      "astId": 425,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "_ids",
+      "offset": 0,
+      "slot": "0",
+      "type": "t_array(t_bytes32)dyn_storage"
+    },
+    {
+      "astId": 430,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "_rows",
+      "offset": 0,
+      "slot": "1",
+      "type": "t_mapping(t_bytes32,t_struct(Enclave)29_storage)"
+    },
+    {
+      "astId": 435,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "authority",
+      "offset": 0,
+      "slot": "2",
+      "type": "t_mapping(t_bytes32,t_struct(Authority)199_storage)"
+    },
+    {
+      "astId": 440,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "hostState",
+      "offset": 0,
+      "slot": "3",
+      "type": "t_mapping(t_bytes32,t_struct(HostState)220_storage)"
+    },
+    {
+      "astId": 445,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "_reporters",
+      "offset": 0,
+      "slot": "4",
+      "type": "t_mapping(t_bytes32,t_struct(Reporters)228_storage)"
+    },
+    {
+      "astId": 450,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "hostBudget",
+      "offset": 0,
+      "slot": "5",
+      "type": "t_mapping(t_bytes32,t_struct(Budget)241_storage)"
+    },
+    {
+      "astId": 455,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "_anchors",
+      "offset": 0,
+      "slot": "6",
+      "type": "t_mapping(t_bytes32,t_struct(TrustAnchor)282_storage)"
+    },
+    {
+      "astId": 460,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "reservations",
+      "offset": 0,
+      "slot": "7",
+      "type": "t_mapping(t_bytes32,t_struct(Reservation)268_storage)"
+    },
+    {
+      "astId": 464,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "hardwareReservation",
+      "offset": 0,
+      "slot": "8",
+      "type": "t_mapping(t_bytes32,t_bytes32)"
+    },
+    {
+      "astId": 468,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "jobReservation",
+      "offset": 0,
+      "slot": "9",
+      "type": "t_mapping(t_bytes32,t_bytes32)"
+    },
+    {
+      "astId": 472,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "hardwareHost",
+      "offset": 0,
+      "slot": "10",
+      "type": "t_mapping(t_bytes32,t_bytes32)"
+    },
+    {
+      "astId": 476,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "usedDigest",
+      "offset": 0,
+      "slot": "11",
+      "type": "t_mapping(t_bytes32,t_bool)"
+    },
+    {
+      "astId": 480,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "sponsorFunds",
+      "offset": 0,
+      "slot": "12",
+      "type": "t_mapping(t_address,t_uint256)"
+    },
+    {
+      "astId": 484,
+      "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+      "label": "credits",
+      "offset": 0,
+      "slot": "13",
+      "type": "t_mapping(t_address,t_uint256)"
+    }
+  ],
+  "types": {
+    "t_address": {
+      "encoding": "inplace",
+      "label": "address",
+      "numberOfBytes": "20"
+    },
+    "t_array(t_address)dyn_storage": {
+      "encoding": "dynamic_array",
+      "label": "address[]",
+      "numberOfBytes": "32",
+      "base": "t_address"
+    },
+    "t_array(t_bytes32)dyn_storage": {
+      "encoding": "dynamic_array",
+      "label": "bytes32[]",
+      "numberOfBytes": "32",
+      "base": "t_bytes32"
+    },
+    "t_bool": {
+      "encoding": "inplace",
+      "label": "bool",
+      "numberOfBytes": "1"
+    },
+    "t_bytes32": {
+      "encoding": "inplace",
+      "label": "bytes32",
+      "numberOfBytes": "32"
+    },
+    "t_mapping(t_address,t_uint256)": {
+      "encoding": "mapping",
+      "key": "t_address",
+      "label": "mapping(address => uint256)",
+      "numberOfBytes": "32",
+      "value": "t_uint256"
+    },
+    "t_mapping(t_bytes32,t_bool)": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => bool)",
+      "numberOfBytes": "32",
+      "value": "t_bool"
+    },
+    "t_mapping(t_bytes32,t_bytes32)": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => bytes32)",
+      "numberOfBytes": "32",
+      "value": "t_bytes32"
+    },
+    "t_mapping(t_bytes32,t_struct(Authority)199_storage)": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => struct EnclaveHostLifecycleRegistry.Authority)",
+      "numberOfBytes": "32",
+      "value": "t_struct(Authority)199_storage"
+    },
+    "t_mapping(t_bytes32,t_struct(Budget)241_storage)": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => struct EnclaveHostLifecycleRegistry.Budget)",
+      "numberOfBytes": "32",
+      "value": "t_struct(Budget)241_storage"
+    },
+    "t_mapping(t_bytes32,t_struct(Enclave)29_storage)": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => struct EnclaveHostLifecycleRegistry.Enclave)",
+      "numberOfBytes": "32",
+      "value": "t_struct(Enclave)29_storage"
+    },
+    "t_mapping(t_bytes32,t_struct(HostState)220_storage)": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => struct EnclaveHostLifecycleRegistry.HostState)",
+      "numberOfBytes": "32",
+      "value": "t_struct(HostState)220_storage"
+    },
+    "t_mapping(t_bytes32,t_struct(Reporters)228_storage)": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => struct EnclaveHostLifecycleRegistry.Reporters)",
+      "numberOfBytes": "32",
+      "value": "t_struct(Reporters)228_storage"
+    },
+    "t_mapping(t_bytes32,t_struct(Reservation)268_storage)": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => struct EnclaveHostLifecycleRegistry.Reservation)",
+      "numberOfBytes": "32",
+      "value": "t_struct(Reservation)268_storage"
+    },
+    "t_mapping(t_bytes32,t_struct(TrustAnchor)282_storage)": {
+      "encoding": "mapping",
+      "key": "t_bytes32",
+      "label": "mapping(bytes32 => struct EnclaveHostLifecycleRegistry.TrustAnchor)",
+      "numberOfBytes": "32",
+      "value": "t_struct(TrustAnchor)282_storage"
+    },
+    "t_string_storage": {
+      "encoding": "bytes",
+      "label": "string",
+      "numberOfBytes": "32"
+    },
+    "t_struct(Authority)199_storage": {
+      "encoding": "inplace",
+      "label": "struct EnclaveHostLifecycleRegistry.Authority",
+      "numberOfBytes": "96",
+      "members": [
+        {
+          "astId": 192,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "owner",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_address"
+        },
+        {
+          "astId": 194,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "pendingOwner",
+          "offset": 0,
+          "slot": "1",
+          "type": "t_address"
+        },
+        {
+          "astId": 196,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "revision",
+          "offset": 20,
+          "slot": "1",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 198,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "policyHash",
+          "offset": 0,
+          "slot": "2",
+          "type": "t_bytes32"
+        }
+      ]
+    },
+    "t_struct(Budget)241_storage": {
+      "encoding": "inplace",
+      "label": "struct EnclaveHostLifecycleRegistry.Budget",
+      "numberOfBytes": "128",
+      "members": [
+        {
+          "astId": 230,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "payer",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_address"
+        },
+        {
+          "astId": 232,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "balance",
+          "offset": 0,
+          "slot": "1",
+          "type": "t_uint128"
+        },
+        {
+          "astId": 234,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "protectedReserve",
+          "offset": 16,
+          "slot": "1",
+          "type": "t_uint128"
+        },
+        {
+          "astId": 236,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "perTransitionCap",
+          "offset": 0,
+          "slot": "2",
+          "type": "t_uint128"
+        },
+        {
+          "astId": 238,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "l1FeeAllowance",
+          "offset": 16,
+          "slot": "2",
+          "type": "t_uint128"
+        },
+        {
+          "astId": 240,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "maxGasPrice",
+          "offset": 0,
+          "slot": "3",
+          "type": "t_uint64"
+        }
+      ]
+    },
+    "t_struct(Enclave)29_storage": {
+      "encoding": "inplace",
+      "label": "struct EnclaveHostLifecycleRegistry.Enclave",
+      "numberOfBytes": "256",
+      "members": [
+        {
+          "astId": 4,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "endpoint",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_string_storage"
+        },
+        {
+          "astId": 6,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "repo",
+          "offset": 0,
+          "slot": "1",
+          "type": "t_string_storage"
+        },
+        {
+          "astId": 8,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "measurement",
+          "offset": 0,
+          "slot": "2",
+          "type": "t_bytes32"
+        },
+        {
+          "astId": 10,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "operator",
+          "offset": 0,
+          "slot": "3",
+          "type": "t_address"
+        },
+        {
+          "astId": 12,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "registeredAt",
+          "offset": 20,
+          "slot": "3",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 14,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "lastSeen",
+          "offset": 0,
+          "slot": "4",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 16,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "active",
+          "offset": 8,
+          "slot": "4",
+          "type": "t_bool"
+        },
+        {
+          "astId": 18,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "cpuPricePerSec6",
+          "offset": 9,
+          "slot": "4",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 20,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "gpuPricePerSec6",
+          "offset": 17,
+          "slot": "4",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 22,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "proofKey",
+          "offset": 0,
+          "slot": "5",
+          "type": "t_address"
+        },
+        {
+          "astId": 24,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "payoutWallet",
+          "offset": 0,
+          "slot": "6",
+          "type": "t_address"
+        },
+        {
+          "astId": 26,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "caps",
+          "offset": 20,
+          "slot": "6",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 28,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "region",
+          "offset": 0,
+          "slot": "7",
+          "type": "t_string_storage"
+        }
+      ]
+    },
+    "t_struct(HostState)220_storage": {
+      "encoding": "inplace",
+      "label": "struct EnclaveHostLifecycleRegistry.HostState",
+      "numberOfBytes": "224",
+      "members": [
+        {
+          "astId": 201,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "generation",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 203,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "status",
+          "offset": 8,
+          "slot": "0",
+          "type": "t_uint8"
+        },
+        {
+          "astId": 205,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "changedAt",
+          "offset": 9,
+          "slot": "0",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 207,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "qualificationExpiry",
+          "offset": 17,
+          "slot": "0",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 209,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "hardwareId",
+          "offset": 0,
+          "slot": "1",
+          "type": "t_bytes32"
+        },
+        {
+          "astId": 211,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "descriptorDigest",
+          "offset": 0,
+          "slot": "2",
+          "type": "t_bytes32"
+        },
+        {
+          "astId": 213,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "qualificationDigest",
+          "offset": 0,
+          "slot": "3",
+          "type": "t_bytes32"
+        },
+        {
+          "astId": 215,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "resourceDigest",
+          "offset": 0,
+          "slot": "4",
+          "type": "t_bytes32"
+        },
+        {
+          "astId": 217,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "trustAnchorId",
+          "offset": 0,
+          "slot": "5",
+          "type": "t_bytes32"
+        },
+        {
+          "astId": 219,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "lastOfflineDigest",
+          "offset": 0,
+          "slot": "6",
+          "type": "t_bytes32"
+        }
+      ]
+    },
+    "t_struct(Reporters)228_storage": {
+      "encoding": "inplace",
+      "label": "struct EnclaveHostLifecycleRegistry.Reporters",
+      "numberOfBytes": "64",
+      "members": [
+        {
+          "astId": 223,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "keys",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_array(t_address)dyn_storage"
+        },
+        {
+          "astId": 225,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "threshold",
+          "offset": 0,
+          "slot": "1",
+          "type": "t_uint8"
+        },
+        {
+          "astId": 227,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "revision",
+          "offset": 1,
+          "slot": "1",
+          "type": "t_uint64"
+        }
+      ]
+    },
+    "t_struct(Reservation)268_storage": {
+      "encoding": "inplace",
+      "label": "struct EnclaveHostLifecycleRegistry.Reservation",
+      "numberOfBytes": "256",
+      "members": [
+        {
+          "astId": 243,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "payer",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_address"
+        },
+        {
+          "astId": 245,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "status",
+          "offset": 20,
+          "slot": "0",
+          "type": "t_uint8"
+        },
+        {
+          "astId": 247,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "deadline",
+          "offset": 21,
+          "slot": "0",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 249,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "submitter",
+          "offset": 0,
+          "slot": "1",
+          "type": "t_address"
+        },
+        {
+          "astId": 251,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "maxGasPrice",
+          "offset": 20,
+          "slot": "1",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 253,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "hostId",
+          "offset": 0,
+          "slot": "2",
+          "type": "t_bytes32"
+        },
+        {
+          "astId": 255,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "hardwareId",
+          "offset": 0,
+          "slot": "3",
+          "type": "t_bytes32"
+        },
+        {
+          "astId": 257,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "jobId",
+          "offset": 0,
+          "slot": "4",
+          "type": "t_bytes32"
+        },
+        {
+          "astId": 259,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "trustAnchorId",
+          "offset": 0,
+          "slot": "5",
+          "type": "t_bytes32"
+        },
+        {
+          "astId": 261,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "protectedAmount",
+          "offset": 0,
+          "slot": "6",
+          "type": "t_uint128"
+        },
+        {
+          "astId": 263,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "listingGasCap",
+          "offset": 16,
+          "slot": "6",
+          "type": "t_uint128"
+        },
+        {
+          "astId": 265,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "perTransitionCap",
+          "offset": 0,
+          "slot": "7",
+          "type": "t_uint128"
+        },
+        {
+          "astId": 267,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "l1FeeAllowance",
+          "offset": 16,
+          "slot": "7",
+          "type": "t_uint128"
+        }
+      ]
+    },
+    "t_struct(TrustAnchor)282_storage": {
+      "encoding": "inplace",
+      "label": "struct EnclaveHostLifecycleRegistry.TrustAnchor",
+      "numberOfBytes": "128",
+      "members": [
+        {
+          "astId": 271,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "verifiers",
+          "offset": 0,
+          "slot": "0",
+          "type": "t_array(t_address)dyn_storage"
+        },
+        {
+          "astId": 273,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "threshold",
+          "offset": 0,
+          "slot": "1",
+          "type": "t_uint8"
+        },
+        {
+          "astId": 275,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "version",
+          "offset": 1,
+          "slot": "1",
+          "type": "t_uint32"
+        },
+        {
+          "astId": 277,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "maxReceiptAge",
+          "offset": 5,
+          "slot": "1",
+          "type": "t_uint64"
+        },
+        {
+          "astId": 279,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "metadataDigest",
+          "offset": 0,
+          "slot": "2",
+          "type": "t_bytes32"
+        },
+        {
+          "astId": 281,
+          "contract": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/candidate/contracts/EnclaveHostLifecycleRegistry.sol:EnclaveHostLifecycleRegistry",
+          "label": "publisher",
+          "offset": 0,
+          "slot": "3",
+          "type": "t_address"
+        }
+      ]
+    },
+    "t_uint128": {
+      "encoding": "inplace",
+      "label": "uint128",
+      "numberOfBytes": "16"
+    },
+    "t_uint256": {
+      "encoding": "inplace",
+      "label": "uint256",
+      "numberOfBytes": "32"
+    },
+    "t_uint32": {
+      "encoding": "inplace",
+      "label": "uint32",
+      "numberOfBytes": "4"
+    },
+    "t_uint64": {
+      "encoding": "inplace",
+      "label": "uint64",
+      "numberOfBytes": "8"
+    },
+    "t_uint8": {
+      "encoding": "inplace",
+      "label": "uint8",
+      "numberOfBytes": "1"
+    }
+  }
+}

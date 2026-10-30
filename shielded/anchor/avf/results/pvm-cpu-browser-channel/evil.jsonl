@@ -1,0 +1,35 @@
+{"t":"2026-09-24T07:26:33.099Z","evil":"pass","relaySpkiTail":"59a62de1b63b91e3","relayX25519Head":"b67bbd4e89741dc5"}
+{"t":"2026-09-24T07:26:33.104Z","evil":"pass","listening":18457}
+{"t":"2026-09-24T07:26:36.042Z","evil":"pass","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T07:26:36.865Z","evil":"pass","sealed":"forwarded","bytesIn":177,"bytesOut":365}
+{"t":"2026-09-24T07:26:39.942Z","evil":"replay","relaySpkiTail":"a0706d068b2a3461","relayX25519Head":"4789b126c5bda706"}
+{"t":"2026-09-24T07:26:39.947Z","evil":"replay","listening":18457}
+{"t":"2026-09-24T07:26:42.200Z","evil":"replay","evidence":"answered with a RECORDED envelope","forNonce":"a81efd722e2b3e4e"}
+{"t":"2026-09-24T07:26:45.397Z","evil":"swap-appkey","relaySpkiTail":"84ba1a40c79aa473","relayX25519Head":"4711ea9d4cf66c82"}
+{"t":"2026-09-24T07:26:45.402Z","evil":"swap-appkey","listening":18457}
+{"t":"2026-09-24T07:26:48.257Z","evil":"swap-appkey","evidence":"forwarded the GENUINE envelope with ITS OWN app key swapped in"}
+{"t":"2026-09-24T07:26:51.439Z","evil":"downgrade","relaySpkiTail":"a83457e2e8300a27","relayX25519Head":"ac2fc71d7637eae2"}
+{"t":"2026-09-24T07:26:51.444Z","evil":"downgrade","listening":18457}
+{"t":"2026-09-24T07:26:54.317Z","evil":"downgrade","evidence":"forwarded the GENUINE envelope DOWNGRADED to v1 (no app key)"}
+{"t":"2026-09-24T07:26:57.524Z","evil":"own-ca","relaySpkiTail":"371e8018e1d67460","relayX25519Head":"0096a9f94335bd63"}
+{"t":"2026-09-24T07:26:57.530Z","evil":"own-ca","listening":18457}
+{"t":"2026-09-24T07:26:59.782Z","evil":"own-ca","evidence":"answered with a FORGED v2 envelope from its own CA over its own keys","forNonce":"3a6d84ea0399f426"}
+{"t":"2026-09-24T07:27:02.935Z","evil":"tamper-request","relaySpkiTail":"d547dd011f42b50a","relayX25519Head":"0356a4d32bbbed01"}
+{"t":"2026-09-24T07:27:02.940Z","evil":"tamper-request","listening":18457}
+{"t":"2026-09-24T07:27:05.984Z","evil":"tamper-request","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T07:27:05.997Z","evil":"tamper-request","sealed":"flipped one bit of the request's ciphertext"}
+{"t":"2026-09-24T07:27:09.190Z","evil":"tamper-response","relaySpkiTail":"c6e481b9974c9c63","relayX25519Head":"4face843ba8cbca7"}
+{"t":"2026-09-24T07:27:09.195Z","evil":"tamper-response","listening":18457}
+{"t":"2026-09-24T07:27:12.113Z","evil":"tamper-response","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T07:27:13.006Z","evil":"tamper-response","sealed":"flipped one bit of the VM's sealed response"}
+{"t":"2026-09-24T07:27:16.230Z","evil":"replay-sealed","relaySpkiTail":"9a0833752d5dbac2","relayX25519Head":"247ea24b054192ba"}
+{"t":"2026-09-24T07:27:16.235Z","evil":"replay-sealed","listening":18457}
+{"t":"2026-09-24T07:27:19.093Z","evil":"replay-sealed","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T07:27:19.948Z","evil":"replay-sealed","sealed":"sent the page's sealed request to the VM AGAIN","vmAnswer":"refused: replayed request: refused before it runs"}
+{"t":"2026-09-24T07:33:28.899Z","evil":"replay","relaySpkiTail":"8a8df0da287b9ce3","relayX25519Head":"7206eb25b68f6fa1"}
+{"t":"2026-09-24T07:33:28.903Z","evil":"replay","listening":18457}
+{"t":"2026-09-24T07:33:31.092Z","evil":"replay","evidence":"answered with a RECORDED envelope","forNonce":"9258796d9c2bb786"}
+{"t":"2026-09-24T07:33:34.339Z","evil":"replay-old-sealed","relaySpkiTail":"5b8588b7700717c2","relayX25519Head":"bfa1b1801d3f74b9"}
+{"t":"2026-09-24T07:33:34.344Z","evil":"replay-old-sealed","listening":18457}
+{"t":"2026-09-24T07:33:37.312Z","evil":"replay-old-sealed","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T07:33:37.349Z","evil":"replay-old-sealed","sealed":"sent ANOTHER BOOT's recorded sealed request instead of the page's","vmAnswer":"refused: unknown evidence nonce: fetch fresh evidence (the key rotates with each boot)"}

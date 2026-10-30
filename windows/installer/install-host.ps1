@@ -1,8 +1,19 @@
 # install-host.ps1 -- install an Enclave host on this Windows PC (docs/design/windows-host-installer.md). EnclaveSetup.exe
 # runs it elevated from the expanded bundle; it can also be run by hand:
 #   powershell -ExecutionPolicy Bypass -File install-host.ps1 -Name my-box [-Owner DOMAIN\user] [-Referral code] [-EnclaveDNS] [-CheckOnly]
+# An INDEPENDENT host (docs/network/independent-windows.md): no Enclave relay tunnel, no relay name reservation, and no
+# Enclave default for anything it fetches or trusts:
+#   ... -Name my-box -NoRelay -PublicUrl https://my-box.example.org -Gateways https://gw1.example,https://gw2.example
+#       -ContractPins C:\path\contract-pins.json [-Rpcs a,b] [-Directories a,b] [-NetworkCheckers 0x..,0x..]
+#       [-NameCheck chain|offline] [-ReleasePolicy C:\path\release-policy.json]
 # Progress goes to stdout as one JSON object per line: {"step","state":"run|ok|warn|fail|reboot","message"}.
 # Re-running is safe: every step checks what is already there. Nothing is downloaded: the bundle is this folder.
+#
+# WHO THIS HOST IS is recorded in node\host.json (identity, ENCLAVE-IDENTITY-RECORD-V1) and re-used by every later run,
+# including the automatic updates, which pass only -Name and -Owner: an update never moves a host to another endpoint,
+# relay, gateway set, pin document or release policy. Changing any of them takes explicit parameters AND -Reconfigure,
+# and a new public endpoint is a new host on chain (keccak256 of the endpoint is its registry id). A host installed before
+# identities were recorded is the relay host it has always been: https://api.enclave.host/t/<name>.
 param(
   [string] $Name = "",
   [string] $Owner = "",                 # the Windows account that gets the tray (default: whoever runs setup)
@@ -12,15 +23,285 @@ param(
   [string] $SetupExe = "",              # EnclaveSetup.exe: kept in Program Files as the uninstaller Windows' Installed apps runs
   [switch] $Delta,                      # an update over this install: replace only the files whose sha256 changed (update-host.ps1)
   [string] $Referral = "",              # the referral code this machine came with (attribution only; relay/referrals.mjs)
-  [switch] $EnclaveDNS                  # also install EnclaveDNS (setup's checkbox, ticked by default; updates never pass it)
+  [switch] $EnclaveDNS,                 # also install EnclaveDNS (setup's checkbox, ticked by default; updates never pass it)
+  [switch] $NoRelay,                    # independent: no Enclave fleet tunnel and no relay name reservation
+  [string] $PublicUrl = "",             # independent: this host's own public endpoint, exactly as it is to be registered
+  [string] $Gateways = "",              # independent: artifact gateways (comma list; every artifact is CID-verified)
+  [string] $ContractPins = "",          # independent: the contract pin document (network/contract-pins.mjs format)
+  [string] $Rpcs = "",                  # Base RPCs (comma list; default: the node's public list)
+  [string] $Directories = "",           # public signed-record directories for the Enclave network (comma list of origins)
+  [string] $NetworkCheckers = "",       # the qualification checkers this host trusts for network providers (comma list)
+  [ValidateSet("", "relay", "chain", "offline")] [string] $NameCheck = "",   # default: relay for a relay host, chain otherwise
+  [string] $ReleasePolicy = "",         # the signed update policy to pin (release-channel.mjs format)
+  [switch] $Reconfigure,                 # let explicit parameters replace this host's recorded identity or release policy
+  # When Windows Update may restart this PC (windows/node/update-window.mjs). Each is kept from node\host.json when not given.
+  [int] $UpdateWindowStart = -1,        # the window's first hour, 0-23, this PC's time (default 1)
+  [int] $UpdateWindowHours = -1,        # its length, 6-24 (default 6)
+  [ValidateSet("", "on", "off")] [string] $ManageWindowsUpdate = "",     # off: leave this PC's own Windows Update policy
+  [ValidateSet("", "on", "off")] [string] $NoRebootWhileSignedIn = ""    # on: never restart while anyone is signed in
 )
 $ErrorActionPreference = "Stop"
 $Bundle = $PSScriptRoot
 $PF = Join-Path $env:ProgramFiles "Enclave"
 $PD = Join-Path $env:ProgramData "Enclave"
 function Emit($step, $state, $message) { [ordered]@{ step = $step; state = $state; message = $message } | ConvertTo-Json -Compress | Write-Output }
-function Fail($step, $message) { Emit $step "fail" $message; exit 1 }
+function Fail($step, $message) { Emit $step "fail" $message; $script:Outcome = "failed"; $script:OutcomeDetail = "${step}: $message"; Restore-OtherTasks "after the failed install"; Save-InstallStatus "failed" $script:OutcomeDetail; exit 1 }
 function Sha($p) { (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower() }
+function List($s) { @(([string]$s).Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ }) }
+# WHAT AN INSTALL MAY STOP (ENCLAVE-ROLE-PRESERVATION-V1). The release owns only its directories and top-level files under Program
+# Files\Enclave. Other \Enclave\ tasks belong to roles installed by their own installers (host-services runners, Relay,
+# NetworkChecker, ...). One of them is stopped ONLY when it depends on a release-owned file (which this install may replace or
+# delete): a process of its running tree executes one, or that tree's command lines, its task action (program, arguments, working
+# directory) or a wrapper script (.cmd/.bat/.ps1) the action names refers to one - e.g. an external node.exe running a script in
+# network\ - or when Task Scheduler cannot say what it runs. Those references are compared as TEXT only, never run. Each role
+# stopped (with what is left of its process tree) is started again as soon as the files are in place - or, on ANY failure or
+# exit, by Fail / the finally below - and counts as restored only once Task Scheduler reports it Running again. A role that
+# depends on nothing of the release (e.g. hs2: C:\Program Files\nodejs running its own host-services\hs2) is never touched.
+# Every outcome is also written to ProgramData\Enclave\logs\install-status.json.
+$script:ReleaseDirs = @("runtime", "control", "network", "bin", "guest", "tray", "tuna")
+$script:ReleaseFiles = @("manifest.json", "uninstall-host.ps1", "update-host.ps1", "EnclaveSetup.exe")
+$script:CoreTasks = @("Shield", "Card", "Node", "Network", "Tuna")
+$script:PriorTasks = @{}; $script:StoppedOthers = [Collections.Generic.List[string]]::new(); $script:OthersRestored = $false; $script:RestoredOthers = @{}
+$script:StopReasons = @{}; $script:StoppedTrees = @{}; $script:PendingWhy = @{}
+function Test-ReleaseOwned([string]$path) { if (-not $path) { return $false }; foreach ($d in $script:ReleaseDirs) { if ($path.StartsWith("$PF\$d\", [StringComparison]::OrdinalIgnoreCase)) { return $true } }; return $false }
+# Does this text (a command line, a task action, a wrapper script) name a release-owned path? Separators, %xx escapes, doubled
+# backslashes and case are normalized; the text is never executed or parsed as a command. (8.3 short names are not resolved.)
+function Test-ReleaseRef([string]$text) {
+  if (-not $text) { return $false }
+  $t = $text.Replace('/', '\'); try { $t = [Uri]::UnescapeDataString($t) } catch { }
+  $t = [regex]::Replace($t, '\\{2,}', '\')
+  $root = [regex]::Escape($PF.Replace('/', '\').TrimEnd('\') + '\')
+  $names = @($script:ReleaseDirs + $script:ReleaseFiles | ForEach-Object { [regex]::Escape($_) }) -join '|'
+  return [regex]::IsMatch($t, "(?i)$root(?:$names)(?![A-Za-z0-9_.-])")
+}
+# \Enclave\<task> -> its running process tree (Task Scheduler's running instances: EnginePID and its descendants), each process
+# as {pid, created, exe, cmd}; or $null when that cannot be read (then every running other task counts as affected)
+function Get-RunningTaskTrees {
+  try { $svc = New-Object -ComObject Schedule.Service; $svc.Connect(); $run = @($svc.GetRunningTasks(1)) } catch { return $null }
+  $procs = @(Get-CimInstance Win32_Process); $byPid = @{}; $kids = @{}
+  foreach ($p in $procs) { $byPid[[int]$p.ProcessId] = $p; $k = [int]$p.ParentProcessId; if (-not $kids.ContainsKey($k)) { $kids[$k] = [Collections.Generic.List[object]]::new() }; $kids[$k].Add($p) }
+  $out = @{}
+  foreach ($r in $run) {
+    if ([string]$r.Path -notlike "\Enclave\*") { continue }
+    $n = ([string]$r.Path).Substring(9); $members = @(); $todo = [Collections.Generic.Queue[int]]::new(); $todo.Enqueue([int]$r.EnginePID); $seen = @{}
+    while ($todo.Count) { $i = $todo.Dequeue(); if ($seen.ContainsKey($i)) { continue }; $seen[$i] = 1
+      if ($byPid.ContainsKey($i)) { $p = $byPid[$i]; $members += [pscustomobject]@{ pid = $i; created = [string]$p.CreationDate; exe = [string]$p.ExecutablePath; cmd = [string]$p.CommandLine } }
+      if ($kids.ContainsKey($i)) { foreach ($c in $kids[$i]) { $todo.Enqueue([int]$c.ProcessId) } } }
+    $out[$n] = @($(if ($out.ContainsKey($n)) { $out[$n] }) + $members) }
+  return $out
+}
+# Why a running other role depends on the release ($null: it does not). Its task action and the wrapper scripts the action names
+# (at most 1 MB each; one level, a script those call is not followed) are read as text; an unreadable one counts as a dependency.
+function Get-ReleaseDependency($task, $tree) {
+  if ($null -eq $tree -or @($tree).Count -eq 0) { return "Task Scheduler could not say what it runs" }
+  foreach ($m in @($tree)) { if (Test-ReleaseOwned $m.exe) { return "process $($m.pid) runs $($m.exe)" } }
+  foreach ($m in @($tree)) { if (Test-ReleaseRef $m.cmd) { return "process $($m.pid) ($($m.exe)) is given a release file on its command line" } }
+  foreach ($a in @($task.Actions)) {
+    if ($null -eq $a) { continue }
+    $line = [Environment]::ExpandEnvironmentVariables("$([string]$a.Execute) $([string]$a.Arguments)")
+    $wd = [Environment]::ExpandEnvironmentVariables([string]$a.WorkingDirectory).Replace('/', '\').TrimEnd('\')
+    if (Test-ReleaseRef $line) { return "its task action names a release file" }
+    if ($wd -and ($wd -ieq $PF.TrimEnd('\') -or (Test-ReleaseRef "$wd\"))) { return "its task action works in $wd" }
+    # wrapper candidates: every token ending .cmd/.bat/.ps1, and every absolute path ending so (quoted or not, e.g. -Command "& 'C:\x.ps1'")
+    $scripts = @(foreach ($m in [regex]::Matches($line, '"([^"]*)"|(\S+)')) { $(if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $m.Groups[2].Value }) }) +
+               @(foreach ($m in [regex]::Matches($line, '(?i)(?:[A-Za-z]:\\|\\\\)[^"''<>|*?\r\n]*?\.(?:cmd|bat|ps1)(?![A-Za-z0-9_.])')) { $m.Value })
+    foreach ($f in @($scripts | Where-Object { $_ -match '\.(cmd|bat|ps1)$' } | Select-Object -Unique)) {
+      try {
+        $item = Get-Item -LiteralPath $f -ErrorAction Stop
+        if ($item.Length -gt 1MB) { return "its wrapper script $f is too large to read" }
+        $txt = [IO.File]::ReadAllText($item.FullName)
+        if ((Test-ReleaseRef $txt) -or (Test-ReleaseRef ([Environment]::ExpandEnvironmentVariables($txt)))) { return "its wrapper script $f names a release file" }
+      } catch { return "its wrapper script $f could not be read" }
+    }
+  }
+  return $null
+}
+# What this install did to the other roles, kept beside the logs for whoever reviews the host: the step output can be lost (an
+# update logs it, EnclaveSetup shows it once). Written as SYSTEM, so only into a logs folder that is already SYSTEM's and
+# Administrators' alone (an earlier install made it so); never into one another account could have made or planted files in.
+function Test-PrivateDir($dir) {
+  try {
+    $item = Get-Item -LiteralPath $dir -Force -ErrorAction Stop
+    if (-not $item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { return $false }
+    $acl = Get-Acl -LiteralPath $dir; $sid = [Security.Principal.SecurityIdentifier]
+    $others = @($acl.GetAccessRules($true, $true, $sid) | Where-Object { @("S-1-5-18", "S-1-5-32-544") -notcontains $_.IdentityReference.Value })
+    return $acl.AreAccessRulesProtected -and @("S-1-5-18", "S-1-5-32-544") -contains $acl.GetOwner($sid).Value -and $others.Count -eq 0
+  } catch { return $false }
+}
+$script:Outcome = $null; $script:OutcomeDetail = $null
+function Save-InstallStatus($result, $detail) {
+  try {
+    $d = Join-Path $PD "logs"
+    if (-not (Test-PrivateDir $d)) { return }
+    $roles = [ordered]@{}
+    foreach ($n in @($script:EarlierPending | Where-Object { -not $script:PriorTasks.ContainsKey($_) })) {
+      $roles[$n] = [ordered]@{ enabled = $null; running = $null; stopped = $true; why = "an earlier install stopped it"; outcome = "PENDING: stopped by an earlier install, not yet running again" } }
+    foreach ($n in @($script:PriorTasks.Keys | Sort-Object)) {
+      $roles[$n] = [ordered]@{ enabled = $script:PriorTasks[$n].enabled; running = $script:PriorTasks[$n].running
+                               stopped = $script:StoppedOthers.Contains($n); why = $script:StopReasons[$n]
+                               outcome = $(if ($script:RestoredOthers.ContainsKey($n)) { $script:RestoredOthers[$n] } elseif ($script:PendingWhy.ContainsKey($n)) { "PENDING: " + $script:PendingWhy[$n] } elseif ($script:StoppedOthers.Contains($n)) { "PENDING: not yet restarted" } else { $null }) } }
+    [ordered]@{ at = (Get-Date).ToUniversalTime().ToString("o"); result = $result; detail = $detail; updating = ($env:ENCLAVE_UPDATING -eq "1")
+                bundleVersion = $(if ($manifest) { [string]$manifest.version } else { $null }); otherRolesRestored = $script:OthersRestored; roles = $roles } |
+      ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 (Join-Path $d "install-status.json")
+  } catch { }
+}
+# Roles an EARLIER install stopped and did not see running again (install-status.json: stopped, outcome PENDING...). A rollback or
+# re-run must start them again like the roles it stops itself; without this they would look operator-stopped and the record lost.
+function Get-EarlierPending {
+  try {
+    $d = Join-Path $PD "logs"; $f = Join-Path $d "install-status.json"
+    if (-not (Test-PrivateDir $d) -or -not (Test-Path -LiteralPath $f -PathType Leaf)) { return @() }
+    $s = Get-Content -LiteralPath $f -Raw | ConvertFrom-Json
+    if ($null -eq $s.roles) { return @() }
+    return @($s.roles.PSObject.Properties | Where-Object { $_.Value.stopped -eq $true -and ([string]$_.Value.outcome).StartsWith("PENDING") } | ForEach-Object { [string]$_.Name })
+  } catch { return @() }
+}
+$script:EarlierPending = @()
+function Stop-ForInstall {
+  $trees = Get-RunningTaskTrees
+  foreach ($t in Get-ScheduledTask -TaskPath "\Enclave\" -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -ne "Update" }) {
+    $n = $t.TaskName; $running = ([string]$t.State -eq "Running")
+    $script:PriorTasks[$n] = [ordered]@{ enabled = [bool]$t.Settings.Enabled; running = $running }
+    if ($n -in $script:CoreTasks) { Stop-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction SilentlyContinue; continue }
+    if (-not $running) {
+      if ($script:EarlierPending -contains $n) { $script:StoppedOthers.Add($n); $script:StopReasons[$n] = "an earlier install stopped it and it was not running again" }
+      continue }
+    $tree = $(if ($null -ne $trees -and $trees.ContainsKey($n)) { @($trees[$n]) } else { $null })
+    $why = Get-ReleaseDependency $t $tree
+    if ($why) {
+      Stop-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction SilentlyContinue; $script:StoppedOthers.Add($n); $script:StopReasons[$n] = $why
+      if ($tree) { $script:StoppedTrees[$n] = @($tree) } }
+  }
+  # processes that execute a release-owned file, and what is left of the trees of the roles stopped above (the same process: the
+  # same id AND creation time, so a reused id is never hit); nothing else (never e.g. host-services\hs2 or C:\Program Files\nodejs)
+  $left = @{}; foreach ($n in $script:StoppedTrees.Keys) { foreach ($m in $script:StoppedTrees[$n]) { $left["$($m.pid)|$($m.created)"] = 1 } }
+  Get-CimInstance Win32_Process | Where-Object { (Test-ReleaseOwned ([string]$_.ExecutablePath)) -or $left.ContainsKey("$([int]$_.ProcessId)|$([string]$_.CreationDate)") } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  Save-InstallStatus "installing" "stopped: $(if ($script:StoppedOthers.Count) { $script:StoppedOthers -join ', ' } else { 'core tasks only' })"
+}
+function Restore-OtherTasks($why) {
+  if ($script:OthersRestored) { return }
+  $done = @(); $left = @(); $bad = @()
+  foreach ($n in $script:StoppedOthers) {
+    if ($script:RestoredOthers.ContainsKey($n)) { continue }
+    if (-not $script:PriorTasks[$n].enabled) {
+      $left += $n; $script:RestoredOthers[$n] = "operator-disabled"; continue
+    }
+    try {
+      $current = Get-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction Stop
+      if ($null -eq $current) { throw "the task no longer exists" }
+      if (-not $current.Settings.Enabled) {
+        $left += $n; $script:RestoredOthers[$n] = "operator-disabled"; continue
+      }
+      # Restored means SEEN Running again (a refused request, a vanished task or one that does not stay up remains pending, so
+      # the existing Fail/finally cleanup retries it); a role already restored is never requested twice.
+      if ([string]$current.State -ne "Running") {
+        Start-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction Stop
+        $state = ""
+        for ($w = 0; $w -lt 10; $w++) {
+          $state = [string](Get-ScheduledTask -TaskPath "\Enclave\" -TaskName $n -ErrorAction Stop).State
+          if ($state -eq "Running") { break }; Start-Sleep 1 }
+        if ($state -ne "Running") { throw "started, but Task Scheduler reports it $state, not Running" }
+      }
+      $done += $n; $script:RestoredOthers[$n] = "running"; $script:PendingWhy.Remove($n)
+    } catch { $bad += "$n ($($_.Exception.Message))"; $script:PendingWhy[$n] = $_.Exception.Message }
+  }
+  $script:OthersRestored = (@($script:StoppedOthers | Where-Object { -not $script:RestoredOthers.ContainsKey($_) }).Count -eq 0)
+  if (-not ($done.Count + $left.Count + $bad.Count)) { return }
+  Save-InstallStatus $(if ($script:OthersRestored) { "roles-restored" } else { "roles-pending" }) $why
+  Emit "services" $(if ($bad.Count) { "warn" } else { "ok" }) ("other Enclave roles this install stopped, running again $why`: " + $(if ($done.Count) { $done -join ", " } else { "none" }) +
+    $(if ($bad.Count) { "; NOT running yet (retried at cleanup): " + ($bad -join ", ") } else { "" }) + $(if ($left.Count) { "; left stopped (disabled by their operator): " + ($left -join ", ") } else { "" }))
+}
+# AN AUTOMATIC UPDATE ON A HOST WITH ROLES BESIDE THE RELEASE. The updater running this script reinstalls the release that was
+# running, from its kept bundle in ProgramData\Enclave-setup, whenever this script exits non-zero. A kept installer without
+# ENCLAVE-ROLE-PRESERVATION-V1 deletes all of Program Files\Enclave (host-services\hs2, a top-level challenge-replica), leaves
+# every other role stopped, and puts that release's files back over the live ones. An updater that refuses such a rollback by
+# itself carries ENCLAVE-ROLLBACK-GUARD-V1. Under any other updater, on a host with such roles, this script refuses the update
+# BEFORE changing anything and exits 0 (the one exit that updater does not answer with that rollback). It says so in its output
+# (the update log), in ProgramData\Enclave\logs\install-status.json, and by leaving Program Files' manifest at the installed
+# version; that updater's own "updated" log line and tray state are then wrong, the manifest is not. Run by hand or by
+# EnclaveSetup (no ENCLAVE_UPDATING), no automatic rollback follows and this never applies.
+function Get-UnsafeRollback {
+  if ($env:ENCLAVE_UPDATING -ne "1") { return $null }
+  try {
+    $upd = Join-Path $PF "update-host.ps1"
+    if ((Test-Path -LiteralPath $upd) -and (Select-String -LiteralPath $upd -SimpleMatch "ENCLAVE-ROLLBACK-GUARD-V1" -Quiet)) { return $null }
+    $im = Join-Path $PF "manifest.json"
+    if (-not (Test-Path -LiteralPath $im)) { return $null }
+    $ver = [string](Get-Content -LiteralPath $im -Raw | ConvertFrom-Json).version
+    $back = Join-Path (Join-Path (Split-Path $PD) "Enclave-setup") (Join-Path $ver "install-host.ps1")
+    if (-not (Test-Path -LiteralPath $back)) { return $null }
+    if (Select-String -LiteralPath $back -SimpleMatch "ENCLAVE-ROLE-PRESERVATION-V1" -Quiet) { return $null }
+    $owned = @($script:ReleaseDirs + $script:ReleaseFiles)
+    $beside = @(Get-ChildItem -LiteralPath $PF -Force | Where-Object { $owned -notcontains $_.Name } | ForEach-Object { $_.Name })
+    $roles = @(Get-ScheduledTask -TaskPath "\Enclave\" -ErrorAction SilentlyContinue | Where-Object { @($script:CoreTasks + "Update") -notcontains $_.TaskName } | ForEach-Object { $_.TaskName })
+    if (-not ($beside.Count + $roles.Count)) { return $null }
+    $kept = @(@($beside | ForEach-Object { "$PF\$_" }) + @($roles | ForEach-Object { "\Enclave\$_" }))
+    return "its automatic rollback would run $back, which does not preserve $($kept -join ', ')"
+  } catch { return "this host's update state could not be read ($($_.Exception.Message))" }
+}
+# a core task this script registers (-Force enables it) that its operator had DISABLED is disabled again at once
+function Allowed($name) { -not ($script:PriorTasks.ContainsKey($name) -and -not $script:PriorTasks[$name].enabled) }
+# What a release OWNS in Program Files\Enclave: its directories and the bundle's top-level files. A full install removes
+# exactly these (never the whole folder): a role installed beside them (host-services\hs2, a top-level challenge-replica
+# release dir) survives. Anything INSIDE a release directory is release content and IS replaced.
+function Clear-ReleaseContent($root) {
+  if (-not (Test-Path -LiteralPath $root)) { return }
+  foreach ($d in $script:ReleaseDirs) { $p = Join-Path $root $d; if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force } }
+  foreach ($f in "manifest.json", "uninstall-host.ps1", "update-host.ps1", "EnclaveSetup.exe") { $p = Join-Path $root $f; if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force } }
+}
+# node.exe with its stderr kept: native stderr under "Stop" throws in Windows PowerShell 5.1, so relaxed for this call only
+function NodeRun($exe, [string[]] $a) {
+  $ErrorActionPreference = "Continue"
+  $o = @(& $exe @a 2>&1 | ForEach-Object { "$_" }); return @{ code = $LASTEXITCODE; out = ($o -join "`n").Trim() }
+}
+$script:EarlierPending = @(Get-EarlierPending)
+$unsafe = Get-UnsafeRollback
+if ($unsafe) {
+  Save-InstallStatus "refused-unsafe-rollback" $unsafe
+  Emit "release" "fail" ("NOT INSTALLED, nothing on this PC changed: $unsafe. Install this release by hand (an administrator running its " +
+                        "install-host.ps1), or once the running update-host.ps1 refuses that rollback (ENCLAVE-ROLLBACK-GUARD-V1).")
+  exit 0
+}
+
+# THE OPERATOR'S OWN SETTINGS SURVIVE AN UPDATE (ENCLAVE-LOCAL-CONFIG-V1). Every launcher below is REWRITTEN by each install; only
+# the two local hooks are never written: node-config.local.cmd (called last by node-config.cmd, so it overrides the generated
+# node settings) and shield-config.local.cmd (called last by shield-config.cmd, the same for Enclave Shield). run-node.cmd and
+# run-shield.cmd are generated with NO set line at all, so any set line found in them was added by hand (e.g. the wallet
+# admission pins, contract pins or gateways) and is LOST by the rewrite unless the same line is in the matching local hook.
+# Such an install is refused BEFORE anything changes, naming the settings (never their values); the root-reviewed migration
+# (config-persistence/root/migrate-local-config.ps1) moves them. Under an updater it exits 0, the r4 rule (no rollback for a
+# refusal that changed nothing); by hand it fails.
+$script:SetLine = '(?i)^\s*(?:if [^\r\n]*?\s)?set\s+"?([A-Za-z_][A-Za-z0-9_]*)='          # finds EVERY set line, quoted or conditional
+function Get-SetLines($path) {
+  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return @() }
+  $i = 0
+  @(foreach ($l in [IO.File]::ReadAllLines($path)) { $i++; $m = [regex]::Match($l, $script:SetLine)
+    if ($m.Success) { [pscustomobject]@{ line = $i; name = $m.Groups[1].Value.ToUpperInvariant(); text = $l.TrimStart() } } })
+}
+# -> the hand-made set lines of a SET-free launcher that its hook does not reproduce verbatim as that name's LAST assignment
+function Get-UnpersistedSettings($dir) {
+  $out = @()
+  foreach ($pair in @(@("run-node.cmd", "node-config.local.cmd"), @("run-shield.cmd", "shield-config.local.cmd"))) {
+    $hook = @(Get-SetLines (Join-Path $dir $pair[1]))
+    foreach ($s in @(Get-SetLines (Join-Path $dir $pair[0]))) {
+      $last = @($hook | Where-Object { $_.name -eq $s.name } | Select-Object -Last 1)
+      $same = @($hook | Where-Object { $_.text -ceq $s.text })
+      if (-not $same.Count -or ($s.text -notmatch '(?i)^if\s' -and $last[0].text -cne $s.text)) { $out += "$($pair[0]):$($s.name)" }
+    }
+  }
+  return @($out | Select-Object -Unique)
+}
+$unpersisted = @(Get-UnpersistedSettings $PD)
+if ($unpersisted.Count) {
+  $why = "hand-made launcher settings that this install would overwrite and no local hook carries: " + ($unpersisted -join ", ")
+  Save-InstallStatus "refused-unpersisted-config" $why
+  if ($env:ENCLAVE_UPDATING -eq "1") {
+    Emit "config" "fail" "NOT INSTALLED, nothing on this PC changed: $why. Move them into the local hook first (root-reviewed migration)."
+    exit 0
+  }
+  Fail "config" "Nothing was changed: $why. Move them into node-config.local.cmd / shield-config.local.cmd first."
+}
 
 # ---------------------------------------------------------------------------------------------------------------------
 # 1. the machine
@@ -47,9 +328,28 @@ if ($tpm.ManufacturerIdTxt -notmatch 'AMD') {
   Fail "checks" "This PC's TPM ($($tpm.ManufacturerIdTxt)) cannot be verified yet: Enclave hosting currently supports AMD processors' firmware TPM." }
 $ramGb = [math]::Floor($cs.TotalPhysicalMemory / 1GB)
 if ($ramGb -lt 16) { Fail "checks" "This PC has $ramGb GB of RAM; hosting needs at least 16 GB." }
+# THE APPS' RAM POOL (NODE_APP_RAM_GB, GiB): half the machine unless the owner set it in node-config.local.cmd (never written
+# by an update). The node reads that file itself, the LAST set winning as cmd runs it; the Shield manager does not, so the
+# same figure is carried into node-config.cmd and shield-config.cmd below. It is never silently changed: a value that is
+# not a whole number of GiB from 4 to this PC's physical GiB stops setup here, before anything is stopped, rather than
+# leave the node and the manager sizing different pools. A pool is an admission budget, not free physical RAM.
+$appRamGb = [math]::Max(4, [math]::Floor($ramGb / 2)); $ramNote = ""
+$localRam = Join-Path $PD "node-config.local.cmd"
+if (Test-Path $localRam) {
+  $m = Select-String -Path $localRam -Pattern '^\s*set\s+("?)NODE_APP_RAM_GB=(.*?)\1\s*$' | Select-Object -Last 1
+  if ($m) {
+    $ownerRam = $m.Matches[0].Groups[2].Value.Trim()
+    if ($ownerRam -notmatch '^\d{1,6}$' -or [int]$ownerRam -lt 4 -or [int]$ownerRam -gt $ramGb) {
+      Fail "checks" "NODE_APP_RAM_GB=$ownerRam in $localRam is not a whole number of GiB from 4 to this PC's $ramGb GiB: correct or remove it, then run setup again." }
+    $appRamGb = [int]$ownerRam
+    # said, never refused: the owner's pool may leave less than the 16 GiB setup used to keep outside it
+    if ($ramGb - $appRamGb -lt 16) { $ramNote = "; the owner's NODE_APP_RAM_GB=$appRamGb leaves $($ramGb - $appRamGb) GiB outside the apps' pool for " +
+      "Windows, its other VMs and each partition's own overhead (less than 16 GiB): the pool is an admission budget, not free RAM" }
+  }
+}
 $freeGb = [math]::Floor((Get-PSDrive ($env:SystemDrive.TrimEnd(':'))).Free / 1GB)
 if ($freeGb -lt 20) { Fail "checks" "Only $freeGb GB free on $env:SystemDrive; hosting needs at least 20 GB." }
-Emit "checks" "ok" "Windows $($cv.DisplayVersion) build $build, $($cpu.Name.Trim()), $ramGb GB RAM, Secure Boot on, AMD TPM"
+Emit "checks" $(if ($ramNote) { "warn" } else { "ok" }) "Windows $($cv.DisplayVersion) build $build, $($cpu.Name.Trim()), $ramGb GB RAM, Secure Boot on, AMD TPM$ramNote"
 
 # ---------------------------------------------------------------------------------------------------------------------
 # 2. Hyper-V (a restart may be needed; EnclaveSetup resumes after it)
@@ -74,22 +374,71 @@ Emit "hyperv" "ok" "Hyper-V is on"
 if ($CheckOnly) { Emit "done" "ok" "This PC can host"; exit 0 }
 
 # ---------------------------------------------------------------------------------------------------------------------
-# 3. the name
+# 3. the name, and who this host is (ENCLAVE-IDENTITY-RECORD-V1)
 # ---------------------------------------------------------------------------------------------------------------------
 if ($Name -notmatch '^[a-z0-9](?:[a-z0-9-]{1,30})[a-z0-9]$' -or $Name -match '--') { Fail "name" "Pick a name of 3 to 32 lowercase letters, digits and hyphens." }
 $existing = Join-Path $PD "node\host.json"
-$sameBox = (Test-Path $existing) -and ((Get-Content $existing -Raw | ConvertFrom-Json).name -eq $Name)
+$rec = if (Test-Path $existing) { Get-Content $existing -Raw | ConvertFrom-Json } else { $null }
+$sameBox = $rec -and $rec.name -eq $Name
+function RelayIdentity($relay) { [pscustomobject]@{ mode = "relay"; publicUrl = "$relay/t/$Name"; relay = $relay; gateways = @(); rpcs = @(); directories = @(); checkers = @(); contractPinsSha256 = "" } }
+# what this host IS: its recorded identity; a host installed before identities were recorded is the relay host it always was
+$recorded = if ($rec -and $rec.identity) { $rec.identity } elseif ($sameBox) { RelayIdentity $Relay } else { $null }
+if ($recorded -and $recorded.mode -eq "relay") { $recorded = RelayIdentity $recorded.relay }   # a relay identity follows its name
+$explicit = $NoRelay -or $PublicUrl -or $Gateways -or $ContractPins -or $Rpcs -or $Directories -or $NetworkCheckers
+if ($explicit) {
+  if (-not $NoRelay) { Fail "identity" "-PublicUrl, -Gateways, -ContractPins, -Rpcs, -Directories and -NetworkCheckers describe an independent host: add -NoRelay (the relay honours only its own /t/<name> route)." }
+  if (-not $PublicUrl -or -not $Gateways -or -not $ContractPins) { Fail "identity" "An independent host needs -PublicUrl (its own public endpoint), -Gateways (artifact gateways) and -ContractPins (the contract pin document): nothing defaults to an Enclave service." }
+  if ($PublicUrl -notmatch '^https://[A-Za-z0-9.-]+(:\d+)?(/[A-Za-z0-9._~/-]*[A-Za-z0-9._~-])?$') { Fail "identity" "-PublicUrl must be an https URL written exactly as it will be registered, with no trailing slash, query or credentials." }
+  foreach ($u in @(List $Gateways) + @(List $Rpcs) + @(List $Directories)) { if ($u -notmatch '^https://[^\s?#@]+$') { Fail "identity" "'$u' is not an https URL." } }
+  # the chain name check (host-identity.mjs) decides only on two agreeing RPCs, so one RPC, or two on one host, never decides
+  $rpcHosts = @(@(List $Rpcs) | ForEach-Object { ([Uri]$_).Host.ToLowerInvariant() })
+  if ($rpcHosts.Count -and ($rpcHosts.Count -lt 2 -or @($rpcHosts | Select-Object -Unique).Count -ne $rpcHosts.Count)) { Fail "identity" "-Rpcs must name at least two RPCs on distinct hosts: one RPC never decides what the chain says." }
+  foreach ($c in @(List $NetworkCheckers)) { if ($c -notmatch '^0x[0-9a-fA-F]{40}$') { Fail "identity" "'$c' is not a checker address." } }
+  if (-not (Test-Path -LiteralPath $ContractPins)) { Fail "identity" "The contract pin document $ContractPins does not exist." }
+  $want = [pscustomobject]@{ mode = "independent"; publicUrl = $PublicUrl; relay = ""; gateways = @(List $Gateways); rpcs = @(List $Rpcs)
+                             directories = @(List $Directories); checkers = @(List $NetworkCheckers | ForEach-Object { $_.ToLower() }); contractPinsSha256 = (Sha $ContractPins) }
+} elseif ($PSBoundParameters.ContainsKey("Relay") -or -not $recorded) { $want = RelayIdentity $Relay }
+else { $want = $recorded }
+function IdKey($i) { if (-not $i) { return "" }; "$($i.mode)|$(if ($i.mode -eq 'relay') { $i.relay } else { $i.publicUrl })|$(@($i.gateways) -join ',')|$(@($i.rpcs) -join ',')|$(@($i.directories) -join ',')|$(@($i.checkers) -join ',')|$($i.contractPinsSha256)" }
+if ($recorded -and (IdKey $recorded) -ne (IdKey $want) -and -not $Reconfigure) {
+  Fail "identity" ("This host is recorded as the $($recorded.mode) host $($recorded.publicUrl). Changing its relay, endpoint, gateways, pins, RPCs, directories or checkers needs -Reconfigure" +
+                   $(if ($recorded.publicUrl -ne $want.publicUrl) { " - and $($want.publicUrl) is a NEW host on chain (a new registry entry and a new ownership enrollment)." } else { "." })) }
+$independent = $want.mode -eq "independent"
+if (-not $NameCheck) { $NameCheck = if ($independent) { "chain" } else { "relay" } }
+if (-not $independent -and $NameCheck -ne "relay") { Fail "name" "A relay host's name is its route on the relay, so the relay checks it: -NameCheck chain and offline are for independent hosts (-NoRelay)." }
+if ($independent -and $NameCheck -eq "relay") { Fail "name" "An independent host has no relay route to reserve: use -NameCheck chain (the pinned registry) or offline." }
 # A referral code: 1-64 letters, digits, '.', '_' or '-'. Re-running setup or an automatic update (which passes no code)
 # keeps the one this machine was installed with; a new one given here replaces it, and the relay keeps the first it saw.
 $Referral = $Referral.Trim()
 if ($Referral -and $Referral -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$') { Fail "name" "A referral code is 1 to 64 letters, digits, '.', '_' or '-'." }
-if (-not $Referral -and (Test-Path $existing)) { $Referral = [string](Get-Content $existing -Raw | ConvertFrom-Json).referral }
-if (-not $sameBox) {
-  try { $avail = Invoke-RestMethod -UseBasicParsing -Uri "$Relay/v1/hosts/name/$Name" -TimeoutSec 20 }
-  catch { Fail "name" "Could not reach $Relay to check the name: $($_.Exception.Message)" }
+if (-not $Referral -and $rec) { $Referral = [string]$rec.referral }
+if ($NameCheck -eq "relay" -and -not $sameBox) {
+  try { $avail = Invoke-RestMethod -UseBasicParsing -Uri "$($want.relay)/v1/hosts/name/$Name" -TimeoutSec 20 }
+  catch { Fail "name" "Could not reach $($want.relay) to check the name: $($_.Exception.Message)" }
   if (-not $avail.available) { Fail "name" "The name '$Name' is not available: $($avail.reason)" }
 }
-Emit "name" "ok" "This host will be '$Name'"
+# The release policy (release-channel.mjs) and the pin document are checked now, with the bundle's own node, before anything
+# on this PC is stopped or replaced; they are written once the program files are in place.
+$bnode = Join-Path $Bundle "runtime\node\node.exe"; $bnodeDir = Join-Path $Bundle "control\windows\node"
+$policyDest = Join-Path $PD "node\release-policy.json"; $pinsDest = Join-Path $PD "node\contract-pins.json"
+if ($ReleasePolicy) {
+  if (-not (Test-Path -LiteralPath $ReleasePolicy)) { Fail "release" "The release policy $ReleasePolicy does not exist." }
+  $chk = NodeRun $bnode @((Join-Path $bnodeDir "release-channel.mjs"), "check-policy", $ReleasePolicy)
+  if ($chk.code) { Fail "release" "The release policy is not valid: $($chk.out)" }
+  if (Test-Path -LiteralPath $policyDest) {
+    $have = NodeRun $bnode @((Join-Path $bnodeDir "release-channel.mjs"), "check-policy", $policyDest)
+    if ($have.out -ne $chk.out -and -not $Reconfigure) { Fail "release" "This host already pins a different release policy ($policyDest): changing its release keys or mirrors needs -Reconfigure." }
+  }
+}
+if ($independent -and $ContractPins) {
+  $pinsOk = NodeRun $bnode @("--input-type=module", "-e", "import fs from 'node:fs'; import { validateContractPins } from 'file:///$((Join-Path $bnodeDir 'host-admission.bundle.mjs').Replace('\','/'))'; validateContractPins(JSON.parse(fs.readFileSync(process.argv[1], 'utf8').replace(/^\uFEFF/, ''))); process.stdout.write('pins-ok')", $ContractPins)
+  if ($pinsOk.out -ne "pins-ok") { Fail "identity" "The contract pin document is not valid: $($pinsOk.out)" }
+}
+if ($independent -and -not $ContractPins -and -not (Test-Path -LiteralPath $pinsDest)) { Fail "identity" "This independent host's contract pin document ($pinsDest) is missing: re-run with -ContractPins and -Reconfigure." }
+if ($independent) {
+  Emit "name" $(if ($NameCheck -eq "offline") { "warn" } else { "ok" }) ("This host will be '$Name' at $($want.publicUrl) (independent: no Enclave relay)" +
+    $(if ($NameCheck -eq "offline") { "; the endpoint is NOT checked against the chain (-NameCheck offline): if another operator registered it, this host's registration fails" } else { "; the endpoint is checked on the pinned registry once this host's key exists" }))
+} else { Emit "name" "ok" "This host will be '$Name'" }
 
 # ---------------------------------------------------------------------------------------------------------------------
 # 4. host prerequisites for Enclave Shield's partitions
@@ -110,10 +459,11 @@ Emit "prereq" "ok" "Hyper-V is set up for Enclave Shield partitions"
 # 5. files: the program in Program Files, state in ProgramData (SYSTEM + Administrators only)
 # ---------------------------------------------------------------------------------------------------------------------
 Emit "files" "run" "Installing Enclave"
-# every service but \Enclave\Update: an automatic update (update-host.ps1) runs this script from that task
-foreach ($t in Get-ScheduledTask -TaskPath "\Enclave\" -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -ne "Update" }) { Stop-ScheduledTask -TaskPath "\Enclave\" -TaskName $t.TaskName -ErrorAction SilentlyContinue }
-Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($PF, [StringComparison]::OrdinalIgnoreCase) } |
-  ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+# from here to the end: whatever stops this script (Fail, -NoStart, an error, success), the other roles it stopped run again
+try {
+# the core services (not \Enclave\Update: an automatic update runs this script from that task), and only those other roles
+# and processes that execute release-owned files (Stop-ForInstall)
+Stop-ForInstall
 Start-Sleep 2
 $manifest = Get-Content (Join-Path $Bundle "manifest.json") -Raw | ConvertFrom-Json
 $installedManifest = Join-Path $PF "manifest.json"
@@ -136,7 +486,7 @@ if ($Delta -and (Test-Path $installedManifest)) {
   if (Test-Path (Join-Path $PF "tuna")) { Remove-Item (Join-Path $PF "tuna") -Recurse -Force -ErrorAction SilentlyContinue }
   $check = $changed
 } else {
-  if (Test-Path $PF) { Remove-Item $PF -Recurse -Force }
+  Clear-ReleaseContent $PF
   New-Item -ItemType Directory -Force $PF | Out-Null
   foreach ($d in "runtime", "control", "network", "bin", "guest", "tray") { Copy-Item (Join-Path $Bundle $d) (Join-Path $PF $d) -Recurse -Force }
   $changed = $null; $gone = @()
@@ -145,6 +495,7 @@ if ($Delta -and (Test-Path $installedManifest)) {
 Copy-Item (Join-Path $Bundle "manifest.json"), (Join-Path $Bundle "uninstall-host.ps1"), (Join-Path $Bundle "update-host.ps1") $PF -Force
 $bad = @($check | Where-Object { $p = Join-Path $PF ($_.path -replace '/', '\'); -not (Test-Path -LiteralPath $p) -or (Sha $p) -ne $_.sha256 })
 if ($bad.Count) { Fail "files" "$($bad.Count) installed file(s) do not match the bundle's manifest (first: $($bad[0].path))." }
+Restore-OtherTasks "as soon as the files were in place"
 # Settings > Apps > Installed apps: "Enclave", with Uninstall. Written now, not at the end, so a half-finished install can be
 # removed too. EnclaveSetup.exe --uninstall copies itself out of Program Files and runs uninstall-host.ps1 with progress;
 # without it (a scripted install), the script itself is the uninstaller.
@@ -179,7 +530,54 @@ foreach ($d in "", "node", "shield", "shield\vmgs-archive", "shield\bundles", "n
 # the root: owners full, users may only pass through (the node opens hosting\ to the tray user itself); the rest: owners only
 icacls $PD /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-32-545:(RX)" /q | Out-Null
 foreach ($d in "node", "shield", "network", "logs") { icacls (Join-Path $PD $d) /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /q | Out-Null }
+# THE CUSTODY CALLBACK KEY (windows/vbslike/manager/custody-key-file.mjs): the HMAC key the manager and the node share for
+# direct Shield custody answers. Created when ABSENT, private from its first byte: a protected DACL granting only SYSTEM and
+# Administrators, owner Administrators, applied by the same call that creates it. An EXISTING file is checked by the same
+# rule the manager and node apply at start and reported if it is not private: never changed here. Inert until the explicit
+# activation sets ENCLAVE_CUSTODY_CALLBACK_KEY_FILE (and ENCLAVE_SHIELD_CUSTODY_V2); no other file is touched.
+$ckey = Join-Path $PD "shield\custody-callback.key"
+if (-not (Test-Path -LiteralPath $ckey)) {
+  $kb = New-Object byte[] 32; $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create(); $rng.GetBytes($kb); $rng.Dispose()
+  $sec = New-Object System.Security.AccessControl.FileSecurity
+  $sec.SetAccessRuleProtection($true, $false)
+  foreach ($sid in "S-1-5-18", "S-1-5-32-544") {
+    $sec.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule((New-Object System.Security.Principal.SecurityIdentifier $sid), "FullControl", "Allow")))
+  }
+  $sec.SetOwner((New-Object System.Security.Principal.SecurityIdentifier "S-1-5-32-544"))
+  $hex = [Text.Encoding]::ASCII.GetBytes((($kb | ForEach-Object { $_.ToString("x2") }) -join ""))
+  $fsk = [System.IO.File]::Create($ckey, 4096, [System.IO.FileOptions]::None, $sec)
+  try { $fsk.Write($hex, 0, $hex.Length) } finally { $fsk.Dispose() }
+  [Array]::Clear($kb, 0, $kb.Length); [Array]::Clear($hex, 0, $hex.Length)
+  Emit "files" "run" "Created the custody callback key $ckey (SYSTEM and Administrators only; inert until activation)"
+} else {
+  $acl = Get-Acl -LiteralPath $ckey
+  $owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+  $open = @($acl.Access | Where-Object { $_.AccessControlType -eq "Allow" -and @("S-1-5-18", "S-1-5-32-544") -notcontains $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value })
+  $nullDacl = $acl.GetSecurityDescriptorSddlForm("Access") -notmatch "D:" -or $acl.GetSecurityDescriptorSddlForm("Access") -match "D:[A-Z]*NO_ACCESS_CONTROL"
+  if ($open.Count -or $nullDacl -or @("S-1-5-18", "S-1-5-32-544") -notcontains $owner) {
+    Emit "files" "warn" ("The custody callback key $ckey is NOT private (owner $owner" + $(if ($open.Count) { "; allowed to $($open[0].IdentityReference)" } else { "" }) +
+                         "): left unchanged, and the manager and node refuse it until it is SYSTEM and Administrators only")
+  }
+}
 Emit "files" "ok" ("Enclave $($manifest.version) installed in $PF" + $(if ($null -ne $changed) { " ($($changed.Count) file(s) changed, $($gone.Count) removed)" } else { "" }))
+
+# the pins and the release policy, into node\ (SYSTEM and Administrators only), never replaced unless asked (step 3)
+$node = Join-Path $PF "runtime\node\node.exe"
+if ($independent) {
+  if ($ContractPins) { Copy-Item -LiteralPath $ContractPins $pinsDest -Force }
+  if ((Sha $pinsDest) -ne $want.contractPinsSha256) { Fail "identity" "$pinsDest was changed outside setup: re-run with -ContractPins and -Reconfigure to pin a new document." }
+}
+if ($ReleasePolicy) {
+  $ip = NodeRun $node (@((Join-Path $PF "control\windows\node\release-channel.mjs"), "install-policy", "--policy", $ReleasePolicy, "--dest", $policyDest) + @(if ($Reconfigure) { "--replace" }))
+  if ($ip.code) { Fail "release" "The release policy was not installed: $($ip.out)" }
+}
+if (Test-Path -LiteralPath $policyDest) {
+  $pol = NodeRun $node @((Join-Path $PF "control\windows\node\release-channel.mjs"), "check-policy", $policyDest)
+  if ($pol.code) { Fail "release" "$policyDest is not a valid release policy: $($pol.out). Updates would refuse every release; fix it or re-run with -ReleasePolicy and -Reconfigure." }
+  $pj = $pol.out | ConvertFrom-Json
+  Emit "release" "ok" "Updates: only releases signed by $($pj.threshold) of $(@($pj.keys).Count) pinned key(s), from $(@($pj.mirrors) -join ', ')"
+} elseif ($independent) { Emit "release" "warn" "Updates: OFF. An independent host takes no unsigned Enclave release; pin a release policy (-ReleasePolicy, or release-channel.mjs install-policy) to update automatically" }
+else { Emit "release" "warn" "Updates: the legacy get.enclave.host channel, which is UNSIGNED (its hashes come from the same unsigned latest.json). Pin a release policy to require signed releases (docs/network/independent-windows.md)" }
 
 # ---------------------------------------------------------------------------------------------------------------------
 # 6. this box's own: the guest-state master, the keys, the configuration
@@ -202,22 +600,29 @@ $probe = @(& powershell.exe -NoProfile -NonInteractive -Command "Import-Module '
 if (($probe | Select-Object -Last 1) -ne "module-ok") { Fail "shield" "Enclave Shield's Hyper-V module does not load: $(($probe | Out-String).Trim())" }
 Emit "shield" "ok" "Enclave Shield's guest-state master is ready"
 
-$node = Join-Path $PF "runtime\node\node.exe"
-$env:NODE_NAME = $Name; $env:PUBLIC_URL = "$Relay/t/$Name"
-$keys = & $node (Join-Path $PF "control\windows\node\keys.mjs") (Join-Path $PD "node") 2>&1
-if ($LASTEXITCODE) { Fail "keys" "The node's keys could not be made: $keys" }
-$operator = ([regex]::Match(($keys -join "`n"), '0x[0-9a-fA-F]{40}')).Value
+$env:NODE_NAME = $Name; $env:PUBLIC_URL = $want.publicUrl
+if ($independent) { $env:ENCLAVE_CONTRACT_PINS_FILE = $pinsDest; if (@($want.rpcs).Count) { $env:BASE_RPCS = @($want.rpcs) -join "," } }
+$keys = NodeRun $node (@((Join-Path $PF "control\windows\node\keys.mjs"), (Join-Path $PD "node")) + @(if ($NameCheck -eq "offline") { "--offline" }))
+if ($keys.code) { Fail "keys" "The node's keys could not be made: $($keys.out)" }
+$operator = ([regex]::Match($keys.out, '"operator": "(0x[0-9a-fA-F]{40})"')).Groups[1].Value
+if (-not $operator) { Fail "keys" "The node's keys did not report an operator address: $($keys.out)" }
 Emit "keys" "ok" "Operator key $operator (created on this PC; it never leaves it)"
-
-$appRamGb = [math]::Max(4, [math]::Floor($ramGb / 2))
-# an owner who gives apps more (or less) than half sets NODE_APP_RAM_GB in node-config.local.cmd (never written by an
-# update). The node reads that file itself; the Shield manager does not, so the figure is carried into shield-config.cmd
-# here, or the manager refuses partitions the node admitted. It stays at least 16 GB short of the machine.
-$localRam = Join-Path $PD "node-config.local.cmd"
-if (Test-Path $localRam) {
-  $m = Select-String -Path $localRam -Pattern '^set NODE_APP_RAM_GB=(\d+)\s*$' | Select-Object -Last 1
-  if ($m) { $appRamGb = [math]::Max(4, [math]::Min($ramGb - 16, [int]$m.Matches[0].Groups[1].Value)) }
+# the relay-free name check: keccak256(endpoint) is the registry id, so the collision that matters is another operator's
+# entry for this endpoint on the PINNED registry, read through agreeing RPCs (host-identity.mjs)
+# Not repeated for an unchanged identity on the same box (an automatic update): it was checked when it was recorded, and an
+# update must not fail because the RPCs are slow that hour.
+$unchanged = $sameBox -and $recorded -and (IdKey $recorded) -eq (IdKey $want) -and -not $PSBoundParameters.ContainsKey("NameCheck")
+if ($NameCheck -eq "chain" -and $unchanged) { Emit "name" "ok" "$($want.publicUrl): this host's recorded identity, unchanged" }
+elseif ($NameCheck -eq "chain") {
+  $chk = NodeRun $node (@((Join-Path $PF "control\windows\node\host-identity.mjs"), "check-endpoint", "--endpoint", $want.publicUrl, "--operator", $operator, "--pins", $pinsDest) +
+                        @(@($want.rpcs) | ForEach-Object { "--rpc"; $_ }))
+  if ($chk.code -eq 2) { Fail "name" "$($want.publicUrl) is registered on chain to another operator ($(($chk.out | ConvertFrom-Json).operator)): choose another public endpoint." }
+  if ($chk.code) { Fail "name" "Could not check $($want.publicUrl) on the pinned registry: $($chk.out). Re-run when the RPCs answer, or with -NameCheck offline to skip the check." }
+  $st = ($chk.out | ConvertFrom-Json).status
+  Emit "name" "ok" "$($want.publicUrl) is $(if ($st -eq 'ours') { "already this host's (operator $operator)" } else { 'free' }) on the pinned registry"
 }
+
+# $appRamGb: the apps' pool, settled and validated with the machine checks above
 # one slot per 4 GB of the apps' half, up to 16: the count is only a ceiling (capacity() also holds every app to the RAM
 # left), and 8 refused a 2 GB app on a 112 GB box running seven small ones and one 12 GB one (2026-10-14)
 $slots = [math]::Max(1, [math]::Min(16, [math]::Floor($appRamGb / 4)))
@@ -257,7 +662,7 @@ set ENCLAVE_HYPERV_MODULE_SHA256=$(& $pin 'guest/hyperv.psm1')
 set ENCLAVE_RUNTIME_IDENTITY=$runtimeJson
 set PYTHON_BIN=$PF\runtime\python\python.exe
 set PYTHONDONTWRITEBYTECODE=1
-set IPFS_GATEWAY=https://ipfs.enclave.host
+$(if ($independent) { "set IPFS_GATEWAYS=$(@($want.gateways) -join ',')`r`nset IPFS_GATEWAY=$(@($want.gateways)[0])" } else { "set IPFS_GATEWAY=https://ipfs.enclave.host" })
 set ENCLAVE_WMISERVE_EXE=$PF\bin\shield-host.exe
 set ENCLAVE_WMISERVE_EXE_SHA256=$(& $pin 'bin/shield-host.exe')
 set ENCLAVE_BUNDLE_DIR=$PD\shield\bundles
@@ -282,6 +687,8 @@ set ENCLAVE_PROTECTED_PORTS_V1=1
 set ENCLAVE_WASM_SET=1
 set ENCLAVE_WASM_MEMORY64=1
 $(if (Test-Path $gpuProfile) { "set ENCLAVE_SHIELD_PROFILE=$gpuProfile" })
+rem this box's own Shield settings (shield-config.local.cmd: never written by an update), after and over everything above
+if exist "$PD\shield-config.local.cmd" call "$PD\shield-config.local.cmd"
 "@ | Set-Content -Encoding ASCII (Join-Path $PD "shield-config.cmd")
 
 # the card worker: the GPU half of a Shield GPU app, on 127.0.0.1:19595 only, holding at most the profile's 12 GiB; it sees
@@ -317,8 +724,10 @@ rem The Enclave host node. Written by install-host.ps1; re-run setup to change i
 set APPS=1
 set NODE_NAME=$Name
 set REFERRAL_CODE=$Referral
-set PUBLIC_URL=$Relay/t/$Name
-set RELAY_URL=$($Relay -replace '^https:', 'wss:')/v1/fleet-tunnel
+set PUBLIC_URL=$($want.publicUrl)
+set RELAY_URL=$(if ($independent) { "none" } else { "$($want.relay -replace '^https:', 'wss:')/v1/fleet-tunnel" })
+$(if ($independent) { "set ENCLAVE_IDENTITY_MODE=independent`r`nset ENCLAVE_CONTRACT_PINS_FILE=$pinsDest" })
+$(if (@($want.rpcs).Count) { "set BASE_RPCS=$(@($want.rpcs) -join ',')" })
 set NODE_DIR=$PD\node
 set TPMATTEST_EXE=$PF\bin\tpmattest.exe
 set ENCLAVE_ISOLATION_MANAGER=http://127.0.0.1:8091
@@ -328,7 +737,7 @@ set CLAIM_SCOPE=market
 set LOCAL_HTTP_PORT=9600
 set HOSTING_TRAY_USER=$Owner
 set PYTHON_BIN=$PF\runtime\python\python.exe
-set IPFS_GATEWAY=https://ipfs.enclave.host
+$(if ($independent) { "set IPFS_GATEWAYS=$(@($want.gateways) -join ',')" } else { "set IPFS_GATEWAY=https://ipfs.enclave.host" })
 set APP_SLOTS=$slots
 set NODE_APP_RAM_GB=$appRamGb
 set ENCLAVE_EGRESS_APP_ROUTES=$PD\network\state\egress-routes.json
@@ -344,7 +753,13 @@ set BLOB_SERVICE_PORT=9621
 set BLOB_CACHE_DIR=$PD\shield\blobs
 rem the Enclave network (docs/design/enclave-network.md): every app's route and this box's own control traffic over
 rem WireGuard providers qualified by these checkers
-set ENCLAVE_NETWORK_CHECKERS=0x57144c9008cff0b3ed94f6e40964a321fbee848a,0x033bc2b92bb1bb97c7dadf2879d3048748e2257b
+$(if (-not $independent) { "set ENCLAVE_NETWORK_CHECKERS=0x57144c9008cff0b3ed94f6e40964a321fbee848a,0x033bc2b92bb1bb97c7dadf2879d3048748e2257b" }
+  elseif (@($want.checkers).Count) { "set ENCLAVE_NETWORK_CHECKERS=$(@($want.checkers) -join ',')" }
+  else { "rem no checkers chosen (-NetworkCheckers): network enrollment refuses until this host's operator picks the ones it trusts" })
+$(if (@($want.directories).Count) { "set ENCLAVE_NETWORK_DIRECTORIES=$(@($want.directories) -join ',')" })
+rem the platform host policy (admin host bans; windows/node/host.mjs builds its gate from this): production = on, activated by the
+rem admin's anchor. Unset is OFF on this node (it passes book:null). Keep it.
+set ENCLAVE_PLATFORM_HOST_POLICY=production
 rem this box's own settings (node-config.local.cmd: never written by an update), after and over everything above
 if exist "$PD\node-config.local.cmd" call "$PD\node-config.local.cmd"
 "@ | Set-Content -Encoding ASCII (Join-Path $PD "node-config.cmd")
@@ -380,9 +795,78 @@ goto loop
 }
 RunLoop (Join-Path $PD "run-shield.cmd") (Join-Path $PD "shield-config.cmd") (Join-Path $PF "control\windows\vbslike\manager\main.mjs") (Join-Path $PD "logs\shield.log")
 RunLoop (Join-Path $PD "run-node.cmd") (Join-Path $PD "node-config.cmd") (Join-Path $PF "control\windows\node\agent.mjs") (Join-Path $PD "logs\node.log")
-[ordered]@{ name = $Name; operator = $operator; owner = $Owner; referral = $Referral; version = $manifest.version; installedAt = (Get-Date).ToUniversalTime().ToString("o") } |
-  ConvertTo-Json | Set-Content -Encoding UTF8 $existing
+
+# When Windows Update may restart this PC: every app's partition goes down with it (nucbox-k11-4, 2026-10-14: the
+# October cumulative update restarted it at 07:32 local, outside the active hours Windows had picked, and the node gave
+# every app back to the fleet). The install is scheduled at the window's start, and the rest of the day is "active hours",
+# which Windows does not restart during. windows/node/update-window.mjs holds the same rules (and the tests).
+# The values this replaces are kept in host.json the first time, so turning it off (-ManageWindowsUpdate off) or
+# uninstalling puts the owner's own policy back.
+$wuKeys = [ordered]@{ WindowsUpdate = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
+                      AU = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" }
+$wuNames = @{ WindowsUpdate = @("SetActiveHours", "ActiveHoursStart", "ActiveHoursEnd")
+              AU = @("NoAutoUpdate", "AUOptions", "ScheduledInstallDay", "ScheduledInstallTime", "NoAutoRebootWithLoggedOnUsers") }
+$uw = [ordered]@{ managed = $true; start = 1; hours = 6; noRebootWhileSignedIn = $false; replaced = $null }
+$prevUw = if (Test-Path $existing) { (Get-Content $existing -Raw | ConvertFrom-Json).updateWindow } else { $null }
+if ($prevUw) {
+  if ($prevUw.managed -is [bool]) { $uw.managed = $prevUw.managed }
+  if ($prevUw.start -is [int] -and $prevUw.start -ge 0 -and $prevUw.start -le 23) { $uw.start = $prevUw.start }
+  if ($prevUw.hours -is [int] -and $prevUw.hours -ge 6 -and $prevUw.hours -le 24) { $uw.hours = $prevUw.hours }
+  if ($prevUw.noRebootWhileSignedIn -is [bool]) { $uw.noRebootWhileSignedIn = $prevUw.noRebootWhileSignedIn }
+  $uw.replaced = $prevUw.replaced
+}
+if ($UpdateWindowStart -ne -1) { if ($UpdateWindowStart -lt 0 -or $UpdateWindowStart -gt 23) { Fail "updates" "-UpdateWindowStart is an hour, 0 to 23." }; $uw.start = $UpdateWindowStart }
+if ($UpdateWindowHours -ne -1) { if ($UpdateWindowHours -lt 6 -or $UpdateWindowHours -gt 24) { Fail "updates" "-UpdateWindowHours is 6 to 24 (Windows keeps at most 18 active hours)." }; $uw.hours = $UpdateWindowHours }
+if ($ManageWindowsUpdate) { $uw.managed = $ManageWindowsUpdate -eq "on" }
+if ($NoRebootWhileSignedIn) { $uw.noRebootWhileSignedIn = $NoRebootWhileSignedIn -eq "on" }
+function RestoreWindowsUpdate($replaced) {
+  foreach ($k in $wuKeys.Keys) { foreach ($n in $wuNames[$k]) {
+    $was = if ($replaced -and $replaced.$k) { $replaced.$k.$n } else { $null }
+    if ($null -ne $was) { New-ItemProperty -Path $wuKeys[$k] -Name $n -PropertyType DWord -Value ([int]$was) -Force | Out-Null }
+    else { Remove-ItemProperty -Path $wuKeys[$k] -Name $n -ErrorAction SilentlyContinue }
+  } }
+}
+if ($uw.managed) {
+  foreach ($k in $wuKeys.Keys) { if (-not (Test-Path $wuKeys[$k])) { New-Item $wuKeys[$k] -Force | Out-Null } }
+  if ($null -eq $uw.replaced) {
+    $uw.replaced = [ordered]@{}
+    foreach ($k in $wuKeys.Keys) {
+      $now = Get-ItemProperty -Path $wuKeys[$k] -ErrorAction SilentlyContinue; $was = [ordered]@{}
+      foreach ($n in $wuNames[$k]) { $was[$n] = if ($now -and $null -ne $now.$n) { [int]$now.$n } else { $null } }
+      $uw.replaced[$k] = $was
+    }
+  }
+  # active hours = everything outside the window (none for a 24-hour one); AUOptions 4 = download, then install on the
+  # schedule; ScheduledInstallDay 0 = every day
+  $set = @{ WindowsUpdate = $(if ($uw.hours -ge 24) { [ordered]@{ SetActiveHours = 0 } }
+                              else { [ordered]@{ SetActiveHours = 1; ActiveHoursStart = ($uw.start + $uw.hours) % 24; ActiveHoursEnd = $uw.start } })
+            AU = [ordered]@{ NoAutoUpdate = 0; AUOptions = 4; ScheduledInstallDay = 0; ScheduledInstallTime = $uw.start
+                             NoAutoRebootWithLoggedOnUsers = $(if ($uw.noRebootWhileSignedIn) { 1 } else { 0 }) } }
+  foreach ($k in $wuKeys.Keys) {
+    foreach ($n in $wuNames[$k]) {
+      if ($set[$k].Contains($n)) { New-ItemProperty -Path $wuKeys[$k] -Name $n -PropertyType DWord -Value $set[$k][$n] -Force | Out-Null }
+      else { Remove-ItemProperty -Path $wuKeys[$k] -Name $n -ErrorAction SilentlyContinue }
+    }
+  }
+  $end = ($uw.start + $uw.hours) % 24
+  Emit "updates" "ok" $(if ($uw.hours -ge 24) { "Windows Update installs at $('{0:D2}' -f $uw.start):00 and may restart at any hour" }
+                        else { "Windows Update restarts this PC only between $('{0:D2}' -f $uw.start):00 and $('{0:D2}' -f $end):00" + $(if ($uw.noRebootWhileSignedIn) { ", never while someone is signed in" } else { "" }) })
+} else {
+  if ($null -ne $uw.replaced) { RestoreWindowsUpdate $uw.replaced; $uw.replaced = $null; Emit "updates" "ok" "This PC's own Windows Update settings are back" }
+  else { Emit "updates" "ok" "Windows Update is left as this PC has it" }
+}
+
+[ordered]@{ name = $Name; operator = $operator; owner = $Owner; referral = $Referral; version = $manifest.version; installedAt = (Get-Date).ToUniversalTime().ToString("o")
+            updateWindow = $uw
+            identity = [ordered]@{ format = "enclave-host-identity/v1"; mode = $want.mode; publicUrl = $want.publicUrl; relay = $want.relay
+                                   gateways = @($want.gateways); rpcs = @($want.rpcs); directories = @($want.directories); checkers = @($want.checkers)
+                                   contractPinsSha256 = $want.contractPinsSha256 } } |
+  ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 $existing
 Emit "config" "ok" "Configured '$Name': $slots app slot(s), $appRamGb GB for apps"
+if ($independent) {
+  Emit "config" "warn" ("Independent: owner-only scope (the Shield market opens only on an attached relay's attestation verdict); no relay-held secrets, " +
+                        "relay certificates or custom domains; the operator key pays its own registration gas. See docs/network/independent-windows.md")
+}
 
 # ---------------------------------------------------------------------------------------------------------------------
 # 7. the services: \Enclave\Shield, then \Enclave\Node, as SYSTEM, at every boot
@@ -393,6 +877,7 @@ function Task($name, $cmd, $delay) {
   $p = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
   $s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
   Register-ScheduledTask -TaskPath "\Enclave\" -TaskName $name -Action $a -Trigger $t -Principal $p -Settings $s -Force | Out-Null
+  if (-not (Allowed $name)) { Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName $name | Out-Null }
 }
 Task "Shield" (Join-Path $PD "run-shield.cmd") "PT30S"
 if (Test-Path (Join-Path $PF "bin\shielded-worker.exe")) { Task "Card" (Join-Path $PD "run-card.cmd") "PT20S" }
@@ -408,28 +893,36 @@ if ($env:ENCLAVE_UPDATING -ne "1" -or -not (Get-ScheduledTask -TaskPath "\Enclav
   Register-ScheduledTask -TaskPath "\Enclave\" -TaskName "Update" -Action $ua -Trigger $boot, $hourly -Settings $us `
     -Principal (New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest) -Force | Out-Null
 }
-if (Get-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card" -ErrorAction SilentlyContinue) { Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card" }
-Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Shield"
-$ready = $false
-for ($i = 0; $i -lt 60; $i++) {
-  Start-Sleep 2
-  try { $h = Invoke-RestMethod -UseBasicParsing -Uri "http://127.0.0.1:8091/health" -TimeoutSec 5; if ($h.canStart -or $h.ok) { $ready = $true; break } } catch { }
+$started = @(); $paused = @(@("Shield", "Card", "Node", "Network") | Where-Object { -not (Allowed $_) })
+if ((Allowed "Card") -and (Get-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card" -ErrorAction SilentlyContinue)) { Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Card"; $started += "Card" }
+$shieldOn = Allowed "Shield"
+if ($shieldOn) {
+  Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Shield"
+  $ready = $false
+  for ($i = 0; $i -lt 60; $i++) {
+    Start-Sleep 2
+    try { $h = Invoke-RestMethod -UseBasicParsing -Uri "http://127.0.0.1:8091/health" -TimeoutSec 5; if ($h.canStart -or $h.ok) { $ready = $true; break } } catch { }
+  }
+  if (-not $ready) { Fail "services" "Enclave Shield did not come up (see $PD\logs\shield.log)." }
+  $started += "Shield"
 }
-if (-not $ready) { Fail "services" "Enclave Shield did not come up (see $PD\logs\shield.log)." }
 if ($NoStart) {
   Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName "Node" | Out-Null
   Disable-ScheduledTask -TaskPath "\Enclave\" -TaskName "Network" | Out-Null
-  Emit "services" "ok" "Enclave Shield is running; the node is installed but NOT started (-NoStart): nothing registers"
-  Emit "done" "ok" "Installed without joining the network"; exit 0
+  Emit "services" "ok" ($(if ($shieldOn) { "Enclave Shield is running" } else { "Enclave Shield is paused by its operator (not started)" }) + "; the node is installed but NOT started (-NoStart): nothing registers")
+  Emit "done" "ok" "Installed without joining the network"; $script:Outcome = "installed-nostart"; exit 0
 }
-Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Node"
-Start-ScheduledTask -TaskPath "\Enclave\" -TaskName "Network"
-Emit "services" "ok" "Enclave Shield, the node and the private-route agent are running, and start with Windows"
+foreach ($n in "Node", "Network") { if ($shieldOn -and (Allowed $n)) { Start-ScheduledTask -TaskPath "\Enclave\" -TaskName $n; $started += $n } }
+$nodeOn = $started -contains "Node"
+Emit "services" "ok" ("started: " + $(if ($started) { $started -join ", " } else { "nothing" }) +
+  $(if ($paused) { "; paused by their operator (left disabled, not started): " + ($paused -join ", ") } else { "" }) +
+  $(if (-not $shieldOn -and (@("Node", "Network") | Where-Object { Allowed $_ })) { "; Node/Network not started because Enclave Shield is paused" } else { "" }))
 
 # ---------------------------------------------------------------------------------------------------------------------
 # 8. join the network: hardware attestation, then the sponsored registration (no ETH needed)
 # ---------------------------------------------------------------------------------------------------------------------
-Emit "join" "run" "Proving this PC's hardware to the network and registering '$Name'"
+if (-not $nodeOn) { Emit "join" "warn" "the node was not started (paused by its operator, or Enclave Shield is paused): not joining now" } else {
+Emit "join" "run" $(if ($independent) { "Registering $($want.publicUrl) from the operator key (it needs a little Base ETH for gas)" } else { "Proving this PC's hardware to the network and registering '$Name'" })
 $log = Join-Path $PD "logs\node.log"; $joined = $false
 for ($i = 0; $i -lt 90; $i++) {
   Start-Sleep 4
@@ -439,7 +932,9 @@ for ($i = 0; $i -lt 90; $i++) {
   if ($refused) { Emit "join" "warn" ($refused -replace '^.*?\] ', '') }
 }
 if ($joined) { Emit "join" "ok" "'$Name' is registered and attached: it takes work from the network" }
+elseif ($independent) { Emit "join" "warn" "'$Name' is installed but not registered yet: send operator $operator a little Base ETH and it registers itself (see $log)" }
 else { Emit "join" "warn" "'$Name' is installed but not registered yet; it keeps trying (see $log)" }
+}
 
 # ---------------------------------------------------------------------------------------------------------------------
 # 9. the tray, for the owner
@@ -494,5 +989,15 @@ if ($EnclaveDNS) {
     }
   }
 }
-Emit "done" "ok" "Enclave host '$Name' is set up"
+Emit "done" "ok" "Enclave host '$Name' is set up"; $script:Outcome = "installed"
+} finally {
+  Restore-OtherTasks "during final cleanup"
+  if (-not $script:OthersRestored) {
+    $pending = @($script:StoppedOthers | Where-Object { -not $script:RestoredOthers.ContainsKey($_) })
+    Save-InstallStatus "RECOVERY-REQUIRED" ("$(if ($script:Outcome) { $script:Outcome } else { 'stopped by an error' }); not running again: " + ($pending -join ", "))
+    Emit "services" "fail" ("Previously running role(s) this install stopped are NOT running again: " + ($pending -join ", ") + ". The host needs recovery (see $PD\logs\install-status.json).")
+    exit 1
+  }
+  Save-InstallStatus $(if ($script:Outcome) { $script:Outcome } else { "failed" }) $(if ($script:OutcomeDetail) { $script:OutcomeDetail } elseif (-not $script:Outcome) { "stopped by an error" } else { "" })
+}
 exit 0

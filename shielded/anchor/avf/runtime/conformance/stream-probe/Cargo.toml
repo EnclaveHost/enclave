@@ -1,0 +1,32 @@
+[package]
+name = "stream-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "LAB streaming probe for the pVM's sealed streaming responses (PVM-CPU.md): ggml-probe's greedy decode, one padded NDJSON line per token."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen-rt = { version = "0.39.0", features = ["bitflags"] }
+
+[profile.release]
+codegen-units = 1
+opt-level = "s"
+strip = true
+lto = true
+
+[package.metadata.component]
+package = "enclave:stream-probe"
+
+[package.metadata.component.target]
+path = "wit"
+world = "stream-probe"
+
+# WIT deps as vendored by enclave-apps/ggml-probe (wasmtime v45: wasi@0.2.6, wasi:nn@0.2.0-rc-2024-10-28)
+[package.metadata.component.target.dependencies]
+"wasi:http" = { path = "wit/deps/http" }
+"wasi:io" = { path = "wit/deps/io" }
+"wasi:clocks" = { path = "wit/deps/clocks" }
+"wasi:nn" = { path = "wit/deps/nn" }

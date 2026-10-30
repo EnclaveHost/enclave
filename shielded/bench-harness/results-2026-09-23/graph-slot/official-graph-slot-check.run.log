@@ -1,0 +1,13 @@
+debconf: delaying package configuration, since apt-utils is not installed
+gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+cmake version 3.22.1
+PASS kv_unified=0 plain: graph test, fused on == off byte for byte (steps=25 rows=35 bytes=34764800 n_vocab=248320, 34764800 bytes)
+PASS kv_unified=0 spec: graph test, fused on == off byte for byte (steps=25 rows=47 bytes=46684160 n_vocab=248320, 46684160 bytes)
+PASS kv_unified=0 lifetime: graph test, fused on == off byte for byte (steps=21 rows=60 bytes=59596800 n_vocab=248320, 59596800 bytes)
+PASS kv_unified=0 multi: graph test, fused on == off byte for byte (steps=11 rows=46 bytes=45690880 n_vocab=248320, 45690880 bytes)
+PASS kv_unified=1 plain: graph test, fused on == off byte for byte (steps=25 rows=35 bytes=34764800 n_vocab=248320, 34764800 bytes)
+PASS kv_unified=1 spec: graph test, fused on == off byte for byte (steps=25 rows=47 bytes=46684160 n_vocab=248320, 46684160 bytes)
+PASS kv_unified=1 lifetime: graph test, fused on == off byte for byte (steps=21 rows=60 bytes=59596800 n_vocab=248320, 59596800 bytes)
+PASS kv_unified=1 multi: graph test, fused on == off byte for byte (steps=11 rows=46 bytes=45690880 n_vocab=248320, 45690880 bytes)
+GRAPH-SLOT MATRIX PASS
+ALL CHECKS PASSED

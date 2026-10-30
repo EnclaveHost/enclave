@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The notification icon: the mark's hexagon and key, white (the status bar uses its alpha), strokes heavier for 24dp -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="32" android:viewportHeight="32">
+    <path android:pathData="M16,2 L28,9 L28,23 L16,30 L4,23 L4,9 Z" android:strokeColor="#FFFFFFFF" android:strokeWidth="2.4" android:strokeLineJoin="round" />
+    <path android:pathData="M18.45,12.55 A2.45,2.45 0 1,1 13.55,12.55 A2.45,2.45 0 1,1 18.45,12.55 Z" android:strokeColor="#FFFFFFFF" android:strokeWidth="2.2" />
+    <path android:pathData="M16,15 L16,21.6 L18,21.6 M16,19.4 L17.5,19.4" android:strokeColor="#FFFFFFFF" android:strokeWidth="2.2" android:strokeLineCap="round" android:strokeLineJoin="round" />
+</vector>

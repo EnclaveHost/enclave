@@ -1,0 +1,424 @@
+Created debuggable VM from "/data/local/tmp/jit/jit_probe.apk"!PayloadConfig(VirtualMachinePayloadConfig { payloadBinaryName: "libjit_probe.so", extraApks: [] }) with CID 3101, state is STARTING.
+[2026-09-24T02:35:24.577367220+00:00 DEBUG crosvm::crosvm::sys::linux] creating hypervisor: Kvm { device: Some("/dev/kvm") }
+[2026-09-24T02:35:24.588615345+00:00 INFO  crosvm::crosvm::sys::linux::device_helpers] Trying to attach block device: /proc/self/fd/52
+[2026-09-24T02:35:24.590463184+00:00 INFO  crosvm::crosvm::sys::linux::device_helpers] Trying to attach block device: /proc/self/fd/57
+[2026-09-24T02:35:24.591476413+00:00 INFO  crosvm::crosvm::sys::linux::device_helpers] Trying to attach block device: /proc/self/fd/65
+[DEBUG] Activating dynamic page table...
+[DEBUG] ... Success!
+[INFO] pvmfw config version: 1.2
+[INFO] pVM firmware
+[ERROR] avb_slot_verify.c ...
+[ERROR] : ...
+[ERROR] 443 ...
+[ERROR] : ERROR:  ...
+[ERROR] initrd_normal ...
+[ERROR] : Hash of data does not match digest in descriptor.
+[INFO] Successfully verified a debuggable payload.
+[INFO] Please disregard any previous libavb ERROR about initrd_normal.
+[WARN] Pruning '"/avf"' of property '"name"': reference property not found
+[INFO] Deferring rollback protection
+[INFO] No debug policy found.
+[INFO] Starting payload...
+[INFO] Expecting a bug making MMIO_GUARD_UNMAP return NOT_SUPPORTED on success
+[    0.811635][   T10] Freeing initrd memory: 804K
+[    0.824806][    T1] loop: module loaded
+[    0.825412][    T1] virtio_blk virtio3: 1/0/0 default/read/poll queues
+[    0.830838][    T1] virtio_blk virtio3: [vda] 57616 512-byte logical blocks (29.5 MB/28.1 MiB)
+[    0.847363][    T1]  vda: vda1 vda2
+[    0.851044][    T1] virtio_blk virtio4: 1/0/0 default/read/poll queues
+[    0.853632][    T1] virtio_blk virtio4: [vdb] 20560 512-byte logical blocks (10.5 MB/10.0 MiB)
+[    0.859985][    T1]  vdb: vdb1
+[    0.860465][    T1] virtio_blk virtio5: 1/0/0 default/read/poll queues
+[    0.863668][    T1] virtio_blk virtio5: [vdc] 17432 512-byte logical blocks (8.93 MB/8.51 MiB)
+[    0.871647][    T1]  vdc: vdc1 vdc2 vdc3 vdc4
+[    0.874902][    T1] zram: Added device: zram0
+[2026-09-24T02:35:26.556052326+00:00 DEBUG devices::vmwdt] CPU:0 wrote VMWDT_REG_CLOCK_FREQ_HZ a
+[    0.878072][    T1] rtc-pl030 2000.rtc: registered as rtc0
+[    0.879036][    T1] rtc-pl030 2000.rtc: setting system clock to 2026-09-24T02:35:26 UTC (1790217326)
+[    0.879371][    T1] device-mapper: uevent: version 1.0.3
+[    0.880913][    T1] device-mapper: ioctl: 4.48.0-ioctl (2023-03-01) initialised: dm-devel@redhat.com
+[    0.884765][    T9] watchdog: Delayed init of the lockup detector failed: -19
+[    0.885310][    T9] watchdog: Hard watchdog permanently disabled
+[    0.886031][    T1] NET: Registered PF_VSOCK protocol family
+[    0.905708][    T1] page_owner is disabled
+[    0.907593][    T1] Key type .fscrypt registered
+[    0.908165][    T1] Key type fscrypt-provisioning registered
+[    0.910171][    T1] clk: Disabling unused clocks
+[    0.911422][    T1] Freeing unused kernel memory: 1984K
+[    0.915037][    T1] Run /init as init process
+[    0.917921][    T1] init: init first stage started!
+[    0.918620][    T1] init: Unable to open /lib/modules, skipping module loading.
+[    0.921510][    T1] init: Switching root to '/first_stage_ramdisk'
+[    0.922046][    T1] init: [libfstab] Using Android DT directory /proc/device-tree/firmware/android/
+[    0.945794][    T1] init: [libfs_avb] Returning avb_handle with status: Success
+[    0.946636][    T1] init: [libfs_avb] Built verity table: '1 /dev/block/by-name/system_a /dev/block/by-name/system_a 4096 4096 7079 7079 sha256 b11bc7cdcc7868325435e702ba3ef8d8d582fe09a41b74012f016f43c148927d fdbe5498235684cf699d8abe9bda709a9347ef6a678fade6a17d1755fd8e5b75 2 restart_on_corruption ignore_zero_blocks'
+[    0.951557][    T1] device-mapper: verity: sha256 using shash "sha256-ce" (multibuffer)
+[    0.960263][    T1] erofs: (device dm-0): mounted with root inode @ nid 42.
+[    0.961129][    T1] init: [libfs_mgr] __mount(source=/dev/block/dm-0,target=/system,type=erofs)=0: Success
+[    0.962714][    T1] init: Switching root to '/system'
+[    1.960517][    T1] init: Opening SELinux policy from /system/etc/selinux/microdroid_precompiled_sepolicy
+[    2.001352][    T1] init: Loading SELinux policy
+[    2.165126][    T1] SELinux:  policy capability network_peer_controls=1
+[    2.167973][    T1] SELinux:  policy capability open_perms=1
+[    2.168254][    T1] SELinux:  policy capability extended_socket_class=1
+[    2.170455][    T1] SELinux:  policy capability always_check_network=0
+[    2.172327][    T1] SELinux:  policy capability cgroup_seclabel=0
+[    2.173325][    T1] SELinux:  policy capability nnp_nosuid_transition=1
+[    2.174451][    T1] SELinux:  policy capability genfs_seclabel_symlinks=0
+[    2.176198][    T1] SELinux:  policy capability ioctl_skip_cloexec=0
+[    2.176450][    T1] SELinux:  unknown policy capability 9
+[    2.176711][    T1] SELinux:  unknown policy capability 12
+[    2.179099][   T18] audit: type=1403 audit(1790217327.796:2): auid=4294967295 ses=4294967295 lsm=selinux res=1
+[    2.180562][   T18] audit: type=1404 audit(1790217327.796:3): enforcing=1 old_enforcing=0 auid=4294967295 ses=4294967295 enabled=1 old-enabled=1 lsm=selinux res=1
+[    2.185197][    T1] selinux: SELinux: Loaded file context from:
+[    2.186919][    T1] selinux: 		/system/etc/selinux/plat_file_contexts
+[    2.228672][    T1] init: init second stage started!
+[    2.269289][    T1] selinux: SELinux: Loaded file context from:
+[    2.271160][    T1] selinux: 		/system/etc/selinux/plat_file_contexts
+[    2.297570][    T1] init: [libfstab] Using Android DT directory /proc/device-tree/firmware/android/
+[    2.302805][    T1] init: Do not have permissions to set 'ro.build.version.sdk_full' to '37.0' in property file '/system/build.prop': Property type check failed, value doesn't match expected type 'int'
+[    2.303990][    T1] init: Setting product property ro.product.brand to 'google' (from ro.product.system.brand)
+[    2.304842][    T1] init: Setting product property ro.product.device to 'generic' (from ro.product.system.device)
+[    2.306674][    T1] init: Setting product property ro.product.manufacturer to 'Google' (from ro.product.system.manufacturer)
+[    2.307778][    T1] init: Setting product property ro.product.model to 'Generic System' (from ro.product.system.model)
+[    2.309871][    T1] init: Setting property 'ro.build.fingerprint' to 'google/jitprobe/generic:17/CP2A.260805.005/15828068:user/dev-keys'
+[    2.311086][    T1] init: Running restorecon...
+[    2.313177][    T1] init: Created socket '/dev/socket/property_service_for_system', mode 660, user 0, group 1000
+[    2.314783][    T1] init: Created socket '/dev/socket/property_service', mode 666, user 0, group 0
+[    2.322834][    T1] init: SetupMountNamespaces done
+[    2.326116][    T1] init: Parsing file /system/etc/init/hw/init.rc...
+[    2.329495][    T1] init: Added '/init.environ.rc' to import list
+[    2.334828][    T1] init: Parsing file /init.environ.rc...
+[    2.335244][    T1] init: Unable to read config file '/init.environ.rc': open() failed: No such file or directory
+[    2.336106][    T1] init: Parsing directory /system/etc/init...
+[    2.337337][    T1] init: Parsing file /system/etc/init/atrace.rc...
+[    2.347749][    T1] init: Parsing file /system/etc/init/authfs_service.rc...
+[    2.349526][    T1] init: Parsing file /system/etc/init/heapprofd.rc...
+[    2.353231][    T1] init: Parsing file /system/etc/init/init-perfetto.rc...
+[    2.354285][    T1] init: Parsing file /system/etc/init/microdroid_manager.rc...
+[    2.355476][    T1] init: Parsing file /system/etc/init/pageout_bomb.rc...
+[    2.356473][    T1] init: Parsing file /system/etc/init/perfetto.rc...
+[    2.361310][    T1] init: Parsing file /system/etc/init/prng_seeder.rc...
+[    2.362059][    T1] init: Parsing file /system/etc/init/tombstoned.microdroid.rc...
+[    2.363808][    T1] init: Parsing file /system/etc/init/traced_perf.rc...
+[    2.364830][    T1] init: Parsing file /system_ext/etc/init...
+[    2.365820][    T1] init: Unable to read config file '/system_ext/etc/init': open() failed: No such file or directory
+[    2.367009][    T1] init: Parsing file /vendor/etc/init...
+[    2.367963][    T1] init: Unable to read config file '/vendor/etc/init': open() failed: No such file or directory
+[    2.369706][    T1] init: Parsing file /odm/etc/init...
+[    2.370043][    T1] init: Unable to read config file '/odm/etc/init': open() failed: No such file or directory
+[    2.371565][    T1] init: Parsing file /product/etc/init...
+[    2.372239][    T1] init: Unable to read config file '/product/etc/init': open() failed: No such file or directory
+[    2.374462][    T1] init: processing action (SetupCgroups) from (<Builtin Action>:0)
+[    2.378677][    T1] libprocessgroup: Using system/app isolation under: /sys/fs/cgroup
+[    2.387661][    T1] init: waitid failed: No child processes
+[    2.392591][    T1] init: processing action (early-init) from (/system/etc/init/hw/init.rc:14)
+[    2.396783][    T1] init: starting service 'ueventd'...
+[    2.424736][    T1] libprocessgroup: Created cgroup /sys/fs/cgroup/system/uid_0
+[    2.432099][    T1] libprocessgroup: Created cgroup /sys/fs/cgroup/system/uid_0/pid_37
+[    2.435584][    T1] libprocessgroup: Failed to read task profiles from /etc/task_profiles.json
+[    2.437015][    T1] libprocessgroup: Loading /etc/task_profiles.json for [1] failed
+[    2.437480][    T1] libprocessgroup: Failed to find NormalIoPriority process profile
+[    2.442718][    T1] init: ... started service 'ueventd' has pid 37
+[    2.444786][    T1] init: starting service 'init_debug_policy'...
+[    2.459666][    T1] libprocessgroup: Created cgroup /sys/fs/cgroup/system/uid_0/pid_38
+[    2.466544][    T1] libprocessgroup: Failed to find NormalIoPriority process profile
+[    2.470235][    T1] init: ... started service 'init_debug_policy' has pid 38
+[    2.471235][    T1] init: SVC_EXEC service 'init_debug_policy' pid 38 (uid 0 gid 0+0 context default) started; waiting...
+[    2.502210][   T37] ueventd: ueventd started!
+[    2.507882][   T37] selinux: SELinux: Loaded file context from:
+[    2.508295][   T37] selinux: 		/system/etc/selinux/plat_file_contexts
+[    2.510203][   T37] ueventd: Parsing file /system/etc/ueventd.rc...
+[    2.511998][   T37] ueventd: Parsing file /vendor/etc/ueventd.rc...
+[    2.512472][   T37] ueventd: Unable to read config file '/vendor/etc/ueventd.rc': open() failed: No such file or directory
+[    2.572481][   T39] ueventd (39) used greatest stack depth: 13264 bytes left
+[    2.573879][   T37] ueventd: Coldboot took 0.059 seconds
+[    2.574729][   T38] init_debug_poli (38) used greatest stack depth: 11544 bytes left
+[    2.575519][    T1] init: Service 'init_debug_policy' (pid 38) exited with status 0 waiting took 0.121000 seconds
+[    2.576914][    T1] init: Sending SIGKILL to service 'init_debug_policy' (pid 38) process group...
+[    2.578027][    T1] libprocessgroup: Removed cgroup /sys/fs/cgroup/system/uid_0/pid_38
+[    2.579453][    T1] init: start_waiting_for_property("ro.cold_boot_done", "true"): already set
+[    2.580182][    T1] init: processing action (early-init) from (/system/etc/init/prng_seeder.rc:5)
+[    2.581146][    T1] init: processing action (ConnectEarlyStageSnapuserd) from (<Builtin Action>:0)
+[    2.582001][    T1] init: processing action (wait_for_coldboot_done) from (<Builtin Action>:0)
+[    2.583611][    T1] init: start_waiting_for_property("ro.cold_boot_done", "true"): already set
+[    2.584723][    T1] init: processing action (SetMmapRndBits) from (<Builtin Action>:0)
+[    2.586930][    T1] init: processing action (KeychordInit) from (<Builtin Action>:0)
+[    2.587384][    T1] init: processing action (init) from (/system/etc/init/hw/init.rc:48)
+[    2.589601][    T1] init: starting service 'microdroid_manager'...
+[    2.590679][    T1] init: Created socket '/dev/socket/vm_payload_service', mode 666, user 1000, group 1000
+[    2.592139][    T1] init: Created socket '/dev/socket/vm_internal_service', mode 666, user 1000, group 1000
+[    2.593761][    T1] init: Created socket '/dev/socket/rpc_servicemanager', mode 666, user 1000, group 1000
+[    2.597942][    T1] libprocessgroup: Created cgroup /sys/fs/cgroup/system/uid_0/pid_41
+[    2.598933][    T1] libprocessgroup: Failed to find NormalIoPriority process profile
+[    2.599734][    T1] init: oom_score_adjust not supported in microdroid
+[    2.600869][    T1] init: ... started service 'microdroid_manager' has pid 41
+[    2.901054][   T41] libc: Access denied finding property "persist.sys.timezone"
+09-24 02:35:28.521    41    41 I microdroid_manager: microdroid_manager: started.
+09-24 02:35:28.568    41    41 I microdroid_manager: microdroid_manager: Assume debug policy is disabled because of a failed read (Os { code: 2, kind: NotFound, message: "No such file or directory" })
+09-24 02:35:29.106    41    41 I microdroid_manager: microdroid_manager: crashkernel for ramdump is loaded: requested=true, forced=false
+[    3.490943][   T41] zram0: detected capacity change from 0 to 492536
+[    3.493802][   T41] Adding 246264k swap on /dev/block/zram0.  Priority:-2 extents:1 across:246264k SS
+09-24 02:35:29.115    41    41 I microdroid_manager: microdroid_manager: swap enabled.
+09-24 02:35:29.141    41    41 I microdroid_manager: microdroid_manager::payload: loading payload metadata...
+09-24 02:35:29.149    41    41 I microdroid_manager: dice_driver: Creating DiceDriver backed by "/dev/open-dice0" driver
+09-24 02:35:29.151    41    41 I microdroid_manager: dice_driver: Using DICE values from driver
+[    3.600032][   T44] loop0: detected capacity change from 0 to 8
+[    3.603424][   T44] device-mapper: verity: sha256 using shash "sha256-ce" (multibuffer)
+09-24 02:35:29.245    41    41 I microdroid_manager: microdroid_manager::verify: payload verification successful. took 91.437552ms
+09-24 02:35:29.247    41    41 I microdroid_manager: microdroid_manager: DICE derivation for payload
+[    3.629335][   T41] ioremap: Failed to register 7fe0b000:7fe0c000
+09-24 02:35:29.251    41    41 W microdroid_manager: dice_policy_builder: Value not found for [-4670548, -70005], - skipping!
+09-24 02:35:29.252    41    41 W microdroid_manager: dice_policy_builder: Value not found for [-4670548, -70005], - skipping!
+09-24 02:35:29.252    41    41 W microdroid_manager: dice_policy_builder: Value not found for [-4670548, -70005], - skipping!
+09-24 02:35:29.365    41    41 I microdroid_manager: microdroid_manager::vm_secret: Secretkeeper operation: GetSecretRequest { id: [77, 77, 77, 77, 28, 0f, 7a, 16], updated_sealing_policy: Some("[<redacted>]#1039 bytes") }
+09-24 02:35:29.376    41    41 W microdroid_manager: microdroid_manager::vm_secret: No entry found in Secretkeeper for this VM instance, creating new secret.
+09-24 02:35:29.377    41    41 I microdroid_manager: microdroid_manager::vm_secret: Secretkeeper operation: StoreSecretRequest { id: [77, 77, 77, 77, 28, 0f, 7a, 16], sealing_policy: "[<redacted>]#1039 bytes" }
+[    3.820191][    T1] init: starting service 'apexd-vm'...
+[    3.852068][    T1] libprocessgroup: Created cgroup /sys/fs/cgroup/system/uid_0/pid_48
+[    3.870058][    T1] libprocessgroup: Failed to find NormalIoPriority process profile
+[    3.885223][    T1] init: ... started service 'apexd-vm' has pid 48
+[    3.888186][    T1] init: Control message: Processed ctl.start for 'apexd-vm' from pid: 41 (/system/bin/microdroid_manager)
+09-24 02:35:29.734    48    48 I apexd   : Scanning /system/apex for pre-installed ApexFiles
+09-24 02:35:29.739    48    48 I apexd   : Found pre-installed APEX /system/apex/com.android.runtime.apex
+09-24 02:35:29.765    48    48 I apexd   : Successfully scanned 1 preinstalled APEXes duration=31ms
+09-24 02:35:29.766    48    48 I apexd   : Scanning /dev/block/by-name/payload-metadata for host apexes
+09-24 02:35:29.767    48    48 I apexd   : Overriding metadata to /apex/vm-payload-metadata
+09-24 02:35:29.781    48    48 I apexd   : Found host apex com.android.adbd at /dev/block/vdc2
+09-24 02:35:29.783    48    48 E cutils-trace: Error opening trace file: No such file or directory (2)
+09-24 02:35:29.786    48    51 W apexd   : Fallback to buffered I/O for /system/apex/com.android.runtime.apex
+[    4.168301][   T51] loop1: detected capacity change from 0 to 17408
+[    4.177774][   T50] device-mapper: verity: sha256 using shash "sha256-ce" (multibuffer)
+[    4.189687][   T50] EXT4-fs (dm-3): mounted filesystem 7d1522e1-9dfa-5edb-a43e-98e3a4d20250 ro without journal. Quota mode: disabled.
+[    4.191222][   T51] EXT4-fs (loop1): mounted filesystem 7d1522e1-9dfa-5edb-a43e-98e3a4d20250 ro without journal. Quota mode: disabled.
+09-24 02:35:29.830    48    48 I apexd   : Activated 2 packages. duration=44ms
+09-24 02:35:29.831    48    48 I apexd   : Marking APEXd as activated
+09-24 02:35:29.833    48    48 I apexd   : Marking APEXd as ready
+[    4.213520][   T36] init: Wait for property 'apexd.status=ready' took 1611ms
+[    4.223207][    T1] init: Parsing file /apex/com.android.adbd/etc/init.rc...
+[    4.638897][    T1] linkerconfig: libc: Access denied finding property "ro.vndk.lite"
+[    4.646423][    T1] linkerconfig: libc: Access denied finding property "persist.sys.timezone"
+09-24 02:35:30.263    57    57 W linkerconfig: Failed to get realpath from /product: No such file or directory
+[    4.651572][   T57] linkerconfig: Failed to get realpath from /product: No such file or directory
+09-24 02:35:30.274    57    57 W linkerconfig: Failed to get realpath from /system_ext: No such file or directory
+[    4.654145][   T57] linkerconfig: Failed to get realpath from /system_ext: No such file or directory
+09-24 02:35:30.276    57    57 W linkerconfig: Failed to open file /system/etc/llndk.libraries.txt: No such file or directory
+[    4.655729][   T57] linkerconfig: Failed to open file /system/etc/llndk.libraries.txt: No such file or directory
+09-24 02:35:30.278    57    57 W linkerconfig: Failed to open file /system/etc/llndk.libraries.txt: No such file or directory
+[    4.657595][   T57] linkerconfig: Failed to open file /system/etc/llndk.libraries.txt: No such file or directory
+09-24 02:35:30.279    57    57 W linkerconfig: Failed to open file /system/etc/sanitizer.libraries.txt: No such file or directory
+[    4.659438][   T57] linkerconfig: Failed to open file /system/etc/sanitizer.libraries.txt: No such file or directory
+09-24 02:35:30.281    57    57 W linkerconfig: Failed to open file /system/etc/sanitizer.libraries.txt: No such file or directory
+[    4.662008][   T57] linkerconfig: Failed to open file /system/etc/sanitizer.libraries.txt: No such file or directory
+[    4.667358][    T1] linkerconfig: libc: Access denied finding property "LLNDK_LIBRARIES_VENDOR"
+[    4.668361][    T1] linkerconfig: libc: Access denied finding property "LLNDK_LIBRARIES_VENDOR"
+[    4.669331][    T1] linkerconfig: libc: Access denied finding property "LLNDK_LIBRARIES_PRODUCT"
+[    4.670257][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.674626][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.676164][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.676689][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.677868][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.682412][    T1] linkerconfig: libc: Access denied finding property "LLNDK_LIBRARIES_VENDOR"
+[    4.683085][    T1] linkerconfig: libc: Access denied finding property "LLNDK_LIBRARIES_VENDOR"
+[    4.684286][    T1] linkerconfig: libc: Access denied finding property "VNDK_USING_CORE_VARIANT_LIBRARIES"
+[    4.684695][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.686169][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.693637][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.694547][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.695328][    T1] linkerconfig: libc: Access denied finding property "LLNDK_LIBRARIES_PRODUCT"
+[    4.696549][    T1] linkerconfig: libc: Access denied finding property "VNDK_USING_CORE_VARIANT_LIBRARIES"
+[    4.697817][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.698459][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.700015][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.700804][    T1] linkerconfig: libc: Access denied finding property "LLNDK_LIBRARIES_VENDOR"
+[    4.702138][    T1] linkerconfig: libc: Access denied finding property "LLNDK_LIBRARIES_VENDOR"
+[    4.702803][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.704217][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.705474][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.706977][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.708595][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.709329][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.710705][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.711475][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.712756][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.713556][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.714269][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.715100][    T1] linkerconfig: libc: Access denied finding property "SANITIZER_RUNTIME_LIBRARIES"
+[    4.715957][    T1] init: linkerconfig generated /linkerconfig with mounted APEX modules info
+[    4.717103][    T1] init: Command 'perform_apex_config' action=init (/system/etc/init/hw/init.rc:73) took 502ms and succeeded
+[    4.718178][    T1] init: Service 'apexd-vm' (pid 48) exited with status 0 oneshot service took 0.875000 seconds in background
+[    4.718916][    T1] init: Sending SIGKILL to service 'apexd-vm' (pid 48) process group...
+[    4.719949][    T1] libprocessgroup: Removed cgroup /sys/fs/cgroup/system/uid_0/pid_48
+[    4.721013][   T41] libc: Access denied finding property "persist.sys.timezone"
+09-24 02:35:30.341    41    41 I microdroid_manager: microdroid_manager: The RPC server 'vm_internal_service' is running.
+09-24 02:35:30.343    41    41 I microdroid_manager: microdroid_manager: The RPC server 'vm_payload_service' is running.
+[    4.723290][    T1] init: processing action (ro.boot.microdroid.debuggable=1 && init) from (/system/etc/init/hw/init.rc:84)
+[    4.724738][    T1] init: processing action (init) from (/system/etc/init/perfetto.rc:163)
+[    4.725607][    T1] init: processing action (CopyRollbackLogs) from (<Builtin Action>:0)
+[    4.726822][    T1] init: processing action (late-init) from (/system/etc/init/hw/init.rc:94)
+[    4.727671][    T1] init: start_waiting_for_property("microdroid_manager.config_done", "1"): already set
+[    4.728490][    T1] init: processing action (late-init) from (/system/etc/init/atrace.rc:3)
+[    4.737675][    T1] init: Command 'copy /system/etc/ftrace_synthetic_events.conf /sys/kernel/debug/tracing/synthetic_events' action=late-init (/system/etc/init/atrace.rc:291) took 0ms and failed: Could not write to output file '/sys/kernel/debug/tracing/synthetic_events': open() failed: No such file or directory
+[    4.738966][    T1] init: processing action (ro.boot.fastboot.boottrace= && late-init) from (/system/etc/init/atrace.rc:309)
+[    4.741419][    T1] init: processing action (queue_property_triggers) from (<Builtin Action>:0)
+[    4.742086][    T1] init: processing action (post-fs) from (/system/etc/init/hw/init.rc:126)
+[    4.743744][    T1] init: Top-level directory needs encryption action, eg mkdir /data/misc <mode> <uid> <gid> encryption=Require
+[    4.744784][    T1] init: Top-level directory needs encryption action, eg mkdir /data/anr <mode> <uid> <gid> encryption=Require
+[    4.745395][    T1] init: Top-level directory needs encryption action, eg mkdir /data/tombstones <mode> <uid> <gid> encryption=Require
+[    4.746908][    T1] init: processing action (ro.debuggable=1 && late-fs) from (/system/etc/init/hw/init.rc:154)
+[    4.748131][    T1] init: processing action (load-bpf-programs) from (/system/etc/init/init-perfetto.rc:6)
+[    4.749960][    T1] init: processing action (post-fs-data) from (/system/etc/init/hw/init.rc:160)
+[    4.751310][    T1] init: deprecated action `mark_post_data` called.
+[    4.751881][    T1] init: Top-level directory needs encryption action, eg mkdir /data/vendor <mode> <uid> <gid> encryption=Require
+[    4.753311][    T1] init: Top-level directory needs encryption action, eg mkdir /data/vendor_ce <mode> <uid> <gid> encryption=Require
+[    4.755018][    T1] init: Top-level directory needs encryption action, eg mkdir /data/vendor_de <mode> <uid> <gid> encryption=Require
+[    4.756196][    T1] init: Top-level directory needs encryption action, eg mkdir /data/local <mode> <uid> <gid> encryption=Require
+[    4.757790][    T1] init: processing action (post-fs-data) from (/system/etc/init/perfetto.rc:104)
+[    4.758616][    T1] init: Command 'rm /data/misc/perfetto-traces/.guardraildata' action=post-fs-data (/system/etc/init/perfetto.rc:105) took 0ms and failed: unlink() failed: No such file or directory
+[    4.760026][    T1] init: processing action (boot) from (/system/etc/init/hw/init.rc:176)
+[    4.761867][   T41] libc: Access denied finding property "persist.sys.timezone"
+[    4.762676][    T1] init: processing action (enable_property_trigger) from (<Builtin Action>:0)
+[    4.763441][    T1] init: processing action (microdroid_manager.init_done=1) from (/system/etc/init/hw/init.rc:80)
+[    4.764349][    T1] init: Sending SIGKILL to service 'ueventd' (pid 37) process group...
+09-24 02:35:30.382    41    41 I microdroid_manager: microdroid_manager: boot completed, time to run payload
+09-24 02:35:30.386    41    41 I microdroid_manager: microdroid_manager: executing main task PayloadCommand { command: "/system/bin/microdroid_launcher" "/mnt/apk/lib/arm64-v8a/libjit_probe.so", uid_gid: Some((6000, 6000)), selinux_domain: None }...[    4.766899][    T1] libprocessgroup: Removed cgroup /sys/fs/cgroup/system/uid_0/pid_37
+
+09-24 02:35:30.389    41    41 I microdroid_manager: microdroid_manager: notifying payload started
+[    4.768499][    T1] init: Service 'ueventd' (pid 37) received SIGKILL
+[    4.769379][    T1] init: Sending SIGKILL to service 'ueventd' (pid 37) process group...
+[    4.770643][    T1] libprocessgroup: Failed to write 1 to /sys/fs/cgroup/system/uid_0/pid_37/payload started
+cgroup.kill: No such file or directory
+[    4.773239][    T1] init: processing action (init_debug_policy.adbd.enabled=1 && ro.boot.microdroid.adbd.start=1) from (/system/etc/init/hw/init.rc:90)
+[    4.776047][    T1] init: starting service 'adbd'...
+[    4.776414][    T1] init: Created socket '/dev/socket/adbd', mode 660, user 1000, group 1000
+[    4.777644][    T1] libprocessgroup: Created cgroup /sys/fs/cgroup/system/uid_0/pid_61
+[    4.778768][    T1] libprocessgroup: Failed to find NormalIoPriority process profile
+[    4.779934][    T1] init: ... started service 'adbd' has pid 61
+[    4.780303][    T1] init: processing action (persist.heapprofd.enable= && traced.lazy.heapprofd=) from (/system/etc/init/heapprofd.rc:49)
+[    4.782522][    T1] init: processing action (persist.traced.enable=2) from (/system/etc/init/perfetto.rc:98)
+[    4.783123][    T1] init: starting service 'traced_relay'...
+[    4.784493][    T1] init: Created socket '/dev/socket/traced_producer', mode 666, user 0, group 0
+[    4.785811][    T1] libprocessgroup: Created cgroup /sys/fs/cgroup/system/uid_9999
+[    4.791577][   T41] libc: Access denied finding property "persist.sys.timezone"
+09-24 02:35:30.412    41    41 I microdroid_manager: microdroid_manager: payload pid = 62
+[    4.794138][    T1] libprocessgroup: Created cgroup /sys/fs/cgroup/system/uid_9999/pid_63
+[    4.795928][    T1] libprocessgroup: Failed to find NormalIoPriority process profile
+[    4.797068][   T63] libprocessgroup: Failed to find ProcessCapacityHigh process profile
+[    4.798069][   T63] init: failed to set task profiles
+[    4.799704][    T1] init: ... started service 'traced_relay' has pid 63
+[    4.805745][   T64] libc: Access denied finding property "persist.sys.timezone"
+[    4.809134][    T1] init: starting service 'traced_probes'...
+09-24 02:35:30.426    41    64 I microdroid_manager: microdroid_manager: New client connected to VmPayloadService with UID: Some(6000)
+09-24 02:35:30.436    41    64 I microdroid_manager: microdroid_manager::vm_payload_service: notifyPayloadReady called by client with UID: Some(6000)
+payload is ready
+[    4.816651][    T1] libprocessgroup: Created cgroup /sys/fs/cgroup/system/uid_9999/pid_65
+09-24 02:35:30.440    41    64 I microdroid_manager: microdroid_manager::vm_payload_service: Notified host payload ready successfully
+[    4.823211][   T62] libc: Access denied finding property "persist.sys.timezone"
+09-24 02:35:30.444    62    62 I vm_payload: vm_payload: Registered payload ready notification
+[    4.825592][   T62] JIT_PROBE selinux=u:r:microdroid_app:s0
+[    4.825593][   T62] 
+09-24 02:35:30.447    62    62 I jit-probe: JIT_PROBE selinux=u:r:microdroid_app:s0
+[    4.827358][   T62] JIT_PROBE hwcap=0xefffffff hwcap2=0x2f3ff
+[    4.827360][   T62] 
+09-24 02:35:30.449    62    62 I jit-probe: JIT_PROBE hwcap=0xefffffff hwcap2=0x2f3ff
+[    4.828777][   T62] JIT_PROBE cpuinfo Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 sm3 sm4 asimddp sha512 sve asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp sve2 sveaes svepmull svebitperm svesha3 svesm4 flagm2 frint svei8mm svebf16 i8mm bf16 dgh bti
+[    4.828778][   T62] 
+09-24 02:35:30.453    62    62 I jit-probe: JIT_PROBE cpuinfo Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 sm3 sm4 asimddp sha512 sve asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp sve2 sveaes svepmull svebitperm svesha3 svesm4 flagm2 frint svei8mm svebf16 i8mm bf16 dgh bti
+[    4.833258][   T62] JIT_PROBE rwx_anonymous=Permission denied
+[    4.833259][   T62] 
+09-24 02:35:30.454    62    62 I jit-probe: JIT_PROBE rwx_anonymous=Permission denied
+[    4.834461][   T62] JIT_PROBE wx_mprotect_rx=REFUSED Permission denied
+[    4.834462][   T62] 
+09-24 02:35:30.456    62    62 I jit-probe: JIT_PROBE wx_mprotect_rx=REFUSED Permission denied
+[    4.836907][   T62] JIT_PROBE wx_mappings=0
+[    4.836908][   T62] 
+09-24 02:35:30.458    62    62 I jit-probe: JIT_PROBE wx_mappings=0
+[    4.837810][   T62] JIT_PROBE end rc=1
+[    4.837810][   T62] 
+09-24 02:35:30.459    62    62 I jit-probe: JIT_PROBE end rc=1
+09-24 02:35:30.460    41    41 I microdroid_manager: microdroid_manager: Process 62 exited with Exited(Pid(62), 1)
+09-24 02:35:30.461    41    41 E microdroid_manager: microdroid_manager: task exited with exit code: 1
+09-24 02:35:30.462    41    41 I microdroid_manager: microdroid_manager: notifying payload finished
+[    4.841806][   T18] audit: type=1400 audit(1790217330.448:4): avc:  denied  { execmem } for  pid=62 comm="microdroid_laun" scontext=u:r:microdroid_app:s0 tcontext=u:r:microdroid_app:s0 tclass=process permissive=0
+payload finished with exit code 1
+[    4.845336][   T18] audit: type=1400 audit(1790217330.452:5): avc:  denied  { execmem } for  pid=62 comm="microdroid_laun" scontext=u:r:microdroid_app:s0 tcontext=u:r:microdroid_app:s0 tclass=process permissive=0
+[    4.850208][    T1] libprocessgroup: Failed to find NormalIoPriority process profile
+[    4.850904][    T1] init: ... started service 'traced_probes' has pid 65
+[    4.851265][    T1] init: processing action (persist.debug.perfetto.persistent_sysui_tracing_for_bugreport=) from (/system/etc/init/perfetto.rc:188)
+[    4.851986][   T65] libprocessgroup: Failed to find ProcessCapacityHigh process profile
+[    4.854317][   T41] libc: Access denied finding property "persist.sys.timezone"
+[    4.855254][   T65] init: failed to set task profiles
+[    4.858338][    T1] init: processing action (persist.traced_perf.enable= && sys.init.perf_lsm_hooks=1 && traced.lazy.traced_perf=) from (/system/etc/init/traced_perf.rc:44)
+[    4.859197][   T41] libc: Access denied finding property "persist.sys.timezone"
+09-24 02:35:30.475    41    41 I microdroid_manager: microdroid_manager: Shutting down...
+[    4.863046][   T35] init: Received sys.powerctl='shutdown' from pid: 41 (/system/bin/microdroid_manager)
+[    4.863906][    T1] init: Got shutdown_command 'shutdown' Calling HandlePowerctlMessage()
+[    4.865201][    T1] init: Clear action queue and start shutdown trigger
+09-24 02:35:30.490    63    63 W perfetto:    relay_service.cc:624 Started traced_relay, listening on /dev/socket/traced_producer, forwarding to vsock://2:2010[    4.871252][   T41] microdroid_mana (41) used greatest stack depth: 11504 bytes left
+
+[    4.873899][    T1] init: Entering shutdown mode
+[    4.875745][    T1] init: processing action (shutdown_done) from (<Builtin Action>:0)
+[    4.876628][    T1] init: Reboot start, reason: shutdown, reboot_target: 
+09-24 02:35:30.499    63    63 E perfetto:    android_utils.cc:142 Unable to read ro.soc.model[    4.879117][    T1] init: Clean shutdown timeout: 2000 ms
+
+[    4.883744][    T1] init: Starting RebootMonitorThread
+09-24 02:35:30.505    63    63 E perfetto:    android_utils.cc:150 Unable to read ro.boot.hardware.revision[    4.886063][    T1] init: Could not open '/metadata/bootstat/persist.sys.boot.reason' to persist reboot reason: No such file or directory
+[    4.886862][   T68] init: RebootMonitorThread started for 300s
+[    4.887534][    T1] init: cannot find blank_screen in TurnOffBacklight
+
+09-24 02:35:30.511    63    63 E perfetto:    android_utils.cc:155 Unable to read ro.boot.hardware.ufs[    4.891477][    T1] init: Stopping 16 services by sending SIGTERM
+[    4.891803][    T1] init: Sending SIGTERM to service 'traced_probes' (pid 65) process group...
+
+[    4.894742][    T1] libprocessgroup: Still waiting on process(es) to exit for cgroup /sys/fs/cgroup/system/uid_9999/pid_65 after 0 ms
+[    4.897184][    T1] libprocessgroup: Unable to remove cgroup /sys/fs/cgroup/system/uid_9999/pid_65: Device or resource busy
+09-24 02:35:30.522    63    63 E perfetto:    android_utils.cc:160 Unable to read ro.boot.hardware.ddr
+09-24 02:35:30.522    63    63 E perfetto:    android_utils.cc:165 Unable to read init.svc.console
+[    4.902588][    T1] init: Sending SIGTERM to service 'traced_relay' (pid 63) process group...
+[    4.906007][    T1] libprocessgroup: Still waiting on process(es) to exit for cgroup /sys/fs/cgroup/system/uid_9999/pid_63 after 0 ms
+[    4.908139][    T1] libprocessgroup: Removed cgroup /sys/fs/cgroup/system/uid_9999/pid_63
+[    4.910413][    T1] init: Sending SIGTERM to service 'microdroid_manager' (pid 41) process group...
+[    4.914381][    T1] libprocessgroup: Removed cgroup /sys/fs/cgroup/system/uid_0/pid_41
+[    4.918966][    T1] init: Service 'microdroid_manager' (pid 41) exited with status 0 oneshot service took 2.321000 seconds in background
+[    4.921228][    T1] init: Sending SIGKILL to service 'microdroid_manager' (pid 41) process group...
+[    4.921877][    T1] libprocessgroup: Failed to write 1 to /sys/fs/cgroup/system/uid_0/pid_41/cgroup.kill: No such file or directory
+[    4.923163][    T1] init: Service 'traced_relay' (pid 63) received SIGTERM
+[    4.923727][    T1] init: Sending SIGKILL to service 'traced_relay' (pid 63) process group...
+[    4.924916][    T1] libprocessgroup: Failed to write 1 to /sys/fs/cgroup/system/uid_9999/pid_63/cgroup.kill: No such file or directory
+[    4.928513][    T1] init: Service 'traced_probes' (pid 65) received SIGTERM
+[    4.929349][    T1] init: Sending SIGKILL to service 'traced_probes' (pid 65) process group...
+[    4.930304][    T1] libprocessgroup: Removed cgroup /sys/fs/cgroup/system/uid_9999/pid_65
+[    4.930974][    T1] init: Untracked process (pid: 47 name: (zipfuse) ppid: 1 pgrp: 41 state: Z) received SIGTERM
+[    4.931865][    T1] init: Untracked process (pid: 47 name: (zipfuse) ppid: 1 pgrp: 41 state: Z) did not have an associated service entry and will not be reaped
+[    4.932429][    T1] init: Waiting for 3 pids to be reaped took 13ms with 0 of them still running
+[    4.934505][    T1] init: Stopping 16 services by sending SIGKILL
+[    4.935742][    T1] init: vold not running, skipping vold shutdown
+[    4.936104][    T1] init: Stopping 4 services by sending SIGKILL
+[    4.936358][    T1] init: Sending SIGKILL to service 'adbd' (pid 61) process group...
+[    4.937037][    T1] libprocessgroup: Removed cgroup /sys/fs/cgroup/system/uid_0/pid_61
+[    4.938039][    T1] init: Service 'adbd' (pid 61) received SIGKILL
+[    4.938984][    T1] init: Sending SIGKILL to service 'adbd' (pid 61) process group...
+[    4.939699][    T1] libprocessgroup: Failed to write 1 to /sys/fs/cgroup/system/uid_0/pid_61/cgroup.kill: No such file or directory
+[    4.940613][    T1] init: waitid failed: No child processes
+[    4.941739][    T1] init: sync() before umount...
+[    4.942094][    T1] init: sync() before umount took0ms
+[    4.942880][    T1] init: swapoff() start...
+[    4.943353][   T18] audit: type=1400 audit(1790217330.560:6): avc:  denied  { write } for  pid=1 comm="init" name="zram0" dev="tmpfs" ino=118 scontext=u:r:init:s0 tcontext=u:object_r:ram_device:s0 tclass=blk_file permissive=0
+[    4.944475][    T1] init: Ready to unmount apexes. So far shutdown sequence took 67ms
+[    4.945712][    T1] init: Shutdown service: console
+[    4.945893][    T1] init: Shutdown service: tombstoned
+[    4.946097][    T1] init: Shutdown service: adbd
+[    4.946292][    T1] init: Remaining userspace processes except init: 
+[    4.947013][    T1] sysrq: Terminate All Tasks
+[    4.947343][    T1] init: waitid failed: No child processes
+[    4.948061][    T1] init: sync() after umount...
+[    4.948446][    T1] init: sync() after umount took0ms
+[    5.052157][    T1] init: Umount /data failed, try to use ioctl to shutdown
+[    5.052280][    T1] init: Unknown /data fs type: tmpfs
+[    5.056061][    T1] init: powerctl_shutdown_time_ms:179:0
+[    5.057689][    T1] init: Reboot ending, jumping to kernel
+[    5.059729][    T1] reboot: Power down
+[2026-09-24T02:35:30.740810558+00:00 INFO  crosvm::crosvm::sys::linux::vcpu] system shutdown event on vcpu 0
+[2026-09-24T02:35:30.741516991+00:00 INFO  crosvm::crosvm::sys::linux] vcpu requested shutdown
+[2026-09-24T02:35:30.741614907+00:00 ERROR crosvm::crosvm::sys::linux::vcpu] failed to send VcpuControl: sending on a closed channel
+[2026-09-24T02:35:31.179910090+00:00 INFO  crosvm] exiting with success
+VM ended: Shutdown

@@ -1,0 +1,58 @@
+{
+  "schema": "native-managed-recovery-qualification/1",
+  "utc": "2026-10-25T18:37:59.1032362Z",
+  "productionActivated": false,
+  "scope": "Partial failed-launch cleanup before rollback; real staged Manager/HTTP with simulated Hyper-V removals, plus real read-only ownership inspection.",
+  "package": {
+    "sha256": "a3737c4eb10741c89f209c1ca95db1f99abee3f09e47c646d5857d56b80eda97",
+    "bytes": 854811,
+    "serverSha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc"
+  },
+  "tests": {
+    "linuxRecoveryPassed": 20,
+    "windowsRecoveryPassed": 20,
+    "windowsPython": "Python 3.14.5",
+    "windowsOwnershipChecks": 8,
+    "linuxRetirementRegressionPassed": 11
+  },
+  "live": {
+    "originalCodePinsMatch": true,
+    "checks": 109,
+    "updatedCodePinsMatch": false,
+    "processes": [
+      {
+        "creationDate": "2026-10-23T19:19:10.4023340Z",
+        "parentPid": 16272,
+        "pid": 4716,
+        "role": "node",
+        "parentIsCmd": true,
+        "executable": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+      },
+      {
+        "creationDate": "2026-10-23T19:18:15.0107030Z",
+        "parentPid": 10316,
+        "pid": 5180,
+        "role": "manager",
+        "parentIsCmd": true,
+        "executable": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+      }
+    ],
+    "managedOwnershipBindings": 2,
+    "unrelatedVmIds": [
+      "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+      "dd8df95d-b771-4545-a861-0092e74a40f3"
+    ],
+    "productionRecoveryPlanRefused": true
+  },
+  "remainingFixtureProcesses": [],
+  "productionDeleteRequests": 0,
+  "productionTaskOperations": 0,
+  "evidenceDirectory": "outputs/kvm-box/evidence/native-recovery-v9",
+  "limitations": [
+    "No actual failed-launch hardware removal in this fixture.",
+    "Combined task/file handoff and production app recovery remain unqualified.",
+    "RPC lease-renewal failures remain unresolved.",
+    "Normal wallet upload still pending; no catalog publication or owner provisioning.",
+    "General graphics remains trusted CPU Mesa plus supported masked GPU operations."
+  ]
+}

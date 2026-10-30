@@ -20,9 +20,25 @@
    (the in-CVM SIWE token), now only the fallback for a host that
    hasn't learned sessions yet, or a wallet with no session.
    ============================================================ */
-import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID } from "./config.js";
+import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID, INDEPENDENT, APP_CATALOG_RPCS, READ_AUTHORITY } from "./config.js";
+import { fallbackUsesPool } from "./read-authority.js";
+
+/* A read the wallet could not answer. Hosted legacy: Base's public RPC. Independent mode or a release read authority
+   (js/core/read-authority.js): only the read pool (the rotating pool; nothing else is contacted), and no pool RPC means
+   no answer rather than a default origin. (addChainRpcs / rpcMap below are the WALLET's signing RPC: unchanged.) */
+async function fallbackRead(method, params){
+  if (fallbackUsesPool(INDEPENDENT.state, READ_AUTHORITY)) return baseRpc(method, params);
+  const r = await fetch("https://mainnet.base.org", { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
+  const j = await r.json(); return j && j.result;
+}
+// what the wallet is asked to use for Base when it does not know the chain yet
+const addChainRpcs = () => INDEPENDENT.state !== "off"
+  ? APP_CATALOG_RPCS.filter((u) => u.startsWith("https://")).slice(0, 3)
+  : ["https://mainnet.base.org"];
 import { Enclave, EnclaveError } from "./api.js";
 import { baseRpc } from "./chain.js";
+import { walletRead } from "./wallet-preflight.js";
 // Measured from what Base actually includes (3,569 txs / 30 blocks: largest
 // per-tx gas limit 15.0M, nothing over 16M). Asking for more is accepted by
 // some RPCs and then never mined.
@@ -114,7 +130,7 @@ function wcProvider(){
       projectId: WALLETCONNECT_PROJECT_ID,
       chains: [BASE_CHAIN],            // Base only: this site signs nothing else
       showQrModal: false,              // we render the pairing code ourselves (qr.js)
-      rpcMap: { [BASE_CHAIN]: "https://mainnet.base.org" },
+      rpcMap: { [BASE_CHAIN]: "https://api.enclave.host/rpc/base" },
       metadata: {
         name: "Enclave",
         description: "Verifiable confidential compute",
@@ -310,9 +326,7 @@ export async function usdcBalanceOf(addr){
     const hex = await Enclave.provider.request({ method: "eth_call", params: [call, "latest"] });
     if (hex && hex !== "0x") return parseInt(hex, 16) / 1e6;
   } catch(_){}
-  const r = await fetch("https://mainnet.base.org", { method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [call, "latest"] }) });
-  const j = await r.json(); const hex = j && j.result;
+  const hex = await fallbackRead("eth_call", [call, "latest"]);
   return (hex && hex !== "0x") ? parseInt(hex, 16) / 1e6 : 0;
 }
 export async function ethBalanceOf(addr){
@@ -321,9 +335,7 @@ export async function ethBalanceOf(addr){
     const hex = await Enclave.provider.request({ method: "eth_getBalance", params });
     if (hex && hex !== "0x") return Number(BigInt(hex)) / 1e18;
   } catch(_){}
-  const r = await fetch("https://mainnet.base.org", { method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBalance", params }) });
-  const j = await r.json(); const hex = j && j.result;
+  const hex = await fallbackRead("eth_getBalance", params);
   return (hex && hex !== "0x") ? Number(BigInt(hex)) / 1e18 : 0;
 }
 
@@ -372,7 +384,7 @@ async function ensureBaseChainOnConnect(provider){
         await provider.request({ method: "wallet_addEthereumChain", params: [{
           chainId: BASE_CHAIN_HEX, chainName: "Base",
           nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-          rpcUrls: ["https://mainnet.base.org"], blockExplorerUrls: ["https://basescan.org"]
+          rpcUrls: addChainRpcs(), blockExplorerUrls: ["https://basescan.org"]
         }] });
       } catch(_){}
     }
@@ -635,6 +647,8 @@ export async function renderWalletPop(){
       '<div class="wp-bal"><div class="bl"><span>Credit</span><span id="wpBalCredit">…</span></div></div>' +
       '<div class="wp-fund">' +
         '<button class="wp-mini" id="wpOrders">Add credit</button>' +
+        // the same vault, operated with only the passkey and chain endpoints the owner picks (site/credit/)
+        '<a class="wp-mini" href="/credit/" title="Spend or manage your credit with only your passkey, without this service">Use directly</a>' +
       '</div>' +
       '<button class="wp-disc" id="wpDisc">Sign out</button>';
     pop.hidden = false;
@@ -726,13 +740,17 @@ export async function personalSignBytes(hex){
   wcNudge();return Enclave.provider.request({method:"personal_sign",params:[hex,Enclave.address]});
 }
 export async function ensureBaseChain(){
+  // no wallet, and a passkey account that pays its own gas through its bundler (independent mode): nothing to switch
+  if (!Enclave.provider && INDEPENDENT.state === "on" && await import("./account-transport.js").then((m) => m.accountPaysOwnGas()).catch(() => false)) return;
   let cur;
-  try { cur = await Enclave.provider.request({ method: "eth_chainId" }); } catch { cur = null; }
+  try { cur = await walletRead(() => Enclave.provider.request({ method: "eth_chainId" })); } catch (e) { if (/preparation timed out/.test(e.message || "")) throw e; cur = null; }
   if (cur && String(cur).toLowerCase() === BASE_CHAIN_HEX) return;
   try { await Enclave.provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: BASE_CHAIN_HEX }] }); }
   catch(e){ throw new EnclaveError("Switch your wallet to Base to pay.", 0); }
 }
-export async function sendTx(to, data, value, gasLimit){
+export async function sendTx(to, data, value, gasLimit, { onProgress = () => {} } = {}){
+  onProgress("preparing", "Estimating transaction gas…");
+  await (await import("./platform-addresses.js")).assertPlatformTransactionCurrent(to, data);
   const tx = { from: Enclave.address, data, value: value || "0x0" };
   if (to) tx.to = to; // omitted = contract creation
   // A caller that KNOWS the cost passes it and we skip estimation entirely.
@@ -759,21 +777,25 @@ export async function sendTx(to, data, value, gasLimit){
     // own cap, and then the caller's number stands.
     let use = BigInt(gasLimit);
     try {
-      const est = await baseRpc("eth_estimateGas", [{ ...tx, from: tx.from }]);
+      const est = await walletRead(() => baseRpc("eth_estimateGas", [{ ...tx, from: tx.from }]));
       if (est) use = BigInt(est);
     } catch(_){ /* over the estimator's cap, or unreachable: keep the estimate */ }
     use = use + use / 4n;                       // 25% headroom on a measured number
     if (use > MAX_TX_GAS) use = MAX_TX_GAS;     // never ask for more than the chain includes
     tx.gas = "0x" + use.toString(16);
     wcNudge();
+    onProgress("wallet", "Confirm the transaction in your wallet.");
     return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
   }
   // Otherwise: estimate (provider first, public Base RPC as fallback) and pad
   // 25% so a wallet that trusts our limit never under-provisions. A failed
   // estimate falls through - the wallet estimates for itself.
   let est = null;
-  try { est = await Enclave.provider.request({ method: "eth_estimateGas", params: [tx] }); }
-  catch(_){ try { est = await baseRpc("eth_estimateGas", [tx]); } catch(_2){} }
+  try { est = await walletRead(() => Enclave.provider.request({ method: "eth_estimateGas", params: [tx] })); }
+  catch(_){
+    onProgress("preparing", "Wallet gas estimate unavailable; checking the network…");
+    try { est = await walletRead(() => baseRpc("eth_estimateGas", [tx])); } catch(_2){}
+  }
   if (est) tx.gas = "0x" + (BigInt(est) + BigInt(est) / 4n).toString(16);
   else {
     // Both estimators refused a tx we have no calibrated number for. On this
@@ -787,12 +809,13 @@ export async function sendTx(to, data, value, gasLimit){
     // same payload: a revert throws its actual reason here instead; only a tx
     // that calls clean (the estimators were just unreachable) still falls
     // through to the wallet's estimator.
-    try { await baseRpc("eth_call", [tx, "latest"]); }
+    try { await walletRead(() => baseRpc("eth_call", [tx, "latest"])); }
     catch(e){
-      throw new EnclaveError("this transaction would revert - nothing was sent ("
+      throw new EnclaveError("Could not verify the transaction; nothing was sent ("
         + ((e && e.message) || e) + ")", 0);
     }
   }
   wcNudge();
+  onProgress("wallet", "Confirm the transaction in your wallet.");
   return await Enclave.provider.request({ method: "eth_sendTransaction", params: [tx] });
 }

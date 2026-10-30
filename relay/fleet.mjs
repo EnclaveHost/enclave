@@ -35,7 +35,7 @@ export function installProcessGuards(name, log = console.error) {
 }
 
 const DEFAULTS = {
-  baseRpc: "https://mainnet.base.org",
+  baseRpc: "https://api.enclave.host/rpc/base",
   registryPollSec: 300,
   staleAfterSec: 3600,
 };
@@ -63,6 +63,9 @@ export function fleetConfig(env = process.env) {
     eligibilityPollSec: parseInt(env.ELIGIBILITY_POLL_SEC || "", 10) || 15,
     eligibilityMaxAgeSec: parseInt(env.ELIGIBILITY_MAX_AGE_SEC || "", 10) || 60,
     registryPollSec: parseInt(env.REGISTRY_POLL_SEC || "", 10) || DEFAULTS.registryPollSec,
+    // Parsed for compatibility only: registry rows are ADMITTED by their active flag. Liveness for routing is the
+    // api-relay's evidence-based /enclaves verdict (eligibility above), never the row's lastSeen, which hosts no longer
+    // refresh on a timer (network/host-liveness.mjs).
     staleAfterSec: parseInt(env.STALE_AFTER_SEC || "", 10) || DEFAULTS.staleAfterSec,
     // Operator allowlist. Comma-separated, lowercased EnclaveRegistry operator
     // addresses. On-chain discovery is filtered to endpoints whose registry
@@ -201,6 +204,15 @@ function warnIfUnauthenticated(cfg, log) {
 //              re-reads. No-op in static mode.
 export function createFleet(cfg, log = () => {}) {
   let origins = cfg.staticList;
+  // THE CHAIN CLIENT for registry, book and ledger reads: cfg.chainClient when the daemon injected its ONE chain authority
+  // (relay/relay-chain-authority.mjs, e.g. the local proof-backed verifier; cfg.baseRpc is then never used and nothing
+  // falls back to it), else the legacy BASE_RPC provider client, exactly as before.
+  async function chainClient() {
+    if (cfg.chainClient) return cfg.chainClient;
+    const { createPublicClient, http } = await import("viem");
+    const { base } = await import("viem/chains");
+    return createPublicClient({ chain: base, transport: http(cfg.baseRpc) });
+  }
 
   // Shared on-chain runner resolver (used by relay.js's app-subdomain fallback,
   // fix 1c). Reads EnclaveDeployments lazily + cached; maps a deployment id (full
@@ -210,17 +222,13 @@ export function createFleet(cfg, log = () => {}) {
   // the caller safely falls back to probing — a valid deployment never 404s from
   // this alone.
   let _runnerClient = null, _deploymentsAddress = cfg.deploymentsAddress;
-  let _anyEndpoints = [];        // fresh registry endpoints, operator-allowlist aside (leaseEndpointFor)
+  let _anyEndpoints = [];        // admitted (active) registry endpoints, operator-allowlist aside (leaseEndpointFor)
   let _endpointOperators = new Map();   // endpoint -> the operator that registered it
   let _hashEndpoint = null;
   const _endpointIdCache = new Map();
   let _ledger = { rows: [], at: 0 };
   async function runnerClient() {
-    if (!_runnerClient) {
-      const { createPublicClient, http } = await import("viem");
-      const { base } = await import("viem/chains");
-      _runnerClient = createPublicClient({ chain: base, transport: http(cfg.baseRpc) });
-    }
+    if (!_runnerClient) _runnerClient = await chainClient();
     return _runnerClient;
   }
   async function loadHash() {
@@ -514,11 +522,7 @@ export function createFleet(cfg, log = () => {}) {
   let client = null;
   let registryAddress = cfg.registryAddress;   // env fallback; the book (below) overrides
   async function readRegistry() {
-    if (!client) {
-      const { createPublicClient, http } = await import("viem");
-      const { base } = await import("viem/chains");
-      client = createPublicClient({ chain: base, transport: http(cfg.baseRpc) });
-    }
+    if (!client) client = await chainClient();
     // ADDRESS_BOOK_ADDRESS set: resolve the registry from the on-chain book
     // each cycle, so a registry redeploy reaches the relay boxes with one
     // owner tx instead of hand-editing /etc/nan-relay/*.env (the drift that
@@ -541,25 +545,34 @@ export function createFleet(cfg, log = () => {}) {
     for (let start = 0; start < total; start += 50)
       rows.push(...await client.readContract({ address: registryAddress, abi,
         functionName: "getPage", args: [BigInt(start), 50n] }));
-    const now = Math.floor(Date.now() / 1000);
     warnIfUnauthenticated(cfg, log);
     const ops = cfg.trustedOperators;
-    const fresh = rows.filter((e) => e.active && now - Number(e.lastSeen) <= cfg.staleAfterSec);
-    // Endpoint set for LEASE-authorized routing (leaseEndpointFor): every fresh
+    // ADMITTED rows: active in the registry. These maps are AUTHORITY (who
+    // registered a name, which endpoints may be lease-routed), never liveness:
+    // a healthy host sends no periodic transaction, so its lastSeen grows old,
+    // and dropping it here would cost it dns-01 for its own name an hour after
+    // its last registry write. Liveness for routing is eligibility (/enclaves).
+    // platform host policy (cfg.hostAdmission, injected by the DNS relay from relay/network-runtime.bundle.mjs): a host the
+    // policy does not explicitly admit gets neither data-plane traffic nor dns-01 for its own name. A failed policy read
+    // throws, so refresh() keeps the last known fleet (a flaky RPC never unbinds or admits anyone).
+    const active = rows.filter((e) => e.active === true);
+    const policy = cfg.hostAdmission ? await cfg.hostAdmission(active.map((e) => String(e.endpoint || ""))) : null;
+    const admitted = policy ? active.filter((e) => policy[String(e.endpoint || "").replace(/\/+$/, "")]?.admit === true) : active;
+    // Endpoint set for LEASE-authorized routing (leaseEndpointFor): every admitted
     // registry row, WITHOUT the operator allowlist but WITH the https + SSRF
     // filters. Not a fleet-membership grant — the caller must independently
     // prove this endpoint holds the deployment's on-chain lease.
     // WHO REGISTERED an endpoint. Self-scoped authority: it lets a box prove it
     // may answer dns-01 for its OWN name and nothing else, so it deliberately
     // skips the trusted-operator allowlist (a permissionless seller still owns
-    // its own hostname) while keeping the active + not-stale filter.
-    _endpointOperators = new Map(fresh
+    // its own hostname) while keeping the active filter.
+    _endpointOperators = new Map(admitted
       .map((e) => [String(e.endpoint || "").replace(/\/+$/, "").toLowerCase(), String(e.operator || "").toLowerCase()])
       .filter(([ep, op]) => ep && /^0x[0-9a-f]{40}$/.test(op)));
-    _anyEndpoints = fresh.map((e) => String(e.endpoint || "").replace(/\/+$/, ""))
+    _anyEndpoints = admitted.map((e) => String(e.endpoint || "").replace(/\/+$/, ""))
       .filter((ep) => isHttpsEndpoint(ep))
       .filter((ep) => { let h; try { h = new URL(ep).hostname; } catch { return false; } return !isBlockedHost(h); });
-    return fresh
+    return admitted
       // This list is the DATA-PLANE fleet: the origins a relay polls /v1/net-map
       // on and splices tenant traffic to. A relay row is not one of those — it
       // runs no tenants, answers no net-map, and holds no lease. Following one

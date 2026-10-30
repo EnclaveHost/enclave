@@ -2,6 +2,20 @@
 // 10 s through a 5 s client deadline, and a public-RPC quorum read can take
 // seconds, so a still-valid agreed answer is served at once and renewed in
 // the background. Only a missing answer waits for the chain.
+import {chainAuthorityFromEnv} from '../network/lease-reader.mjs';
+
+// Two of these must agree on every lease and registry answer. Measured from nan
+// 2026-10-04: mainnet.base.org and most free endpoints refuse a relay's rate.
+export const DEFAULT_NETWORK_CHAIN_RPCS = 'https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org';
+// The relay's network LeaseReader authority from its environment: the provider quorum (NETWORK_CHAIN_RPCS, else the
+// default set above) unless ENCLAVE_CHAIN_AUTHORITY=verifier + ENCLAVE_CHAIN_VERIFIER name the local proof-backed
+// verifier (loopback only, checked when the reader is built). Then no RPC list is passed, so no provider client exists
+// and a verifier refusal can never fall back.
+export function networkReaderOptions(env = process.env) {
+  const a = chainAuthorityFromEnv(env);
+  if (a.authority === 'verifier') return a;
+  return {rpc: (env.NETWORK_CHAIN_RPCS || DEFAULT_NETWORK_CHAIN_RPCS).split(',').map(s => s.trim())};
+}
 
 // Leases from a LeaseReader: fresh for `freshMs`, then served until the
 // reader's own block-age expiry while one shared snapshot renews every app.

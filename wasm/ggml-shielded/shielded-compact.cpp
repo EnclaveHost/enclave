@@ -12,6 +12,7 @@
 #include <omp.h>
 #include <oneapi/dnnl/dnnl.hpp>
 #include <stdexcept>
+#include <type_traits>
 #include <vector>
 static void require(bool ok, const char *why) {
   if (!ok)
@@ -56,21 +57,35 @@ static std::vector<uint8_t> pack_bits(const int8_t *w, size_t n) {
   out.shrink_to_fit();
   return out;
 }
-static bool unpack_bits(const uint8_t *src, size_t size, int8_t *w, size_t n) {
+template<bool window = false, bool compare = false>
+static bool unpack_bits(const uint8_t *src, size_t size,
+                        std::conditional_t<compare, const int8_t *, int8_t *> w, size_t n,
+                        size_t skip = 0, size_t take = 0) {
+  static_assert(!window || !compare, "admission compares the complete chunk");
+  if constexpr (window)
+    if (skip > n || take > n - skip) return false;
   size_t pos = 0;
   for (size_t i = 0; i < n; i += 64) {
     if (pos == size)
       return false;
     unsigned bits = src[pos++];
+    const bool selected = !window ||
+        (i + std::min<size_t>(64, n - i) > skip && i < skip + take);
     __m512i v;
     if (bits == 255) {
       if (size - pos < 64)
         return false;
+      if constexpr (window) {
+        if (!selected) { pos += 64; continue; }
+      }
       v = _mm512_loadu_si512(src + pos);
       pos += 64;
     } else {
       if (bits > 7 || size - pos < 1 + bits * 8)
         return false;
+      if constexpr (window) {
+        if (!selected) { pos += 1 + bits * 8; continue; }
+      }
       int8_t base = (int8_t)src[pos++];
       v = _mm512_setzero_si512();
       for (unsigned b = 0; b < bits; b++) {
@@ -83,7 +98,28 @@ static bool unpack_bits(const uint8_t *src, size_t size, int8_t *w, size_t n) {
     }
     size_t len = std::min<size_t>(64, n - i);
     __mmask64 mask = len == 64 ? UINT64_MAX : ((1ULL << len) - 1);
-    _mm512_mask_storeu_epi8(w + i, mask, v);
+    if constexpr (compare) {
+      // Admission verifies every decoded byte directly against the source.
+      // The mask excludes padding in the last frame; no decoded tile copy is
+      // needed for the same exact round-trip check.
+      if (_mm512_cmpneq_epi8_mask(v, _mm512_maskz_loadu_epi8(mask, w + i)) & mask)
+        return false;
+    } else if constexpr (window) {
+      // Frames outside the window were still checked above, so a malformed
+      // later frame fails the read and wipes even an already-written output.
+      const size_t first = std::max(i, skip), last = std::min(i + len, skip + take);
+      if (first < last) {
+        if (first == i && last == i + len) {
+          _mm512_mask_storeu_epi8(w + (first - skip), mask, v);
+        } else {
+          alignas(64) int8_t edge[64];
+          _mm512_store_si512(edge, v);
+          memcpy(w + (first - skip), edge + (first - i), last - first);
+        }
+      }
+    } else {
+      _mm512_mask_storeu_epi8(w + i, mask, v);
+    }
   }
   return pos == size;
 }
@@ -248,14 +284,15 @@ extern "C" sh_compact_store *sh_compact_create(const int8_t *w, int64_t K,
     s = new sh_compact_store;
     s->K = K;
     s->N = N;
-    std::vector<int8_t> check((size_t)s->rows * K), reordered;
+    // Ordinary tiles are verified in place; only prearranged tiles need a
+    // reordered copy and its inverse for the layout round trip.
+    std::vector<int8_t> check, reordered;
     auto full = find_layout(K, std::min(s->rows, N));
     auto tail = N > s->rows && N % s->rows ? find_layout(K, N % s->rows) : full;
     for (int64_t j = 0; j < N; j += s->rows) {
       size_t n = (size_t)std::min(s->rows, N - j) * K;
       auto packed = pack_bits(w + j * K, n);
-      require(unpack_bits(packed.data(), packed.size(), check.data(), n) &&
-                  memcmp(check.data(), w + j * K, n) == 0,
+      require(unpack_bits<false, true>(packed.data(), packed.size(), w + j * K, n),
               "lossless admission");
       auto layout = (n == size_t(s->rows * K) || N <= s->rows) ? full : tail;
       if (layout) {
@@ -266,12 +303,12 @@ extern "C" sh_compact_store *sh_compact_create(const int8_t *w, int64_t K,
         // only one format. Plan/scratch allocations are separately bounded.
         if (arranged.capacity() <=
             packed.capacity() + packed.capacity() / 100) {
-          require(
-              unpack_bits(arranged.data(), arranged.size(), check.data(), n) &&
-                  !memcmp(check.data(), reordered.data(), n),
-              "layout admission");
-          layout->rearrange(check.data(), reordered.data(), true);
-          require(!memcmp(reordered.data(), w + j * K, n), "layout round trip");
+          require(unpack_bits<false, true>(arranged.data(), arranged.size(),
+                                           reordered.data(), n),
+                  "layout admission");
+          check.resize(n);
+          layout->rearrange(reordered.data(), check.data(), true);
+          require(!memcmp(check.data(), w + j * K, n), "layout round trip");
           packed = std::move(arranged);
         } else
           layout.reset();
@@ -301,22 +338,35 @@ extern "C" int sh_compact_read(void *ctx, uint64_t off, uint8_t *out,
   auto *begin = out;
   size_t total = n;
   try {
-    std::vector<int8_t> block((size_t)s->rows * s->K), plain;
+    // Only prearranged tiles decode through a temporary; ordinary tiles decode
+    // straight into the caller's output.
+    std::vector<int8_t> block, plain;
     while (n) {
       size_t ci = off / ((size_t)s->rows * s->K), start = ci * s->rows * s->K;
       size_t len =
           (size_t)std::min(s->rows, s->N - int64_t(ci * s->rows)) * s->K;
       auto &v = s->chunks[ci];
-      require(unpack_bits(v.data(), v.size(), block.data(), len),
-              "private decode");
-      const int8_t *decoded = block.data();
-      if (s->layouts[ci]) {
-        plain.resize(len);
-        s->layouts[ci]->rearrange(block.data(), plain.data(), true);
-        decoded = plain.data();
-      }
       size_t skip = off - start, take = std::min(n, len - skip);
-      memcpy(out, decoded + skip, take);
+      auto *dst = reinterpret_cast<int8_t *>(out);
+      if (s->layouts[ci]) {
+        block.resize(len);
+        require(unpack_bits(v.data(), v.size(), block.data(), len),
+                "private decode");
+        if (skip == 0 && take == len) {
+          s->layouts[ci]->rearrange(block.data(), dst, true);
+        } else {
+          plain.resize(len);
+          s->layouts[ci]->rearrange(block.data(), plain.data(), true);
+          memcpy(dst, plain.data() + skip, take);
+        }
+      } else {
+        // Full chunks decode straight into the caller's output. Partial reads
+        // need only a 64-byte edge buffer, never a rows*K temporary allocation.
+        require(skip == 0 && take == len
+                    ? unpack_bits(v.data(), v.size(), dst, len)
+                    : unpack_bits<true>(v.data(), v.size(), dst, len, skip, take),
+                "private decode");
+      }
       off += take;
       out += take;
       n -= take;
@@ -334,7 +384,7 @@ extern "C" int sh_compact_read(void *ctx, uint64_t off, uint8_t *out,
 // joined at backend teardown, releasing these private buffers then.
 struct compact_scratch {
   std::vector<uint8_t> planes, workspace, crt_planes;
-  std::vector<int8_t> block;
+  std::vector<int8_t> block, plain;
   std::vector<int32_t> accum;
   ~compact_scratch() {
     // Mask planes and products remain private for reuse of the allocation,
@@ -370,7 +420,7 @@ static thread_local compact_scratch scratch;
 extern "C" int sh_compact_refill(void *ctx, const int32_t *r, int b, int32_t *u,
                                  int64_t stride) {
   auto *s = static_cast<sh_compact_store *>(ctx);
-  if (!s || !r || !u || b < 1 || b > 64 || stride < s->N || stride > (1 << 21))
+  if (!s || !r || !u || b < 1 || b > 256 || stride < s->N || stride > (1 << 21))
     return SH_ERR_RANGE;
   auto wipe = [&] {
     for (int i = 0; i < b; i++)
@@ -407,8 +457,14 @@ extern "C" int sh_compact_refill(void *ctx, const int32_t *r, int b, int32_t *u,
     }
     auto &block = scratch.block;
     grow(block, (size_t)s->rows * s->K);
+    // Accumulators only address existing output rows, including partial tiles.
+    const size_t rows = (size_t)std::min(s->rows, s->N);
     auto &accum = scratch.accum;
-    grow(accum, std::max<size_t>(12 * s->rows, 3 * (size_t)b * s->rows));
+    // The native kernel (including its allocation-failure fallback) needs
+    // 12 values per output row; GEMM and prearranged plans use three complete
+    // batch planes.
+    grow(accum, (gemm || arranged ? std::max<size_t>(12, 3 * (size_t)b) : 12) *
+                    rows);
     omp_one scope;
     for (size_t ci = 0; ci < s->chunks.size(); ci++) {
       int64_t j = ci * s->rows, nr = std::min(s->rows, s->N - j);
@@ -422,13 +478,20 @@ extern "C" int sh_compact_refill(void *ctx, const int32_t *r, int b, int32_t *u,
                                          stride, accum.data());
         continue;
       }
-      if (layout) {
+      // Layout plans are sized for at most 64 rows (bounded workspace); wider
+      // refills restore the row-major tile and take the exact integer GEMM.
+      if (layout && b <= 64) {
         auto plan = layout->batch_plan(b);
         grow(scratch.workspace, plan->workspace.get_size() + 64);
         auto work = (uint8_t *)(((uintptr_t)scratch.workspace.data() + 63) &
                                 ~uintptr_t(63));
         layout->run(*plan, planes.data(), block.data(), accum.data(), work);
       } else {
+        if (layout) {
+          grow(scratch.plain, (size_t)nr * s->K);
+          layout->rearrange(block.data(), scratch.plain.data(), true);
+          weights = scratch.plain.data();
+        }
         int32_t co = 0;
         require(dnnl_gemm_u8s8s32('N', 'T', 'F', 3 * b, nr, s->K, 1.0f,
                                   planes.data(), s->K, 0, weights, s->K, 0,

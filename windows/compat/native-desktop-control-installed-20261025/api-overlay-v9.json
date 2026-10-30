@@ -1,0 +1,67 @@
+{
+  "schema": "native-api-overlay-qualification/1",
+  "utc": "2026-10-25T18:04:42.728230+00:00",
+  "preparedManifestSha256": "9d23f546807e10ed6341d26a453e6ab52e1d28f91f12da32170d8330d1e92ca8",
+  "fixtureArchiveSha256": "6628d402942c64541d8f89452cab1e048ba8e2b16efbb39bf65e43ada00b8e30",
+  "modified": 9,
+  "added": 4,
+  "requiredUnchanged": 4,
+  "policyBeforeSha256": "1b3ff5724441ae5b6a21d2be56ff1277b2717bb5cdfde017970bf483687325b7",
+  "policyAfterSha256": "74d7e5d2e992dfb974904fb5e125191307213029c15512ed39de57efec61e5ba",
+  "legacyImagesPreserved": 12,
+  "nativeImage": {
+    "measurement": "5ea38f5299ea49ea2fa5ce02d2ca85aec1e7f8f5db9b140dd51e6af673ab2b23",
+    "runtimeId": "f548e338e4e41bb1326693688c7b0067c9f330a24f4a21a61037bd334449c74f",
+    "igvmSha256": "119701c9197ea9c51d79bb254aec8d79243abf6c13263f06e42d9d82e6f91554",
+    "profileSha256": "37a6075ccbccc384d4e8b87d4a07ac6debe62c7814f1814b1627ab19b31cdf81",
+    "controllerSha256": "077114697af496127154e83371e4d4f3d2b96dd53e9b75a08fd27e1fc2effba9",
+    "nativeDesktop": true,
+    "identity": {
+      "moduleId": 1802724708,
+      "productId": 1818455653,
+      "signer": "c47c23318e325d23a9c0110f6b6aa59d80cd8f24629b1a5fe77fbb6fb9c5e89d"
+    },
+    "minimumGuestSvn": 13,
+    "configBundleV5": true,
+    "secretsV1": true,
+    "configSocketServer": true,
+    "protectedPorts": true
+  },
+  "desktopRelease": {
+    "schema": "enclave-desktop-release/1",
+    "controllerCid": "bafkreiahoekgs6xusyjhcvhigny6jvht2k4w3vj6tn22bd6spyp4f373ve",
+    "controllerSha256": "077114697af496127154e83371e4d4f3d2b96dd53e9b75a08fd27e1fc2effba9",
+    "runtimeId": "f548e338e4e41bb1326693688c7b0067c9f330a24f4a21a61037bd334449c74f",
+    "igvmSha256": "119701c9197ea9c51d79bb254aec8d79243abf6c13263f06e42d9d82e6f91554",
+    "profileSha256": "37a6075ccbccc384d4e8b87d4a07ac6debe62c7814f1814b1627ab19b31cdf81",
+    "launchMeasurement": "5ea38f5299ea49ea2fa5ce02d2ca85aec1e7f8f5db9b140dd51e6af673ab2b23",
+    "minimumCpuMilli": 250,
+    "policy": {
+      "cpuPercent": 400,
+      "vcpus": 4
+    }
+  },
+  "tests": {
+    "local": {
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0
+    },
+    "apiHost": {
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0,
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]"
+    },
+    "realRunningGuardRefused": true
+  },
+  "production": {
+    "activated": false,
+    "filesChanged": false,
+    "serviceActions": false,
+    "serviceBefore": "MainPID=73131\nNRestarts=0\nExecMainStartTimestamp=Fri 2026-10-23 23:34:55 UTC\nActiveState=active\nSubState=running\n",
+    "serviceAfter": "MainPID=73131\nNRestarts=0\nExecMainStartTimestamp=Fri 2026-10-23 23:34:55 UTC\nActiveState=active\nSubState=running\n"
+  },
+  "scope": "Exact public-file transaction and failure recovery, not production service activation, owner provisioning or app publication.",
+  "evidence": "outputs/kvm-box/evidence/native-api-activation-v9"
+}

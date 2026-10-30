@@ -1,0 +1,58 @@
+[
+  {
+    "file": "node_modules/viem/_esm/accounts/generatePrivateKey.js",
+    "matchesSource": true
+  },
+  {
+    "file": "node_modules/viem/_esm/accounts/privateKeyToAccount.js",
+    "matchesSource": true
+  },
+  {
+    "file": "node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js",
+    "matchesSource": true
+  },
+  {
+    "file": "relay/node_modules/@peculiar/asn1-ecc/build/cjs/ec_private_key.js",
+    "matchesSource": true
+  },
+  {
+    "file": "relay/node_modules/@peculiar/asn1-ecc/build/es2015/ec_private_key.js",
+    "matchesSource": true
+  },
+  {
+    "file": "relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/private_key_info.js",
+    "matchesSource": true
+  },
+  {
+    "file": "relay/node_modules/@peculiar/asn1-rsa/build/cjs/rsa_private_key.js",
+    "matchesSource": true
+  },
+  {
+    "file": "relay/node_modules/@peculiar/asn1-rsa/build/es2015/rsa_private_key.js",
+    "matchesSource": true
+  },
+  {
+    "file": "relay/node_modules/@peculiar/asn1-x509/build/cjs/extensions/private_key_usage_period.js",
+    "matchesSource": true
+  },
+  {
+    "file": "relay/node_modules/@peculiar/asn1-x509/build/es2015/extensions/private_key_usage_period.js",
+    "matchesSource": true
+  },
+  {
+    "file": "relay/node_modules/viem/_esm/accounts/generatePrivateKey.js",
+    "matchesSource": true
+  },
+  {
+    "file": "relay/node_modules/viem/_esm/accounts/privateKeyToAccount.js",
+    "matchesSource": true
+  },
+  {
+    "file": "relay/node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js",
+    "matchesSource": true
+  },
+  {
+    "file": "contracts/EnclaveServiceIndex.sol",
+    "isSecp256k1HalfOrder": true
+  }
+]

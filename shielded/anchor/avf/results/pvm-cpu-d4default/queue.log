@@ -1,0 +1,8 @@
+Q15 start 21:15:23
+== dd-01 (default) 21:15:23
+LOCAL turn 1 STATS {status=eos, prefill_tokens=23, prefill_tok_s=78.22, decode_tokens=104, decode_tok_s=14.08, ctx_used=127, ctx=4096}
+big-core cap through the run: cpu2 min 2937000, cpu7 min 3168000 (20 samples)
+cpu turn 1 decode window 7.36 s (104 tokens): COMPLETE: the app's processes 29.77 core-s = 4.05 cores busy, 286 core-ms per decoded token (edge interpolation +-4.51 core-s) [crosvm_anchorlocal 29.60, host.enclave.anchor.avf 0.17, virtmgr_lave.anchor.avf 0.00] | 5.43 cores busy device-wide
+LANE-RUN OK dd-01
+LANE-CONDITIONS END
+Q15-END 21:20:24

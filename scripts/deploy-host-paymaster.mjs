@@ -38,8 +38,8 @@ const DRY_RUN = flag("dry-run"), ASSUME_YES = flag("yes");
 function die(msg) { console.error(`\nERROR: ${msg}\n`); process.exit(1); }
 
 const NETWORKS = {
-  "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org", explorer: "https://sepolia.basescan.org" },
-  "base":         { chain: base,        rpc: "https://mainnet.base.org",  explorer: "https://basescan.org" },
+  "base-sepolia": { chain: baseSepolia, rpc: "https://api.enclave.host/rpc/base-sepolia", explorer: "https://sepolia.basescan.org" },
+  "base":         { chain: base,        rpc: "https://api.enclave.host/rpc/base",  explorer: "https://basescan.org" },
 };
 const NET = process.env.NETWORK || "base-sepolia";
 if (!NETWORKS[NET]) die(`unknown NETWORK "${NET}" (base-sepolia | base)`);

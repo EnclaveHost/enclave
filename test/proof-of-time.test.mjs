@@ -17,6 +17,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
+import vm from "node:vm";
 import { privateKeyToAccount } from "viem/accounts";
 import { hashTypedData, keccak256, encodeAbiParameters, encodePacked, recoverAddress,
          toFunctionSelector, decodeAbiParameters } from "viem";
@@ -250,14 +251,42 @@ test("the supervisor never proves a deployment it has not confirmed is serving",
     "proveFinalPeriod refuses to prove a record that never ran here");
 });
 
-test("teardown proves BEFORE it releases (the other order donates the partial period)", () => {
+test("teardown proves BEFORE it releases (the other order donates the partial period)", async () => {
   // release() clears the watermark on-chain, so a proof sent after it settles
   // nothing. Pin the ordering inside the helper every teardown path uses.
-  const pr = /async function proveAndRelease\(rec, why\) \{([\s\S]*?)\n\}/.exec(SUP);
+  const pr = /async function proveAndRelease\([^\n]*\) \{[\s\S]*?\n\}/.exec(SUP);
   assert.ok(pr, "proveAndRelease still exists");
-  const body = pr[1];
-  assert.ok(body.indexOf("proveFinalPeriod") < body.indexOf("releaseLease"),
-    "proveAndRelease must prove first and release second");
+  const rec = { id: MSG.id }, reason = "owner move", opts = { holdoffMs: 60_000 };
+  const calls = [];
+  let finishProof, finishRelease;
+  const proof = new Promise(resolve => { finishProof = resolve; });
+  const release = new Promise(resolve => { finishRelease = resolve; });
+  const run = vm.runInNewContext(`(${pr[0]})`, {
+    proveFinalPeriod: (actualRec, actualWhy) => {
+      assert.equal(actualRec, rec);
+      assert.equal(actualWhy, reason);
+      calls.push("prove");
+      return proof;
+    },
+    releaseLease: (id, actualWhy, actualOpts) => {
+      assert.equal(id, rec.id);
+      assert.equal(actualWhy, reason);
+      assert.equal(actualOpts, opts, "release must retain the move/retry options");
+      calls.push("release");
+      return release;
+    },
+  });
+  let settled = false;
+  const pending = run(rec, reason, opts).then(value => { settled = true; return value; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, ["prove"], "release must wait for the final proof to finish");
+  finishProof();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, ["prove", "release"]);
+  assert.equal(settled, false, "teardown must wait for its release result");
+  const receipt = { released: true };
+  finishRelease(receipt);
+  assert.equal(await pending, receipt);
   // and the paths that never served must NOT prove (they earn nothing, rightly)
   for (const why of ["claim receipt unreadable", "capacity vanished", "provision failed"])
     assert.match(SUP, new RegExp(`releaseLease\\((?:rec|d)\\.id, "${why}"\\)`),

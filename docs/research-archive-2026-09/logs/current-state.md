@@ -819,9 +819,7 @@ RTX3070excluded; agentownedprivateapponly. Reportprofiling-findings.md updated.
 NoNsightinstalled/captured; gpu-tracing-next.mdrecordsNVIDIAsoftwareMPSmode,
 noGPU/desktopchanges. Continue until userstops. No subagents.
 
-
 2026-09-06 07:21UTC:4threads comparisonCOMPLETEalltext/MTPcounts correct. Fresh176.168s;cached64/256/5128.3/7.5/7.2tok/s,51271607ms;approxmask11946.3/onpath9249.8/head8599.0/worker16195.4ms.2threadsshort/full/cached64/256complete,512RUNNING. Full166.394s,cached64/2567.6/7.6. Donotselectuntil512complete. CPUmonitor5209read-only5seccounterswatchuntilcontroller28545done. Validationwatch61305waitsforfullcomparisoncompletionthenrunsnewprobe2testfiles+nativeC++compile;NOnewinferenceuntilvalidationdone. Newhelperalsofixesdeepnested-teamdepthpropagation;3-leveltestprepared,NOTyetexecuted.
-
 
 2026-09-06 07:10UTC: prepared UNCOMMITTED next barrier-wall probe in three repo files only: shielded-omp-profile.c,ggml-shielded.cpp,test/shielded-omp-profile.test.mjs. Adds GOMP_barrier caller-only timers within active outer regions, includes nested caller barrier, coherent v2 five-value snapshot; preserves original3-value ABI. Stats appends caller-barriers/caller-barrier to existing omp-profile line. NO native tests/build run yet to avoid competing with current timing. gitdiffcheck passed. Not deployed. Validate after controller28545 completes, and select next step from comparison.
 
@@ -1152,106 +1150,14 @@ Workmake-refill-tile-candidates.py generated tiledpartial1x8/2x4/3x3 and split4i
 
 Exact symbols: extracted profile-root-586 from deployed initramfs; /opt/roots/wasm/opt/enclave/shielded/libggml-shielded.so manifest SHA73dcfcf1962f273925970870cc39a82d6d68e0f9210286df8dae169b83ee8602, byteidentical585/586. ProfilerlibexistsUbuntu. PPROF_BINARY_PATH=work/profile-root-586/opt/roots/wasm. DO NOT use repo metal/build/root(stale), INVALID-stale-build-root-symbols.json or profile-debug(stale invalidcompanion). New build-profile-debug.py session88861 attempts exact-allsource companion, ONLY useif .text/dynamic-symbolchecksPASS (build-profile-debug.log + profile-debug-586/validation.json).
 
-## 2026-09-07 ~01:40 UTC - receipts, exhaustion refusal, bank hygiene (dealer architecture, continued)
-- enclave 9b391c82 (merge of the receipt commit): the engine in the pVM signs
-  `RECEIPT name seed_id pads tokens nonce sig` at the end of a run
-  (`ggml_backend_shielded_pads_used`), the app relays `POST /v1/pads/receipt`,
-  the relay verifies against the tunnel's SPKI, refuses replays / foreign seeds,
-  accrues per-seed totals (`GET /v1/pads/receipts?seed_id=`). Pixel 8 Pro run 6
-  (phone-run6.log): window 0..64, 2033 pads / 21 tokens recorded, runs 1.
-- Dealt-mode EXHAUST is now a hard graph failure ("refusing to proceed without
-  dealt pads"), never the fallback to computing the linear in the clear.
-  x86: empty bank -> exit 2 in ~1.5 s, offloaded 0 / local 0; bank3 (format 2)
-  -> 1251 nodes, 0 local, verify 0, pad check clean, text == self-minting.
-- The 13:12 x86 .so was stale until now; the old `bank/` and `bank2/` shipments
-  are FORMAT 1 (unreadable by the v2 reader -> "not in any shipment"); use
-  bank3 or re-mint. CORRECTION: the "text ends at Paris + EOG" scare was my
-  grep showing only the first line of a multi-line completion plus n_predict 8
-  vs 16; the 16-token run prints the same three lines as every earlier run and
-  2363 nodes / 2033 pads, identical on the self-minting, directory-bank and
-  HTTP-bank paths.
-- Bank hygiene (built, phone run pending): the app streams only the current
-  seed's shipments, the VM answers H(ave)/G(o) after the header so restarts do
-  not re-stream, both sides drop foreign-seed files, the app drops files below
-  the platform mark, the engine drops shipments wholly below each reserved
-  window. Run 6 had re-streamed six 117 MiB files (four of dead seeds) before
-  the engine started (prefill 65 s vs 52 s in run 5).
-- Still running on the workstation: local hub :8787 (dev-unattested), CPU
-  worker :9600, dealer loop for tunnel "pixel" (scratchpad dealer-run6.log).
-
 ## 2026-09-07 ~02:40 UTC - P4a built: the CVM tier as a consumer (bank over HTTP + window agent)
-- wasm/ggml-shielded/shielded-http.c (plain HTTP/1.1 client, Content-Length +
-  chunked), shielded-bank.c (fetcher thread: listing -> index-ordered fetches
-  into a cache covering [floor, need) regardless of budget, then up to
-  SHIELDED_PAD_CACHE_MB ahead), shielded-tee.c: `SHIELDED_PAD_SOURCE=http://...`
-  = bank + SHIELDED_PAD_CACHE, `SHIELDED_PAD_WINDOW_URL` + `SHIELDED_PAD_LEDGER_PK`
-  = loopback window agent (POST {want, seed_id}; the platform ledger's signature
-  is verified in the engine), `SHIELDED_PAD_PRUNE` (reader unlinks shipments
-  wholly below the LOWEST GROUP CURSOR; the window-edge prune I had put in
-  engine.cpp/anchor_payload.c was unsafe for a lagging group and is gone).
-  shielded/dealer/window-agent.mjs (--ledger local self-signed mode; --relay
-  mode signs /v1/pads/reserve with the tunnel key, NOT exercised yet), manager
-  knobs nnShieldedPadCache/CacheMb/WindowUrl/LedgerPk/Prune, docs section,
-  test/pads-bank-client.test.mjs (stub bank + bank-probe C tool + agent).
-- x86 proof: dealer-loop explicit-seed mode pushed four 16-row shipments for
-  the x86 seed into the local hub store; shielded-run with the HTTP bank,
-  8-row windows from the agent, cache budget 64 MB, pad check on: 2363 nodes,
-  0 local, 0 missed, verify 0, dropped spent shipments at floors 20 and 36,
-  cache held two files, ledger mark 56, text == self-minting (scratchpad
-  http.out/err, window-agent.log).
 - Phone run 8 (phone-run8.log) on the rebuilt APK (bank/http objects linked,
   PRUNE=1): receipt recorded, 0 local, verify 0.
-- Left running: hub :8787, CPU worker :9600, dealer loop for "pixel",
-  window agent :9701 (scratchpad agent-ledger/agent.pem).
-
-## 2026-09-07 ~03:30 UTC - metal identity + GPU minting
-- enclave c4735bb8: metal/guest/agent.mjs mints an X25519 pad key (in the RAD
-  doc, recorded at attach), fetches+opens the seed after attest-result ok,
-  writes METAL_PADS_DIR/bootstrap.json (0600) for the wasm manager, relays
-  windows on POST /pads/window (P-256 signed reserve; relay ledger verifies
-  ECDSA/sha256 for EC records). test/metal-agent-pads.test.mjs = real agent vs
-  real ledger behind a fake tunnel. Manager auto-fills SHIELDED_PAD_* from the
-  bootstrap file for an http:// source with no explicit keys.
-- GPU minting: `shielded-dealer --worker host:port` (SHIELDED_ZERO_PADS=1 +
-  SHIELDED_PAD_CHECK=1): the exchange carries r unmasked and returns r.W mod M;
-  the mint checks each row mod M against the worker. 16 rows of the 0.8B via
-  the CPU float64 worker: byte-identical to the in-process mint on all 1,552
-  cells (pads-unbox dump; scratchpad dumpA/dumpB), 6.2 s incl. model load;
-  dealt-selftest has the case (SHIELDED_WORKER=), the cbackend node suite
-  spawns worker.py --device cpu for it. Gotchas: the field-range Freivalds
-  cannot hold for 24-bit inputs (verify off in zero-pad mode); worker mode
-  must NOT set the 1 TiB dead-link reservation. /usr/bin/time is not
-  installed here (exit 127) - use $(date +%s.%N).
 
 ## 2026-09-07 ~04:10 UTC - receipts from the CVM tier, store proxy, digest pin (enclave d12d5393)
-- Engine POSTs usage deltas (cells, rows) to <window_url sibling>/receipt after
-  each window (outside the pool lock) and at link close; guest agent signs +
-  relays (/pads/receipt), proxies GET /pads/shipments (engine never speaks
-  TLS; `nnShieldedPadSource: "platform"`), manager pins the model digest from
-  the calib (SHA-512[:32] = dealer's label; verified equal). x86 proof: totals
-  2,033 pads / 56 rows over 7 receipts == engine counters.
 - Suites green: pads-*, metal-agent(-pads), shielded-cbackend (worker mint),
   shielded-refill-knobs, tunnel. Phone APK last built before the receipt/HTTP
   engine changes (run 8 fine); rebuild pending for sanity.
-- ~04:40 UTC: phone run 9 (phone-run9.log) on the latest engine build: receipt
-  recorded, 0 local, verify 0. Dealer daemon: GET /v1/pads/consumers +
-  dealer-loop --all (per-consumer serve(); plan-only returns after one pass).
-- ~05:00 UTC: shielded-dealer --jobs FILE (many seeds, one model load); dealer-loop
-  --all mints every consumer per pass in one load. Two-seed proof via the CPU
-  worker: both banks identical to in-process mints (scratchpad jobsbank,
-  dumpJ/dumpJ2 vs dumpA/dumpC). Bug fixed on the way: worker-mint balanced
-  range mapped u = -M/2 to M/2+1 -> writer SH_ERR_RANGE (-12) mid-shipment.
-- ~05:40 UTC: phone run 10 (phone-run10.log) consumed shipments minted by
-  `dealer-loop --all --worker 127.0.0.1:9600` (consumers route on the restarted
-  hub; NOTE the hub needs PADS_DEALER_TOKEN + PADS_MASTER_SEED in its env or
-  PUTs get 403 = "Broken pipe" on the dealer side; the loop now re-pushes what
-  the store lacks). Agent per-boot token gates windows/receipts
-  (SHIELDED_PAD_AGENT_TOKEN); a dealt link that cannot start now FAILS the
-  request instead of computing locally (x86: no token -> was 695 local nodes).
-- ~06:10 UTC: zero-pad minting moved into a dealer-only build
-  (libggml-shielded-dealer.so, SHIELDED_DEALER_MODE; production .so has no
-  mint_worker symbol). device-dealt-run.sh's dealer step uses the dealer .so.
-  Bank client counters now print on the profile line ("[shielded] bank: ...").
 
 ## 2026-09-07 ~06:40 UTC - PRODUCTION FIX: metal image linked a broken shielded backend since the pads work
 - metal/build-image.mjs compiles libggml-shielded.so from its OWN unit list
@@ -1275,34 +1181,9 @@ Exact symbols: extracted profile-root-586 from deployed initramfs; /opt/roots/wa
   had 22 undefined symbols.
 
 ## 2026-09-07 ~07:50 UTC - shared-prefix KV (P4) x86 half + phone wiring in progress (enclave b4ce3609)
-- prefix-kv.{h,c} (sidecar: Ed25519 over model digest + prefix sha512 + tokens +
-  file sha512), prefix-kv-mint (prefill in the clear, llama_state_seq_save_file,
-  sign), prefix-kv-selftest (in `make all` + cbackend suite), shielded-run
-  SHIELDED_PREFIX_KV/_KV_PK + SHIELDED_PREFIX_FILE. 0.8B proof: 25-token prefix
-  loaded (20.5 MB state incl. recurrent), 2 remainder tokens prefilled, text
-  identical to the full 27-token prefill (scratchpad kv0/kv1.out; prefix.key /
-  .txt / .pk copied to dealt-e2e/).
 - worker.py --device cpu touched CUDA (3 unconditional synchronize/empty_cache
   calls -> a 154 MiB context on the 3070 and OOM failures while the card was
   busy). Guarded; the 9600 worker restarted; nvidia-smi shows no python now.
-- Phone: engine.cpp waits for prefix.kv/.sig/.txt in the encrypted store,
-  verifies (PREFIXPK pinned via the control channel), loads, prefills only the
-  user's part (the engine prepends the prefix text); app `--es prefix <dir>
-  --es prefixpk <hex>` streams the three files over the pads port
-  (streamFiles); recipe `device-dealt-run.sh prefix [" user text"]`. Build in
-  progress; the files are at /data/local/tmp/anchor/prefix on the phone.
-- ~09:10 UTC: phone runs 12-17 FAILED ("prefill failed", no PADWIN): my prefix
-  wiring edit (build-anchor6) had cut the with_pads block in anchor_payload.c
-  so `pp = &pads` + "dealt pads on" only ran in the else-if(with_prefix) branch
-  -> the engine got pads=NULL -> no window provider -> dealt link cannot start
-  -> (new) refusal. Diagnosed via the new engine.err capture (stderr in the
-  encrypted store, tail on failure) + the refusal now logging unconditionally.
-  Fixed (receiver thread starts for pads OR prefix, pp set in the pads block);
-  runs 18 (full prompt) / 19 (prefix KV) in progress.
-- ~09:35 UTC: PROVED on the Pixel 8 Pro: run 18 (full 27-token prompt) vs run
-  19 (prefix KV: 25 loaded + 2 prefilled): generated TOKENS IDENTICAL; receipts
-  39 vs 14 rows (the prefix cost 25 bank rows). Logs phone-run18-full.log /
-  phone-run19-prefix.log. Recipe: device-dealt-run.sh prefix [" user text"].
 
 ## 2026-09-07 ~09:10 UTC (02:10 MST) - metal0 = THIS workstation (warden-host); rolling it to v0.5.623
 - `node metal/update.mjs --check`: current v0.5.609-cpu (pads sources in tree,
@@ -1377,9 +1258,6 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
 - Knobs are inside noise (12.0-14.9 tok/s incl. a concurrent query from Steven). Production
   config restored (config-live-0907.json = the tuned CID); deployment `stop`ped (balance kept)
   to free the V100s for the Pixel goal. Resume: `enclave --yes resume <id>` + claim-hint force.
-- NEW GOAL (Steven 12:50 UTC): >= 20 tok/s with the Pixel 8 Pro pVM as the trusted half and
-  metal0's V100 worker (127.0.0.1:9501 via adb reverse) as the shielded GPU. Recipe:
-  device-dealt-run.sh v100 [tokens] [prompt] (+ hub, dealer --all pass).
 
 ## 2026-09-07 phone x V100: run23 (spin-poll) died on the bridge, MTP loop added
 - Run 23 (phone-run23-v100-spin.log): SHIELDED_SPIN_US=20000 in the engine + the bridge pump at audio
@@ -1387,13 +1265,6 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
   Broken pipe: available() is FIONREAD, which the vsock stream lacks -> IOException -> the pump's
   catch-all ended it. Fixed in Main.java pipe(): the spin's available() has its own try/catch and a
   stream that throws just blocks from then on (spin=false).
-- MTP draft in the phone engine (shielded/anchor/avf/payload/anchor_mtp.{h,c} + engine.cpp):
-  the model's own nextn head proposes k tokens (ANCHOR_MTP_K, <= 7), the target verifies k+1 rows in
-  ONE exchange chain, rejected rows roll back through n_rs_seq = k recurrent snapshots, harvest +
-  observe mirror only committed tokens into the head. Prefill marks every row an output row so the
-  head can observe the prompt. Plumbing: --ei mtp K (Main.java plan) -> " mtp=K" on the ENGINE line ->
-  anchor_payload.c setenv(ANCHOR_MTP_K). device-dealt-run.sh v100 honours MTP=k; phone-v100-run.sh
-  <label> <tokens> wraps one logged run. Greedy both sides: MTP text must equal plain text.
 - Direct path notes: the phone (wlan0 192.168.88.13) cannot ping the host (192.168.8.249, different
   router); the host reaches 192.168.88.1 at ~5 ms, so Wi-Fi would not beat adb anyway. USB tethering
   (svc usb setFunctions rndis|ncm) is the candidate: ~1 ms RTT, but toggling the gadget drops adb for
@@ -1411,23 +1282,6 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
 - Spin levers are counterproductive on the phone: SHIELDED_SPIN_US=20000 + a spinning bridge took the
   exchange from 5.4 to 18 ms (run24); both reverted. The bridge's available() spin also broke the
   vsock pump (no FIONREAD -> IOException -> Broken pipe, run23).
-- Direct path: USB tethering via `adb shell svc usb setFunctions ncm` (rndis gives no interface on this
-  Android 16 build) -> phone ncm0 10.160.70.12, host ens10u1i1 10.160.70.152 (cdc_ncm, USB 2.0 at
-  480 Mbps: the cable/port). Idle RTT 3-4 ms, 1.8 ms with the phone's CPUs busy, 40 MB/s each way,
-  bidirectional fine, adb concurrently fine. tcp-forward.py exposes the loopback-only worker on the
-  USB address (the worker holds the card; never restart it). device-dealt-run.sh v100 honours
-  WORKER=host:port.
-- BUT the link wedges: no packets either way (host->phone ping dead, phone TCP retransmitting), adb
-  unaffected, host kernel log silent. Reproduced from the shell with netbench (static aarch64 client,
-  /data/local/tmp/netbench + netbench-server.py): TCP_NODELAY + 1 MB writes with a 64-byte reply
-  read after each MB wedges it on the first try, every time; plain 40 MB/s streams wedge it ~1 in 3
-  per 300 MB; <= 24 MB/s streams (800 MB) never did. Not the app (AF_INET socket and normal thread
-  priority changed nothing), not the pVM's load (engine over adb + shell NCM bulk = fine).
-  RECOVERY without root: `nmcli device disconnect ens10u1i1; nmcli device connect ens10u1i1` (~5 s);
-  ncm-watchdog.sh pings the phone every second and bounces after 2 misses. Also added: pace_mbps
-  extra (token bucket on the app's up pump, PACE=n in device-dealt-run.sh) to keep the weight upload
-  under the wedge rate. killpat.sh / stop-phone-run.sh: kill helpers whose patterns never sit in the
-  caller's command line (pkill -f from the shell killed the shell itself: exit 144, several times).
 - Ceiling math with a perfect NCM link (~2 ms per 4-row exchange): 97 x 2 + 3 x 2 = 200 ms/round ->
   ~51 ms/token at 3.94 tokens/round = ~20 tok/s ONLY for this repetitive prompt; realistic acceptance
   (~2.5 tokens/round) -> ~12 tok/s. And the phone's own per-round overhead (~430 ms/round in run26,
@@ -1442,9 +1296,6 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
   cores to 2.1 GHz and the token rate from 28 to 44 per 12 s (+57%) despite competing for cycles.
   The shell cannot see crosvm (pidof empty), so vCPU placement is inferred from which cores' clocks
   move. (Adb shell launches of background burners must redirect all three fds or adb hangs.)
-- engine.cpp ANCHOR_BOOST_THREADS=n (--ei boost n, BOOST=n in device-dealt-run.sh): n spinning
-  threads in the VM keep the utilization, hence the clocks, high during decode. E1 = boost 5 +
-  4 compute threads, E2 = boost 1 + 8 compute threads (the VM has 9 vCPUs).
 - E1 (boost 5 in the VM, 4 threads): 764 ms/token, verify 2424 ms/round; E2 (boost 1, 8 threads):
   1334 ms/token, verify 4510 ms/round. WORSE than no boost (417-520): the wire stayed ~22.4 s, the
   mask arithmetic got faster (422 -> 159 ms) but the compute threads lost their cores to the spinning
@@ -1498,34 +1349,9 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
   5-node pattern. Estimated gain at today's numbers: verify 558 -> ~390 ms/round (bytes stay) =
   ~8.3 tok/s; with USB 3 bytes ~12 tok/s. 20 tok/s needs fusion + USB 3 + the bridge gone
   (pVM networking) + realistic acceptance holding ~4 tokens/round: marginal even then.
-- Natural prompt ("Explain in three sentences why the sky is blue. Then list two common
-  misconceptions about it."), direct path, lm_head local, burners 5: k=3 (run48) 27 rounds,
-  2.33 tokens/round (46% of drafts accepted); k=5 (run49) 21 rounds, 2.62 tokens/round (32%).
-  That is the realistic multiplier (vs 3.94 on the repetitive prompt). Both runs were PAD-STARVED
-  (verify 4.5 s/round while the wire was ~400 ms/round): the dealer's pipeline (--ahead 128,
-  --chunk 64, --interval 15; a 64-row shipment is 117 MiB over adb-reverse into the VM) cannot
-  keep up with ~4-6 rows per 0.5 s round once the prompt is 20 tokens. Fix for measurement =
-  a deeper pipeline (AHEAD/INTERVAL env in device-dealt-run.sh). Prompts > 8 tokens also needed
-  the head's observe chunked by its batch capacity (was: 'the head could not observe the
-  prompt; decoding plainly').
 - This phone's AVF VirtualMachineConfig.Builder exposes only setCpuTopology and
   setShouldUseHugepages among the interesting setters: no pVM networking, so the vsock + Java
   bridge stays in every exchange.
-- Pad pipeline findings (run50): the app streamed shipments into the VM in STRING order
-  ("-128-64" before "-64-64"), so the engine starved at index 64 with four shipments fetched;
-  fixed in PadsClient.streamBank (numeric index0 order). The dealer polls the hub's mark and does
-  mint ahead, but ~2 minutes late (15 s passes + a 6 s model load per mint + 117 MiB per
-  shipment to the phone); AHEAD=256 INTERVAL=5 for measurement runs. A prompt longer than 8
-  tokens prefills ENTIRELY on the phone's CPU ("0 nodes offloaded": the link refuses matmuls wider
-  than 8 rows), ~90 ms/token, using no pads; the first token appears before any shipment lands.
-- E12b (run51, natural prompt, k=3, direct path, ordered shipments, bank 256): pads no longer
-  starve (waited=0, windows 0..192) but 2860 ms/token: the NCM link wedged FOUR times during
-  decode (watchdog bounces; each costs the bounce ~5 s plus TCP's exponential retransmit backoff on
-  the stalled connection). With the repetitive prompt the wedges fell in the 97 s upload; with a
-  20-token prompt there is no upload (the worker keeps the weights), so they land in decode. The
-  wire itself was 438 ms/round (11.8 s / 27 rounds), i.e. ~4.5 ms per exchange. The direct path is
-  therefore unusable for sustained decode on this host driver without root (cdc_ncm tunables) or
-  a USB 3 link; adb is stable at ~1.5 ms/exchange more. E13 = the same prompt over adb.
 - E13 (run52, natural prompt, k=3, adb, lm_head local, burners): 1063 ms/token, verify 2445 ms/round
   but wire 438 ms/round and no pad waits: the excess is the ONE-TIME weight upload (~50 s) landing in
   the first verify round, because a 20-token prompt prefills on the CPU and the first offloaded
@@ -1553,18 +1379,10 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
   W_prev, receives y_prev and z = x.W_next' + a.W_prev.W_next', computes h = x + y_prev locally,
   writes the add's output, rms(h) per row, and mul_mat_next's output = z / rms. gamma is folded:
   W_next' = diag(gamma) . W_next.
-- Sites: two new calibrated "fused" sites per layer (o_proj+gate/up, ffn_down+next in_proj); the
-  products are public-weight functions the dealer's GPU (or the platform) can form and re-quantize
-  to Q8_0 once per model; the pads for a fused site cover K1+K2 columns and N1+N2 outputs (bytes on
-  the wire unchanged: same inputs and outputs as the two exchanges it replaces).
 - Numerics: exact in float; Q8 re-quantization of diag(gamma).W and of the product is the only
   approximation (product entries have a wider range: calibrate exponents per fused site).
 - Gains at today's costs: exchanges per round 96 -> 48 (the head's layer is local); per-exchange
   fixed cost ~4.5 ms saved 48 times = ~215 ms/round of ~440 -> ~1.4x; with USB 3 (bytes ~0) ~2x.
-- Effort: backend supports_op + pattern executor (2 days), product minting in shielded-dealer /
-  prefix of the calib tool (1 day, overlaps Steven's uncommitted shielded-calib.cpp), x86 fidelity
-  test (greedy text equality vs unfused), then the phone. Not started: Steven's call, since it
-  changes the fleet's shielded backend and the calib format.
 - E14 (2 burners): 176 ms/token steady; E15 (5 burners + hugepages requested): 196; E9 (5, none): 160.
   Run-to-run noise is +-10-15% on this link; neither knob helps. Keep BURN=5, hugepages off.
   Best repeatable configuration: direct path, k=3, 5 burners, lm_head local, 4 threads.
@@ -1591,11 +1409,6 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
 - The relay-based config sets pinned new envelopes but the box record shows the container started
   at the resume and NEVER restarted (appConfigCid = live), so chunk8/chunk0-t16 (13.8 / 13.4) were
   chunk 4 again. `enclave restart <id>` exists and is needed after a config set.
-- Tenant profile during the live-config decode probe: link total 44.3 s of which refill-on-path
-  43.4 s, wire 34.0 s (overlapping), mask 55 s; per-group "missed" counts in the hundreds. The 27B
-  prefill is REFILL-BOUND (in-enclave pad generation), as the refill-ceiling memory says: chunk
-  width cannot help; more refill throughput (threads) or pads that do not cost the enclave (dealt
-  pads from a GPU dealer) or a prefill that consumes no pads (chunk 0 -> CPU) can.
 - Live-config baseline via decode-rate.py (1.7k-token fresh prompt, 96 tokens, greedy): decode
   10.11 / 10.13 tok/s, TTFT 356 s (queued behind the previous probe) / 231 s. Funds ran out at
   ~14:45 UTC ($0.07 left) before the chunk-0 restart test; topping up $2 from the agent wallet for
@@ -1638,13 +1451,6 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
   Verdict for Steven: numerically feasible; the cost is engineering (backend claims add/rms_norm/mul,
   fused executor, product minting, fused-site calibration) and worker memory, not accuracy.
 
-## 2026-09-07 unblock-watcher.sh (detached, polls every 3 min, log dealt-e2e/unblock-watcher.log)
-- (a) when the agent wallet shows >= $2.50 USDC: fund $2, resume + forced claim, config
-  config-0907-chunk0-t16.json, `enclave restart`, wait for a new startedAt and a 1-token answer,
-  then capture-prefill-long RATE, decode-rate.py, RATE again; live config + restart afterwards.
-- (b) when the Pixel enumerates at >= 5000 Mbps: direct-run.sh baseline k=3 and k=7 (test prompt).
-- Kill with killpat.sh unblock-watcher. It spends at most $2 once.
-
 ## 2026-09-07 19:10-19:20 UTC - wallet funded ($30 USDC from Steven), CPU-prefill test started
 - unblock-watcher (a) fired 19:10:38Z: deployment was at $0.00 balance (had run dry);
   `fund --usdc 2` re-queued it with 58 min at $2.08/h; claim-hint accepted; config
@@ -1657,9 +1463,6 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
   cli/enclave.mjs --base http://127.0.0.1:18080 status <id> --json` signs in, then copy
   ~/.config/enclave/tokens.json["http://127.0.0.1:18080|<agent addr lowercase>"] into
   metal-session.json (0600). /v1/deployments -> 200 after.
-- Running by hand: cpu-prefill-test.sh (wait_app -> capture-prefill-long chunk0t16-restart ->
-  decode-rate 96 -> capture-prefill-long chunk0t16-restart-b); log dealt-e2e/cpu-prefill-test.log,
-  full outputs dealt-e2e/cpu-prefill-*.out. Live config NOT auto-restored (decide after numbers).
 - 19:20-19:36 UTC RESULTS chunk0-t16 (CONFIRMED live: box appConfigCid bafkreiavvfe3e6dgz4zqljd... =
   compact-JSON CID of config-0907-chunk0-t16.json; the platform stores the config compact):
     prefill  RATE chunk0t16-restart 13.4 positions/s (1496 of 1765 in 111.8 s, first text 119.1 s)
@@ -1689,13 +1492,6 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
   or the phone's Type-C socket SS pins. Discriminator for Steven: a known USB 3 device on the same
   cable+port (bus 4/8 = cable fine, socket suspect; bus 3/7 = cable). H13SSL-N has two on-package
   USB 3.1 controllers (41:00.4, e5:00.4), 10 Gbps root hubs bus 2/4.
-- 19:59:01Z USB 3 LINKED: after a further re-plug on the Renesas card a1:00.0 port 1 the Pixel came
-  up on bus 6 port 1 as SuperSpeed 5000 Mbps, bcdUSB 3.20 (the same physical port that linked at
-  480 as 5-1 minutes earlier - so it was the plug orientation / socket contact, not the host).
-  Kernel: "LPM exit latency is zeroed, disabling LPM". NCM tethering up on the SS link: cdc_ncm
-  6-1:1.1 -> ens10u1i1 10.160.70.152/24 (same host IP; forwarders 9501/9503 still bound to it).
-  Runs: direct-run.sh usb3-k3 64 (WPORT=9503 BURN=5 MTP=3 PACE=16 SHIELDED_LOCAL_SITES=token_embd.weight)
-  then usb3-k7; logs dealt-e2e/usb3-k*.log.
 - 20:01 UTC USB3 k=3 (usb3-k3, 64 tokens, test prompt): decode_ms_per_tok 148.0, STEADY 138.8 ms
   = 7.2 tok/s (USB 2 best 160.5 ms / 6.2), watchdog bounces 0 (no NCM wedge on the SS link).
   MTP: 16 rounds, 48 drafted, 47 accepted (3.94 tokens/round, 98%); per round draft 73 ms (head
@@ -1719,15 +1515,6 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
   (local 16-row work + mask/unmask), not the wire (262 KB/exchange = ~0.6 ms at 5 Gbps).
   Budget: 20 tok/s at 12.6 tokens/round needs <= 630 ms/round; steady now ~1100. Levers left:
   fusion (halve exchanges), cheaper draft (lm_head-bound 18 ms/step), 16-row local work.
-- 20:12 UTC USB3 k=15 x 256 (usb3-k15-256): 17 rounds, 251 drafted, 238 accepted (15.00/round,
-  95%); decode_ms_per_tok 110.9, STEADY 100.1 ms = 10.0 tok/s (the 64-token 87.8 was flattered by
-  the short run). Per round: draft 333 ms (15 x 21.4 ms head steps, lm_head-bound), verify 1304,
-  observe 26. Cumulative link: 1728 exchanges, wire 12552 ms (7.26 ms/exchange at 16 rows; 4.15 at
-  8, 3.76 at 4), mask 968, unmask+lhs 398, rhs 228; link total 14801 = 822 ms/graph -> the other
-  ~480 ms of verify is LOCAL phone work, mostly the local 16-row vocab projection (~16 x 18 ms).
-  "REFUSED" = a late pad shipment (index 384) after the run ended; pads used 26208 missed 0.
-  NEXT: drop SHIELDED_LOCAL_SITES (offload the vocab projection: 16-row reply 7.3 MB once per
-  round + 15 single-row replies of 456 KB in the draft) - a win only on USB 3.
 - 20:16 UTC k=15 x 128 with the vocab projection OFFLOADED (SHENV=SHIELDED_MAX_M=16 only,
   usb3-k15-lmgpu): WORSE - draft 573 ms (15 x 36.7 ms: each head step now waits on a 456 KB reply
   through the bridge = ~15 MB/s effective), verify 1227 (from 1304), steady 111.0 ms/token (from
@@ -1755,17 +1542,6 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
   repacked/i8mm path should give 5-10x on the local 550 + draft 333 ms -> round ~700 ms -> ~21
   tok/s on the test prompt. Fix = keep the offloaded weights out of the CPU repack buffer (own
   buffer type / claim before repack) while token_embd-dup (lm_head) and the head repack.
-- 20:25-20:35 UTC REPACK campaign: arm64 llama.cpp rebuilt with GGML_CPU_REPACK=ON (build-ggml-arm64.sh
-  now takes GGML_CPU_REPACK; its cmake --install fails on the fork's app target, cp the .so by hand).
-  Run 1 (no pin): NOTHING offloaded, but the phone ALONE decoded the 0.8B at k=15 in 28.8 ms/token
-  steady = 34.7 tok/s (verify 271 ms for 16 rows x 24 layers locally!) -> the fast kernels are a
-  5-10x lever on local work. Run 2 (tensor_buft_overrides -> ggml_backend_cpu_buffer_type()): still
-  nothing offloaded: llama.cpp treats an override to THE cpu buft as "consider extra bufts" (REPACK
-  wins). Run 3 (engine.cpp: distinct host buft "CPU_plain" delegating to the CPU one, pinned by a
-  regex of the calib's 96 site names): offload path ACTIVE (backend asked for dealt pads) but prefill
-  failed "dealt pads: group 1 index 0 not in any shipment (bank behind)" = a race with the first
-  shipment's install (model load now 15.3 s, no mmap for pinned tensors). Rerunning (plain2).
-  Also added: on "nothing offloaded" the engine relays engine.err lines mentioning shielded/REPACK.
 - 20:43 UTC REPACK ON + whole calibrated layers pinned (CPU_plain, regex ^blk\.(0|..|23)\..*\.weight$;
   the calib names ONE node per group - attn_gate/ffn_up/K/V members were the mismatch): offload
   back (138 nodes/prefill, 1380/run, verify_fail 0). k=15 x 128: steady 94.7 ms (WORSE than 84.4
@@ -1774,39 +1550,6 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
   (was ~11 / 5.3 / 15.4) -> the exchange turnaround got slower (thread contention from the repack
   kernels' spinning vs the bridge/burners?), while the backend's own CPU work got faster
   (unmask+lhs 398->233, post 658->484). A/B next: BURN=0 on the repack build.
-- 20:46-20:49 UTC repack A/B: BURN=0 on the repack build = 149.7 ms (burners stay essential).
-  Repack run #2 (layers2, same config as #1): STEADY 72.1 ms = 13.9 tok/s = NEW BEST (draft 234,
-  verify 1073, observe 14) -> run #1's 94.7 was an outlier; run-to-run spread at k=15 is ~+-15%.
-  Thermal status 0 (no throttling). No-repack APK rebuilt from a byte-identical libggml-cpu.so
-  (4603456 B = the old prefix lib) and stashed (dealt-e2e/anchor-norepack.apk); paired runs
-  norp1/norp2 in flight for a 2-vs-2 comparison. Phone-alone (no GPU) reference at k=15 with
-  repack: 28.8 ms/token = 34.7 tok/s (run usb3-k15-repack, 0 exchanges).
-- 20:53 UTC A/B verdict (k=15 x 128, USB 3, BURN=5, PACE=0, MAX_M=16): repack 94.7 / 72.1 (draft
-  274 / 234) vs no-repack 84.4 / 95.2 / 103.4 (draft 314 / 311 / 376). Draft consistently ~25%
-  faster with repack (the repacked lm_head dup helps even single rows); verify inconclusive within
-  the +-15% spread. KEEP REPACK: prefix lib = repack, APK stashed dealt-e2e/anchor-repack.apk and
-  installed; no-repack twin at dealt-e2e/anchor-norepack.apk. Commit 175c4604 (engine pin +
-  err relay + build knob). BEST = 13.9 tok/s (72.1 ms steady) with the Pixel as root of trust.
-- 20:58 UTC natural prompt at k=15 (usb3-k15-nat2, "Write a short paragraph explaining why the
-  sky looks blue..."): acceptance 8% (2.25 tokens/round), steady 719.9 ms/token, and the run
-  died "decode failed (verify of 16 rows)": at 2.25 tokens/round every round burns 16 pad
-  indices (57 rounds x 16 = 912 for 128 tokens) and the x86 dealer mints ~23 indices/s
-  (256 in 11.3 s) -> the bank falls behind, verify balloons (3716 ms/round) then stops. Wide k
-  only pays on predictable text; natural prompts want k=3-5 and the dealer's mint rate is a
-  real ceiling (~3 tok/s at 16 rows) unless the dealer gets a GPU (platform GPU dealer, PLAN).
-  (prompt-300.txt run: the model answered "\n" + EOS after 388 tokens - not a speed sample.)
-- Correction on the nat2 failure: pads used=24576 waited=0, so no in-engine pad wait; the dealer
-  DID keep minting (up to 576) but at 2 shipments per ~6 s (~21 indices/s) plus the 117 MB
-  fetch+install per shipment, while 16-row rounds at ~1.5/s burn ~24 indices/s -> index 256 was
-  asked for before its shipment landed -> "bank behind" -> refill stopped. Dealer throughput
-  (x86 zero-pad mint path) + shipment latency = the ceiling for wide k on low-acceptance text.
-- 21:00 UTC natural prompt at k=3 (usb3-k3-nat, 96 tokens, repack build, USB 3): 44 rounds, 2.16
-  tokens/round (40%), draft 49 ms (15.5 ms/step, from 23), steady 234.0 ms/token = 4.3 tok/s -
-  the SAME as USB 2 (E6 4.4): at 4 rows the exchange is latency-bound (~5.3 ms bridge floor x 96),
-  USB 3 only paid for the wide (16-row) exchanges. Natural-text reality with the phone in the
-  loop: ~4-5 tok/s; test prompt 13.9; phone alone (no GPU, repack) ~35 on the test prompt.
-  END OF DESIGN-A LEVERS FOR TODAY. Open question to Steven: design B (phone = dealer/attester,
-  engine in metal0's SNP VM on the V100) is the only route to 20 tok/s with a phone root of trust.
 
 ## 2026-09-08 05:25-05:30 UTC - phone prefill thread sweep (repack build, 379-token prompt, 8 tokens)
 - ANCHOR_PREFILL_THREADS 5: 15.9 s; 6: 20.2 s; 4: 19.9 s (run order 5, 6, 4). The 4-thread
@@ -1870,7 +1613,6 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
   app's connectVsock stream in userspace; apps cannot open AF_VSOCK themselves (SELinux), so this
   floor is Android's design, not ours. DESIGN A CEILING on this phone is now fully accounted for.
 
-## 2026-09-08 06:25-06:35 UTC - DRAFT-AHEAD (Steven: hosts have NO TEE; the pVM stays the trusted half;
 ## non-confidential compute may go to the host CPU)
 - Bug fixed on the way: engine.cpp verify row buffer was rows[9] (k<=7 era) while k=15 writes 16
   -> stack overrun in every k=15 run so far (text looked right by luck). Now rows[33].
@@ -1889,31 +1631,6 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
   tokens/round). The confidence gate protects the pad budget but buys no speed; natural text
   stays ~4.4 tok/s, bound by ~530 ms per round of 96 exchanges (~5.5 ms each at 4 rows). Only
   fewer or overlapped exchanges move it. T4 CLOSED.
-- 06:52-06:56 UTC echo probe on an idle phone after a fresh install: 262 KB p50 1.2 ms sequential,
-  211 MB/s with two in flight (vs 7.4 ms / 70 MB/s measured after decode runs) - variance
-  unexplained (thermal status 0 both times). Cold/hot decode pair: cold k=15 steady 78.3 ms,
-  wire 6.4 ms/exchange = no better than hot runs; the hot leg aborted "bank behind" at index 128
-  while the host was loaded by Astra's builds (dealer + 117 MB shipment pushes starve). AHEAD
-  raised to 512 for runs. Pulled Astra's f3de882f (self-check bounds) + 3e15d4e1 (overlap the
-  pad-check RHS with socket transit, SHIELDED_OVERLAP_VERIFY=1); APK rebuilt (anchor-overlap.apk);
-  measuring off/on/off/on at k=15 + draft-ahead.
-- 07:00-07:40 UTC PAD PIPELINE DEFECT (four identical failures of the overlap quad at round 4,
-  "decode failed (verify of 16 rows)" / "bank behind" at index 64-68): the app's streamBank thread
-  streamed shipment 0 into the VM and then spent its time in syncBank downloading 117 MiB files -
-  including RE-downloading shipments it had just dropped below the ledger mark (the relay still
-  lists them) - so 64-64 was never streamed before the engine needed it. Earlier k=15 runs only
-  passed because every shipment was fetched during the 50-s first round. Fixes (app): fetcher on
-  its own thread (2 s cadence), never re-fetch dropped/spent shipments, fetch in index order;
-  (dealer-loop.py): streaming publish - push each shipment when the dealer announces it (one model
-  load kept), plus --mint-batch as an option. Also: the x86 dealer sustains ~20 indices/s
-  (~12 idx/s minting per shipment second) vs ~24/s consumed at 16 rows: sustained 16-row decode
-  needs dealer parallelism or a GPU dealer (platform-owned; never the operator's V100s - Astra).
-  Quad "ove" (off/on/off/on, overlap_verify) running on the fixed pipeline, AHEAD=512.
-- 07:50 UTC sixth quad leg: 6 rounds then fail; the VM logged "PADS ...-64-64.pads FAILED at 0 of
-  123282432" for every shipment after the first, during the model load - the receiver's open() of
-  the temp file in the encrypted store failed (its body loop is skipped when fd < 0 -> "at 0"),
-  the VM answered 'E' and closed, the app saw EPIPE. Adding errno + free-space to the message and
-  a 2-s bounded retry on open; the store is 2048 MiB (model 794 + 8 shipments of 117 = 1730).
 - 08:00-08:15 UTC pipeline repaired (d9b8b754) - OVERLAP_VERIFY quad (k=15, draft-ahead on, 128
   tokens, APK with Astra's 3e15d4e1 + 6ff887a9): off 80.6 / 81.6 ms steady (verify 1259 / 1302),
   on 77.2 / 81.0 (verify 1209 / 1202). Overlap = ~-75 ms/round (-6% verify), ~-2 ms/token: small
@@ -1924,106 +1641,12 @@ profile-root-623 -> metal/build/root; analyze-prefill-profile.py; capture-prefil
   pairs interleaved on/off remain the only fair comparison.
 
 - 2026-09-08T08:16:06+00:00 Astra coordination alert: please read the newest COORDINATION.md before expanding mint edits. I have unblocked your VS Code approvals and am watching them. There are critical pad-seed/platform-key and attestation-own-key binding gaps; exact v2 transcript and split ownership are in the log. Your mint pthread_create failure and scratch cleanup findings also need attention. I own relay + NEW binding/grant helpers; you own existing payload/app integration.
-- 08:30-08:45 UTC DEALER THROUGHPUT: sh_link_mint_shipment ran its group loop on one thread
-  (16 indices per weight pass). Now SHIELDED_MINT_THREADS (default 1 = unchanged) splits the
-  groups across threads, each with its own scratch incl. the writer's (new
-  sh_pads_writer_cell_with; cells land at disjoint pwrite offsets). Host (EPYC 9115, 16c/32t):
-  64 idx 3.5 -> 2.1 s; 256 idx 11.1 -> 5.4 s; 512 idx 9.8 s @16 / 11.2 @8 / 9.2 @32 threads
-  => ~17 ms/index (~58 idx/s) after ~2 s fixed load+probe per dealer run. Scaling ~3x only
-  (per-thread refill ~22 GMAC/s incl. the 3 byte-planes; AEAD seal + PRF per cell); enough for
-  one phone at 16 rows (~24 idx/s). dealt-selftest ok at 1 and 8 threads. device-dealt-run.sh
-  exports SHIELDED_MINT_THREADS=16 (MINTTHREADS env). Streaming publish + this = first shipment
-  pushed ~2-3 s after the dealer starts. End-to-end leg "mint16" running.
 
 - 2026-09-08T08:37:27+00:00 Steven follow-on request: after the Q8 20tok/s milestone, jointly investigate Q4 support with Enclave Shielded/Pixel root of trust. Keep Q8 for the current milestone; details in COORDINATION.md.
-
-## 2026-09-08 08:20-09:10 UTC - authenticated pad bootstrap (Astra's PAD-BOOTSTRAP.md), phone side
-- Astra found: attest() signed arbitrary BOUND bytes; PADSEED was unsigned (chosen-seed); PADWIN
-  signatures did not bind the request nonce (replay after reconnect); PADSIGN signed any kind
-  (fabricated receipts); ENGINE env= could set trust keys; pad index counter wraps at 2^24.
-- Mine (pushed 4ef8eb7b + staged): app builds the android-avf-pvm/v2 transcript (domain || SPKI ||
-  pad pk || nonce), payload validates it against g_tpk/g_ppk (sh_avf_pad_binding_valid) and the
-  sha256 challenge, signs nothing else; PADREQ2/PADGRANT signed seed grants (pVM nonce, pVM model
-  SHA-256 via a verified streaming implementation, calib SHA-512/256, sh_pad_grant_verify under the
-  pinned ledger key from assets/ledger.pk; ANCHOR_LEDGER_PK at build; unpinned = dev, loud);
-  window sig_v2 verified against the engine's own nonce (required when pinned); PADSIGN limited to
-  the legacy seed request in unpinned builds; ENGINE env whitelist. Dev hub restarted (was 24 h old,
-  pre-grant code). Pixel 8 Pro: attestation itself still "not supported" (Pixel 10 needed).
-- Parallel mint pushed 8dbb1c39 (SHIELDED_MINT_THREADS; ~58 idx/s at 16 threads; selftest
-  regression). Steven's roadmap (via Astra 08:37Z): Q8 until 20 tok/s; then Q4 evaluation.
-
-- 2026-09-08T08:48:36+00:00 STEVEN EXACT FOLLOW-ON TARGET: latest user clarification says Qwen3.8 27B in Q4_K_M specifically, AFTER current Q8 optimization work /20tok/s milestone. This supersedes generic Q4 wording. Preserve the exact requested model/version and quantization; do not substitute Qwen3.5 or generic Q4. Verify the actual model artifact/availability when starting that phase; do not switch early. Astra and Fable jointly own compatibility, calibration, authenticated asset binding, quality and throughput evaluation with Shielded/Pixel root of trust.
-- 09:15-09:55 UTC pushed 59ef6866: measured pins module (payload/anchor_pins.{h,c}: explicit
-  assets/anchor.mode dev|protected, ledger.pk / model.sha256 / prefix.pk 64 hex; protected fails
-  closed without all three; a malformed pin is an error in any mode), PADREQ2 checks the stored
-  model's bytes against the pin before signing/loading, PREFIXPK pinned, ENGINE refused on an
-  unverified model in protected mode, host ASan/UBSan regression test/anchor-pins.test.mjs.
-  Build knobs ANCHOR_MODE/ANCHOR_LEDGER_PK/ANCHOR_MODEL_SHA256/ANCHOR_PREFIX_PK. Bootstrap legs on
-  the dev hub: grant ok, decode 80.4 ms steady (one transient 183 ms leg with 19.9 ms/exchange wire,
-  cause unknown; the next leg was normal). OPEN: engine saw legacy-only windows although
-  relay reserve() emits sig_v2 - app now logs sig_v2 presence; pins-dev leg waits on Astra's lock.
-- 2026-09-08 09:15 UTC BUILD/INSTALL RECIPE (survives compaction):
-  APK:   cd ~/Projects/enclave/shielded/anchor/avf && ./build.sh anchor        (~4 s -> out/anchor.apk; dev mode by
-         default, protected = ANCHOR_MODE=protected + ANCHOR_LEDGER_PK/ANCHOR_MODEL_SHA256/ANCHOR_PREFIX_PK all set)
-         ADB=~/Projects/optee-anchor-spike/bin/platform-tools/adb; $ADB install -r out/anchor.apk; $ADB reverse tcp:8787 tcp:8787
-  arm64 ggml prefix (only when the CPU backend changes): build-ggml-arm64.sh with GGML_CPU_REPACK=ON; its cmake --install
-         fails on the fork's app target -> cp libggml-cpu.so by hand into out/ggml-arm64-work/prefix/lib, then build.sh anchor.
-  HUB:   cd shielded/anchor/avf && PADS_MASTER_SEED=$(cat $W/dealt-e2e/master.hex) PADS_DEALER_TOKEN=local-dealer-token \
-         ENCLAVE_DEV_UNATTESTED=1 nohup node host/local-hub.mjs --port 8787 --dev-unattested >> $W/dealt-e2e/local-hub.log 2>&1 &
-         (verify: tr '\0' '\n' < /proc/<pid>/environ | grep -c PADS_DEALER_TOKEN == 1; a hub WITHOUT the token = every dealer
-         push "Broken pipe" = phone "bank behind" at index 0. This happened 08:58-09:08Z.)
-  LEG:   cd $W && WPORT=9503 BURN=5 MTP=15 PACE=0 AHEAD=384 INTERVAL=5 \
-         SHENV="SHIELDED_LOCAL_SITES=token_embd.weight,SHIELDED_MAX_M=16,ANCHOR_DRAFT_AHEAD=1,SHIELDED_OVERLAP_VERIFY=1" \
-         ./direct-run.sh <label> 128 > dealt-e2e/<label>.log 2>&1   (takes PHONE.lock; writes phone-/dealer-/watchdog-<label>.log;
-         the run script starts its own dealer for the label; forwarders tcp-forward(.py 9501, -timed.py 9503) stay up)
-  PASS = PINS mode=dev ... -> "MODEL ok <sha> (unpinned: hashed only)" -> "PADGRANT ok" -> "PADS window a..b sig_v2" -> steady ~80 ms/token.
-- 2026-09-08T09:16:07Z stage-dev4 PASS (hub with dealer token, pid 1771216): PINS dev -> MODEL ok c54f8b67 -> PADGRANT ok -> windows 0..256 sig_v2 (0 legacy)
-  -> 79.0 ms/token steady (12.7 tok/s), verify_fail 0, prefill_ms 44131 (weight upload lands in round 1), 0 bounces.
-  Commit eb02384f pushed (model stage before grant, pin read-error fixes, PREFIXPK startsWith, fixture cases). Astra's
-  lock writer overwrote mine at 09:14:40Z (told them). Next: --ei tamper/restage knobs + protected first-boot leg.
-- 2026-09-08T09:24:47Z tamper1 PASS: swap after grant refused + purged + honest re-stage accepted (matches the grant) + decode 94.0 ms steady
-  (64 tok). Payload fixes built (dup MODEL reply, pending request dropped on re-stage + PADGRANT model check, g_pad_name[65]).
-  APKs stashed: dealt-e2e/anchor-dev.apk, dealt-e2e/anchor-protected.apk (pins in dealt-e2e/pins/, hub key 6240333b...).
-  Knobs: --ei tamper 1 (TAMPER=1), --ei fresh 1 (FRESH=1) via device-dealt-run.sh. prot1 leg started 09:24Z (protected + fresh).
-- 2026-09-08T09:27:33Z prot1 PASS (protected APK + FRESH=1): pins all pinned, first-boot stream, MODEL ok (matches the pin), PADLEDGER ok (pinned),
-  PADGRANT ok (pinned ledger key), dup-stage reply verified, windows sig_v2, 74.3 ms/token steady (32 tok), offloaded 552 / local 0,
-  verify_fail 0. Pushed 416d7dc0. Dev APK reinstalled 09:27Z. k15a (baseline, 128 tok) running; then k31a = MTP=31 with
-  SHENV SHIELDED_MAX_M=32 (pads are one index per row: no dealer change; 32 idx/round vs the x86 dealer's ~58 idx/s), then k15b/k31b.
-- 09:27-09:32 UTC k=15 vs k=31 pair a (same APK = dev+pins d67520d7-era, 128 tok, test prompt, BURN=5 PACE=0 AHEAD 384/512):
-  k15a: 81.1 ms/token steady; 9 rounds, 14.11 tok/round (90% of drafts); draft 59 ms (draft-ahead 7/9), verify 1283, observe 31;
-        960 exchanges, wire 6048 ms = 6.3 ms/exchange; offloaded 1380 / local 0; verify_fail 0.
-  k31a (MTP=31, SHIELDED_MAX_M=32): 111.6 ms/token steady; 7 rounds, 18.14 tok/round (63% of drafts); draft 321 ms (draft-ahead
-        only 3/7: a 31-step head chain = 983 ms no longer fits the verify wait), verify 2055, observe 31; 768 exchanges, wire 7644 ms
-        = 9.95 ms/exchange (32 rows); offloaded 1104 / local 0; verify_fail 0. Pads: one index per row, dealer kept up (no bank behind).
-  Cost model from the two points: wire/exchange ~ 2.65 + 0.228*m ms; local verify ~ 256 + 26.4*m ms; a k=23/M=24 leg would land
-  ~108 ms/token, k=11/M=12 ~111 => k=15/M=16 is at the optimum on this chain for the test prompt. k=31 REJECTED. Pair b running (k15b).
-- 2026-09-08T09:36:38Z pair b: k15b 82.3 / k31b 145.1 ms/token (k31b verify 2749 ms/round, head chain 1552 ms: hotter phone or contention).
-  k=31 REJECTED; k=15/M=16 stays. Posted to Astra. Next: PADACK payload/app side (PAD-ACK.md), then fusion status with Astra.
-- 2026-09-08T09:50:14Z PADACK: 4e6e0e9f (checker, receiver, PADACK, Main relay, doc) + 2ca8e8f9 (judge/hash via retained fd, dir fsync
-  required, cached path via inode). ack1 = 6 PADACKs, old hub 404 (expected). Hub restarted on Astra's relay 7b18a44a
-  (/v1/pads/ack); ack2 running 09:49Z for platform acceptance. Recipe unchanged (k=15/M=16).
-- 2026-09-08T09:59:41Z RECIPE FACT: build.sh anchor BUNDLES out/engine-pvm as built; any change to engine.cpp, ggml-shielded.cpp or the
-  pads/tee library must be preceded by ./build.sh engine-pvm (then anchor). Pushed a2b233d6 (signer returns status, ctl_close,
-  anchor_ctl_write handed to the engine via engine_set_ctl_writer, standalone engine link fixed). phone-v100-run.sh now
-  honours DEALER_DELAY (seconds before the dealer starts) for the late-dealer leg.
-- 2026-09-08T10:22:27Z fine1 (FULL calib, ANCHOR_FINE_PLACEMENT=1 = only calibrated group members pinned CPU_plain, rest repacks; APK
-  anchor-fine-full.apk, engine-pvm 1bdf9fc5): 72.1 ms/token steady (64 tok, 5 rounds, 12.6 tok/round), verify 1081 ms/round
-  (vs 1283-1335 with whole-layer pins), draft 106, offloaded 828 / local 0, gmac 39.75, verify_fail 0, sha256=arm_sha2.
-  = equals the all-time best (72.1) with NO placement change: the whole-layer pin was costing ~200 ms/round of un-repacked
-  local matmuls. local1 (local-output calib 0e616212 in APK + dealer, 48/97 groups) running 10:22Z.
-- 2026-09-08T10:24:36Z local1 (local-output, 48 groups): 84.1 steady; verify 842 (-239/round), draft 145, 10.5 tok/round (67%); text identical
-  to fine1/k15a. Per round wins, per token lost on acceptance (small sample). Next: fix receiver name classes (prefix files
-  were judged as shipments), rebuild engine-pvm on fa4031a3, 128-tok pair fine2/local2.
 
 ## 2026-09-08T10:29:37.989601+00:00 Astra transport attribution correction (source review)
 
 Android16-release android/virtmgr/src/aidl.rs connectVsock returns VsockStream::connect_with_cid_port as ParcelFileDescriptor via File::from_raw_fd(stream.into_raw_fd()). There is no per-byte virtmgr proxy in this sourcepath. The 06:20/06:22 notes inferred such a proxy from end-to-end Java echo latency; that inference is not established. The measuredlatencies remainvalid, but Javaecho conflatesappstreamloop+kernel/vsock/crosvm and scheduling. Nativeecho diagnostic is beingadded tocomparethesameguestprobe witha64KiBCloop; no claimofimprovement yet. Installedfd domain/type/buffer logs willcheckdescriptorassumption. Source:https://android.googlesource.com/platform/packages/modules/Virtualization/+/refs/heads/android16-release/android/virtmgr/src/aidl.rs . Savedsource inAstrai-w/work/avf-source/16-virtmgr-aidl.rs.
-- 2026-09-08T10:31:17Z PLACEMENT PAIR 2 (128 tok): fine2 (full calib, fine pin) 90.0 ms/token, verify 1362, 14.11 tok/round; local2 (local-output
-  calib 0e616212, 48 groups: QKV + FFN gate/up on the GPU, attn out / ssm out / ffn down / vocab local+repacked) 71.8 = NEW BEST,
-  verify 915, 12.70 tok/round, 90 nodes/round, gmac 56.37, text identical. Per round -31%, per token -20%. APKs: anchor-fine-full,
-  anchor-fine-local (engine-pvm fa4031a3), anchor-fine-gpuffn (payload 7ed800e3, calib 3e892b03, 24 groups). gpuffn1 running 10:30Z.
-  Recipe for the local-output profile: ANCHOR_CALIB=<profile> build.sh anchor (after engine-pvm), CALIB=<same file> for the dealer
-  (device-dealt-run.sh), SHENV += ANCHOR_FINE_PLACEMENT=1. Pushed 7ed800e3 (calib hashed whole or refused), 8f488fcb (pads-port names).
 - 2026-09-08T10:36:11Z GPU-FFN profile (gpu-ffn.calib 3e892b03, 24/97 groups = FFN gate/up on the GPU, everything else local+repacked,
   ANCHOR_FINE_PLACEMENT=1, k15/M16, APK anchor-fine-gpuffn.apk, engine-pvm fa4031a3):
   gpuffn1 (draft-ahead on):  56.1 ms/token steady = 17.8 tok/s NEW BEST; 9 rounds, 14.11 tok/round; draft 60, verify 832, observe 43;
@@ -2031,17 +1654,6 @@ Android16-release android/virtmgr/src/aidl.rs connectVsock returns VsockStream::
   gpuffn2 (draft-ahead off): 56.8; verify 665, draft 248 (head chain 236 ms vs 519 when overlapped): the overlap is paid 1:1 by core
            contention. Round ~932 both ways; local graph ~390 ms real compute + wire ~265. 20 tok/s needs round ~830 (steady ~0.85*round/14.11).
   gpuffn3 (draft-ahead on + ANCHOR_HEAD_THREADS=2) running 10:35Z. Pushed 44fcd1c1 (prefix fd-held verify+load, ntok bound, calib abort).
-- 2026-09-08T10:37:46Z 0.8B MILESTONE, NOT THE GOAL (Steven via Astra 10:40Z: the goal is 20 tok/s on the 27B Q8 Eyesoff deployment with MTP/vision/180224 ctx): gpuffn3 = 43.3 ms/token steady = 23.1 tok/s on the 0.8B (128 tok, test prompt), text identical to
-  every other leg, verify_fail 0, 24 exchanges/round (480 offloaded nodes, 0 local), gmac 25.54, draft-ahead 7/9.
-  RECIPE (the whole thing, from a booted phone on USB 3 NCM + metal0 worker + dev hub with dealer token):
-    APK  = anchor-fine-gpuffn.apk  (build: ./build.sh engine-pvm; ANCHOR_CALIB=$W/dealt-e2e/calib/gpu-ffn.calib ./build.sh anchor;
-           gpu-ffn.calib = calib-profile.py <full calib> --profile gpu-ffn = 24/97 groups: FFN gate/up on the GPU, rest local)
-    LEG  = CALIB=$W/dealt-e2e/calib/gpu-ffn.calib WPORT=9503 BURN=5 MTP=15 PACE=0 AHEAD=384 INTERVAL=5 \
-           SHENV="SHIELDED_LOCAL_SITES=token_embd.weight,SHIELDED_MAX_M=16,ANCHOR_DRAFT_AHEAD=1,ANCHOR_HEAD_THREADS=2,SHIELDED_OVERLAP_VERIFY=1,ANCHOR_FINE_PLACEMENT=1" \
-           ./direct-run.sh <label> 128
-  Per round: draft 88 + verify 629 + observe 24 = ~741 ms at 14.11 tok/round. Ladder today: 81 -> 72 (local-output) -> 56 (gpu-ffn)
-  -> 43.3 (gpu-ffn + 2-thread head chain). gpuffn4 = exact repeat running 10:37Z; then natural text (k=15, k=5), then Astra's echo pair.
-2026-09-08T10:38:53Z gpuffn4 repeat = 44.9 ms/token steady (0.8B milestone stable: 43.3 / 44.9), verify 631, text n/c
 - 2026-09-08T10:46:01Z 27B feasibility audit written: /home/steven/Documents/Codex/2026-09-04/lo/work/eyesoff-perf/27B-FEASIBILITY.md (Astra's geometry of record: 2026-09-07/i-w/work/model-scale-audit.md).
   Verdict: ~1 tok/s, ctx <= ~14k in a 4 GiB pVM, minutes of prefill per 1k tokens; 20 tok/s ~20x away on physics.
   probe1 (APK b8e8f295, 4 GiB VM): STORAGE /mnt/encryptedstore ext4 1951 MiB (962 avail), fs-verity REFUSED (EACCES),
@@ -2058,13 +1670,6 @@ Android16-release android/virtmgr/src/aidl.rs connectVsock returns VsockStream::
   compact encoded-weight cache) + payload d00d50de (ANCHOR_WEIGHT_CACHE=1 -> <store>/wcache; MEM lines; SHIELDED_VERBOSE).
   cacheoff (full calib, fine, k15, head 2 thr, 64 tok, 8 GiB VM): 72.2 ms/token, verify 1037, verify_fail 0,
   MEM before VmRSS 9.9 MB / after VmRSS 680 MB, VmHWM 2695 MB. cacheon running 10:55Z.
-- 2026-09-08T11:06:46Z anchor64 = separate named 64 GiB instance (VMNAME=anchor64 STORAGE=65536 MEM=8192; Main 4cd59c01: --es vmname, no
-  silent deletion of an incompatible instance, only FRESH=1 deletes by name). big-off on it: 74.2 ms/token, verify_fail 0,
-  VmHWM 2761 MB. cacheon on the 2 GiB store FAILED for a cache-path group-name mismatch ("0 of 5 ready for group
-  blk.0.attn_gate.weight") = Astra's 807bc5c9, reported; big-on waits for their fix. Loader design = audit s.11 (per-tensor
-  digest table from ONE pass + verify-on-consume); payload/anchor_gguf.{h,c} pushed 58014149 (test green incl. real 0.8B);
-  integration waits on Astra's incremental SHA API. Echo pair running: echo-java1 (worker=echo, ANCHOR_LINK_ECHO=1), then
-  NATIVEECHO=1 native1/native2, then java2. Run-script knobs now: MEM STORAGE VMNAME NATIVEECHO WORKER CALIB TAMPER FRESH DEALER_DELAY.
 - 2026-09-08T11:08:32Z echo-java (Java pump, worker=echo, anchor64, APK 58014149-era): 64 B mean 2069 us p50 1102 min 714, pipelined 50 us/req;
   24 KB mean 1683 p50 1350, pipelined 1002 us/req 47.9 MB/s; 84 KB mean 3277 p50 2786 min 1392, pipelined 5054 us 33.2 MB/s;
   262 KB mean 8912 p50 7246 min 2451, pipelined 10552 us 49.7 MB/s. echo-native running 11:08Z (same APK, --ez nativeecho true).
@@ -2109,15 +1714,6 @@ Android16-release android/virtmgr/src/aidl.rs connectVsock returns VsockStream::
   memory, streamed sources, prefix snapshot integration). 27B: push to /data/local/tmp/anchor/gg27/model.gguf in progress;
   anchor-27b.apk built with the 27B calib (262 sites); leg plan = VMNAME=anchor64 MEM=8192 STORAGE=65536 MODEL=<gg27 path>
   CALIB=<27B calib> AHEAD=128 MTP=3 16 tok, ANCHOR_STREAM_WEIGHTS=1 + cache on, assert table 866 tensors / stat size / blk.64.
-- 2026-09-08T11:58:49Z b27-1 = FIRST 27B LEG on the phone (anchor64, 8 GiB, k=3, 16 tok, streamed sources + cache ON, 27B calib in APK + dealer,
-  DEALER_TIMEOUT=3600, PHONE_MODEL=/data/local/tmp/anchor/gg27/model.gguf verified a680f44a). Started 11:58:21Z; ~30-40 min.
-  Pushed 8591390a (app digest sidecar). Run-script knobs added: PHONE_MODEL (app path), MODEL (dealer host path), DEALER_TIMEOUT.
-- 27B LEG RECIPE (b27-1): cd $W && DEALER_TIMEOUT=3600 PHONE_MODEL=/data/local/tmp/anchor/gg27/model.gguf \
-    MODEL=/home/steven/Projects/enclave-models/qwen3.8-27b-mtp-q8-vl-gguf/Qwen3.8-27B-Q8_0.gguf \
-    CALIB=/home/steven/Projects/enclave/metal/shielded-overlay/calib/qwen3.8-27b-mtp-q8-vl-gguf.calib \
-    VMNAME=anchor64 STORAGE=65536 MEM=8192 WPORT=9503 BURN=5 MTP=3 PACE=0 AHEAD=128 INTERVAL=5 \
-    SHENV="SHIELDED_MAX_M=16,ANCHOR_DRAFT_AHEAD=1,ANCHOR_HEAD_THREADS=2,SHIELDED_OVERLAP_VERIFY=1,ANCHOR_FINE_PLACEMENT=1,ANCHOR_STREAM_WEIGHTS=1,ANCHOR_WEIGHT_CACHE=1,SHIELDED_VERBOSE=1" \
-    ./direct-run.sh b27-1 16     (APK = dealt-e2e/anchor-27b.apk: ANCHOR_CALIB=<27B calib> build.sh anchor after engine-pvm)
 - 2026-09-08T12:08:50Z during b27-1's transfer: pushed abf98289 (prefix adapter 299393ab wired; wire-phase lines pass the summary filter),
   7026fce0 (anchor_copy_exact + fsync gate in receive_model, both fds closed on failure, host fault test; SOURCE counters beside
   CACHE via dlsym of b9d3c526). placement-quant.py corrected (all-dims bytes, K*N >= SHIELDED_MIN_MACS=2e6 claim rule, local sites):
@@ -2132,7 +1728,3 @@ Android16-release android/virtmgr/src/aidl.rs connectVsock returns VsockStream::
   => v3 artifact must carry the head's seq state + pending_h (proposed to Astra; my side = anchor_mtp setter + engine restore).
   Pushed fcd55c9d: prefix v2 (whole digest + calib), boundary helper (one tokenization, exact suffix, >=1 token), SOURCE lines.
   b27-2: stream 19.8 GB at 12:26Z, guest RSS ~775 MB steady, MemAvailable ~7.1 GB (samples in this session's monitor output).
-- 2026-09-08T12:29:07Z Head-state restore PROVED on the host: RESTORED == FULL round-for-round, text identical (mtp-prefix-blind.cpp modes
-  FULL/BLIND/RESTORED; logs dealt-e2e/mtp-restored-k15.txt). Pushed 474f42a1: anchor_mtp_n_embd/pending_export/pending_import
-  (finite, exact, clears tail+rows) + memory-state helpers; engine slurps capped. Container (Astra) = seq FILE bytes for target
-  + head + pending row + n_tokens under one v2 signature; engine wiring after their parser. b27-2: 24 GB streamed 12:28Z.

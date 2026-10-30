@@ -115,6 +115,23 @@ test("bytes round-trip through the tunnel both ways", async () => {
   sock.destroy(); h.teardown();
 });
 
+// ---- withdrawal: closeDeployment ends one deployment's open tunnels, not another's --------------------------
+test("closeDeployment(id) ends that deployment's established tunnels now; another deployment's keep flowing", async () => {
+  const h = await harness();
+  try {
+    const a = await socks({ port: h.socksPort, user: "depA", pass: egressToken(SECRET, "depA"), atyp: 0x03, host: "echo.test", dport: 7 });
+    const b = await socks({ port: h.socksPort, user: "depB", pass: egressToken(SECRET, "depB"), atyp: 0x03, host: "echo.test", dport: 7 });
+    assert.equal(a.reply[1], 0x00); assert.equal(b.reply[1], 0x00);
+    const closed = once(a.sock, "close");
+    assert.equal(h.egress.closeDeployment("depA"), 1);
+    await closed;
+    const read = reader(b.sock); b.sock.write(Buffer.from("still-here"));
+    assert.equal((await read(10)).toString(), "still-here");
+    assert.equal(h.egress.closeDeployment("depC"), 0);
+    b.sock.destroy();
+  } finally { h.teardown(); }
+});
+
 // ---- guardrail 2: SSRF at the front (literal internal IP) -------------------
 test("CONNECT to a loopback literal is denied before leaving the enclave", async () => {
   const h = await harness();
@@ -178,7 +195,7 @@ async function phase2Harness(dialTarget) {
     lookup: async host => [{address:host === "private.test" ? "127.0.0.1" : "93.184.216.34"}],
     isKnown:id=>id.startsWith("dep")});
   await egress.start();
-  return {socksPort:egress.socksPort(), opens, teardown() {for(const s of handles)s.destroy();provider.close();egress.stop();}};
+  return {socksPort:egress.socksPort(), egress, opens, teardown() {for(const s of handles)s.destroy();provider.close();egress.stop();}};
 }
 
 // Spawn `wasmtime run` on a command guest with the given TARGET; capture stdout.

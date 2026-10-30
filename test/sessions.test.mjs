@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { privateKeyToAccount } from "viem/accounts";
-import { createWalletClient, http as viemHttp, parseUnits } from "viem";
+import { createWalletClient, http as viemHttp, parseUnits, decodeFunctionData, encodeFunctionData, parseEventLogs } from "viem";
 import { foundry } from "viem/chains";
 import { haveFoundry, startChain, deployPlatform, KEYS } from "./helpers/sessions-chain.mjs";
 import { createSessionsService, createCustodyGate, sessionRowRefusal, codeHasDelegation, delegateSlot } from "../relay/sessions.mjs";
@@ -56,6 +56,78 @@ after(() => {
   if (tmp) fs.rmSync(tmp, { recursive: true, force: true });
 });
 const alerts = [];
+
+test("relay-free session: fresh owner grant, independent gas payer, replay and scope enforcement, refund", { skip }, async () => {
+  let httpCalls = 0;
+  const deniedFetch = async () => { httpCalls++; throw new Error("Enclave refuses service"); };
+  const signer = await sdk.signerFromKeyPair(await sdk.generateKeyPair(false));
+  const grant = sdk.buildGrant({ sessionKey: signer.keyHash, label: "independent submission", preset: "staging-publish",
+    policy: { apps: ["relay-free"], budget: parseUnits("3", 6) } });
+  const before = await usdcBal(owner.address);
+  const prepared = await sdk.prepareSessionOpen({ publicClient: chain.pc, factory: P.factory,
+    owner: ownerSigner, chainId: 31337, grant, usdc: await sdk.usdcDomain(chain.pc, P.usdc, 31337) });
+  const broadcast = async ({ to, data, value }) => {
+    const hash = await chain.wc(KEYS.stranger).sendTransaction({ to, data, value });
+    const receipt = await chain.pc.waitForTransactionReceipt({ hash });
+    assert.equal(receipt.status, "success");
+    return receipt;
+  };
+  await broadcast(prepared);
+  const session = new sdk.Session({ chainId: 31337, vault: prepared.vault, sid: prepared.sid, relay: "https://refused.invalid" },
+    signer, { publicClient: chain.pc, fetch: deniedFetch });
+  assert.equal((await session.status()).balance6, parseUnits("3", 6));
+  await assert.rejects(session.prepareCall("app.publish", {}, { lane: 1n << 192n }), /uint192/);
+  await assert.rejects(session.prepareTermination({ deadlineSeconds: 0 }), /deadlineSeconds/);
+  const wrongChain = new sdk.Session({ ...session.handle, chainId: 8453 }, signer, { publicClient: chain.pc, fetch: deniedFetch });
+  await assert.rejects(wrongChain.prepareTermination(), /chain does not match/);
+  const pub = await session.prepareCall("app.publish", { slug: "relay-free", name: "Independent", description: "",
+    version: "1.0.0", cid: "bafyrelayfree", res: [0, 0, 256, 10], ports: "", config: "{}", configCid: "" }, { lane: 7n });
+  // A gas payer cannot turn the zero fee into a charge or change the signed action.
+  const decoded = decodeFunctionData({ abi: sdk.sessionVaultAbi, data: pub.data });
+  const changed = [...decoded.args]; changed[4] = 1n;
+  await assert.rejects(chain.pc.call({ to: pub.to, data: encodeFunctionData({ abi: sdk.sessionVaultAbi,
+    functionName: "execute", args: changed }) }));
+  const pubReceipt = await broadcast(pub);
+  assert.equal(parseEventLogs({ abi: sdk.sessionVaultAbi, logs: pubReceipt.logs, eventName: "SessionOp" })[0].args.fee6, 0n);
+  await assert.rejects(chain.pc.call({ to: pub.to, data: pub.data }), "replay must fail on chain");
+  const appId = await chain.pc.readContract({ address: P.catalog, abi: P.abi.catalog.abi,
+    functionName: "appIdOf", args: [prepared.vault, "relay-free"] });
+  const args = { appRef: `catalog://${appId}/0`, gpuMilli: 0, cpuMilli: 1000, appPort: 8080, ports: "",
+    isPublic: false, configCid: "", maxRate6: 1000n, env: "staging", fund6: parseUnits("1", 6) };
+  const outOfScope = await session.prepareCall("deploy.create", { ...args, appRef: P.storeRef });
+  await assert.rejects(chain.pc.call({ to: outOfScope.to, data: outOfScope.data }), "app policy must survive relay refusal");
+  await assert.rejects(session.prepareCall("deploy.create", { ...args, fund6: parseUnits("4", 6) }), e => e.code === "budget");
+  const created = await broadcast(await session.prepareCall("deploy.create", args));
+  const result = parseEventLogs({ abi: sdk.sessionVaultAbi, logs: created.logs, eventName: "SessionOp" })[0].args.result;
+  const row = await chain.pc.readContract({ address: P.ledger, abi: P.abi.ledger.abi,
+    functionName: "get", args: [`0x${result.slice(2, 66)}`] });
+  assert.equal(row.owner.toLowerCase(), prepared.vault.toLowerCase());
+  assert.equal(row.balance6, parseUnits("1", 6));
+  await broadcast(await session.prepareTermination());
+  assert.equal((await session.status()).live, false);
+  assert.equal(await usdcBal(owner.address), before - parseUnits("1", 6));
+  assert.equal(httpCalls, 0, "opening, executing and refunding use no relay requests");
+});
+
+test("relay-free zero-budget grant: owner revocation invalidates already signed calldata", { skip }, async () => {
+  const signer = await sdk.signerFromKeyPair(await sdk.generateKeyPair(false));
+  const grant = sdk.buildGrant({ sessionKey: signer.keyHash, label: "revocable direct intent", preset: "staging-publish",
+    policy: { apps: ["revocable-direct"], budget: 0n } });
+  const prepared = await sdk.prepareSessionOpen({ publicClient: chain.pc, factory: P.factory,
+    owner: ownerSigner, chainId: 31337, grant });
+  const sent = await chain.wc(KEYS.stranger).sendTransaction({ to: prepared.to, data: prepared.data, value: prepared.value });
+  assert.equal((await chain.pc.waitForTransactionReceipt({ hash: sent })).status, "success");
+  const session = new sdk.Session({ chainId: 31337, vault: prepared.vault, sid: prepared.sid, relay: "https://refused.invalid" },
+    signer, { publicClient: chain.pc, fetch: async () => { throw new Error("relay unavailable"); } });
+  const pending = await session.prepareCall("app.publish", { slug: "revocable-direct", name: "Revocable", description: "",
+    version: "1.0.0", cid: "bafyrevocable", res: [0, 0, 256, 10], ports: "", config: "{}", configCid: "" });
+  await chain.pc.call({ to: pending.to, data: pending.data });
+  const revoked = await chain.wc(KEYS.owner).writeContract({ address: prepared.vault, abi: sdk.sessionVaultAbi,
+    functionName: "revokeAll", args: [true, `0x${"00".repeat(32)}`, 0n, "0x"] });
+  assert.equal((await chain.pc.waitForTransactionReceipt({ hash: revoked })).status, "success");
+  await assert.rejects(chain.pc.call({ to: pending.to, data: pending.data }));
+  assert.equal((await session.status()).live, false);
+});
 
 const usdcBal = async (a) => chain.pc.readContract({ address: P.usdc, abi: P.abi.usdc.abi, functionName: "balanceOf", args: [a] });
 
@@ -543,11 +615,11 @@ test("records the WALLET holds: a session acts on them only once the owner lets 
   assert.equal((await ledgerGet(id)).active, true);
   await session.terminate();
 
-  // support is read off the code: main's undeployed rev 16 ledger has no setDelegate, so a client never
-  // reads slot 23 there; neither does a contract without it, nor an address with no code
+  // Support is read off the code: the maintained rev 16d ledger now includes setDelegate.
+  // Contracts without that selector, and addresses without code, remain unsupported.
   const rev16 = JSON.parse(fs.readFileSync(new URL("../contracts/foundry/out/EnclaveDeployments.sol/EnclaveDeployments.json", import.meta.url)));
-  assert.equal(codeHasDelegation(rev16.deployedBytecode.object), false);
-  assert.equal(sdk.codeHasDelegation(rev16.deployedBytecode.object), false);
+  assert.equal(codeHasDelegation(rev16.deployedBytecode.object), true);
+  assert.equal(sdk.codeHasDelegation(rev16.deployedBytecode.object), true);
   assert.equal(codeHasDelegation(await chain.pc.getCode({ address: P.ledger })), true);
   assert.deepEqual(await sdk.delegationStatus(chain.pc, P.catalog, owner.address, vault), { supported: false, granted: false });
   assert.deepEqual(await sdk.delegationStatus(chain.pc, "0x00000000000000000000000000000000000d0d0d", owner.address, vault),

@@ -1,0 +1,18 @@
+{
+  "format": "enclave-browser-profile",
+  "version": 1,
+  "name": "Synthetic built-in test network (not production)",
+  "chainId": 8453,
+  "rpcs": ["https://rpc-a.builtin.invalid", "https://rpc-b.builtin.invalid"],
+  "quorum": 2,
+  "confirmations": 0,
+  "maxBlockAgeSeconds": 600,
+  "contractPins": { "version": 1, "chainId": 8453, "contracts": {
+    "registry": "0x1111111111111111111111111111111111111111", "deployments": "0x2222222222222222222222222222222222222222",
+    "appCatalog": "0x3333333333333333333333333333333333333333", "proofOfTime": "0x4444444444444444444444444444444444444444",
+    "enclavePay": "0x0000000000000000000000000000000000000000", "verificationFees": "0x0000000000000000000000000000000000000000",
+    "sessionVaultFactory": "0x5555555555555555555555555555555555555555", "secretVaultV2": "0x0000000000000000000000000000000000000000" } },
+  "addressBook": "0xabababababababababababababababababababab",
+  "hostPolicy": { "hostOwnership": "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd", "mirrors": ["https://policy-a.builtin.invalid"] },
+  "usdc": "0x6666666666666666666666666666666666666666"
+}

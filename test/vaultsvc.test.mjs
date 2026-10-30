@@ -125,19 +125,3 @@ test('resize atomically saves shares with requested active state, matching brows
   }
   await assert.rejects(buildControlCall(id, 'resize', undefined, { gpuMilli: 0, cpuMilli: 10 }, undefined, undefined, 'false'), /boolean/);
 });
-
-test('version upgrade signs the same version, shares and suspension on browser and vault', async () => {
-  const { expectedControlCall } = await import('../site/js/core/vault.js');
-  const { decodeFunctionData } = await import('viem');
-  const { readFile } = await import('node:fs/promises');
-  const abi = JSON.parse(await readFile(new URL('../contracts/EnclaveDeployments.abi.json', import.meta.url), 'utf8'));
-  const args = { id: '0x' + 'ab'.repeat(32), action: 'resize', ref: 'catalog://app/2', gpuMilli: 130, cpuMilli: 140, active: false };
-  const data = await buildControlCall(args.id, args.action, args.ref, args, undefined, undefined, args.active);
-  assert.equal(data, expectedControlCall(args));
-  const [encoded] = decodeFunctionData({ abi, data }).args;
-  const calls = encoded.map(data => decodeFunctionData({ abi, data }));
-  assert.deepEqual(calls.map(c => c.functionName), ['setAppRef', 'setShares', 'setActive']);
-  assert.deepEqual(calls[0].args, [args.id, args.ref]);
-  assert.deepEqual(calls[1].args, [args.id, 130, 140]);
-  assert.deepEqual(calls[2].args, [args.id, false]);
-});

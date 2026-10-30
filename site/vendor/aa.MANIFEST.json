@@ -1,0 +1,29 @@
+{
+  "file": "site/vendor/aa.js",
+  "sha256": "66ba5040d61a52a9f30187b0166b31ea95b0beef94814d6e5876a4a3c4f625da",
+  "bytes": 106415,
+  "entry": "scripts/vendor/aa-entry.mjs",
+  "entrySha256": "2c0fa785470f643c5076fa51997231638eb99575c95a5294aa44815aedd0ef3f",
+  "esbuild": "0.28.1",
+  "deps": {
+    "viem": "2.53.1",
+    "ox": "0.14.29"
+  },
+  "exports": [
+    "encodeFunctionData",
+    "decodeFunctionResult",
+    "encodeAbiParameters",
+    "decodeAbiParameters",
+    "hashTypedData",
+    "encodePacked",
+    "keccak256",
+    "getAddress",
+    "concat",
+    "pad",
+    "toHex",
+    "hexToBytes",
+    "bytesToHex",
+    "isAddress",
+    "WebAuthnP256"
+  ]
+}

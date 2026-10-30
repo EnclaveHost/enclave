@@ -1,0 +1,14 @@
+{
+ "commit": "0235e7d9659f1ccbf9f258bd03593d26f32f3f3a",
+ "tree": "d36f220ab4258b91c6f909d720ef18ce21f73cbc",
+ "method": "git archive of the commit (read-only clean clone attested-image-stage/src3-a)",
+ "sourceFiles": 8464,
+ "sourceListSha256": "9bde36bce20a7bd7aeb9b32e1e8553aa6c6d34a1e43523b81d8a727122c88f27",
+ "nodeModules": {
+  "from": "work/enclave/node_modules (real copy)",
+  "lockPackagesChecked": 139,
+  "mismatches": [],
+  "mismatchCount": 0,
+  "verifierClosureMismatches": []
+ }
+}

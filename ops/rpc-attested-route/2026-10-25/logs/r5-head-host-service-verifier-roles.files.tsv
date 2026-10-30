@@ -1,0 +1,2 @@
+file	rc	tests	pass	fail	cancelled	skipped	notrun_native	todo	sec	note
+test/host-service-verifier-roles.test.mjs	0	4	1	0	0	3	0	0	0.3	

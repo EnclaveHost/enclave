@@ -15,20 +15,6 @@ cap, so the first use is the 0.8B (start-up ~2-3 min); the 27B waits for the col
   (the harvested hidden row the next draft starts from; import clears the tail and harvested-row bookkeeping);
 - the first token (`cur` = argmax of the prefill logits) and `n_past`; loop-level bookkeeping (draft-ahead pre-draft,
   MTP counters, steady-state clocks, output text) is reset per trial.
-- NOT restored, ever: pad reservations, spent pad indices, the session seed, receipts, verification counters, the link.
-  Each trial consumes fresh pads exactly like a fresh decode; the dealer must keep replenishing; verify_fail and pad
-  counters are cumulative and are REPORTED before/after each trial, never reset.
-Restoration completeness (target/head hidden state), from the source: the fork's hybrid memory serialises the attention
-KV cells and the recurrent states of seq 0 (state_write: mem_attn + mem_recr; the recurrent writer resolves "the logical
-current state may live in a rollback snapshot plane"), the head's only extra state is its pending row, logits are
-recomputed from the restored state, and the n_rs_seq rollback planes are rebuilt by the next decode exactly as after a
-fresh prefill. Draft-ahead's pre-draft is deliberately dropped (a trial starts as the original run did). Identical
-greedy completion AND identical MTP counts across trials are NECESSARY evidence, not a complete-state proof: keep the
-host fixtures and the device runs, and read 0.8B and 27B results separately (different layer mix, k, placement).
-Memory: target state = KV(n_past tokens) + recurrent state per SSM layer + conv state; for the 5-token prompt it is
-dominated by the recurrent states (48 layers x n_embd_s floats); the exact size is printed in the session record and
-bounded to 1 GiB total (target + head + pending), refused loudly above it. With a 3k-token prefix-KV it grows by
-~70 KB/token (memory note), still under the bound.
 
 ## Record format v1 (contract, aligned with Astra's bench_records.py; one JSON object per line after the literal prefix `BENCH v1 `)
   session : {"record":"session","trials":N,"model_sha256":"64hex","calib_digest":"64hex","snapshot_bytes":{"target":T,"head":H,

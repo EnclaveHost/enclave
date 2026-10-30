@@ -1,0 +1,151 @@
+[queue] START available=22178MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[r5] candidate 94a639558e687c3d0ab17d534f602b166751e328 diff 9d6b9734315107e6 untracked 10
+npm inputs locked by: package-lock.json sha256:9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20
+npm inputs locked by: package-lock.json sha256:9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20
+== guest-verify bundles (image commit e0dfe98aa)
+network/attested-guest-verify.bundle.mjs 86a3e099dd5163e3276187106c6aee9de80a33536851269c8e60342c65dfa2f4 (421 inputs)
+test/fixtures/attested-guest-image.bundle.mjs a9476d411c01c32f9bd9e9c7f37e85e17e71618c85d6bcf62b4c1a0a379b571d (415 inputs)
+network/attested-guest-verify.bundle.mjs: current (86a3e099dd5163e3276187106c6aee9de80a33536851269c8e60342c65dfa2f4)
+test/fixtures/attested-guest-image.bundle.mjs: current (a9476d411c01c32f9bd9e9c7f37e85e17e71618c85d6bcf62b4c1a0a379b571d)
+network/attested-guest-verify.bundle.mjs: current (86a3e099dd5163e3276187106c6aee9de80a33536851269c8e60342c65dfa2f4)
+test/fixtures/attested-guest-image.bundle.mjs: current (a9476d411c01c32f9bd9e9c7f37e85e17e71618c85d6bcf62b4c1a0a379b571d)
+[r5] guest-verify bundles REPRODUCIBLE from an independent export
+== tracked generated bundles: --check on the candidate and on HEAD
+[r5] build-host-admission.mjs candidate: STALE/FAILED (Node.js v22.23.3)
+[r5] build-host-admission.mjs head: current
+[r5] build-metal-lease-gas.mjs candidate: current
+[r5] build-metal-lease-gas.mjs head: current
+[r5] build-windows-lease-runtime.mjs candidate: STALE/FAILED (Node.js v22.23.3)
+[r5] build-windows-lease-runtime.mjs head: STALE/FAILED (Node.js v22.23.3)
+[r5] build-platform-api-guest-bundle.mjs candidate: STALE/FAILED (Node.js v22.23.3)
+[r5] build-platform-api-guest-bundle.mjs head: STALE/FAILED (Node.js v22.23.3)
+[r5] build-mcp-guest-bundle.mjs candidate: STALE/FAILED (Node.js v22.23.3)
+[r5] build-mcp-guest-bundle.mjs head: STALE/FAILED (Node.js v22.23.3)
+== regenerate the tracked admission bundles (stale on the candidate only: the reader/verified-chain change)
+old 1f2fe1710fa1a6bf2a713da15f1ef8479f0eaa7df981b1e2e312da9477bd41d9  windows/node/host-admission.bundle.mjs
+old 651a18efe64b83f8f732bea0e1b577a19b99ed55577e6481bbc0af2aaf413cd4  metal/guest/host-policy.bundle.mjs
+admission --check: current
+new d18f88b0466f27d490a2d1ecc79df545ee89b13d603f579eb13ae96019e97eb8  windows/node/host-admission.bundle.mjs
+new 651a18efe64b83f8f732bea0e1b577a19b99ed55577e6481bbc0af2aaf413cd4  metal/guest/host-policy.bundle.mjs
+[suite] r5-new: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source head 94a639558e687c3d0ab17d534f602b166751e328 dirty=6; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=7 pass=7 fail=0 cancelled=0 skip=0 notrun-native=0 20.1s test/attested-route-composition.test.mjs
+[suite] r5-new: files=1 tests=7 pass=7 fail=0 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=0 -> PASS
+[suite] r5-existing: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source head 94a639558e687c3d0ab17d534f602b166751e328 dirty=6; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=3 pass=3 fail=0 cancelled=0 skip=0 notrun-native=0 0.3s test/connectivity-chain.test.mjs
+[file] rc=0 tests=9 pass=9 fail=0 cancelled=0 skip=0 notrun-native=0 29.3s test/host-admission-retry.test.mjs
+[file] rc=0 tests=4 pass=1 fail=0 cancelled=0 skip=3 notrun-native=0 0.4s test/host-service-verifier-roles.test.mjs
+        ﹣ every public provider down: the hosts start on the verifier alone; the roles serve; host B cold-starts from the index read through it # needs the Foundry build (forge build)
+        ﹣ admin moderation through the verifier: ban and unban host B; then an AddressBook owner MIGRATION hands the policy to the new admin # needs the Foundry build (forge build)
+        ﹣ unknown, stale, missing and failed proofs REFUSE with the public providers up: no provider fallback in any reader # needs the Foundry build (forge build)
+[file] rc=1 tests=9 pass=3 fail=6 cancelled=0 skip=0 notrun-native=0 21.9s test/host-services-carriers.test.mjs
+        ✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (372.967778ms)
+        ✖ missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart (332.263761ms)
+        ✖ admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed (327.948026ms)
+        ✖ first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit (330.508456ms)
+        ✖ this host's policy-mirror store (read from disk, the role need not run) and an independent peer's mirror carry the document (329.835322ms)
+        ✖ a malformed policy block refuses an app-less agent before anything binds; with apps, it refuses host services only (276.562157ms)
+        ✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (372.967778ms)
+        ✖ missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart (332.263761ms)
+        ✖ admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed (327.948026ms)
+        ✖ first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit (330.508456ms)
+        ✖ this host's policy-mirror store (read from disk, the role need not run) and an independent peer's mirror carry the document (329.835322ms)
+        ✖ a malformed policy block refuses an app-less agent before anything binds; with apps, it refuses host services only (276.562157ms)
+[file] rc=0 tests=5 pass=0 fail=0 cancelled=0 skip=5 notrun-native=0 0.2s test/hosted-policy-cold-start.test.mjs
+        ﹣ fresh hosts with empty caches start under an ACTIVATED anchor with every fleet policy mirror refused; a fleet-only host never does # needs the Foundry build (forge build)
+        ﹣ the admin bans host B (new anchored document, published only to an Enclave host carrier): B stops every role; the next authenticated policy unbans it # needs the Foundry build (forge build)
+        ﹣ stale, substituted and wrongly signed documents are refused by the carrier and, independently, by the gate; an anchored rollback is refused # needs the Foundry build (forge build)
+        ﹣ runner: a failed spawn is an exit with backoff, never an unhandled error event; heapMiB is a V8 heap cap and the old name is refused # needs the Foundry build (forge build)
+        ﹣ the policy-mirror package: reviewed bytes, no secret, and its only custody/ input is the RPC quorum reader # needs the Foundry build (forge build)
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 75.0s test/lease-designated-relays.test.mjs
+[file] rc=0 tests=4 pass=4 fail=0 cancelled=0 skip=0 notrun-native=0 72.5s test/lease-pinned-relay.test.mjs
+[file] rc=0 tests=2 pass=2 fail=0 cancelled=0 skip=0 notrun-native=0 0.5s test/lease-reader-terminal-snapshot.test.mjs
+[file] rc=0 tests=11 pass=11 fail=0 cancelled=0 skip=0 notrun-native=0 2.0s test/lease-reader-verifier-deadline.test.mjs
+[file] rc=1 tests=9 pass=8 fail=1 cancelled=0 skip=0 notrun-native=0 0.6s test/lease-reader-verifier.test.mjs
+        ✖ settlement pinned reads: anchors and metered bytes at the snapshot block, verified or refused (2.787959ms)
+        ✖ settlement pinned reads: anchors and metered bytes at the snapshot block, verified or refused (2.787959ms)
+[file] rc=0 tests=31 pass=31 fail=0 cancelled=0 skip=0 notrun-native=0 0.9s test/lease-reader.test.mjs
+[file] rc=0 tests=9 pass=6 fail=0 cancelled=0 skip=3 notrun-native=0 2.1s test/lease-relay-host-policy.test.mjs
+        ﹣ REAL gate: a relay host cold-starts from an imported signed policy with every fleet mirror refused; a fleet-only host never starts # needs the Foundry build (forge build)
+        ﹣ REAL gate: the admin's anchored ban stops the relay (sticky); the next anchored policy restarts it; stop() ends it for good # needs the Foundry build (forge build)
+        ﹣ REAL gate, ACTUAL `run` CLI process at a registered PATH endpoint: it stays up while the admin's ban refuses the relay, the admin's unban starts it, S # needs the Foundry build (forge build)
+[file] rc=0 tests=39 pass=39 fail=0 cancelled=0 skip=0 notrun-native=0 14.7s test/management-plane.test.mjs
+[file] rc=0 tests=14 pass=14 fail=0 cancelled=0 skip=0 notrun-native=0 8.1s test/native-policy.test.mjs
+[file] rc=0 tests=4 pass=4 fail=0 cancelled=0 skip=0 notrun-native=0 0.4s test/network-authority-pins.test.mjs
+[file] rc=0 tests=11 pass=11 fail=0 cancelled=0 skip=0 notrun-native=0 0.5s test/platform-host-policy.test.mjs
+[file] rc=0 tests=2 pass=2 fail=0 cancelled=0 skip=0 notrun-native=0 0.6s test/policy-mirror-sync-race.test.mjs
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 0.5s test/provider-bootstrap.test.mjs
+[file] rc=0 tests=5 pass=0 fail=0 cancelled=0 skip=5 notrun-native=0 0.3s test/public-rpc-https.test.mjs
+        ﹣ configuration: the RPC name is fronted only for the host's own public-rpc with an explicit TLS port # needs the Foundry build (forge build)
+        ﹣ admission authority: service-tls reads the platform policy through the runner's verifier; G3's original field list did not # needs the Foundry build (forge build)
+        ﹣ packaged: one order for exactly the RPC name; SAN and SNI exact; real methods over HTTPS; no redirect; nothing else reachable # needs the Foundry build (forge build)
+        ﹣ restart: the stored certificate is served without a new order # needs the Foundry build (forge build)
+        ﹣ administration: the admin's ban stops HTTPS; the unban restores it with the same certificate # needs the Foundry build (forge build)
+[file] rc=0 tests=4 pass=4 fail=0 cancelled=0 skip=0 notrun-native=0 0.3s test/rpc-identity-common.test.mjs
+[file] rc=0 tests=15 pass=15 fail=0 cancelled=0 skip=0 notrun-native=0 15.5s test/service-index.test.mjs
+[file] rc=0 tests=3 pass=3 fail=0 cancelled=0 skip=0 notrun-native=0 0.4s test/verified-chain-lifecycle.test.mjs
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 0.2s test/verified-chain-optin-boundary.test.mjs
+[file] rc=0 tests=9 pass=9 fail=0 cancelled=0 skip=0 notrun-native=0 0.5s test/verified-chain.test.mjs
+[file] rc=0 tests=10 pass=10 fail=0 cancelled=0 skip=0 notrun-native=0 1.7s test/windows-host-identity.test.mjs
+[suite] r5-existing: files=25 tests=227 pass=204 fail=7 cancelled=0 skipped=16 (allowed 0) notrun-native=0 failing-files=2 -> FAIL
+[suite] failing file: test/host-services-carriers.test.mjs
+[suite] failing file: test/lease-reader-verifier.test.mjs
+[suite] r5-head-host-service-verifier-roles: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-stage/tmp/base-head head 94a639558e687c3d0ab17d534f602b166751e328 dirty=0; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=4 pass=1 fail=0 cancelled=0 skip=3 notrun-native=0 0.3s test/host-service-verifier-roles.test.mjs
+        ﹣ every public provider down: the hosts start on the verifier alone; the roles serve; host B cold-starts from the index read through it # needs the Foundry build (forge build)
+        ﹣ admin moderation through the verifier: ban and unban host B; then an AddressBook owner MIGRATION hands the policy to the new admin # needs the Foundry build (forge build)
+        ﹣ unknown, stale, missing and failed proofs REFUSE with the public providers up: no provider fallback in any reader # needs the Foundry build (forge build)
+[suite] r5-head-host-service-verifier-roles: files=1 tests=4 pass=1 fail=0 cancelled=0 skipped=3 (allowed 0) notrun-native=0 failing-files=0 -> FAIL
+[r5] pre-existing (fails on HEAD too): test/host-service-verifier-roles.test.mjs
+[suite] r5-head-host-services-carriers: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-stage/tmp/base-head head 94a639558e687c3d0ab17d534f602b166751e328 dirty=0; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=1 tests=9 pass=3 fail=6 cancelled=0 skip=0 notrun-native=0 21.9s test/host-services-carriers.test.mjs
+        ✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (371.186955ms)
+        ✖ missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart (333.195812ms)
+        ✖ admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed (331.448195ms)
+        ✖ first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit (330.309864ms)
+        ✖ this host's policy-mirror store (read from disk, the role need not run) and an independent peer's mirror carry the document (326.775952ms)
+        ✖ a malformed policy block refuses an app-less agent before anything binds; with apps, it refuses host services only (270.04087ms)
+        ✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (371.186955ms)
+        ✖ missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart (333.195812ms)
+        ✖ admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed (331.448195ms)
+        ✖ first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit (330.309864ms)
+        ✖ this host's policy-mirror store (read from disk, the role need not run) and an independent peer's mirror carry the document (326.775952ms)
+        ✖ a malformed policy block refuses an app-less agent before anything binds; with apps, it refuses host services only (270.04087ms)
+[suite] r5-head-host-services-carriers: files=1 tests=9 pass=3 fail=6 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/host-services-carriers.test.mjs
+[r5] pre-existing (fails on HEAD too): test/host-services-carriers.test.mjs
+[suite] r5-head-hosted-policy-cold-start: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-stage/tmp/base-head head 94a639558e687c3d0ab17d534f602b166751e328 dirty=0; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=5 pass=0 fail=0 cancelled=0 skip=5 notrun-native=0 0.2s test/hosted-policy-cold-start.test.mjs
+        ﹣ fresh hosts with empty caches start under an ACTIVATED anchor with every fleet policy mirror refused; a fleet-only host never does # needs the Foundry build (forge build)
+        ﹣ the admin bans host B (new anchored document, published only to an Enclave host carrier): B stops every role; the next authenticated policy unbans it # needs the Foundry build (forge build)
+        ﹣ stale, substituted and wrongly signed documents are refused by the carrier and, independently, by the gate; an anchored rollback is refused # needs the Foundry build (forge build)
+        ﹣ runner: a failed spawn is an exit with backoff, never an unhandled error event; heapMiB is a V8 heap cap and the old name is refused # needs the Foundry build (forge build)
+        ﹣ the policy-mirror package: reviewed bytes, no secret, and its only custody/ input is the RPC quorum reader # needs the Foundry build (forge build)
+[suite] r5-head-hosted-policy-cold-start: files=1 tests=5 pass=0 fail=0 cancelled=0 skipped=5 (allowed 0) notrun-native=0 failing-files=0 -> FAIL
+[r5] pre-existing (fails on HEAD too): test/hosted-policy-cold-start.test.mjs
+[suite] r5-head-lease-reader-verifier: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-stage/tmp/base-head head 94a639558e687c3d0ab17d534f602b166751e328 dirty=0; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=1 tests=9 pass=8 fail=1 cancelled=0 skip=0 notrun-native=0 0.7s test/lease-reader-verifier.test.mjs
+        ✖ settlement pinned reads: anchors and metered bytes at the snapshot block, verified or refused (3.210446ms)
+        ✖ settlement pinned reads: anchors and metered bytes at the snapshot block, verified or refused (3.210446ms)
+[suite] r5-head-lease-reader-verifier: files=1 tests=9 pass=8 fail=1 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/lease-reader-verifier.test.mjs
+[r5] pre-existing (fails on HEAD too): test/lease-reader-verifier.test.mjs
+[suite] r5-head-lease-relay-host-policy: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-stage/tmp/base-head head 94a639558e687c3d0ab17d534f602b166751e328 dirty=0; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=9 pass=6 fail=0 cancelled=0 skip=3 notrun-native=0 2.1s test/lease-relay-host-policy.test.mjs
+        ﹣ REAL gate: a relay host cold-starts from an imported signed policy with every fleet mirror refused; a fleet-only host never starts # needs the Foundry build (forge build)
+        ﹣ REAL gate: the admin's anchored ban stops the relay (sticky); the next anchored policy restarts it; stop() ends it for good # needs the Foundry build (forge build)
+        ﹣ REAL gate, ACTUAL `run` CLI process at a registered PATH endpoint: it stays up while the admin's ban refuses the relay, the admin's unban starts it, S # needs the Foundry build (forge build)
+[suite] r5-head-lease-relay-host-policy: files=1 tests=9 pass=6 fail=0 cancelled=0 skipped=3 (allowed 0) notrun-native=0 failing-files=0 -> FAIL
+[r5] pre-existing (fails on HEAD too): test/lease-relay-host-policy.test.mjs
+[suite] r5-head-public-rpc-https: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-stage/tmp/base-head head 94a639558e687c3d0ab17d534f602b166751e328 dirty=0; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=5 pass=0 fail=0 cancelled=0 skip=5 notrun-native=0 0.2s test/public-rpc-https.test.mjs
+        ﹣ configuration: the RPC name is fronted only for the host's own public-rpc with an explicit TLS port # needs the Foundry build (forge build)
+        ﹣ admission authority: service-tls reads the platform policy through the runner's verifier; G3's original field list did not # needs the Foundry build (forge build)
+        ﹣ packaged: one order for exactly the RPC name; SAN and SNI exact; real methods over HTTPS; no redirect; nothing else reachable # needs the Foundry build (forge build)
+        ﹣ restart: the stored certificate is served without a new order # needs the Foundry build (forge build)
+        ﹣ administration: the admin's ban stops HTTPS; the unban restores it with the same certificate # needs the Foundry build (forge build)
+[suite] r5-head-public-rpc-https: files=1 tests=5 pass=0 fail=0 cancelled=0 skipped=5 (allowed 0) notrun-native=0 failing-files=0 -> FAIL
+[r5] pre-existing (fails on HEAD too): test/public-rpc-https.test.mjs
+[r5] rc=1
+[memory-guard] exit=1 peakTreeRssMiB=630 minHostAvailableMiB=21249
+[memory-guard] at peak: node:328 node:88 node:57 anvil:43 anvil:31 anvil:29 anvil:29 python3:16
+[queue] EXIT 1

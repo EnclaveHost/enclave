@@ -27,8 +27,8 @@ const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 const SOURCE = path.join(REPO, "contracts", "EnclaveSecretVault.sol");
 export const NETWORKS = {
-  base: { chain: base, rpc: "https://mainnet.base.org", book: "0xab214342d5A490150A4A977063A2f88E21F80907", explorer: "https://basescan.org" },
-  "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org", book: null, explorer: "https://sepolia.basescan.org" },
+  base: { chain: base, rpc: "https://api.enclave.host/rpc/base", book: "0xab214342d5A490150A4A977063A2f88E21F80907", explorer: "https://basescan.org" },
+  "base-sepolia": { chain: baseSepolia, rpc: "https://api.enclave.host/rpc/base-sepolia", book: null, explorer: "https://sepolia.basescan.org" },
   local: { chain: foundry, rpc: "http://127.0.0.1:8545", book: null },
 };
 const die = (m) => { const e = new Error(m); e.fatal = true; throw e; };

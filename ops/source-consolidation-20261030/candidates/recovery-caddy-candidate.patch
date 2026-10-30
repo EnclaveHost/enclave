@@ -1,0 +1,31 @@
+From 489a369993c16e5bae2513b9c62e6a15564832f3 Mon Sep 17 00:00:00 2001
+From: Steven Batchelor <srbatchelor@ovgl.org>
+Date: Sat, 24 Oct 2026 20:27:25 -0700
+Subject: [PATCH] Preserve unfinished Codex source before disk consolidation
+
+Source: /home/steven/Documents/Codex/2026-10-14/i-h/work/enclave-resilience
+Local recovery checkpoint only; not validated for main. Original checkout and index remain unchanged.
+---
+ recovery/Caddyfile | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+ create mode 100644 recovery/Caddyfile
+
+diff --git a/recovery/Caddyfile b/recovery/Caddyfile
+new file mode 100644
+index 000000000..82ccb12b1
+--- /dev/null
++++ b/recovery/Caddyfile
+@@ -0,0 +1,10 @@
++# Imported by the production Caddyfile. Only IP ownership is needed to renew.
++https://62.238.4.214 {
++    tls {
++        issuer acme {
++            profile shortlived
++        }
++    }
++    header X-Content-Type-Options nosniff
++    reverse_proxy 127.0.0.1:8187
++}
+-- 
+2.56.0
+

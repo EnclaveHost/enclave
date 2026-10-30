@@ -89,6 +89,7 @@ const CID_RE = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,120}|z[1-9A-HJ-NP-Za-k
  */
 export function derive({ record, component }) {
   const r = record || {};
+  if (Object.hasOwn(r, "desktop")) throw new Error("desktop requires the experimental V8 tooling; no desktop runtime is admitted here");
   if (!DERIVATIONS.includes(r.derivation)) throw new Error(`unknown derivation ${JSON.stringify(r.derivation ?? null)}`);
   const v2 = r.derivation === DERIVATION_V2;
   const v3 = r.derivation === DERIVATION_V3;
@@ -123,8 +124,8 @@ export function derive({ record, component }) {
   let inference = null;
   if (v4) {
     const i = r.inference;
-    if (!i || !["qwen2.5-0.5b-q8-gguf", "qwen3.8-27b-mtp-q4-vl-gguf"].includes(i.model)
-      || !Number.isInteger(i.gpuMilli) || i.gpuMilli < (i.model === "qwen2.5-0.5b-q8-gguf" ? 65 : 500) || i.gpuMilli > 1000)
+    if (!i || !["qwen2.5-0.5b-q8-gguf", "qwen3.8-27b-mtp-q4-vl-gguf", "z-image-turbo-q4km-sd"].includes(i.model)
+      || !Number.isInteger(i.gpuMilli) || i.gpuMilli < (i.model === "qwen2.5-0.5b-q8-gguf" ? 65 : i.model === "z-image-turbo-q4km-sd" ? 100 : 500) || i.gpuMilli > 1000)
       throw new Error("invalid measured inference profile");
     inference = { model: i.model, gpuMilli: i.gpuMilli };
   } else if (r.inference != null) throw new Error("inference requires V4");

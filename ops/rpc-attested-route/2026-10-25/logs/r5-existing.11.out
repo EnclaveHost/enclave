@@ -1,0 +1,18 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/lease-relay-host-policy.test.mjs
+✔ a start error with no exit event is finalized once and restarted after its backoff (the old supervisor kept the dead child forever) (45.454661ms)
+✔ 'error' and 'exit' for the same child end it exactly once; 'error' on a running child only logs; a throwing spawn is handled (363.390296ms)
+✔ stop() while a gate check is pending starts nothing afterwards and clears the pending restart (542.656632ms)
+✔ the restart backoff doubles up to its cap, and gate checks every 5 ms never bypass it (903.532898ms)
+✔ relay.heapMiB is the V8 heap cap (--max-old-space-size); relay.memoryMiB is the same cap under its earlier name (9.488198ms)
+✔ host.endpoint is the EXACT registered endpoint (the runner's rule): a path such as /t/metal0 is accepted; http, credentials, query, fragment and whitespace are refused (0.925803ms)
+﹣ REAL gate: a relay host cold-starts from an imported signed policy with every fleet mirror refused; a fleet-only host never starts (0.127919ms) # needs the Foundry build (forge build)
+﹣ REAL gate: the admin's anchored ban stops the relay (sticky); the next anchored policy restarts it; stop() ends it for good (0.205088ms) # needs the Foundry build (forge build)
+﹣ REAL gate, ACTUAL `run` CLI process at a registered PATH endpoint: it stays up while the admin's ban refuses the relay, the admin's unban starts it, SIGTERM exits 0 (0.271478ms) # needs the Foundry build (forge build)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 3
+ℹ todo 0
+ℹ duration_ms 2059.64202

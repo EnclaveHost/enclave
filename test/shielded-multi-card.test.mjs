@@ -82,7 +82,11 @@ test('launcher accepts explicit separate UUIDs and rejects duplicate GPU/ports',
 test('guest probes publish independent card verdicts and withdraw only the failed worker', async () => {
   const { EventEmitter } = await import('node:events');
   const guest = readFileSync(path.join(root, 'metal/guest/gsup.mjs'), 'utf8');
-  const block = guest.slice(guest.indexOf('const configuredShieldedWorkers ='), guest.indexOf('// --- keeping the advertised card HONEST'));
+  // the worker list is declared before the supervisor block (its env carries SHIELDED_GPU_EXPECTED, 5db2be3f); the probe loop
+  // itself follows it. Run exactly those two pieces, as one script, so the supervisor launch in between stays out of this case.
+  const decl = guest.slice(guest.indexOf('const configuredShieldedWorkers ='), guest.indexOf('\n', guest.indexOf('const SHIELDED_GPU_EXPECTED =')) + 1);
+  assert.match(decl, /^const configuredShieldedWorkers =[^\n]*\nconst shieldedWorkers =[^\n]*\nconst SHIELDED_GPU_EXPECTED =[^\n]*\n$/);
+  const block = decl + guest.slice(guest.indexOf('const shieldedVerdicts = new Map();'), guest.indexOf('// --- keeping the advertised card HONEST'));
   const probes = [], refresh = new Map(), files = new Map();
   vm.runInNewContext(block, {
     fw: { shieldedWorkers: [{ port: 9500 }, { port: 9501 }, { port: 9502 }] },

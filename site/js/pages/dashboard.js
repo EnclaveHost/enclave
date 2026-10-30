@@ -12,9 +12,10 @@ import "../../components/section-head/section-head.js";
 import "../../components/deployments/deployments.js";
 import "../../components/fleet-list/fleet-list.js";
 import { $, lsGet, on } from "../core/util.js";
-import { DEPLOYMENTS_ADDRESS } from "../core/config.js";
+import { DEPLOYMENTS_ADDRESS, INDEPENDENT } from "../core/config.js";
 import { catExplorer } from "../core/chain.js";
-import { Enclave } from "../core/api.js";
+import { Enclave, INDEPENDENT_MODE } from "../core/api.js";
+import { mountIndependentPanel } from "../core/independent-ui.js";
 import { refreshFleetInto } from "../core/fleet-read.js";
 import { navigate } from "../boot.js";
 
@@ -26,6 +27,8 @@ import { navigate } from "../boot.js";
 function gate(){
   if (!document.querySelector('section[data-view="dashboard"]')) return;   // another page's <main> is mounted
   if (Enclave.address || Enclave.accountAuthed()) return;
+  // independent mode needs no wallet: a passkey account is created, selected and used from this page, and may pay its own gas
+  if (INDEPENDENT_MODE) return;
   let stored = null, acct = null;
   try { stored = JSON.parse(lsGet("enclave_session") || "null"); } catch(e){}
   try { acct = JSON.parse(lsGet("enclave_account") || "null"); } catch(e){}
@@ -41,12 +44,38 @@ on("enclave:account", gate);   // passkey/card session edges gate the same way
    polled only while this page's <main> is mounted */
 let _fleetPoll = null;
 async function refreshFleet(){
+  if (INDEPENDENT_MODE) return;          // the relay's host table is not used in independent mode
   // a failed read shows the last good table marked stale, or an error state -
   // never the component's "no app hosts" empty state (js/core/fleet-read.js)
   await refreshFleetInto(document.querySelector(".dash-fleet c-fleet-list"), Enclave.base);
 }
 
+/* the network profile panel (independent mode settings), above the apps list */
+function mountProfile(){
+  const list = document.querySelector('section[data-view="dashboard"] c-deployments');
+  if (!list) return;
+  let el = document.querySelector(".ind-mount");
+  if (!el){ el = document.createElement("div"); el.className = "ind-mount"; list.before(el); }
+  mountIndependentPanel(el);
+  if (INDEPENDENT_MODE){
+    let ss = document.querySelector(".ind-sess-mount");
+    if (!ss){ ss = document.createElement("div"); ss.className = "ind-sess-mount"; el.after(ss); }
+    import("../core/independent-ui.js").then((m) => m.mountSessionControls(ss)).catch(() => {});
+    // the owner's passkey account (a Safe their passkeys and recovery keys own): create, deploy, sign in, recover
+    let acct = document.querySelector(".acct-mount");
+    if (!acct){ acct = document.createElement("div"); acct.className = "acct-mount"; ss.after(acct); }
+    import("../core/account-ui.js").then((m) => m.mountAccountPanel(acct)).catch(() => {});
+    // whom the dashboard acts for (the wallet, or an explicitly selected passkey account) and who pays the gas
+    let idb = document.querySelector(".id-bar-mount");
+    if (!idb){ idb = document.createElement("div"); idb.className = "id-bar-mount"; list.before(idb); }
+    import("../core/account-ui.js").then((m) => m.mountIdentityBar(idb)).catch(() => {});
+  }
+  const fleet = document.querySelector(".dash-fleet");
+  if (fleet && INDEPENDENT_MODE) fleet.hidden = true;
+}
+
 export function boot() {
+  mountProfile();
   refreshFleet();
   // the component's ↻ button: re-fetch on demand (named ref = idempotent re-boot)
   const fl = document.querySelector(".dash-fleet c-fleet-list");

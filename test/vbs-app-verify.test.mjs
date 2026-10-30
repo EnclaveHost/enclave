@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import net from 'node:net';
+import { X509Certificate } from 'node:crypto';
+import { mintLocalCa, serveTls } from './helpers/local-tls.mjs';
+import { probeGuest } from '../network/guest-probe.mjs';
 import { randomBytes, createHash, sign, constants, generateKeyPairSync } from 'node:crypto';
 import { verifyVbsAppEvidence } from '../relay/vbs-app-verify.mjs';
 import { hvNodeBinding } from '../relay/hvnode-verify.mjs';
@@ -8,8 +12,9 @@ import { haveOpenssl, tmpdir, makeVbsWorld, buildLog, buildQuote } from './fixtu
 const sha = b => createHash('sha256').update(b).digest(), b64 = b => b.toString('base64');
 const world = haveOpenssl ? makeVbsWorld(tmpdir('vbs-app-')) : null;
 const image = 'ab'.repeat(32), app = 'cd'.repeat(32);
+const identity = { signer: '91'.repeat(32), productId: 1818455653, moduleId: 1734437220 };
 const runtime = {name:'wasmtime',version:'48.0.1',execution:'jit',targetIsa:'x86_64',hostIsa:'x86_64',cpuFeatures:'host-detected',wx:'enforced',cache:'none'};
-function fixture({ boot = {}, signer = world.idks.privateKey, debug = 0 } = {}) {
+function fixture({ boot = {}, signer = world.idks.privateKey, debug = 0, handshakeSpki: suppliedKey, nonce: suppliedNonce } = {}) {
  const hostNonce=randomBytes(32),credential=randomBytes(32),statement=Buffer.from('{}');
  const bound=hvNodeBinding(world.transport.spki,hostNonce,statement);
  const L=buildLog({idksPub:world.idks.publicKey,...boot});
@@ -17,12 +22,13 @@ function fixture({ boot = {}, signer = world.idks.privateKey, debug = 0 } = {}) 
  const evidence={statement:b64(statement),signature:b64(sign(null,bound,world.transport.privateKey)),log:b64(L.log),
   quote:{attest:b64(Q.attest),sig:b64(Q.sig),aikPub:b64(world.aik.tpmtPublic)},credential:b64(credential),
   ek:{cert:b64(world.ek.cert),chain:[b64(world.ca.inter)]},pcr0:world.pcr0.toString('hex')};
- const handshakeSpki=generateKeyPairSync('ec',{namedCurve:'prime256v1'}).publicKey.export({type:'spki',format:'der'}),nonce=randomBytes(32),rid=runtimeId(runtime);
+ const handshakeSpki=suppliedKey||generateKeyPairSync('ec',{namedCurve:'prime256v1'}).publicKey.export({type:'spki',format:'der'}),nonce=suppliedNonce||randomBytes(32),rid=runtimeId(runtime);
  const input=Buffer.concat([bind2(handshakeSpki,nonce,rid),Buffer.from(app,'hex')]);
  const claims=Buffer.from(JSON.stringify({'user-data':input.toString('hex')})),env=Buffer.alloc(1236+claims.length);
  const w=(o,n)=>env.writeUInt32LE(n,o);
  w(0,0x414c4348);w(4,2);w(8,env.length);w(12,2);w(1216,20+claims.length);w(1220,1);w(1224,1);w(1228,1);w(1232,claims.length);claims.copy(env,1236);
  const r=env.subarray(32,592);[560,1,1,256,0,2].forEach((n,i)=>r.writeUInt32LE(n,i*4));sha(claims).copy(r,24);Buffer.from(image,'hex').copy(r,120);r.writeUInt32LE(5,216);r.writeUInt32LE(debug,220);r.writeUInt32LE(2,224);
+ Buffer.from(identity.signer,'hex').copy(r,152);r.writeUInt32LE(identity.productId,232);r.writeUInt32LE(identity.moduleId,236);
  sign('sha256',r.subarray(0,304),{key:signer,padding:constants.RSA_PKCS1_PSS_PADDING,saltLength:32}).copy(r,304);
  return {doc:{abi:ABI2,nonce:nonce.toString('hex'),transportKey:b64(handshakeSpki),appSha256:app,runtime,report:b64(Buffer.from(JSON.stringify({vbsVmReport:b64(env)})))},handshakeSpki,nonce,
   expectedAppSha256:app,expectedRuntimeId:rid.toString('hex'),hostSession:{evidence,nonce:hostNonce,transportKeySpki:world.transport.spki,expectedCredential:credential,mintedFor:{ekCert:world.ek.cert,aikName:world.aik.name}}};
@@ -79,6 +85,36 @@ test('startup command proof requires the exact image to admit every required fea
   assert.equal(verifyShieldAppPolicy(f,{...p,images}).ok,false);
  }
 });
+test('native desktop policy verifies the signed report against one independently pinned release',options,()=>{
+ const f={...fixture(),requiresDesktop:true,requiresConfigBundleV5:true,requiresSecretsV1:true,requiresConfigSocketServer:true};
+ const p=shieldPolicy(f);
+ p.desktop={schema:'enclave-desktop-release/1',controllerCid:'Qm'+'a'.repeat(44),controllerSha256:'11'.repeat(32),
+  runtimeId:f.expectedRuntimeId,igvmSha256:'22'.repeat(32),profileSha256:'33'.repeat(32),launchMeasurement:image,
+  minimumCpuMilli:250,policy:{cpuPercent:800,vcpus:8}};
+ Object.assign(p.images[0],{nativeDesktop:true,identity:{...identity},igvmSha256:p.desktop.igvmSha256,profileSha256:p.desktop.profileSha256,
+  controllerSha256:p.desktop.controllerSha256,configBundleV5:true,secretsV1:true,configSocketServer:true,protectedPorts:true});
+ const accepted=verifyShieldAppPolicy(f,p);
+ assert.equal(accepted.ok,true,accepted.reason);
+ for(const patch of [{signer:'92'.repeat(32)},{productId:1},{moduleId:1}]){
+  const changed=structuredClone(p);Object.assign(changed.images[0].identity,patch);
+  const refused=verifyShieldAppPolicy(f,changed);
+  assert.equal(refused.ok,false);assert.equal(refused.checks.signature,true);
+  assert.match(refused.reason,/identity is not pinned/);
+ }
+ for(const key of ['launchMeasurement','runtimeId','igvmSha256','profileSha256','controllerSha256']){
+  const changed=structuredClone(p);changed.desktop[key]='99'.repeat(32);
+  assert.equal(verifyShieldAppPolicy(f,changed).ok,false,key);
+ }
+ for(const key of ['identity','nativeDesktop','configBundleV5','secretsV1','configSocketServer','protectedPorts']){
+  const changed=structuredClone(p);changed.images[0][key]=false;
+  assert.equal(verifyShieldAppPolicy(f,changed).ok,false,key);
+ }
+ assert.equal(verifyShieldAppPolicy({...f,requiresDesktop:false},p).ok,false,'native image cannot satisfy a legacy expectation');
+ assert.equal(verifyShieldAppPolicy({...f,requiresDesktop:undefined},p).ok,false,'role cannot be omitted');
+ assert.equal(verifyShieldAppPolicy(f,{...p,desktop:undefined}).ok,false,'image flags alone cannot approve a native release');
+ assert.equal(verifyShieldAppPolicy(f,{...p,minimumGuestSvn:6}).ok,false,'native path preserves the SVN floor');
+ assert.equal(verifyShieldAppPolicy({...f,nonce:randomBytes(32)},p).ok,false,'still verifies the report binding');
+});
 test('open market: platforms "attested" admits any TPM chained to the pinned roots, never a wrong root or a bad boot',options,()=>{
  const f=fixture(),p={...shieldPolicy(f),platforms:'attested'};
  const v=verifyShieldAppPolicy(f,p);assert.equal(v.ok,true,v.reason);assert.match(v.scope,/attested VBS platform/);
@@ -98,4 +134,49 @@ test('platformAdmitted (shared with the privacy agent\'s ShieldHostProof): pins 
  const pin={binary:process.execPath,sha256:'00'.repeat(32)};
  assert.doesNotThrow(()=>new ShieldHostProof({...pin,policy:{ekRoots:'x',platforms:'attested'}}));
  for(const platforms of ['*',[],undefined])assert.throws(()=>new ShieldHostProof({...pin,policy:{ekRoots:'x',platforms}}),/explicit platform policy/);
+});
+
+// Real TLS and the full cryptographic verifier, with explicitly synthetic TPM
+// roots/reports. This proves startup wiring, not hardware eligibility.
+test('native startup TLS probe preserves desktop admission and the guest SVN floor',options,async t=>{
+ const ca=mintLocalCa();t.after(()=>ca.cleanup());
+ const handshakeSpki=new X509Certificate(ca.leafPem).publicKey.export({type:'spki',format:'der'});
+ let current,scenario='valid',requests=[];
+ const server=await serveTls(ca,(req,res)=>{
+  requests.push(req.url);
+  assert.equal(req.headers.authorization,undefined);assert.equal(req.headers.cookie,undefined);
+  if(req.url==='/.well-known/enclave-ready'){res.statusCode=503;res.end('waiting for owner secrets');return;}
+  const nonce=Buffer.from(new URL(req.url,'https://local').searchParams.get('nonce'),'hex');
+  const fresh=fixture({handshakeSpki,nonce});
+  Object.assign(current.hostSession,fresh.hostSession);
+  if(scenario==='wrong nonce')fresh.doc.nonce='00'.repeat(32);
+  if(scenario==='wrong key')fresh.doc.transportKey=Buffer.alloc(44).toString('base64');
+  res.end(JSON.stringify(fresh.doc));
+ });t.after(()=>server.close());
+ const base=fixture(),policy=shieldPolicy(base);
+ policy.desktop={schema:'enclave-desktop-release/1',controllerCid:'Qm'+'a'.repeat(44),controllerSha256:'11'.repeat(32),
+  runtimeId:base.expectedRuntimeId,igvmSha256:'22'.repeat(32),profileSha256:'33'.repeat(32),launchMeasurement:image,
+  minimumCpuMilli:250,policy:{cpuPercent:800,vcpus:8}};
+ Object.assign(policy.images[0],{nativeDesktop:true,identity:{...identity},igvmSha256:policy.desktop.igvmSha256,profileSha256:policy.desktop.profileSha256,
+  controllerSha256:policy.desktop.controllerSha256,configBundleV5:true,secretsV1:true,configSocketServer:true,protectedPorts:true});
+ const expected={appSha256:app,runtimeId:base.expectedRuntimeId,requiresDesktop:true,requiresConfigBundleV5:true,
+  requiresSecretsV1:true,requiresConfigSocketServer:true};
+ for(scenario of ['valid','omitted desktop','wrong image','wrong image signer','SVN floor','wrong nonce','wrong key']){
+  requests=[];
+  current={deploymentId:'0x'+'12'.repeat(32),hostname:'localhost',expected:{...expected},shield:structuredClone(policy),
+   hostSession:{},startupEgress:true,openApp:()=>new Promise((resolve,reject)=>{
+    const socket=net.connect({host:'127.0.0.1',port:server.port});socket.once('connect',()=>resolve(socket));socket.once('error',reject);
+   })};
+  if(scenario==='omitted desktop')delete current.expected.requiresDesktop;
+  if(scenario==='wrong image')current.shield.images[0].measurement='00'.repeat(32);
+  if(scenario==='wrong image signer')current.shield.images[0].identity.signer='92'.repeat(32);
+  if(scenario==='SVN floor')current.shield.minimumGuestSvn=6;
+  if(scenario==='valid'){
+   const proof=await probeGuest(current);assert.equal(proof.verified,true);assert.equal(proof.ready,false);
+   assert.equal(proof.spkiSha256,sha(handshakeSpki).toString('hex'));assert.equal(requests.length,2);
+  }else{
+   await assert.rejects(probeGuest(current),/Shield guest proof refused|binding mismatch/,scenario);
+   assert.equal(requests.length,1,'failed proof must not reach readiness');
+  }
+ }
 });

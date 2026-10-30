@@ -207,7 +207,7 @@ and both are self-serve:
 - **never declared.** `metal/config.json`'s `payoutAddress` is where the box
   sweeps earnings; the chain has never seen it. `enclave host status` shows the
   on-chain answer, and the supervisor logs `no payout wallet declared on-chain`
-  at every heartbeat. Fix: `enclave host declare-payout`.
+  when the state changes (each reconcile pass reads it). Fix: `enclave host declare-payout`.
 - **declared, but the deployment is owned by a different wallet.** The
   exemption follows the OWNER, so a deployment created from another address —
   or one that has since been transferred — is charged normally. Fix: deploy

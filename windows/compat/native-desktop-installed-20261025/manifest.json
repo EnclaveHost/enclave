@@ -1,0 +1,110 @@
+{
+  "schema": "enclave-installed-node-compat/1",
+  "installedSourceObservedUTC": "2026-10-25T15:42:50.0947681Z",
+  "patchSha256": "c2db584b1ceec4d18bf31c523d489539d3f28c19e2340e00d5b30c3246947b90",
+  "modified": [
+    {
+      "path": "network/shield-expectation.mjs",
+      "beforeSha256": "1af59d09f6edbc42071f7ded3fb8d42c90232c57c12ae17cfec6724de66f1a4a",
+      "afterSha256": "420528c28cc6f4f99ed705147ae55530e82db4292720d78d2b687a73520f27f9",
+      "afterBytes": 4320
+    },
+    {
+      "path": "windows/node/agent.mjs",
+      "beforeSha256": "76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1",
+      "afterSha256": "a41ca4cd59252d6a00648fda88232e97fe92049c8142dc1bf7910ae38ecae1a4",
+      "afterBytes": 93212
+    },
+    {
+      "path": "windows/node/host.mjs",
+      "beforeSha256": "e537f7277a69b5d809ba9994ee97744f3e9038a175efa156425aba611d157234",
+      "afterSha256": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24",
+      "afterBytes": 319366
+    },
+    {
+      "path": "windows/node/hvcert.mjs",
+      "beforeSha256": "3a87d9b897765fc8bc42a2648f310f8ad504022798534603bce9b0fdafe0d9d5",
+      "afterSha256": "25fdc5eaae5ce4197583d213b41542d7eaef79429be89bd377bdd5ef0f7aa5be",
+      "afterBytes": 13604
+    },
+    {
+      "path": "windows/node/isolation-client.mjs",
+      "beforeSha256": "d2222100a2a8fc09765fd4bf38eebcea061be77401cf6e0b39ddbaf098a41a04",
+      "afterSha256": "0b9808c7ab2d39a6e39df79efb98bb946d41d288d83d06861796c58e1d2c8ff5",
+      "afterBytes": 18440
+    },
+    {
+      "path": "windows/node/network-enroll.mjs",
+      "beforeSha256": "a9729786598107e69d24d5163ea8592d114f93a9b6693106a7fa3414c95430d6",
+      "afterSha256": "5c01acb17aa538f9407d7c09176930222284ea6296bb8f0aedeb576e5ae4e0da",
+      "afterBytes": 16963
+    },
+    {
+      "path": "windows/node/shield-secrets.mjs",
+      "beforeSha256": "c5c4b9c2da1235fe35029ef2a1edce4db058b6b9c9289f0d3363fd59b857a30e",
+      "afterSha256": "2a5f6496d98bb9170fe265c0ac0a01ef709111e1045f19790fd5912cff89c97f",
+      "afterBytes": 4442
+    },
+    {
+      "path": "windows/node/startup-egress.mjs",
+      "beforeSha256": "957d6be65f411619cb557e71dc151a123ecba2c6a539018255f4cf47cd2ea5a2",
+      "afterSha256": "3ea69d330990d4a2e20ba873f4d6d61b94ab050f17b2894a32c8aba3b627be6f",
+      "afterBytes": 1504
+    },
+    {
+      "path": "windows/vbslike/datapath/node-bridge.mjs",
+      "beforeSha256": "6a80bb3c09adffa5a12c780fbb3240de21a820361473ecb4ded6501e03c4a353",
+      "afterSha256": "0b6e57087e1ae920f5255e6aeed36a8a610770af7dc0f8f50e84c382138d302e",
+      "afterBytes": 23368
+    }
+  ],
+  "added": [
+    {
+      "path": "relay/shield-desktop-derive.mjs",
+      "sha256": "52c99e557ac4f119e3e1cba1b69c0909d4bc06068cc784d0298f62261c09c6e4",
+      "bytes": 5426
+    },
+    {
+      "path": "relay/shield-desktop-release.mjs",
+      "sha256": "a84635db7e33d5fe4f68796f29945597dd4b341fc1996c0394f804331a49f38d",
+      "bytes": 8977
+    },
+    {
+      "path": "relay/shield-derive.mjs",
+      "sha256": "a475447301686a3be0e1dcaae9f5682db45e5066402cbf103e0009016e79c878",
+      "bytes": 10257
+    },
+    {
+      "path": "windows/vbslike/datapath/desktop-plan.mjs",
+      "sha256": "038236f0207c1532477fff1127f64267a802f8a3acf6427f921d88ec1387144f",
+      "bytes": 3546
+    },
+    {
+      "path": "windows/node/desktop-release.mjs",
+      "sha256": "b3cc2817ddaaacd0b62d2614da26ae6c4030b2c32203497089274eea6b2c65b6",
+      "bytes": 3910
+    },
+    {
+      "path": "windows/node/desktop-inputs.mjs",
+      "sha256": "d587173dbbdb2753a91bce1e063165222d5fc2e74ed961473247560b0af4f5b3",
+      "bytes": 1809
+    },
+    {
+      "path": "network/desktop-expectation.mjs",
+      "sha256": "4ae7a378c4db7993a61b090c312cb40ef04fc4c4fed99013ba2aa57599cfa690",
+      "bytes": 3293
+    },
+    {
+      "path": "relay/shield-image-candidates.mjs",
+      "sha256": "585e2ff3b225464488b747c508d1d7c9445bfbc92b4005f6a4645090d0918743",
+      "bytes": 1798
+    },
+    {
+      "path": "relay/vbs-image-identity.mjs",
+      "sha256": "5ffd3ba2eb21f312dd0a21bd0a6277ae290e8bd42b9ec05c53436d3a3bd36090",
+      "bytes": 1637
+    }
+  ],
+  "productionActivated": false,
+  "scope": "Native release/planner/adoption/enrollment integration only. Manager launch and native purchased-CPU quota integration remain required."
+}

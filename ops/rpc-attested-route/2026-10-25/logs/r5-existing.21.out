@@ -1,0 +1,12 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/verified-chain-lifecycle.test.mjs
+✔ late final header after deadline cannot advance the accepted floor (123.110349ms)
+✔ a retained client closes metadata and RPC methods after success or failure (1.30975ms)
+✔ callback failure aborts a pending local HTTP request before its long request timeout (42.397479ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 349.155729

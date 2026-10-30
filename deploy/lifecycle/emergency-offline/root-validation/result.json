@@ -1,0 +1,42 @@
+{
+  "capturedAtUtc": "2026-10-29T05:44:50.535917+00:00",
+  "qualification": "isolated source candidate tests only; no production changes",
+  "steps": [
+    {
+      "step": "baseline-reserve",
+      "command": [
+        "/home/steven/.foundry/bin/forge",
+        "test",
+        "--root",
+        "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-emergency-offline-r1/review-baseline",
+        "--use",
+        "/home/steven/.local/share/svm/0.8.35/solc-0.8.35",
+        "--threads",
+        "1",
+        "-vv",
+        "--match-test",
+        "^test_root"
+      ],
+      "exitCode": 1,
+      "expectedExitCode": 1,
+      "matchesExpected": true
+    },
+    {
+      "step": "corrected",
+      "command": [
+        "/home/steven/.foundry/bin/forge",
+        "test",
+        "--root",
+        "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-emergency-offline-r1",
+        "--use",
+        "/home/steven/.local/share/svm/0.8.35/solc-0.8.35",
+        "--threads",
+        "1",
+        "-vv"
+      ],
+      "exitCode": 0,
+      "expectedExitCode": 0,
+      "matchesExpected": true
+    }
+  ]
+}

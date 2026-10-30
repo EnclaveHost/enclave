@@ -13,18 +13,18 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// ../../enclave/node_modules/abitype/dist/esm/version.js
+// node_modules/abitype/dist/esm/version.js
 var version;
 var init_version = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/version.js"() {
+  "node_modules/abitype/dist/esm/version.js"() {
     version = "1.2.3";
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/errors.js
+// node_modules/abitype/dist/esm/errors.js
 var BaseError;
 var init_errors = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/errors.js"() {
+  "node_modules/abitype/dist/esm/errors.js"() {
     init_version();
     BaseError = class _BaseError extends Error {
       constructor(shortMessage, args = {}) {
@@ -80,21 +80,21 @@ var init_errors = __esm({
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/regex.js
+// node_modules/abitype/dist/esm/regex.js
 function execTyped(regex, string) {
   const match = regex.exec(string);
   return match?.groups;
 }
 var bytesRegex, integerRegex, isTupleRegex;
 var init_regex = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/regex.js"() {
+  "node_modules/abitype/dist/esm/regex.js"() {
     bytesRegex = /^bytes([1-9]|1[0-9]|2[0-9]|3[0-2])?$/;
     integerRegex = /^u?int(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?$/;
     isTupleRegex = /^\(.+?\).*?$/;
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/human-readable/formatAbiParameter.js
+// node_modules/abitype/dist/esm/human-readable/formatAbiParameter.js
 function formatAbiParameter(abiParameter) {
   let type = abiParameter.type;
   if (tupleRegex.test(abiParameter.type) && "components" in abiParameter) {
@@ -121,13 +121,13 @@ function formatAbiParameter(abiParameter) {
 }
 var tupleRegex;
 var init_formatAbiParameter = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/human-readable/formatAbiParameter.js"() {
+  "node_modules/abitype/dist/esm/human-readable/formatAbiParameter.js"() {
     init_regex();
     tupleRegex = /^tuple(?<array>(\[(\d*)\])*)$/;
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/human-readable/formatAbiParameters.js
+// node_modules/abitype/dist/esm/human-readable/formatAbiParameters.js
 function formatAbiParameters(abiParameters) {
   let params = "";
   const length = abiParameters.length;
@@ -140,12 +140,12 @@ function formatAbiParameters(abiParameters) {
   return params;
 }
 var init_formatAbiParameters = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/human-readable/formatAbiParameters.js"() {
+  "node_modules/abitype/dist/esm/human-readable/formatAbiParameters.js"() {
     init_formatAbiParameter();
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/human-readable/formatAbiItem.js
+// node_modules/abitype/dist/esm/human-readable/formatAbiItem.js
 function formatAbiItem(abiItem) {
   if (abiItem.type === "function")
     return `function ${abiItem.name}(${formatAbiParameters(abiItem.inputs)})${abiItem.stateMutability && abiItem.stateMutability !== "nonpayable" ? ` ${abiItem.stateMutability}` : ""}${abiItem.outputs?.length ? ` returns (${formatAbiParameters(abiItem.outputs)})` : ""}`;
@@ -160,12 +160,12 @@ function formatAbiItem(abiItem) {
   return "receive() external payable";
 }
 var init_formatAbiItem = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/human-readable/formatAbiItem.js"() {
+  "node_modules/abitype/dist/esm/human-readable/formatAbiItem.js"() {
     init_formatAbiParameters();
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/human-readable/runtime/signatures.js
+// node_modules/abitype/dist/esm/human-readable/runtime/signatures.js
 function isErrorSignature(signature) {
   return errorSignatureRegex.test(signature);
 }
@@ -207,7 +207,7 @@ function isReceiveSignature(signature) {
 }
 var errorSignatureRegex, eventSignatureRegex, functionSignatureRegex, structSignatureRegex, constructorSignatureRegex, fallbackSignatureRegex, receiveSignatureRegex, eventModifiers, functionModifiers;
 var init_signatures = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/human-readable/runtime/signatures.js"() {
+  "node_modules/abitype/dist/esm/human-readable/runtime/signatures.js"() {
     init_regex();
     errorSignatureRegex = /^error (?<name>[a-zA-Z$_][a-zA-Z0-9$_]*)\((?<parameters>.*?)\)$/;
     eventSignatureRegex = /^event (?<name>[a-zA-Z$_][a-zA-Z0-9$_]*)\((?<parameters>.*?)\)$/;
@@ -225,10 +225,10 @@ var init_signatures = __esm({
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/human-readable/errors/abiItem.js
+// node_modules/abitype/dist/esm/human-readable/errors/abiItem.js
 var UnknownTypeError, UnknownSolidityTypeError;
 var init_abiItem = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/human-readable/errors/abiItem.js"() {
+  "node_modules/abitype/dist/esm/human-readable/errors/abiItem.js"() {
     init_errors();
     UnknownTypeError = class extends BaseError {
       constructor({ type }) {
@@ -261,10 +261,10 @@ var init_abiItem = __esm({
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/human-readable/errors/abiParameter.js
+// node_modules/abitype/dist/esm/human-readable/errors/abiParameter.js
 var InvalidParameterError, SolidityProtectedKeywordError, InvalidModifierError, InvalidFunctionModifierError, InvalidAbiTypeParameterError;
 var init_abiParameter = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/human-readable/errors/abiParameter.js"() {
+  "node_modules/abitype/dist/esm/human-readable/errors/abiParameter.js"() {
     init_errors();
     InvalidParameterError = class extends BaseError {
       constructor({ param }) {
@@ -345,10 +345,10 @@ var init_abiParameter = __esm({
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/human-readable/errors/signature.js
+// node_modules/abitype/dist/esm/human-readable/errors/signature.js
 var InvalidSignatureError, UnknownSignatureError, InvalidStructSignatureError;
 var init_signature = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/human-readable/errors/signature.js"() {
+  "node_modules/abitype/dist/esm/human-readable/errors/signature.js"() {
     init_errors();
     InvalidSignatureError = class extends BaseError {
       constructor({ signature, type }) {
@@ -393,10 +393,10 @@ var init_signature = __esm({
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/human-readable/errors/struct.js
+// node_modules/abitype/dist/esm/human-readable/errors/struct.js
 var CircularReferenceError;
 var init_struct = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/human-readable/errors/struct.js"() {
+  "node_modules/abitype/dist/esm/human-readable/errors/struct.js"() {
     init_errors();
     CircularReferenceError = class extends BaseError {
       constructor({ type }) {
@@ -414,10 +414,10 @@ var init_struct = __esm({
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/human-readable/errors/splitParameters.js
+// node_modules/abitype/dist/esm/human-readable/errors/splitParameters.js
 var InvalidParenthesisError;
 var init_splitParameters = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/human-readable/errors/splitParameters.js"() {
+  "node_modules/abitype/dist/esm/human-readable/errors/splitParameters.js"() {
     init_errors();
     InvalidParenthesisError = class extends BaseError {
       constructor({ current, depth }) {
@@ -438,7 +438,7 @@ var init_splitParameters = __esm({
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/human-readable/runtime/cache.js
+// node_modules/abitype/dist/esm/human-readable/runtime/cache.js
 function getParameterCacheKey(param, type, structs) {
   let structKey = "";
   if (structs)
@@ -457,7 +457,7 @@ function getParameterCacheKey(param, type, structs) {
 }
 var parameterCache;
 var init_cache = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/human-readable/runtime/cache.js"() {
+  "node_modules/abitype/dist/esm/human-readable/runtime/cache.js"() {
     parameterCache = /* @__PURE__ */ new Map([
       // Unnamed
       ["address", { type: "address" }],
@@ -515,7 +515,7 @@ var init_cache = __esm({
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/human-readable/runtime/utils.js
+// node_modules/abitype/dist/esm/human-readable/runtime/utils.js
 function parseSignature(signature, structs = {}) {
   if (isFunctionSignature(signature))
     return parseFunctionSignature(signature, structs);
@@ -711,7 +711,7 @@ function isValidDataLocation(type, isArray) {
 }
 var abiParameterWithoutTupleRegex, abiParameterWithTupleRegex, dynamicIntegerRegex, protectedKeywordsRegex;
 var init_utils = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/human-readable/runtime/utils.js"() {
+  "node_modules/abitype/dist/esm/human-readable/runtime/utils.js"() {
     init_regex();
     init_abiItem();
     init_abiParameter();
@@ -726,7 +726,7 @@ var init_utils = __esm({
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/human-readable/runtime/structs.js
+// node_modules/abitype/dist/esm/human-readable/runtime/structs.js
 function parseStructs(signatures) {
   const shallowStructs = {};
   const signaturesLength = signatures.length;
@@ -796,7 +796,7 @@ function resolveStructs(abiParameters = [], structs = {}, ancestors = /* @__PURE
 }
 var typeWithoutTupleRegex;
 var init_structs = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/human-readable/runtime/structs.js"() {
+  "node_modules/abitype/dist/esm/human-readable/runtime/structs.js"() {
     init_regex();
     init_abiItem();
     init_abiParameter();
@@ -808,7 +808,7 @@ var init_structs = __esm({
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/human-readable/parseAbi.js
+// node_modules/abitype/dist/esm/human-readable/parseAbi.js
 function parseAbi(signatures) {
   const structs = parseStructs(signatures);
   const abi = [];
@@ -822,22 +822,22 @@ function parseAbi(signatures) {
   return abi;
 }
 var init_parseAbi = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/human-readable/parseAbi.js"() {
+  "node_modules/abitype/dist/esm/human-readable/parseAbi.js"() {
     init_signatures();
     init_structs();
     init_utils();
   }
 });
 
-// ../../enclave/node_modules/abitype/dist/esm/exports/index.js
+// node_modules/abitype/dist/esm/exports/index.js
 var init_exports = __esm({
-  "../../enclave/node_modules/abitype/dist/esm/exports/index.js"() {
+  "node_modules/abitype/dist/esm/exports/index.js"() {
     init_formatAbiItem();
     init_parseAbi();
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/abi/formatAbiItem.js
+// node_modules/viem/_esm/utils/abi/formatAbiItem.js
 function formatAbiItem2(abiItem, { includeName = false } = {}) {
   if (abiItem.type !== "function" && abiItem.type !== "event" && abiItem.type !== "error")
     throw new InvalidDefinitionTypeError(abiItem.type);
@@ -855,12 +855,12 @@ function formatAbiParam(param, { includeName }) {
   return param.type + (includeName && param.name ? ` ${param.name}` : "");
 }
 var init_formatAbiItem2 = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/abi/formatAbiItem.js"() {
+  "node_modules/viem/_esm/utils/abi/formatAbiItem.js"() {
     init_abi();
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/data/isHex.js
+// node_modules/viem/_esm/utils/data/isHex.js
 function isHex(value, { strict = true } = {}) {
   if (!value)
     return false;
@@ -869,31 +869,31 @@ function isHex(value, { strict = true } = {}) {
   return strict ? /^0x[0-9a-fA-F]*$/.test(value) : value.startsWith("0x");
 }
 var init_isHex = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/data/isHex.js"() {
+  "node_modules/viem/_esm/utils/data/isHex.js"() {
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/data/size.js
+// node_modules/viem/_esm/utils/data/size.js
 function size(value) {
   if (isHex(value, { strict: false }))
     return Math.ceil((value.length - 2) / 2);
   return value.length;
 }
 var init_size = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/data/size.js"() {
+  "node_modules/viem/_esm/utils/data/size.js"() {
     init_isHex();
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/errors/version.js
+// node_modules/viem/_esm/errors/version.js
 var version2;
 var init_version2 = __esm({
-  "../../enclave/node_modules/viem/_esm/errors/version.js"() {
+  "node_modules/viem/_esm/errors/version.js"() {
     version2 = "2.53.1";
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/errors/base.js
+// node_modules/viem/_esm/errors/base.js
 function walk(err, fn) {
   if (fn?.(err))
     return err;
@@ -903,7 +903,7 @@ function walk(err, fn) {
 }
 var errorConfig, BaseError2;
 var init_base = __esm({
-  "../../enclave/node_modules/viem/_esm/errors/base.js"() {
+  "node_modules/viem/_esm/errors/base.js"() {
     init_version2();
     errorConfig = {
       getDocsUrl: ({ docsBaseUrl, docsPath: docsPath5 = "", docsSlug }) => docsPath5 ? `${docsBaseUrl ?? "https://viem.sh"}${docsPath5}${docsSlug ? `#${docsSlug}` : ""}` : void 0,
@@ -983,10 +983,10 @@ var init_base = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/errors/abi.js
+// node_modules/viem/_esm/errors/abi.js
 var AbiDecodingDataSizeTooSmallError, AbiDecodingZeroDataError, AbiEncodingArrayLengthMismatchError, AbiEncodingBytesSizeMismatchError, AbiEncodingLengthMismatchError, AbiEventSignatureEmptyTopicsError, AbiEventSignatureNotFoundError, AbiEventNotFoundError, AbiFunctionNotFoundError, AbiFunctionOutputsNotFoundError, AbiFunctionSignatureNotFoundError, AbiItemAmbiguityError, BytesSizeMismatchError, DecodeLogDataMismatch, DecodeLogTopicsMismatch, InvalidAbiEncodingTypeError, InvalidAbiDecodingTypeError, InvalidArrayError, InvalidDefinitionTypeError;
 var init_abi = __esm({
-  "../../enclave/node_modules/viem/_esm/errors/abi.js"() {
+  "node_modules/viem/_esm/errors/abi.js"() {
     init_formatAbiItem2();
     init_size();
     init_base();
@@ -1229,10 +1229,10 @@ var init_abi = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/errors/data.js
+// node_modules/viem/_esm/errors/data.js
 var SliceOffsetOutOfBoundsError, SizeExceedsPaddingSizeError;
 var init_data = __esm({
-  "../../enclave/node_modules/viem/_esm/errors/data.js"() {
+  "node_modules/viem/_esm/errors/data.js"() {
     init_base();
     SliceOffsetOutOfBoundsError = class extends BaseError2 {
       constructor({ offset, position, size: size2 }) {
@@ -1247,7 +1247,7 @@ var init_data = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/data/pad.js
+// node_modules/viem/_esm/utils/data/pad.js
 function pad(hexOrBytes, { dir, size: size2 = 32 } = {}) {
   if (typeof hexOrBytes === "string")
     return padHex(hexOrBytes, { dir, size: size2 });
@@ -1282,15 +1282,15 @@ function padBytes(bytes, { dir, size: size2 = 32 } = {}) {
   return paddedBytes;
 }
 var init_pad = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/data/pad.js"() {
+  "node_modules/viem/_esm/utils/data/pad.js"() {
     init_data();
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/errors/encoding.js
+// node_modules/viem/_esm/errors/encoding.js
 var IntegerOutOfRangeError, InvalidBytesBooleanError, SizeOverflowError;
 var init_encoding = __esm({
-  "../../enclave/node_modules/viem/_esm/errors/encoding.js"() {
+  "node_modules/viem/_esm/errors/encoding.js"() {
     init_base();
     IntegerOutOfRangeError = class extends BaseError2 {
       constructor({ max: max2, min, signed, size: size2, value }) {
@@ -1312,7 +1312,7 @@ var init_encoding = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/data/trim.js
+// node_modules/viem/_esm/utils/data/trim.js
 function trim(hexOrBytes, { dir = "left" } = {}) {
   let data = typeof hexOrBytes === "string" ? hexOrBytes.replace("0x", "") : hexOrBytes;
   let sliceLength = 0;
@@ -1331,11 +1331,11 @@ function trim(hexOrBytes, { dir = "left" } = {}) {
   return data;
 }
 var init_trim = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/data/trim.js"() {
+  "node_modules/viem/_esm/utils/data/trim.js"() {
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/encoding/fromHex.js
+// node_modules/viem/_esm/utils/encoding/fromHex.js
 function assertSize(hexOrBytes, { size: size2 }) {
   if (size(hexOrBytes) > size2)
     throw new SizeOverflowError({
@@ -1370,13 +1370,13 @@ function hexToNumber(hex, opts = {}) {
   return number;
 }
 var init_fromHex = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/encoding/fromHex.js"() {
+  "node_modules/viem/_esm/utils/encoding/fromHex.js"() {
     init_encoding();
     init_size();
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/encoding/toHex.js
+// node_modules/viem/_esm/utils/encoding/toHex.js
 function toHex(value, opts = {}) {
   if (typeof value === "number" || typeof value === "bigint")
     return numberToHex(value, opts);
@@ -1441,7 +1441,7 @@ function stringToHex(value_, opts = {}) {
 }
 var hexes, encoder;
 var init_toHex = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/encoding/toHex.js"() {
+  "node_modules/viem/_esm/utils/encoding/toHex.js"() {
     init_encoding();
     init_pad();
     init_fromHex();
@@ -1450,7 +1450,7 @@ var init_toHex = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/encoding/toBytes.js
+// node_modules/viem/_esm/utils/encoding/toBytes.js
 function toBytes(value, opts = {}) {
   if (typeof value === "number" || typeof value === "bigint")
     return numberToBytes(value, opts);
@@ -1513,7 +1513,7 @@ function stringToBytes(value, opts = {}) {
 }
 var encoder2, charCodeMap;
 var init_toBytes = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/encoding/toBytes.js"() {
+  "node_modules/viem/_esm/utils/encoding/toBytes.js"() {
     init_base();
     init_isHex();
     init_pad();
@@ -1531,7 +1531,7 @@ var init_toBytes = __esm({
   }
 });
 
-// ../../enclave/node_modules/@noble/hashes/esm/_u64.js
+// node_modules/@noble/hashes/esm/_u64.js
 function fromBig(n, le = false) {
   if (le)
     return { h: Number(n & U32_MASK64), l: Number(n >> _32n & U32_MASK64) };
@@ -1549,7 +1549,7 @@ function split(lst, le = false) {
 }
 var U32_MASK64, _32n, rotlSH, rotlSL, rotlBH, rotlBL;
 var init_u64 = __esm({
-  "../../enclave/node_modules/@noble/hashes/esm/_u64.js"() {
+  "node_modules/@noble/hashes/esm/_u64.js"() {
     U32_MASK64 = /* @__PURE__ */ BigInt(2 ** 32 - 1);
     _32n = /* @__PURE__ */ BigInt(32);
     rotlSH = (h, l, s) => h << s | l >>> 32 - s;
@@ -1559,15 +1559,15 @@ var init_u64 = __esm({
   }
 });
 
-// ../../enclave/node_modules/@noble/hashes/esm/crypto.js
+// node_modules/@noble/hashes/esm/crypto.js
 var crypto;
 var init_crypto = __esm({
-  "../../enclave/node_modules/@noble/hashes/esm/crypto.js"() {
+  "node_modules/@noble/hashes/esm/crypto.js"() {
     crypto = typeof globalThis === "object" && "crypto" in globalThis ? globalThis.crypto : void 0;
   }
 });
 
-// ../../enclave/node_modules/@noble/hashes/esm/utils.js
+// node_modules/@noble/hashes/esm/utils.js
 function isBytes(a) {
   return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
 }
@@ -1668,7 +1668,7 @@ function randomBytes(bytesLength = 32) {
 }
 var isLE, swap32IfBE, Hash;
 var init_utils2 = __esm({
-  "../../enclave/node_modules/@noble/hashes/esm/utils.js"() {
+  "node_modules/@noble/hashes/esm/utils.js"() {
     init_crypto();
     isLE = /* @__PURE__ */ (() => new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68)();
     swap32IfBE = isLE ? (u) => u : byteSwap32;
@@ -1677,7 +1677,7 @@ var init_utils2 = __esm({
   }
 });
 
-// ../../enclave/node_modules/@noble/hashes/esm/sha3.js
+// node_modules/@noble/hashes/esm/sha3.js
 function keccakP(s, rounds = 24) {
   const B = new Uint32Array(5 * 2);
   for (let round = 24 - rounds; round < 24; round++) {
@@ -1720,7 +1720,7 @@ function keccakP(s, rounds = 24) {
 }
 var _0n, _1n, _2n, _7n, _256n, _0x71n, SHA3_PI, SHA3_ROTL, _SHA3_IOTA, IOTAS, SHA3_IOTA_H, SHA3_IOTA_L, rotlH, rotlL, Keccak, gen, keccak_256;
 var init_sha3 = __esm({
-  "../../enclave/node_modules/@noble/hashes/esm/sha3.js"() {
+  "node_modules/@noble/hashes/esm/sha3.js"() {
     init_u64();
     init_utils2();
     _0n = BigInt(0);
@@ -1865,7 +1865,7 @@ var init_sha3 = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/hash/keccak256.js
+// node_modules/viem/_esm/utils/hash/keccak256.js
 function keccak256(value, to_) {
   const to = to_ || "hex";
   const bytes = keccak_256(isHex(value, { strict: false }) ? toBytes(value) : value);
@@ -1874,7 +1874,7 @@ function keccak256(value, to_) {
   return toHex(bytes);
 }
 var init_keccak256 = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/hash/keccak256.js"() {
+  "node_modules/viem/_esm/utils/hash/keccak256.js"() {
     init_sha3();
     init_isHex();
     init_toBytes();
@@ -1882,20 +1882,20 @@ var init_keccak256 = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/hash/hashSignature.js
+// node_modules/viem/_esm/utils/hash/hashSignature.js
 function hashSignature(sig) {
   return hash(sig);
 }
 var hash;
 var init_hashSignature = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/hash/hashSignature.js"() {
+  "node_modules/viem/_esm/utils/hash/hashSignature.js"() {
     init_toBytes();
     init_keccak256();
     hash = (value) => keccak256(toBytes(value));
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/hash/normalizeSignature.js
+// node_modules/viem/_esm/utils/hash/normalizeSignature.js
 function normalizeSignature(signature) {
   let active = true;
   let current = "";
@@ -1939,15 +1939,15 @@ function normalizeSignature(signature) {
   return result;
 }
 var init_normalizeSignature = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/hash/normalizeSignature.js"() {
+  "node_modules/viem/_esm/utils/hash/normalizeSignature.js"() {
     init_base();
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/hash/toSignature.js
+// node_modules/viem/_esm/utils/hash/toSignature.js
 var toSignature;
 var init_toSignature = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/hash/toSignature.js"() {
+  "node_modules/viem/_esm/utils/hash/toSignature.js"() {
     init_exports();
     init_normalizeSignature();
     toSignature = (def) => {
@@ -1961,30 +1961,30 @@ var init_toSignature = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/hash/toSignatureHash.js
+// node_modules/viem/_esm/utils/hash/toSignatureHash.js
 function toSignatureHash(fn) {
   return hashSignature(toSignature(fn));
 }
 var init_toSignatureHash = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/hash/toSignatureHash.js"() {
+  "node_modules/viem/_esm/utils/hash/toSignatureHash.js"() {
     init_hashSignature();
     init_toSignature();
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/hash/toEventSelector.js
+// node_modules/viem/_esm/utils/hash/toEventSelector.js
 var toEventSelector;
 var init_toEventSelector = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/hash/toEventSelector.js"() {
+  "node_modules/viem/_esm/utils/hash/toEventSelector.js"() {
     init_toSignatureHash();
     toEventSelector = toSignatureHash;
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/errors/address.js
+// node_modules/viem/_esm/errors/address.js
 var InvalidAddressError;
 var init_address = __esm({
-  "../../enclave/node_modules/viem/_esm/errors/address.js"() {
+  "node_modules/viem/_esm/errors/address.js"() {
     init_base();
     InvalidAddressError = class extends BaseError2 {
       constructor({ address }) {
@@ -2000,10 +2000,10 @@ var init_address = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/lru.js
+// node_modules/viem/_esm/utils/lru.js
 var LruMap;
 var init_lru = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/lru.js"() {
+  "node_modules/viem/_esm/utils/lru.js"() {
     LruMap = class extends Map {
       constructor(size2) {
         super();
@@ -2038,7 +2038,7 @@ var init_lru = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/address/getAddress.js
+// node_modules/viem/_esm/utils/address/getAddress.js
 function checksumAddress(address_, chainId) {
   if (checksumAddressCache.has(`${address_}.${chainId}`))
     return checksumAddressCache.get(`${address_}.${chainId}`);
@@ -2064,7 +2064,7 @@ function getAddress(address, chainId) {
 }
 var checksumAddressCache;
 var init_getAddress = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/address/getAddress.js"() {
+  "node_modules/viem/_esm/utils/address/getAddress.js"() {
     init_address();
     init_toBytes();
     init_keccak256();
@@ -2074,7 +2074,7 @@ var init_getAddress = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/address/isAddress.js
+// node_modules/viem/_esm/utils/address/isAddress.js
 function isAddress(address, options) {
   const { strict = true } = options ?? {};
   const cacheKey = `${address}.${strict}`;
@@ -2094,7 +2094,7 @@ function isAddress(address, options) {
 }
 var addressRegex, isAddressCache;
 var init_isAddress = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/address/isAddress.js"() {
+  "node_modules/viem/_esm/utils/address/isAddress.js"() {
     init_lru();
     init_getAddress();
     addressRegex = /^0x[a-fA-F0-9]{40}$/;
@@ -2102,7 +2102,7 @@ var init_isAddress = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/data/concat.js
+// node_modules/viem/_esm/utils/data/concat.js
 function concat(values) {
   if (typeof values[0] === "string")
     return concatHex(values);
@@ -2125,11 +2125,11 @@ function concatHex(values) {
   return `0x${values.reduce((acc, x) => acc + x.replace("0x", ""), "")}`;
 }
 var init_concat = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/data/concat.js"() {
+  "node_modules/viem/_esm/utils/data/concat.js"() {
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/data/slice.js
+// node_modules/viem/_esm/utils/data/slice.js
 function slice(value, start, end, { strict } = {}) {
   if (isHex(value, { strict: false }))
     return sliceHex(value, start, end, {
@@ -2171,23 +2171,23 @@ function sliceHex(value_, start, end, { strict } = {}) {
   return value;
 }
 var init_slice = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/data/slice.js"() {
+  "node_modules/viem/_esm/utils/data/slice.js"() {
     init_data();
     init_isHex();
     init_size();
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/regex.js
+// node_modules/viem/_esm/utils/regex.js
 var bytesRegex2, integerRegex2;
 var init_regex2 = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/regex.js"() {
+  "node_modules/viem/_esm/utils/regex.js"() {
     bytesRegex2 = /^bytes([1-9]|1[0-9]|2[0-9]|3[0-2])?$/;
     integerRegex2 = /^(u?int)(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?$/;
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/abi/encodeAbiParameters.js
+// node_modules/viem/_esm/utils/abi/encodeAbiParameters.js
 function encodeAbiParameters(params, values) {
   if (params.length !== values.length)
     throw new AbiEncodingLengthMismatchError({
@@ -2401,7 +2401,7 @@ function getArrayComponents(type) {
   ) : void 0;
 }
 var init_encodeAbiParameters = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/abi/encodeAbiParameters.js"() {
+  "node_modules/viem/_esm/utils/abi/encodeAbiParameters.js"() {
     init_abi();
     init_address();
     init_base();
@@ -2416,17 +2416,17 @@ var init_encodeAbiParameters = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/hash/toFunctionSelector.js
+// node_modules/viem/_esm/utils/hash/toFunctionSelector.js
 var toFunctionSelector;
 var init_toFunctionSelector = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/hash/toFunctionSelector.js"() {
+  "node_modules/viem/_esm/utils/hash/toFunctionSelector.js"() {
     init_slice();
     init_toSignatureHash();
     toFunctionSelector = (fn) => slice(toSignatureHash(fn), 0, 4);
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/abi/getAbiItem.js
+// node_modules/viem/_esm/utils/abi/getAbiItem.js
 function getAbiItem(parameters) {
   const { abi, args = [], name } = parameters;
   const isSelector = isHex(name, { strict: false });
@@ -2538,7 +2538,7 @@ function getAmbiguousTypes(sourceParameters, targetParameters, args) {
   return;
 }
 var init_getAbiItem = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/abi/getAbiItem.js"() {
+  "node_modules/viem/_esm/utils/abi/getAbiItem.js"() {
     init_abi();
     init_isHex();
     init_isAddress();
@@ -2547,7 +2547,7 @@ var init_getAbiItem = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/abi/prepareEncodeFunctionData.js
+// node_modules/viem/_esm/utils/abi/prepareEncodeFunctionData.js
 function prepareEncodeFunctionData(parameters) {
   const { abi, args, functionName } = parameters;
   let abiItem = abi[0];
@@ -2570,7 +2570,7 @@ function prepareEncodeFunctionData(parameters) {
 }
 var docsPath2;
 var init_prepareEncodeFunctionData = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/abi/prepareEncodeFunctionData.js"() {
+  "node_modules/viem/_esm/utils/abi/prepareEncodeFunctionData.js"() {
     init_abi();
     init_toFunctionSelector();
     init_formatAbiItem2();
@@ -2579,7 +2579,7 @@ var init_prepareEncodeFunctionData = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/abi/encodeFunctionData.js
+// node_modules/viem/_esm/utils/abi/encodeFunctionData.js
 function encodeFunctionData(parameters) {
   const { args } = parameters;
   const { abi, functionName } = (() => {
@@ -2593,17 +2593,17 @@ function encodeFunctionData(parameters) {
   return concatHex([signature, data ?? "0x"]);
 }
 var init_encodeFunctionData = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/abi/encodeFunctionData.js"() {
+  "node_modules/viem/_esm/utils/abi/encodeFunctionData.js"() {
     init_concat();
     init_encodeAbiParameters();
     init_prepareEncodeFunctionData();
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/errors/cursor.js
+// node_modules/viem/_esm/errors/cursor.js
 var NegativeOffsetError, PositionOutOfBoundsError, RecursiveReadLimitExceededError;
 var init_cursor = __esm({
-  "../../enclave/node_modules/viem/_esm/errors/cursor.js"() {
+  "node_modules/viem/_esm/errors/cursor.js"() {
     init_base();
     NegativeOffsetError = class extends BaseError2 {
       constructor({ offset }) {
@@ -2625,7 +2625,7 @@ var init_cursor = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/cursor.js
+// node_modules/viem/_esm/utils/cursor.js
 function createCursor(bytes, { recursiveReadLimit = 8192 } = {}) {
   const cursor = Object.create(staticCursor);
   cursor.bytes = bytes;
@@ -2636,7 +2636,7 @@ function createCursor(bytes, { recursiveReadLimit = 8192 } = {}) {
 }
 var staticCursor;
 var init_cursor2 = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/cursor.js"() {
+  "node_modules/viem/_esm/utils/cursor.js"() {
     init_cursor();
     staticCursor = {
       bytes: new Uint8Array(),
@@ -2800,7 +2800,7 @@ var init_cursor2 = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/encoding/fromBytes.js
+// node_modules/viem/_esm/utils/encoding/fromBytes.js
 function bytesToBigInt(bytes, opts = {}) {
   if (typeof opts.size !== "undefined")
     assertSize(bytes, { size: opts.size });
@@ -2832,7 +2832,7 @@ function bytesToString(bytes_, opts = {}) {
   return new TextDecoder().decode(bytes);
 }
 var init_fromBytes = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/encoding/fromBytes.js"() {
+  "node_modules/viem/_esm/utils/encoding/fromBytes.js"() {
     init_encoding();
     init_trim();
     init_fromHex();
@@ -2840,7 +2840,7 @@ var init_fromBytes = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/abi/decodeAbiParameters.js
+// node_modules/viem/_esm/utils/abi/decodeAbiParameters.js
 function decodeAbiParameters(params, data) {
   const bytes = typeof data === "string" ? hexToBytes(data) : data;
   const cursor = createCursor(bytes);
@@ -3026,7 +3026,7 @@ function hasDynamicChild(param) {
 }
 var sizeOfLength, sizeOfOffset;
 var init_decodeAbiParameters = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/abi/decodeAbiParameters.js"() {
+  "node_modules/viem/_esm/utils/abi/decodeAbiParameters.js"() {
     init_abi();
     init_getAddress();
     init_cursor2();
@@ -3042,10 +3042,10 @@ var init_decodeAbiParameters = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/stringify.js
+// node_modules/viem/_esm/utils/stringify.js
 var stringify;
 var init_stringify = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/stringify.js"() {
+  "node_modules/viem/_esm/utils/stringify.js"() {
     stringify = (value, replacer, space) => JSON.stringify(value, (key, value_) => {
       const value2 = typeof value_ === "bigint" ? value_.toString() : value_;
       return typeof replacer === "function" ? replacer(key, value2) : value2;
@@ -3053,7 +3053,7 @@ var init_stringify = __esm({
   }
 });
 
-// ../../enclave/node_modules/@noble/hashes/esm/_md.js
+// node_modules/@noble/hashes/esm/_md.js
 function setBigUint64(view, byteOffset, value, isLE2) {
   if (typeof view.setBigUint64 === "function")
     return view.setBigUint64(byteOffset, value, isLE2);
@@ -3074,7 +3074,7 @@ function Maj(a, b, c) {
 }
 var HashMD, SHA256_IV;
 var init_md = __esm({
-  "../../enclave/node_modules/@noble/hashes/esm/_md.js"() {
+  "node_modules/@noble/hashes/esm/_md.js"() {
     init_utils2();
     HashMD = class extends Hash {
       constructor(blockLen, outputLen, padOffset, isLE2) {
@@ -3179,10 +3179,10 @@ var init_md = __esm({
   }
 });
 
-// ../../enclave/node_modules/@noble/hashes/esm/sha2.js
+// node_modules/@noble/hashes/esm/sha2.js
 var SHA256_K, SHA256_W, SHA256, sha256;
 var init_sha2 = __esm({
-  "../../enclave/node_modules/@noble/hashes/esm/sha2.js"() {
+  "node_modules/@noble/hashes/esm/sha2.js"() {
     init_md();
     init_utils2();
     SHA256_K = /* @__PURE__ */ Uint32Array.from([
@@ -3326,10 +3326,10 @@ var init_sha2 = __esm({
   }
 });
 
-// ../../enclave/node_modules/@noble/hashes/esm/hmac.js
+// node_modules/@noble/hashes/esm/hmac.js
 var HMAC, hmac;
 var init_hmac = __esm({
-  "../../enclave/node_modules/@noble/hashes/esm/hmac.js"() {
+  "node_modules/@noble/hashes/esm/hmac.js"() {
     init_utils2();
     HMAC = class extends Hash {
       constructor(hash2, _key) {
@@ -3400,7 +3400,7 @@ var init_hmac = __esm({
   }
 });
 
-// ../../enclave/node_modules/@noble/curves/esm/abstract/utils.js
+// node_modules/@noble/curves/esm/abstract/utils.js
 function isBytes2(a) {
   return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
 }
@@ -3604,7 +3604,7 @@ function memoized(fn) {
 }
 var _0n2, _1n2, hasHexBuiltin, hexes2, asciis, isPosBig, bitMask, u8n, u8fr, validatorFns;
 var init_utils3 = __esm({
-  "../../enclave/node_modules/@noble/curves/esm/abstract/utils.js"() {
+  "node_modules/@noble/curves/esm/abstract/utils.js"() {
     _0n2 = /* @__PURE__ */ BigInt(0);
     _1n2 = /* @__PURE__ */ BigInt(1);
     hasHexBuiltin = // @ts-ignore
@@ -3629,7 +3629,7 @@ var init_utils3 = __esm({
   }
 });
 
-// ../../enclave/node_modules/@noble/curves/esm/abstract/modular.js
+// node_modules/@noble/curves/esm/abstract/modular.js
 function mod(a, b) {
   const result = a % b;
   return result >= _0n3 ? result : b + result;
@@ -3878,7 +3878,7 @@ function mapHashToField(key, fieldOrder, isLE2 = false) {
 }
 var _0n3, _1n3, _2n2, _3n, _4n, _5n, _8n, FIELD_FIELDS;
 var init_modular = __esm({
-  "../../enclave/node_modules/@noble/curves/esm/abstract/modular.js"() {
+  "node_modules/@noble/curves/esm/abstract/modular.js"() {
     init_utils2();
     init_utils3();
     _0n3 = BigInt(0);
@@ -3910,7 +3910,7 @@ var init_modular = __esm({
   }
 });
 
-// ../../enclave/node_modules/@noble/curves/esm/abstract/curve.js
+// node_modules/@noble/curves/esm/abstract/curve.js
 function constTimeNegate(condition, item) {
   const neg = item.negate();
   return condition ? neg : item;
@@ -4141,7 +4141,7 @@ function validateBasic(curve) {
 }
 var _0n4, _1n4, pointPrecomputes, pointWindowSizes;
 var init_curve = __esm({
-  "../../enclave/node_modules/@noble/curves/esm/abstract/curve.js"() {
+  "node_modules/@noble/curves/esm/abstract/curve.js"() {
     init_modular();
     init_utils3();
     _0n4 = BigInt(0);
@@ -4151,7 +4151,7 @@ var init_curve = __esm({
   }
 });
 
-// ../../enclave/node_modules/@noble/curves/esm/abstract/weierstrass.js
+// node_modules/@noble/curves/esm/abstract/weierstrass.js
 function validateSigVerOpts(opts) {
   if (opts.lowS !== void 0)
     abool("lowS", opts.lowS);
@@ -5028,7 +5028,7 @@ function mapToCurveSimpleSWU(Fp, opts) {
 }
 var DERErr, DER, _0n5, _1n5, _2n3, _3n2, _4n2;
 var init_weierstrass = __esm({
-  "../../enclave/node_modules/@noble/curves/esm/abstract/weierstrass.js"() {
+  "node_modules/@noble/curves/esm/abstract/weierstrass.js"() {
     init_curve();
     init_modular();
     init_utils3();
@@ -5145,7 +5145,7 @@ var init_weierstrass = __esm({
   }
 });
 
-// ../../enclave/node_modules/@noble/curves/esm/_shortw_utils.js
+// node_modules/@noble/curves/esm/_shortw_utils.js
 function getHash(hash2) {
   return {
     hash: hash2,
@@ -5158,14 +5158,14 @@ function createCurve(curveDef, defHash) {
   return { ...create(defHash), create };
 }
 var init_shortw_utils = __esm({
-  "../../enclave/node_modules/@noble/curves/esm/_shortw_utils.js"() {
+  "node_modules/@noble/curves/esm/_shortw_utils.js"() {
     init_hmac();
     init_utils2();
     init_weierstrass();
   }
 });
 
-// ../../enclave/node_modules/@noble/curves/esm/abstract/hash-to-curve.js
+// node_modules/@noble/curves/esm/abstract/hash-to-curve.js
 function i2osp(value, length) {
   anum(value);
   anum(length);
@@ -5313,14 +5313,14 @@ function createHasher2(Point2, mapToCurve, defaults) {
 }
 var os2ip;
 var init_hash_to_curve = __esm({
-  "../../enclave/node_modules/@noble/curves/esm/abstract/hash-to-curve.js"() {
+  "node_modules/@noble/curves/esm/abstract/hash-to-curve.js"() {
     init_modular();
     init_utils3();
     os2ip = bytesToNumberBE;
   }
 });
 
-// ../../enclave/node_modules/@noble/curves/esm/secp256k1.js
+// node_modules/@noble/curves/esm/secp256k1.js
 var secp256k1_exports = {};
 __export(secp256k1_exports, {
   encodeToCurve: () => encodeToCurve,
@@ -5424,7 +5424,7 @@ function schnorrVerify(signature, message, publicKey) {
 }
 var secp256k1P, secp256k1N, _0n6, _1n6, _2n4, divNearest, Fpk1, secp256k1, TAGGED_HASH_PREFIXES, pointToBytes, numTo32b, modP, modN, Point, GmulAdd, num, schnorr, isoMap, mapSWU, secp256k1_hasher, hashToCurve, encodeToCurve;
 var init_secp256k1 = __esm({
-  "../../enclave/node_modules/@noble/curves/esm/secp256k1.js"() {
+  "node_modules/@noble/curves/esm/secp256k1.js"() {
     init_sha2();
     init_utils2();
     init_shortw_utils();
@@ -5551,7 +5551,7 @@ var init_secp256k1 = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/abi/decodeFunctionResult.js
+// node_modules/viem/_esm/utils/abi/decodeFunctionResult.js
 function decodeFunctionResult(parameters) {
   const { abi, args, functionName, data } = parameters;
   let abiItem = abi[0];
@@ -5574,7 +5574,7 @@ function decodeFunctionResult(parameters) {
 }
 var docsPath4;
 var init_decodeFunctionResult = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/abi/decodeFunctionResult.js"() {
+  "node_modules/viem/_esm/utils/abi/decodeFunctionResult.js"() {
     init_abi();
     init_decodeAbiParameters();
     init_getAbiItem();
@@ -5582,7 +5582,7 @@ var init_decodeFunctionResult = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/utils/abi/decodeFunctionData.js
+// node_modules/viem/_esm/utils/abi/decodeFunctionData.js
 function decodeFunctionData(parameters) {
   const { abi, data } = parameters;
   const signature = slice(data, 0, 4);
@@ -5597,7 +5597,7 @@ function decodeFunctionData(parameters) {
   };
 }
 var init_decodeFunctionData = __esm({
-  "../../enclave/node_modules/viem/_esm/utils/abi/decodeFunctionData.js"() {
+  "node_modules/viem/_esm/utils/abi/decodeFunctionData.js"() {
     init_abi();
     init_slice();
     init_toFunctionSelector();
@@ -5606,13 +5606,13 @@ var init_decodeFunctionData = __esm({
   }
 });
 
-// ../../enclave/node_modules/viem/_esm/index.js
+// node_modules/viem/_esm/index.js
 init_exports();
 
-// ../../enclave/node_modules/viem/_esm/utils/abi/encodeEventTopics.js
+// node_modules/viem/_esm/utils/abi/encodeEventTopics.js
 init_abi();
 
-// ../../enclave/node_modules/viem/_esm/errors/log.js
+// node_modules/viem/_esm/errors/log.js
 init_base();
 var FilterTypeNotSupportedError = class extends BaseError2 {
   constructor(type) {
@@ -5622,7 +5622,7 @@ var FilterTypeNotSupportedError = class extends BaseError2 {
   }
 };
 
-// ../../enclave/node_modules/viem/_esm/utils/abi/encodeEventTopics.js
+// node_modules/viem/_esm/utils/abi/encodeEventTopics.js
 init_toBytes();
 init_keccak256();
 init_toEventSelector();
@@ -5667,7 +5667,7 @@ function encodeArg({ param, value }) {
   return encodeAbiParameters([param], [value]);
 }
 
-// ../../enclave/node_modules/viem/_esm/accounts/utils/publicKeyToAddress.js
+// node_modules/viem/_esm/accounts/utils/publicKeyToAddress.js
 init_getAddress();
 init_keccak256();
 function publicKeyToAddress(publicKey) {
@@ -5675,7 +5675,7 @@ function publicKeyToAddress(publicKey) {
   return checksumAddress(`0x${address}`);
 }
 
-// ../../enclave/node_modules/viem/_esm/utils/signature/recoverPublicKey.js
+// node_modules/viem/_esm/utils/signature/recoverPublicKey.js
 init_isHex();
 init_size();
 init_fromHex();
@@ -5710,12 +5710,12 @@ function toRecoveryBit(yParityOrV) {
   throw new Error("Invalid yParityOrV value");
 }
 
-// ../../enclave/node_modules/viem/_esm/utils/signature/recoverAddress.js
+// node_modules/viem/_esm/utils/signature/recoverAddress.js
 async function recoverAddress({ hash: hash2, signature }) {
   return publicKeyToAddress(await recoverPublicKey({ hash: hash2, signature }));
 }
 
-// ../../enclave/node_modules/viem/_esm/utils/abi/decodeEventLog.js
+// node_modules/viem/_esm/utils/abi/decodeEventLog.js
 init_abi();
 init_cursor();
 init_size();
@@ -5808,17 +5808,17 @@ function decodeTopic({ param, value }) {
   return decodedArg[0];
 }
 
-// ../../enclave/node_modules/viem/_esm/utils/signature/hashTypedData.js
+// node_modules/viem/_esm/utils/signature/hashTypedData.js
 init_encodeAbiParameters();
 init_concat();
 init_toHex();
 init_keccak256();
 
-// ../../enclave/node_modules/viem/_esm/utils/typedData.js
+// node_modules/viem/_esm/utils/typedData.js
 init_abi();
 init_address();
 
-// ../../enclave/node_modules/viem/_esm/errors/typedData.js
+// node_modules/viem/_esm/errors/typedData.js
 init_stringify();
 init_base();
 var InvalidDomainError = class extends BaseError2 {
@@ -5845,7 +5845,7 @@ var InvalidStructTypeError = class extends BaseError2 {
   }
 };
 
-// ../../enclave/node_modules/viem/_esm/utils/typedData.js
+// node_modules/viem/_esm/utils/typedData.js
 init_isAddress();
 init_size();
 init_toHex();
@@ -5914,7 +5914,7 @@ function validateReference(type) {
     throw new InvalidStructTypeError({ type });
 }
 
-// ../../enclave/node_modules/viem/_esm/utils/signature/hashTypedData.js
+// node_modules/viem/_esm/utils/signature/hashTypedData.js
 function hashTypedData(parameters) {
   const { domain = {}, message, primaryType } = parameters;
   const types = {
@@ -6024,7 +6024,7 @@ function encodeField({ types, name, type, value }) {
   return [{ type }, value];
 }
 
-// ../../enclave/node_modules/viem/_esm/utils/signature/recoverTypedDataAddress.js
+// node_modules/viem/_esm/utils/signature/recoverTypedDataAddress.js
 async function recoverTypedDataAddress(parameters) {
   const { domain, message, primaryType, signature, types } = parameters;
   return recoverAddress({
@@ -6038,7 +6038,7 @@ async function recoverTypedDataAddress(parameters) {
   });
 }
 
-// ../../enclave/node_modules/viem/_esm/index.js
+// node_modules/viem/_esm/index.js
 init_decodeAbiParameters();
 init_decodeFunctionData();
 init_decodeFunctionResult();

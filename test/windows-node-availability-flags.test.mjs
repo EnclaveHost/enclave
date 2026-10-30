@@ -71,7 +71,6 @@ test("every false in PARTITION_OFFERS is a refusal in isolationPlan (or a consta
   const refused = {
     waf: { waf: { rate: { perMin: 10 } } },
     privateDeployments: { deployment: { ...base.deployment, isPublic: false } },
-    volumes: { volumes: ["gemma"] },
   };
   for (const [k, over] of Object.entries(refused)) {
     assert.equal(PARTITION_OFFERS[k], false, k);
@@ -84,6 +83,7 @@ test("every false in PARTITION_OFFERS is a refusal in isolationPlan (or a consta
     config: { appConfig: JSON.stringify({ greeting: "hi" }) },
     configCid: { appConfigCid: "bafyoverride" },
     gpu: { deployment: { ...base.deployment, gpuMilli: 100 } },
+    volumes: { volumes: ["gemma"], appConfig: JSON.stringify({ volumes: ["gemma"] }) },
   };
   for (const [k, over] of Object.entries(needManager)) {
     assert.equal(PARTITION_OFFERS[k], true, k);
@@ -95,7 +95,7 @@ test("every false in PARTITION_OFFERS is a refusal in isolationPlan (or a consta
   const t = isolatedTarget(DEP, { status: "running", isolation: { instance: "hv1", appId: "1".repeat(64) } }, "app.enclave.host");
   assert.equal(t.isolation.expectName, `${DEP.slice(2, 10)}.app.enclave.host`, "only the platform's own name is spliced");
   assert.deepEqual(Object.entries(PARTITION_OFFERS).filter(([, v]) => v !== false).map(([k]) => k).sort(),
-                   ["config", "configCid", "gpu", "secrets"], "a partition offer turned true without its test");
+                   ["config", "configCid", "gpu", "secrets", "volumes"], "a partition offer turned true without its test");
 });
 
 test("the claim gate follows the flags: the isolated backend refuses a PRIVATE deployment at claim, by name, not after claiming it", async () => {
