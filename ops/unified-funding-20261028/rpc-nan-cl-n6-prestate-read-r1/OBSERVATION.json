@@ -1,0 +1,117 @@
+{
+  "at": 1793377507.3964634,
+  "boot": "4b84b9bd-a89d-4b37-94cb-26334dbf4666",
+  "unknown": [
+    {
+      "pid": 482505,
+      "start": "1073946574",
+      "exe": "/usr/bin/python3.12",
+      "cgroup": "0::/system.slice/enclave-rpc-nan-diagnostic-n6-prestate.service",
+      "argv0": "/usr/bin/python3",
+      "argc": 3,
+      "cmdlineSha256": "fcf552dde7f0b76406ecc61a399e9adc3fa19352ba8943b0428696d16dc4f603"
+    }
+  ],
+  "knownTransport": [
+    {
+      "pid": 482503,
+      "start": "1073946572",
+      "exe": "/usr/bin/sudo",
+      "cgroup": "0::/user.slice/user-0.slice/session-30357.scope",
+      "argv0": "sudo",
+      "argc": 15,
+      "cmdlineSha256": "880243c7d62057fa68e7cac10bebde8849c689ee6346e3018fe55cacf22ab746",
+      "exactTransportMatch": false,
+      "tailTransportMatch": false
+    },
+    {
+      "pid": 482504,
+      "start": "1073946573",
+      "exe": "/usr/bin/systemd-run",
+      "cgroup": "0::/user.slice/user-0.slice/session-30357.scope",
+      "argv0": "systemd-run",
+      "argc": 13,
+      "cmdlineSha256": "6e93f66d6c235e20b13fb62aacf97386d4b83c6bb108d7210a5ec6f4ffee6543",
+      "exactTransportMatch": false,
+      "tailTransportMatch": false
+    }
+  ],
+  "paths": {
+    "/run/enclave-rpc-nan-client-n6/state.json": {
+      "exists": false
+    },
+    "/var/lib/enclave-rpc-nan-client-n6": {
+      "exists": false
+    },
+    "/srv/enclave-nan-cl-n6": {
+      "exists": false
+    },
+    "/sys/module/nbd": {
+      "exists": false
+    },
+    "/root/rpc-nan-client-n6/export.sock": {
+      "exists": false
+    }
+  },
+  "readOnly": true,
+  "units": {
+    "rc": 0,
+    "reason": null,
+    "elapsedSeconds": 0.1363441664725542,
+    "stdout": "ControlGroup=/enclavenantrialn6.slice\nId=enclavenantrialn6.slice\nDescription=Nan CL 9b69383d-8eb4-4aa4-bd83-ec7ac3f9a5bf enclavenantrialn6.slice\nLoadState=loaded\nActiveState=active\nFragmentPath=/run/systemd/system/enclavenantrialn6.slice\nInvocationID=b0ddf68e53ae4df3a37cfb8103bd5ff8\n\nControlGroup=/enclavenanattachn6.slice\nId=enclavenanattachn6.slice\nDescription=Nan CL 9b69383d-8eb4-4aa4-bd83-ec7ac3f9a5bf enclavenanattachn6.slice\nLoadState=loaded\nActiveState=active\nFragmentPath=/run/systemd/system/enclavenanattachn6.slice\nInvocationID=e90d1cb4774e4bd3ba41584c93d8ed63\n\nControlGroup=/enclavenanguardn6.slice\nId=enclavenanguardn6.slice\nDescription=Nan CL 9b69383d-8eb4-4aa4-bd83-ec7ac3f9a5bf enclavenanguardn6.slice\nLoadState=loaded\nActiveState=active\nFragmentPath=/run/systemd/system/enclavenanguardn6.slice\nInvocationID=61571a0ee1b846f79a1b80b10f4cb342\n\nMainPID=0\nControlGroup=\nId=enclave-rpc-nan-bootstrap-n6.service\nDescription=enclave-rpc-nan-bootstrap-n6.service\nLoadState=not-found\nActiveState=inactive\nFragmentPath=\nInvocationID=\n\nMainPID=0\nControlGroup=\nId=enclave-rpc-nan-helper-n6.service\nDescription=enclave-rpc-nan-helper-n6.service\nLoadState=not-found\nActiveState=inactive\nFragmentPath=\nInvocationID=\n\nMainPID=0\nControlGroup=\nId=enclave-rpc-nan-watch-n6.service\nDescription=enclave-rpc-nan-watch-n6.service\nLoadState=not-found\nActiveState=inactive\nFragmentPath=\nInvocationID=\n\nMainPID=0\nControlGroup=\nId=enclave-rpc-nan-nbd-n6.service\nDescription=enclave-rpc-nan-nbd-n6.service\nLoadState=not-found\nActiveState=inactive\nFragmentPath=\nInvocationID=\n\nMainPID=0\nControlGroup=\nId=enclave-rpc-nan-cl-trial-n6.service\nDescription=enclave-rpc-nan-cl-trial-n6.service\nLoadState=not-found\nActiveState=inactive\nFragmentPath=\nInvocationID=\n\nMainPID=0\nControlGroup=\nId=enclave-rpc-nan-verify-n6.service\nDescription=enclave-rpc-nan-verify-n6.service\nLoadState=not-found\nActiveState=inactive\nFragmentPath=\nInvocationID=\n\nMainPID=0\nControlGroup=\nId=enclave-rpc-nan-request-stop-n6.service\nDescription=enclave-rpc-nan-request-stop-n6.service\nLoadState=not-found\nActiveState=inactive\nFragmentPath=\nInvocationID=\n\nMainPID=0\nControlGroup=\nId=enclave-rpc-nan-socket-clear-n6.service\nDescription=enclave-rpc-nan-socket-clear-n6.service\nLoadState=not-found\nActiveState=inactive\nFragmentPath=\nInvocationID=\n",
+    "stderr": "",
+    "bytesObserved": {
+      "stdout": 2300,
+      "stderr": 0
+    },
+    "stdinBytesWritten": 0,
+    "stdinBytesRequested": 0,
+    "truncated": false,
+    "localChildReaped": true,
+    "ownedGroupKillAttempted": true,
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "localProcessGroupDeathProven": false,
+    "remoteDeathProven": false
+  },
+  "mounts": {
+    "rc": 0,
+    "reason": null,
+    "elapsedSeconds": 0.002533920109272003,
+    "stdout": "/sys sysfs sysfs\n/proc proc proc\n/dev udev devtmpfs\n/dev/pts devpts devpts\n/run tmpfs tmpfs\n/ /dev/sda1 ext4\n/sys/kernel/security securityfs securityfs\n/dev/shm tmpfs tmpfs\n/run/lock tmpfs tmpfs\n/sys/fs/cgroup cgroup2 cgroup2\n/sys/fs/pstore pstore pstore\n/sys/fs/bpf bpf bpf\n/proc/sys/fs/binfmt_misc systemd-1 autofs\n/dev/hugepages hugetlbfs hugetlbfs\n/sys/kernel/debug debugfs debugfs\n/dev/mqueue mqueue mqueue\n/sys/kernel/tracing tracefs tracefs\n/sys/fs/fuse/connections fusectl fusectl\n/sys/kernel/config configfs configfs\n/boot/efi /dev/sda15 vfat\n/proc/sys/fs/binfmt_misc binfmt_misc binfmt_misc\n/sys/kernel/debug/tracing tracefs tracefs\n/run/user/0 tmpfs tmpfs\n",
+    "stderr": "",
+    "bytesObserved": {
+      "stdout": 667,
+      "stderr": 0
+    },
+    "stdinBytesWritten": 0,
+    "stdinBytesRequested": 0,
+    "truncated": false,
+    "localChildReaped": true,
+    "ownedGroupKillAttempted": true,
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "localProcessGroupDeathProven": false,
+    "remoteDeathProven": false
+  },
+  "accounts": {
+    "rc": 0,
+    "reason": null,
+    "elapsedSeconds": 0.0009810850024223328,
+    "stdout": "enclavenancl:x:50011:50011::/nonexistent:/usr/sbin/nologin\n",
+    "stderr": "",
+    "bytesObserved": {
+      "stdout": 59,
+      "stderr": 0
+    },
+    "stdinBytesWritten": 0,
+    "stdinBytesRequested": 0,
+    "truncated": false,
+    "localChildReaped": true,
+    "ownedGroupKillAttempted": true,
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "localProcessGroupDeathProven": false,
+    "remoteDeathProven": false
+  }
+}

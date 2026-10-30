@@ -1,0 +1,170 @@
+{
+  "at": 1793377433.9888191,
+  "unit": {
+    "ActiveState": "active",
+    "InvocationID": "b12c9e92ca844179b0afc3a813916fd9",
+    "MainPID": "2916087",
+    "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-nan-cl-native-n6-20261030.service"
+  },
+  "processes": [
+    {
+      "pid": 2916087,
+      "parent": 1899,
+      "start": "168251830",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/python3",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+        "--mib",
+        "512",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/native.outer.log",
+        "--",
+        "/usr/bin/node",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+        "--max-rss-mib",
+        "450",
+        "--floor-available-mib",
+        "27648",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/native.inner.log",
+        "--",
+        "/usr/bin/python3",
+        "-B",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/runtime/run.py"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-nan-cl-native-n6-20261030.service",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    {
+      "pid": 2916122,
+      "parent": 2916087,
+      "start": "168251835",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/node",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+        "--max-rss-mib",
+        "512",
+        "--floor-available-mib",
+        "16384",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/native.outer.log",
+        "--",
+        "/usr/bin/node",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+        "--max-rss-mib",
+        "450",
+        "--floor-available-mib",
+        "27648",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/native.inner.log",
+        "--",
+        "/usr/bin/python3",
+        "-B",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/runtime/run.py"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2916122-i44861918.scope",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    {
+      "pid": 2916129,
+      "parent": 2916122,
+      "start": "168251839",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/node",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+        "--max-rss-mib",
+        "450",
+        "--floor-available-mib",
+        "27648",
+        "--log",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/native.inner.log",
+        "--",
+        "/usr/bin/python3",
+        "-B",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/runtime/run.py"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2916122-i44861918.scope",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    {
+      "pid": 2916137,
+      "parent": 2916129,
+      "start": "168251841",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/python3",
+        "-B",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/runtime/run.py"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2916122-i44861918.scope",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    {
+      "pid": 2916322,
+      "parent": 2916137,
+      "start": "168254710",
+      "exe": "/usr/bin/qemu-nbd",
+      "cwd": "/",
+      "argv": [
+        "/usr/sbin/qemu-nbd",
+        "--persistent",
+        "--shared=1",
+        "--socket",
+        "/run/user/1000/rpc-nan-client-n6/export.sock",
+        "--export-name",
+        "enclave-nan-cl-9b69383d-8eb4-4aa4-bd83-ec7ac3f9a5bf",
+        "--format=qcow2",
+        "--cache=none",
+        "--aio=threads",
+        "/vm/enclave-volumes/rpc-nan-cl-n6/overlay.qcow2"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2916122-i44861918.scope",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    },
+    {
+      "pid": 2916325,
+      "parent": 2916137,
+      "start": "168254720",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "argv": [
+        "/usr/bin/ssh",
+        "-oBatchMode=yes",
+        "-oStrictHostKeyChecking=yes",
+        "-oConnectTimeout=5",
+        "-oControlMaster=no",
+        "-oControlPath=none",
+        "-oServerAliveInterval=5",
+        "-oServerAliveCountMax=2",
+        "-N",
+        "-oExitOnForwardFailure=yes",
+        "-oStreamLocalBindMask=0177",
+        "-oStreamLocalBindUnlink=no",
+        "-R",
+        "/root/rpc-nan-client-n6/export.sock:/run/user/1000/rpc-nan-client-n6/export.sock",
+        "nan"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2916122-i44861918.scope",
+      "cpu": [
+        "Cpus_allowed_list:\t1"
+      ]
+    }
+  ]
+}

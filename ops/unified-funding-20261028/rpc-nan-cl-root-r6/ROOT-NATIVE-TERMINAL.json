@@ -1,0 +1,23 @@
+{
+  "at": 1793377517.812985,
+  "knownAlive": [],
+  "contentDrift": [],
+  "clientStarted": false,
+  "refused": "fresh-admission-headroom-before-main",
+  "remoteCleanupVerified": false,
+  "parentUnchanged": true,
+  "readonlyPrestateObservation": "rpc-nan-cl-n6-prestate-read-r1 terminal0",
+  "observedAbsent": [
+    "state.json",
+    "executable payload",
+    "mount",
+    "nbd module",
+    "remote socket"
+  ],
+  "retainedArtifacts": [
+    "three empty configured trial slices",
+    "root runtime manifest/program",
+    "upload directory",
+    "private COW"
+  ]
+}

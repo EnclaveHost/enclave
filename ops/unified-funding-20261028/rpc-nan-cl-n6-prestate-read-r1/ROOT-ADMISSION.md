@@ -1,0 +1,1 @@
+One bounded read-only prestate census after n6 refused before remote main. Exact current n6 manifest; no runtime execute, account/config change or signal. Capture unit identities/mounts/module/state absence and retained slice/socket artifacts.256/220/floor27648/CPU1/noSwap.

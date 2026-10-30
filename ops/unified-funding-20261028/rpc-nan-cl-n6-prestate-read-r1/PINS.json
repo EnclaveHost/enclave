@@ -1,0 +1,13 @@
+{
+  "originalFileSha256": "0f56ee5862f7efee5a17be1ed543ae56440202a8d44c7fdede2c3cab8f65f0b9",
+  "publicContentPins": [
+    {
+      "path": "remote.py",
+      "sha256": "41e037cd0a7c04fedfaeff57806b3a5b3ff6c12be12ee3b3865b673e25b39c48"
+    },
+    {
+      "path": "run.py",
+      "sha256": "857cb6f995b95b31585df65d4381c587637660635cefdee7ce5dbe620a608540"
+    }
+  ]
+}
