@@ -1,0 +1,1 @@
+Root reviewed actual byte-array evidence, all product changes and15regression additions. Exact invocation and finite budgets retained. Namespace changes separate consumed native runs; frozen-r6 ancestry unchanged.59source fixtures+10RPC+4own-process/composition intended, not yet executed. Source/runtime are not production proof.
