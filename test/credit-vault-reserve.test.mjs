@@ -63,7 +63,9 @@ test("vault-owned app lease gas through the proposed parallel reserve; the submi
   const dp = await CV.prepareVaultOp(lib, profile, "deploy", { spec, fundUsd: "10" }, opts);
   const dreq = await CV.signPrepared(lib, dp, profile, { pins: PINS, origin: F.ORIGIN, getFn: K.getFn(), intent: { op: "deploy", params: { spec, fundUsd: "10" } } });
   const ds = await CV.submitRequest(lib, dreq, CV.walletTransport(F.eip1193(A), F.ACCT.payer.address), { journal: dj, reader, pins: PINS });
-  const rc = await A.pub.getTransactionReceipt({ hash: ds.txHash });
+  // Wallet submission acknowledges broadcast, not inclusion of this setup deployment.
+  const rc = await A.pub.waitForTransactionReceipt({ hash: ds.txHash, pollingInterval: 50, timeout: 30000 });
+  assert.equal(rc.status, "success");
   const id = rc.logs.find((l) => lc(l.address) === lc(S.ledger) && l.topics[0] === "0x3b201eb11e77934b296f908775fc0a82679683fd83a1232579f1014bcf7d3239").topics[1];
   const rj = F.memJournal();
   const wallet = () => CV.walletTransport(F.eip1193(A), F.ACCT.payer.address);
