@@ -1,0 +1,13 @@
+{
+  "invocation": "b0a639d9b76d40a38b226327a7e02588",
+  "terminalRc": 1,
+  "durationMs": 7969,
+  "reason": "Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh. This is usually transient; retry in a minute, and if it persists close other Claude Code processes or sign in again",
+  "currentReadonlyPins": 77,
+  "inputDrift": [],
+  "seedChanges": [],
+  "reviewedExecutableInStage": [],
+  "claudePidNotSampled": true,
+  "standardCollectorNotRun": true,
+  "nativeChanges": false
+}

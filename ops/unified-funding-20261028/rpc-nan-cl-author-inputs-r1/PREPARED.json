@@ -1,0 +1,53 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "priority": "ROOT_REVIEW_BEFORE_ONE_SOURCE_JOB",
+  "seedEntries": 15,
+  "readonlyInputPins": 77,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "turnLimit": 30,
+  "childTimeoutSec": 900,
+  "outerTimeoutSec": 1200,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpuIndex": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-nan-cl-author-r1-20261030/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "accountCheckedNow": false,
+  "productPreEdits": 0,
+  "scope": "Complete Nan CL-only private-COW runner; source-only author",
+  "rootAdmissionGate": "independent fresh Max preflight plus root-author-approval binding PREPARED and preflight bytes",
+  "hashes": {
+    "ACCOUNT-PREFLIGHT.md": "ea744144afe802746f415f0c342412acbf03794429fbe350cad2eedc7a66e54d",
+    "PLAN.md": "c187e4821db167ad420b634af181f3c1c0a08149de655c248d19e151381e51a9",
+    "TASK.txt": "f970f373f54f025573274bce1db33aa4004d1d98d48b671ce930916437c74ff0",
+    "account-requirements.json": "f7f904f166ddbb3f4c8a0c039b4a520d42823408422fbc2bc8f2861553466d34",
+    "allowed-edit-paths.json": "398a8a0269e49e76db18f7f5ea706c76e46c3c3afcaf655e1f459e5ddb959b5d",
+    "author-tool-pins.json": "9b7902899dbc9ae79b2f2b72ce8f4ac5ed02c263044f96639362a12cf6c9e526",
+    "collect-terminal.py": "6095fb7c55a6b39fa6f74e6edc439d8a5f77237c0979ae74f7aaade3d14b6cdf",
+    "dependency-closure.json": "80a8e6ef8c9877e50e064ba4026c48e145faf83c8a6e073571dbdbffeaf6805c",
+    "input-pins.json": "b512378d78fa5279fe6074383d80e7426efa8b8a83a2d7c752ea99a2c275353d",
+    "launch-command.txt": "932a866f52a857e03d32531c111654b032e344aebb47f159cdb39f21e2ea9f12",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "root-preflight.py": "59105bfca47fc3837043f68ddaf845146143eba8033a55fd5180b80a0863b97a",
+    "run.py": "fde2d7c39e0d4ae4cf298d600b082ea22f2b4386d2f6d227aebdb17199bf51e3",
+    "seed-pins.json": "0650f278cc2c905ac95f2ee8f7b4b82a5339feed8f7f6c76073d6326f8dafb6a",
+    "seed-provenance.json": "21bf1c035f7eddb67b7040505ee010e98a66ef09e88e0f8bac4ad79e7555a336",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8"
+  },
+  "sourceClosureLimitations": [
+    "No author/account/native/test execution during preparation.",
+    "Author delivery requires root review, assembly and separate native admission."
+  ]
+}

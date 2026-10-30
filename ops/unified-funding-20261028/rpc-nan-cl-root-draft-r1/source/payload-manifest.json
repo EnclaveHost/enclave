@@ -1,0 +1,18 @@
+{
+  "format": "enclave-rpc-production-bootstrap/v1",
+  "binaries": {
+    "base": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+    "reth": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250",
+    "lighthouse": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96"
+  },
+  "snapshotManifests": {
+    "base": "https://mainnet-v2-snapshots.base.org/1792886410/manifest.json",
+    "l1": "https://snapshots-r2.reth.rs/reth-1-archive-stable-26263563-1792861874/manifest.json"
+  },
+  "mounts": {
+    "base": "/srv/enclave-base-holder",
+    "l1": "/srv/enclave-nan-cl-n1/volume"
+  },
+  "servingProduction": false,
+  "nvmeCacheBytes": 0
+}

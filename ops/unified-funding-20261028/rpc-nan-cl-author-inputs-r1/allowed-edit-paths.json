@@ -1,0 +1,32 @@
+{
+  "existing": [
+    "transport-helpers.py",
+    "client-operations.py",
+    "client-main.py",
+    "run-body.py",
+    "run.py",
+    "remote-program.py",
+    "trial-chain-service.py",
+    "disks.json",
+    "payload-manifest.json",
+    "MANIFEST.json",
+    "EXTERNAL-PINS.json"
+  ],
+  "newFiles": [
+    "ownership.py",
+    "nan-admission.py",
+    "prepare-runtime.py",
+    "nan-policy.json",
+    "README-NAN.md",
+    "CLOSURE.json",
+    "test_nan_runner.py"
+  ],
+  "immutable": [
+    "capture-local.py",
+    "capture-remote.py",
+    "original-reth.toml",
+    "proposed-reth.toml",
+    "all files outside candidate"
+  ],
+  "note": "Source tools are not a filesystem sandbox. Collector audits paths, seed and successful mutation replay. No symlinks/binaries/dependencies."
+}

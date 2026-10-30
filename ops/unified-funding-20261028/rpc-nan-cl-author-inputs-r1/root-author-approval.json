@@ -1,0 +1,7 @@
+{
+  "launchAuthorized": true,
+  "preparedSha256": "4f43a88f9b4db1bc153a816733b23b2eeb20614aabf5007b7aaf7c8ed7a82917",
+  "rootPreflightSha256": "d7764c64a3df5fb155efc2f4b4076d9049c808eec13aa1604df9de9246367472",
+  "reviewedAt": 1793370379.3980918,
+  "scope": "ONE source-only Nan CL runner author. No tests/build/native/remote/finance authorized."
+}

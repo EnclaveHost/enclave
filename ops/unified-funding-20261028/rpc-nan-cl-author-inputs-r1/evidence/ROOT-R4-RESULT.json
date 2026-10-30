@@ -1,0 +1,1189 @@
+{
+  "action": "main",
+  "clRpcObserved": false,
+  "cleanup": {
+    "clients": {
+      "cl": {
+        "ActiveState": "failed",
+        "ControlGroup": "",
+        "Description": "Enclave L1 4213b340-4817-4df2-baaa-ee492962e9ad cl",
+        "DropInPaths": "",
+        "ExecMainCode": "2",
+        "ExecMainStatus": "9",
+        "ExecStart": "{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -I -B /var/lib/enclave-rpc-l1-client-r4/payload/chain_service.py cl ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:05:22 UTC] ; stop_time=[Fri 2026-10-30 14:05:40 UTC] ; pid=301202 ; code=killed ; status=9/KILL }",
+        "FragmentPath": "/run/systemd/transient/enclave-rpc-l1-cl-trial-r4.service",
+        "Group": "enclavel1cl",
+        "InvocationID": "98965a0b949f4863b0b96207fb92b3b8",
+        "LoadState": "loaded",
+        "MainPID": "0",
+        "Result": "oom-kill",
+        "SubState": "failed",
+        "Transient": "yes",
+        "User": "enclavel1cl"
+      },
+      "el": {
+        "ActiveState": "inactive",
+        "ControlGroup": "",
+        "Description": "enclave-rpc-l1-el-trial-r4.service",
+        "DropInPaths": "",
+        "ExecMainCode": "0",
+        "ExecMainStatus": "0",
+        "FragmentPath": "",
+        "Group": "",
+        "InvocationID": "",
+        "LoadState": "not-found",
+        "MainPID": "0",
+        "Result": "success",
+        "SubState": "dead",
+        "Transient": "no",
+        "User": ""
+      }
+    },
+    "errors": [],
+    "nbdUnit": {
+      "ActiveState": "inactive",
+      "ControlGroup": "",
+      "Description": "enclave-rpc-l1-nbd-r4.service",
+      "DropInPaths": "",
+      "ExecMainCode": "0",
+      "ExecMainStatus": "0",
+      "FragmentPath": "",
+      "Group": "",
+      "InvocationID": "",
+      "LoadState": "not-found",
+      "MainPID": "0",
+      "Result": "success",
+      "SubState": "dead",
+      "Transient": "no",
+      "User": ""
+    },
+    "ok": true,
+    "ownedInvocations": {
+      "cl": "98965a0b949f4863b0b96207fb92b3b8",
+      "el": "00bacefaecb74abb9a5ce9f3451cbfb8"
+    },
+    "reason": "client-ended:cl",
+    "retainedAccounts": {
+      "groups": [
+        {
+          "gid": 987,
+          "name": "enclavel1el"
+        },
+        {
+          "gid": 986,
+          "name": "enclavel1cl"
+        },
+        {
+          "gid": 50002,
+          "name": "enclavel1jwt"
+        }
+      ],
+      "users": [
+        {
+          "gid": 987,
+          "name": "enclavel1el",
+          "uid": 997
+        },
+        {
+          "gid": 986,
+          "name": "enclavel1cl",
+          "uid": 995
+        }
+      ]
+    }
+  },
+  "clientLog:cl": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 1198
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10508828901220113,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "{\"starting\": \"cl\", \"datadir\": \"/srv/enclave-l1-pair-r4/cl\", \"publicExecutionRpc\": false}\nOct 30 14:05:23.249 INFO  Lighthouse started                            version: \"Lighthouse/v8.3.2\"\nOct 30 14:05:23.249 INFO  Configured network                            network_name: \"mainnet\"\nOct 30 14:05:23.250 INFO  Data directory initialised                    datadir: /srv/enclave-l1-pair-r4/cl\nOct 30 14:05:23.251 INFO  Deposit contract                              deploy_block: 11184524, address: 0x00000000219ab540356cbb839cbe05303d7705fa\nOct 30 14:05:29.542 INFO  Hot-Cold DB initialized                       split.slot: 15517120, split.state_root: 0x429cb42dc10afa4b31c53ad881852d334c36aeb1305fb982f270b5be0b4ef354, split.block_root: 0x9937cfdaaff7b5ce51483fac7b3fd6bf3bf0dc9e9c18593d7c812d38923e17dd\nOct 30 14:05:29.542 INFO  Blob DB initialized                           path: \"/srv/enclave-l1-pair-r4/cl/beacon/blobs_db\", oldest_data_slot: 15382624\nOct 30 14:05:31.998 INFO  Starting beacon chain                         method: \"resume\"\nOct 30 14:05:32.441 WARN  State cache missed                            state_root: 0x5fc3fd9629626a97f7dbeeae8aa37d2b57fba9efd1466bf12b748d262015abb5\n",
+    "truncated": false
+  },
+  "clientLog:el": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 2076
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.11530908790882677,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "{\"starting\": \"el\", \"datadir\": \"/srv/enclave-l1-pair-r4/data\", \"publicExecutionRpc\": false}\n\u001b[2m2026-10-30T14:05:23.080347Z\u001b[0m \u001b[32m INFO\u001b[0m Initialized tracing, debug log directory: /srv/enclave-l1-pair-r4/data/logs/mainnet\n\u001b[2m2026-10-30T14:05:23.084667Z\u001b[0m \u001b[32m INFO\u001b[0m Starting Reth \u001b[3mversion\u001b[0m\u001b[2m=\u001b[0m\"2.8.0 (05ba481)\"\n\u001b[2m2026-10-30T14:05:23.084704Z\u001b[0m \u001b[32m INFO\u001b[0m Opening database \u001b[3mpath\u001b[0m\u001b[2m=\u001b[0m\"/srv/enclave-l1-pair-r4/data/db\"\n\u001b[2m2026-10-30T14:05:23.539496Z\u001b[0m \u001b[32m INFO\u001b[0m Launching node\n\u001b[2m2026-10-30T14:05:23.540252Z\u001b[0m \u001b[32m INFO\u001b[0m Configuration loaded \u001b[3mpath\u001b[0m\u001b[2m=\u001b[0m\"/srv/enclave-l1-pair-r4/data/reth.toml\"\n\u001b[2m2026-10-30T14:05:29.384649Z\u001b[0m \u001b[33m WARN\u001b[0m RocksDB will not keep all files open; performance may be reduced \u001b[3mfile_descriptor_limit\u001b[0m\u001b[2m=\u001b[0mSome(65536) \u001b[3mthreshold\u001b[0m\u001b[2m=\u001b[0m131072 \u001b[3mmax_open_files\u001b[0m\u001b[2m=\u001b[0m512\n\u001b[2m2026-10-30T14:05:32.682936Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[1mcheck_consistency\u001b[0m\u001b[2m:\u001b[0m Healing static file inconsistencies.\n\u001b[2m2026-10-30T14:05:33.527096Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[1mcheck_consistency\u001b[0m\u001b[2m:\u001b[0m TransactionHashNumbers: healing via transaction ranges \u001b[3mcheckpoint\u001b[0m\u001b[2m=\u001b[0m26277866 \u001b[3msf_tip\u001b[0m\u001b[2m=\u001b[0m26277896 \u001b[3mcheckpoint_next_tx\u001b[0m\u001b[2m=\u001b[0m3812724888 \u001b[3msf_tip_end_tx\u001b[0m\u001b[2m=\u001b[0m3812733634\n\u001b[2m2026-10-30T14:05:33.610271Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[1mcheck_consistency\u001b[0m\u001b[2m:\u001b[0m Pruning TransactionHashNumbers entries by tx range \u001b[3mdeleted_count\u001b[0m\u001b[2m=\u001b[0m8747 \u001b[3mtx_range_start\u001b[0m\u001b[2m=\u001b[0m3812724888 \u001b[3mtx_range_end\u001b[0m\u001b[2m=\u001b[0m3812733634\n\u001b[2m2026-10-30T14:05:33.647679Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[1mcheck_consistency\u001b[0m\u001b[2m:\u001b[0m StoragesHistory: healing via changesets \u001b[3mcheckpoint\u001b[0m\u001b[2m=\u001b[0m26277866 \u001b[3msf_tip\u001b[0m\u001b[2m=\u001b[0m26277896 \u001b[3mtotal_blocks\u001b[0m\u001b[2m=\u001b[0m30\n\u001b[2m2026-10-30T14:05:33.692100Z\u001b[0m \u001b[32m INFO\u001b[0m \u001b[1mcheck_consistency\u001b[0m\u001b[2m:\u001b[0m StoragesHistory: unwinding batch \u001b[3mbatch_num\u001b[0m\u001b[2m=\u001b[0m1 \u001b[3mtotal_batches\u001b[0m\u001b[2m=\u001b[0m1 \u001b[3mbatch_start\u001b[0m\u001b[2m=\u001b[0m26277867 \u001b[3mbatch_end\u001b[0m\u001b[2m=\u001b[0m26277896 \u001b[3mindices_count\u001b[0m\u001b[2m=\u001b[0m15718\n",
+    "truncated": false
+  },
+  "daemonReload": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.16926022991538048,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "elRpcObserved": false,
+  "errors": [
+    "AssertionError:client-RPC-startup-not-observed"
+  ],
+  "exportInfo": {
+    "bytes": 4000000000000,
+    "flags": 3181
+  },
+  "filesystemUuid": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 37
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.4639939209446311,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0\n",
+    "truncated": false
+  },
+  "jwtCreatedPrivately": true,
+  "lastHeadroom": {
+    "available": 7262281728,
+    "existingRemainingCapGrowth": 2404229120,
+    "floor": 1610612736,
+    "groups": [
+      {
+        "current": 0,
+        "maximum": 2415919104,
+        "path": "/enclavel1trialr4.slice"
+      },
+      {
+        "current": 131678208,
+        "maximum": 134217728,
+        "path": "/enclavel1attachr4.slice"
+      },
+      {
+        "current": 13250560,
+        "maximum": 134217728,
+        "path": "/enclavel1guardianr4.slice"
+      }
+    ],
+    "residual": 2318626816,
+    "trialCurrent": 144928768,
+    "trialMaximum": 2684354560,
+    "trialPending": 2539425792
+  },
+  "libraryOwner:ld-linux-x86-64.so.2": {
+    "bytesObserved": {
+      "stderr": 86,
+      "stdout": 60
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.12672735191881657,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 1,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2\n",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "libc6:amd64: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2\n",
+    "truncated": false
+  },
+  "libraryOwner:libc.so.6": {
+    "bytesObserved": {
+      "stderr": 75,
+      "stdout": 49
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.12736728694289923,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 1,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libc.so.6\n",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "libc6:amd64: /usr/lib/x86_64-linux-gnu/libc.so.6\n",
+    "truncated": false
+  },
+  "libraryOwner:libgcc_s.so.1": {
+    "bytesObserved": {
+      "stderr": 79,
+      "stdout": 57
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.1282188449986279,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 1,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libgcc_s.so.1\n",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "libgcc-s1:amd64: /usr/lib/x86_64-linux-gnu/libgcc_s.so.1\n",
+    "truncated": false
+  },
+  "libraryOwner:libm.so.6": {
+    "bytesObserved": {
+      "stderr": 75,
+      "stdout": 49
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.12930931302253157,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 1,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libm.so.6\n",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "libc6:amd64: /usr/lib/x86_64-linux-gnu/libm.so.6\n",
+    "truncated": false
+  },
+  "libraryOwner:libstdc++.so.6": {
+    "bytesObserved": {
+      "stderr": 85,
+      "stdout": 64
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.12398481997661293,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 1,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libstdc++.so.6.0.33\n",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "libstdc++6:amd64: /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33\n",
+    "truncated": false
+  },
+  "libraryOwner:libz.so.1": {
+    "bytesObserved": {
+      "stderr": 77,
+      "stdout": 52
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.12716267502401024,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 1,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libz.so.1.3\n",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "zlib1g:amd64: /usr/lib/x86_64-linux-gnu/libz.so.1.3\n",
+    "truncated": false
+  },
+  "libraryVersion:ld-linux-x86-64.so.2": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 19
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10531102702952921,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "2.39-0ubuntu8.9\tii ",
+    "truncated": false
+  },
+  "libraryVersion:libc.so.6": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 19
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10485226102173328,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "2.39-0ubuntu8.9\tii ",
+    "truncated": false
+  },
+  "libraryVersion:libgcc_s.so.1": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 27
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10574758797883987,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "14.2.0-4ubuntu2~24.04.1\tii ",
+    "truncated": false
+  },
+  "libraryVersion:libm.so.6": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 19
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10538142698351294,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "2.39-0ubuntu8.9\tii ",
+    "truncated": false
+  },
+  "libraryVersion:libstdc++.so.6": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 27
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10547378903720528,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "14.2.0-4ubuntu2~24.04.1\tii ",
+    "truncated": false
+  },
+  "libraryVersion:libz.so.1": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 27
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10546732298098505,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "1:1.3.dfsg-3.1ubuntu2.3\tii ",
+    "truncated": false
+  },
+  "loadModule": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.12078935001045465,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "ok": false,
+  "owners": {
+    "cl": {
+      "gid": 986,
+      "inode": 540673,
+      "mode": 16872,
+      "uid": 995
+    },
+    "cl/beacon": {
+      "gid": 986,
+      "inode": 540674,
+      "mode": 16872,
+      "uid": 995
+    },
+    "cl/beacon/chain_db": {
+      "gid": 986,
+      "inode": 540679,
+      "mode": 16872,
+      "uid": 995
+    },
+    "data": {
+      "gid": 987,
+      "inode": 1789953,
+      "mode": 16872,
+      "uid": 997
+    },
+    "data/db": {
+      "gid": 987,
+      "inode": 1792001,
+      "mode": 16872,
+      "uid": 997
+    },
+    "data/db/mdbx.dat": {
+      "gid": 987,
+      "inode": 1792003,
+      "mode": 33188,
+      "uid": 997
+    },
+    "data/reth.toml": {
+      "gid": 987,
+      "inode": 1791598,
+      "mode": 33184,
+      "uid": 997
+    },
+    "data/static_files": {
+      "gid": 987,
+      "inode": 1789956,
+      "mode": 16872,
+      "uid": 997
+    },
+    "tmp": {
+      "gid": 987,
+      "inode": 1292289,
+      "mode": 16872,
+      "uid": 997
+    },
+    "tmp-cl": {
+      "gid": 986,
+      "inode": 1130497,
+      "mode": 16872,
+      "uid": 995
+    }
+  },
+  "privateCowWritableMount": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.22387640399392694,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "readOnlyPreflightMount": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.33055925101507455,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "runtimeLibraries": [
+    {
+      "bytes": 2592224,
+      "installedVersion": "14.2.0-4ubuntu2~24.04.1",
+      "name": "libstdc++.so.6",
+      "package": "libstdc++6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33",
+      "sha256": "1fd75fe70354a416d75aef22bcae68c47bd25d20e2d0568c30b1a9838cf62f11"
+    },
+    {
+      "bytes": 952616,
+      "installedVersion": "2.39-0ubuntu8.9",
+      "name": "libm.so.6",
+      "package": "libc6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0"
+    },
+    {
+      "bytes": 2129424,
+      "installedVersion": "2.39-0ubuntu8.9",
+      "name": "libc.so.6",
+      "package": "libc6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf"
+    },
+    {
+      "bytes": 236616,
+      "installedVersion": "2.39-0ubuntu8.9",
+      "name": "ld-linux-x86-64.so.2",
+      "package": "libc6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da"
+    },
+    {
+      "bytes": 183024,
+      "installedVersion": "14.2.0-4ubuntu2~24.04.1",
+      "name": "libgcc_s.so.1",
+      "package": "libgcc-s1:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "sha256": "d93224d2b0dab4247598be683adca02f5cf00586f99c187579cd7e92058fb7cb"
+    },
+    {
+      "bytes": 113000,
+      "installedVersion": "1:1.3.dfsg-3.1ubuntu2.3",
+      "name": "libz.so.1",
+      "package": "zlib1g:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libz.so.1.3",
+      "sha256": "f61677c7bdb7c2aa2a243ea781bfd16afcb361cede7b4ef76127a9d8eb9a5242"
+    }
+  ],
+  "samples": [
+    {
+      "at": 1793369123.1041718,
+      "clientMemory": {
+        "cl": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-cl-trial-r4.service",
+          "invocationID": "98965a0b949f4863b0b96207fb92b3b8",
+          "memory.current": "18427904",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "18685952",
+          "memory.stat": "anon 12173312\nfile 6074368\nkernel 180224\nkernel_stack 0\npagetables 102400\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 0\nfile_dirty 0\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 12173312\ninactive_file 6074368\nactive_file 0\nunevictable 0\nslab_reclaimable 13472\nslab_unreclaimable 53208\nslab 66680\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 3643\npgmajfault 0\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-cl-trial-r4.service"
+        },
+        "el": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-el-trial-r4.service",
+          "invocationID": "00bacefaecb74abb9a5ce9f3451cbfb8",
+          "memory.current": "157163520",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "157351936",
+          "memory.stat": "anon 31727616\nfile 124293120\nkernel 1142784\nkernel_stack 327680\npagetables 421888\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 36601856\nfile_dirty 4096\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 31727616\ninactive_file 124239872\nactive_file 53248\nunevictable 0\nslab_reclaimable 69472\nslab_unreclaimable 309080\nslab 378552\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 16223\npgmajfault 1\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-el-trial-r4.service"
+        }
+      },
+      "memory": {
+        "memory.current": "175616000",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+        "memory.peak": "176062464"
+      },
+      "rpc": {
+        "cl": {
+          "unavailable": "URLError"
+        },
+        "el": {
+          "unavailable": "URLError"
+        }
+      }
+    },
+    {
+      "at": 1793369125.1177514,
+      "clientMemory": {
+        "cl": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-cl-trial-r4.service",
+          "invocationID": "98965a0b949f4863b0b96207fb92b3b8",
+          "memory.current": "66404352",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "68788224",
+          "memory.stat": "anon 48082944\nfile 17276928\nkernel 1044480\nkernel_stack 180224\npagetables 434176\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 3346432\nfile_dirty 86016\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 48082944\ninactive_file 17018880\nactive_file 200704\nunevictable 0\nslab_reclaimable 218224\nslab_unreclaimable 200000\nslab 418224\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 20556\npgmajfault 2\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-cl-trial-r4.service"
+        },
+        "el": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-el-trial-r4.service",
+          "invocationID": "00bacefaecb74abb9a5ce9f3451cbfb8",
+          "memory.current": "160952320",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "161198080",
+          "memory.stat": "anon 32141312\nfile 126406656\nkernel 2326528\nkernel_stack 376832\npagetables 483328\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 41000960\nfile_dirty 114688\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 32141312\ninactive_file 125452288\nactive_file 950272\nunevictable 0\nslab_reclaimable 1103464\nslab_unreclaimable 351320\nslab 1454784\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 16670\npgmajfault 4\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-el-trial-r4.service"
+        }
+      },
+      "memory": {
+        "memory.current": "227381248",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+        "memory.peak": "229687296"
+      },
+      "rpc": {
+        "cl": {
+          "unavailable": "URLError"
+        },
+        "el": {
+          "unavailable": "URLError"
+        }
+      }
+    },
+    {
+      "at": 1793369127.1194477,
+      "clientMemory": {
+        "cl": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-cl-trial-r4.service",
+          "invocationID": "98965a0b949f4863b0b96207fb92b3b8",
+          "memory.current": "66486272",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "68792320",
+          "memory.stat": "anon 46567424\nfile 18804736\nkernel 1064960\nkernel_stack 180224\npagetables 430080\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 3346432\nfile_dirty 86016\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 46567424\ninactive_file 18604032\nactive_file 200704\nunevictable 0\nslab_reclaimable 243408\nslab_unreclaimable 199568\nslab 442976\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 21459\npgmajfault 2\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-cl-trial-r4.service"
+        },
+        "el": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-el-trial-r4.service",
+          "invocationID": "00bacefaecb74abb9a5ce9f3451cbfb8",
+          "memory.current": "162938880",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "163188736",
+          "memory.stat": "anon 32141312\nfile 127348736\nkernel 3411968\nkernel_stack 376832\npagetables 483328\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 41000960\nfile_dirty 114688\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 32141312\ninactive_file 126394368\nactive_file 950272\nunevictable 0\nslab_reclaimable 2188440\nslab_unreclaimable 351320\nslab 2539760\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 16670\npgmajfault 4\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-el-trial-r4.service"
+        }
+      },
+      "memory": {
+        "memory.current": "229449728",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+        "memory.peak": "229924864"
+      },
+      "rpc": {
+        "cl": {
+          "unavailable": "URLError"
+        },
+        "el": {
+          "unavailable": "URLError"
+        }
+      }
+    },
+    {
+      "at": 1793369129.1212523,
+      "clientMemory": {
+        "cl": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-cl-trial-r4.service",
+          "invocationID": "98965a0b949f4863b0b96207fb92b3b8",
+          "memory.current": "70430720",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "99024896",
+          "memory.stat": "anon 48422912\nfile 20549632\nkernel 1458176\nkernel_stack 196608\npagetables 503808\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 3506176\nfile_dirty 188416\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 48422912\ninactive_file 19935232\nactive_file 589824\nunevictable 0\nslab_reclaimable 531744\nslab_unreclaimable 216848\nslab 748592\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 26780\npgmajfault 7\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-cl-trial-r4.service"
+        },
+        "el": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-el-trial-r4.service",
+          "invocationID": "00bacefaecb74abb9a5ce9f3451cbfb8",
+          "memory.current": "164462592",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "164716544",
+          "memory.stat": "anon 32141312\nfile 128176128\nkernel 4145152\nkernel_stack 376832\npagetables 483328\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 41000960\nfile_dirty 327680\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 32141312\ninactive_file 127221760\nactive_file 950272\nunevictable 0\nslab_reclaimable 2923048\nslab_unreclaimable 351320\nslab 3274368\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 16670\npgmajfault 4\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-el-trial-r4.service"
+        }
+      },
+      "memory": {
+        "memory.current": "234917888",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+        "memory.peak": "263303168"
+      },
+      "rpc": {
+        "cl": {
+          "unavailable": "URLError"
+        },
+        "el": {
+          "unavailable": "URLError"
+        }
+      }
+    },
+    {
+      "at": 1793369131.1234694,
+      "clientMemory": {
+        "cl": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-cl-trial-r4.service",
+          "invocationID": "98965a0b949f4863b0b96207fb92b3b8",
+          "memory.current": "107823104",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "108072960",
+          "memory.stat": "anon 57159680\nfile 48508928\nkernel 2154496\nkernel_stack 212992\npagetables 647168\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 18239488\nfile_dirty 1978368\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 57159680\ninactive_file 34435072\nactive_file 14073856\nunevictable 0\nslab_reclaimable 1041208\nslab_unreclaimable 241376\nslab 1282584\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 29272\npgmajfault 26\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-cl-trial-r4.service"
+        },
+        "el": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-el-trial-r4.service",
+          "invocationID": "00bacefaecb74abb9a5ce9f3451cbfb8",
+          "memory.current": "196214784",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "203923456",
+          "memory.stat": "anon 53411840\nfile 138039296\nkernel 4763648\nkernel_stack 475136\npagetables 598016\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 41906176\nfile_dirty 372736\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 53411840\ninactive_file 137072640\nactive_file 950272\nunevictable 0\nslab_reclaimable 3240976\nslab_unreclaimable 437824\nslab 3678800\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 23976\npgmajfault 4\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-el-trial-r4.service"
+        }
+      },
+      "memory": {
+        "memory.current": "304062464",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+        "memory.peak": "311771136"
+      },
+      "rpc": {
+        "cl": {
+          "unavailable": "URLError"
+        },
+        "el": {
+          "unavailable": "URLError"
+        }
+      }
+    },
+    {
+      "at": 1793369133.1251493,
+      "clientMemory": {
+        "cl": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-cl-trial-r4.service",
+          "invocationID": "98965a0b949f4863b0b96207fb92b3b8",
+          "memory.current": "484950016",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "652546048",
+          "memory.stat": "anon 401387520\nfile 79007744\nkernel 4554752\nkernel_stack 212992\npagetables 2428928\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 31125504\nfile_dirty 421888\nfile_writeback 2097152\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 401387520\ninactive_file 52953088\nactive_file 26017792\nunevictable 0\nslab_reclaimable 1650328\nslab_unreclaimable 252272\nslab 1902600\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 285247\npgmajfault 46\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-cl-trial-r4.service"
+        },
+        "el": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-el-trial-r4.service",
+          "invocationID": "00bacefaecb74abb9a5ce9f3451cbfb8",
+          "memory.current": "255070208",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "255320064",
+          "memory.stat": "anon 96665600\nfile 152858624\nkernel 5545984\nkernel_stack 491520\npagetables 782336\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 44531712\nfile_dirty 2625536\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 96665600\ninactive_file 151289856\nactive_file 1556480\nunevictable 0\nslab_reclaimable 3803560\nslab_unreclaimable 457856\nslab 4261416\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 44719\npgmajfault 11\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-el-trial-r4.service"
+        }
+      },
+      "memory": {
+        "memory.current": "740044800",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+        "memory.peak": "884326400"
+      },
+      "rpc": {
+        "cl": {
+          "unavailable": "URLError"
+        },
+        "el": {
+          "unavailable": "URLError"
+        }
+      }
+    },
+    {
+      "at": 1793369135.1264064,
+      "clientMemory": {
+        "cl": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-cl-trial-r4.service",
+          "invocationID": "98965a0b949f4863b0b96207fb92b3b8",
+          "memory.current": "681422848",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "686796800",
+          "memory.stat": "anon 482185216\nfile 193064960\nkernel 6172672\nkernel_stack 212992\npagetables 2797568\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 116830208\nfile_dirty 176128\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 482185216\ninactive_file 86474752\nactive_file 106590208\nunevictable 0\nslab_reclaimable 2883712\nslab_unreclaimable 261208\nslab 3144920\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 307252\npgmajfault 75\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-cl-trial-r4.service"
+        },
+        "el": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-el-trial-r4.service",
+          "invocationID": "00bacefaecb74abb9a5ce9f3451cbfb8",
+          "memory.current": "307982336",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "308088832",
+          "memory.stat": "anon 102297600\nfile 199438336\nkernel 6246400\nkernel_stack 491520\npagetables 847872\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 50720768\nfile_dirty 15880192\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 102277120\ninactive_file 193388544\nactive_file 6029312\nunevictable 0\nslab_reclaimable 4432488\nslab_unreclaimable 465696\nslab 4898184\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 46252\npgmajfault 25\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-el-trial-r4.service"
+        }
+      },
+      "memory": {
+        "memory.current": "989429760",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+        "memory.peak": "994861056"
+      },
+      "rpc": {
+        "cl": {
+          "unavailable": "URLError"
+        },
+        "el": {
+          "unavailable": "URLError"
+        }
+      }
+    },
+    {
+      "at": 1793369137.1296177,
+      "clientMemory": {
+        "cl": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-cl-trial-r4.service",
+          "invocationID": "98965a0b949f4863b0b96207fb92b3b8",
+          "memory.current": "1687982080",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "1688100864",
+          "memory.stat": "anon 1443180544\nfile 236081152\nkernel 8720384\nkernel_stack 212992\npagetables 4972544\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 146534400\nfile_dirty 503808\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 4096\nactive_anon 1443127296\ninactive_file 88543232\nactive_file 147537920\nunevictable 0\nslab_reclaimable 3259680\nslab_unreclaimable 264912\nslab 3524592\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 726659\npgmajfault 98\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-cl-trial-r4.service"
+        },
+        "el": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-el-trial-r4.service",
+          "invocationID": "00bacefaecb74abb9a5ce9f3451cbfb8",
+          "memory.current": "342716416",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "342970368",
+          "memory.stat": "anon 110731264\nfile 225288192\nkernel 6696960\nkernel_stack 491520\npagetables 856064\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 50720768\nfile_dirty 26365952\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 110731264\ninactive_file 219258880\nactive_file 6029312\nunevictable 0\nslab_reclaimable 4871096\nslab_unreclaimable 467016\nslab 5338112\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 48320\npgmajfault 25\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-el-trial-r4.service"
+        }
+      },
+      "memory": {
+        "memory.current": "2030723072",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+        "memory.peak": "2030841856"
+      },
+      "rpc": {
+        "cl": {
+          "unavailable": "URLError"
+        },
+        "el": {
+          "unavailable": "URLError"
+        }
+      }
+    },
+    {
+      "at": 1793369139.1327457,
+      "clientMemory": {
+        "cl": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-cl-trial-r4.service",
+          "invocationID": "98965a0b949f4863b0b96207fb92b3b8",
+          "memory.current": "1871990784",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "2029371392",
+          "memory.stat": "anon 1602404352\nfile 254566400\nkernel 10522624\nkernel_stack 212992\npagetables 6365184\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 156024832\nfile_dirty 864256\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 4096\nactive_anon 1606897664\ninactive_file 101396480\nactive_file 153169920\nunevictable 0\nslab_reclaimable 3664240\nslab_unreclaimable 271568\nslab 3935808\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 1291991\npgmajfault 117\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-cl-trial-r4.service"
+        },
+        "el": {
+          "controlGroup": "/enclavel1trialr4.slice/enclave-rpc-l1-el-trial-r4.service",
+          "invocationID": "00bacefaecb74abb9a5ce9f3451cbfb8",
+          "memory.current": "364154880",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": "364257280",
+          "memory.stat": "anon 115044352\nfile 242147328\nkernel 6963200\nkernel_stack 491520\npagetables 864256\nsec_pagetables 0\npercpu 96\nsock 0\nvmalloc 0\nshmem 0\nzswap 0\nzswapped 0\nfile_mapped 50720768\nfile_dirty 1069056\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 115044352\ninactive_file 236118016\nactive_file 6029312\nunevictable 0\nslab_reclaimable 5129560\nslab_unreclaimable 467016\nslab 5596576\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgscan 0\npgsteal 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgfault 49380\npgmajfault 25\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0",
+          "unit": "enclave-rpc-l1-el-trial-r4.service"
+        }
+      },
+      "memory": {
+        "memory.current": "2236170240",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+        "memory.peak": "2374746112"
+      },
+      "rpc": {
+        "cl": {
+          "unavailable": "URLError"
+        },
+        "el": {
+          "unavailable": "URLError"
+        }
+      }
+    }
+  ],
+  "start:cl": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.14181492198258638,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "start:el": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.023688260931521654,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "startNBDUnit": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.11638928507454693,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "startSlices": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.005820428021252155,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "startWatchdog": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.027414149953983724,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "unit:enclave-rpc-l1-cl-trial-r4.service": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 679
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10908057494089007,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "MainPID=301202\nResult=success\nExecMainCode=0\nExecMainStatus=0\nExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -I -B /var/lib/enclave-rpc-l1-client-r4/payload/chain_service.py cl ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:05:22 UTC] ; stop_time=[n/a] ; pid=301202 ; code=(null) ; status=0/0 }\nControlGroup=/enclavel1trialr4.slice/enclave-rpc-l1-cl-trial-r4.service\nUser=enclavel1cl\nGroup=enclavel1cl\nDescription=Enclave L1 4213b340-4817-4df2-baaa-ee492962e9ad cl\nLoadState=loaded\nActiveState=active\nSubState=running\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-cl-trial-r4.service\nDropInPaths=\nTransient=yes\nInvocationID=98965a0b949f4863b0b96207fb92b3b8\n",
+    "truncated": false
+  },
+  "unit:enclave-rpc-l1-el-trial-r4.service": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 679
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10697422304656357,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "MainPID=301197\nResult=success\nExecMainCode=0\nExecMainStatus=0\nExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -I -B /var/lib/enclave-rpc-l1-client-r4/payload/chain_service.py el ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:05:22 UTC] ; stop_time=[n/a] ; pid=301197 ; code=(null) ; status=0/0 }\nControlGroup=/enclavel1trialr4.slice/enclave-rpc-l1-el-trial-r4.service\nUser=enclavel1el\nGroup=enclavel1el\nDescription=Enclave L1 4213b340-4817-4df2-baaa-ee492962e9ad el\nLoadState=loaded\nActiveState=active\nSubState=running\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-el-trial-r4.service\nDropInPaths=\nTransient=yes\nInvocationID=00bacefaecb74abb9a5ce9f3451cbfb8\n",
+    "truncated": false
+  },
+  "unit:enclave-rpc-l1-nbd-r4.service": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 779
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.005264041014015675,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "MainPID=301182\nResult=success\nExecMainCode=0\nExecMainStatus=0\nExecStart={ path=/var/lib/enclave-rpc-l1-client-r4/nbd-client ; argv[]=/var/lib/enclave-rpc-l1-client-r4/nbd-client -n -L -u -N enclave-l1-client-4213b340-4817-4df2-baaa-ee492962e9ad -t 5 -b 4096 /home/controladmin/rpc-l1-client-r4/export.sock /dev/nbd7 ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:05:21 UTC] ; stop_time=[n/a] ; pid=301182 ; code=(null) ; status=0/0 }\nControlGroup=/enclavel1attachr4.slice/enclave-rpc-l1-nbd-r4.service\nUser=root\nGroup=\nDescription=Enclave L1 4213b340-4817-4df2-baaa-ee492962e9ad nbd\nLoadState=loaded\nActiveState=active\nSubState=running\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-nbd-r4.service\nDropInPaths=\nTransient=yes\nInvocationID=108e56d4bd8b4311b4c01e5807de6f46\n",
+    "truncated": false
+  },
+  "unit:enclave-rpc-l1-watch-r4.service": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 607
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.006029629963450134,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "MainPID=0\nResult=success\nExecMainCode=1\nExecMainStatus=0\nExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -B /run/enclave-rpc-l1-client-r4/program.py watchdog ; ignore_errors=no ; start_time=[Fri 2026-10-30 14:05:21 UTC] ; stop_time=[Fri 2026-10-30 14:05:41 UTC] ; pid=301139 ; code=exited ; status=0 }\nControlGroup=\nUser=root\nGroup=\nDescription=Enclave L1 4213b340-4817-4df2-baaa-ee492962e9ad watchdog\nLoadState=loaded\nActiveState=inactive\nSubState=dead\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-watch-r4.service\nDropInPaths=\nTransient=yes\nInvocationID=a218d67e296747739943486b51f26cd2\n",
+    "truncated": false
+  },
+  "unit:enclavel1guardianr4.slice": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 159
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.005972882965579629,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "ControlGroup=\nDescription=Slice /enclavel1guardianr4\nLoadState=loaded\nActiveState=inactive\nSubState=dead\nFragmentPath=\nDropInPaths=\nTransient=no\nInvocationID=\n",
+    "truncated": false
+  },
+  "unit:enclavel1trialr4.slice": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 156
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.004312990931794047,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "ControlGroup=\nDescription=Slice /enclavel1trialr4\nLoadState=loaded\nActiveState=inactive\nSubState=dead\nFragmentPath=\nDropInPaths=\nTransient=no\nInvocationID=\n",
+    "truncated": false
+  },
+  "unmountPreflight": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10506441502366215,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  }
+}

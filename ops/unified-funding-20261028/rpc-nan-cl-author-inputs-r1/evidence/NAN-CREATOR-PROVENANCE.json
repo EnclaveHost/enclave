@@ -1,0 +1,48 @@
+{
+  "argc": 3,
+  "arguments": [
+    {
+      "index": 0,
+      "literal": "bash"
+    },
+    {
+      "index": 1,
+      "literal": "-c"
+    },
+    {
+      "bytes": 298,
+      "index": 2,
+      "sha256": "b8a448a165fec6aa20f946bf59ae2843aabe47299f7bd49ace0e87d3744e5686"
+    }
+  ],
+  "at": 1793369548.1539526,
+  "cmdlineSha256": "8a016019ad176a0fcc7113d7117b64a69fdde83a4f54ffc33dc2017f147ea65f",
+  "pid": 1281392,
+  "scriptFds": [],
+  "scripts": [
+    {
+      "commands": [
+        "cd",
+        "rm",
+        "1",
+        "1",
+        "sleep",
+        "pgrep",
+        "sleep",
+        "done",
+        "cat"
+      ],
+      "loop": true,
+      "networkToolTokens": [
+        "node"
+      ],
+      "numericResourceLiterals": [
+        "5",
+        "5"
+      ],
+      "sourceSha256": "b8a448a165fec6aa20f946bf59ae2843aabe47299f7bd49ace0e87d3744e5686"
+    }
+  ],
+  "sourceFilenames": [],
+  "start": "867080689"
+}

@@ -1,0 +1,309 @@
+{
+  "observedAt": 1793370347.687355,
+  "preparedSha256": "4f43a88f9b4db1bc153a816733b23b2eeb20614aabf5007b7aaf7c8ed7a82917",
+  "readonlyPins": 77,
+  "seedEntries": 15,
+  "inputDrift": [],
+  "seedDrift": [],
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "otherReviewedExecutableProcesses": [],
+  "cpuAffinity": [
+    1
+  ],
+  "classifiedUnreadableProcesses": [
+    {
+      "pid": 1899,
+      "startTicks": "5818",
+      "name": "systemd",
+      "argv0": "/usr/lib/systemd/systemd",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 1905,
+      "startTicks": "5819",
+      "name": "(sd-pam)",
+      "argv0": "(sd-pam)",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 5575,
+      "startTicks": "6999",
+      "name": "ly-dm",
+      "argv0": "/usr/bin/ly-dm",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 168047,
+      "startTicks": "20349737",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 2004673,
+      "startTicks": "5951013",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 2005007,
+      "startTicks": "5951669",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 2071318,
+      "startTicks": "6159513",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 2071854,
+      "startTicks": "6160899",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 2072206,
+      "startTicks": "6161882",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 2072697,
+      "startTicks": "6163132",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 2142125,
+      "startTicks": "6372069",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 2147612,
+      "startTicks": "6388642",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 2161000,
+      "startTicks": "6430275",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 2164430,
+      "startTicks": "74431997",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 2166557,
+      "startTicks": "6447139",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 2166935,
+      "startTicks": "6447961",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 2552896,
+      "startTicks": "7278979",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3516484,
+      "startTicks": "17503885",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3516651,
+      "startTicks": "17504603",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3517608,
+      "startTicks": "17508694",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3517685,
+      "startTicks": "17509141",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3520227,
+      "startTicks": "17519958",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3528300,
+      "startTicks": "17554509",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3528579,
+      "startTicks": "17556085",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3528731,
+      "startTicks": "17556705",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3556163,
+      "startTicks": "17668950",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3556469,
+      "startTicks": "17670578",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3557217,
+      "startTicks": "17674797",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3558537,
+      "startTicks": "17682291",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3558723,
+      "startTicks": "17683055",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3559434,
+      "startTicks": "17687096",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3560408,
+      "startTicks": "17692596",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3561237,
+      "startTicks": "17697343",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3604365,
+      "startTicks": "17923102",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3620016,
+      "startTicks": "18012063",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3620245,
+      "startTicks": "18013316",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3620521,
+      "startTicks": "18014982",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3620720,
+      "startTicks": "18015848",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3621121,
+      "startTicks": "18017853",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 3621419,
+      "startTicks": "18019482",
+      "name": "ssh-agent",
+      "argv0": "ssh-agent",
+      "exeUnreadable": true
+    },
+    {
+      "pid": 4007171,
+      "startTicks": "65937755",
+      "name": "gpg-agent",
+      "argv0": "/usr/bin/gpg-agent",
+      "exeUnreadable": true
+    }
+  ],
+  "processEvidenceLimit": "comm and argv0 classification is not executable-byte verification; no unknown classes accepted",
+  "authorLaunched": false,
+  "apiRefreshProven": false
+}

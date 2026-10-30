@@ -1,0 +1,31 @@
+{
+  "authorTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "authorNativeDependencies": [
+    "python3 stdlib",
+    "systemd-run",
+    "taskset",
+    "node memory guard",
+    "shared queue",
+    "pinned Claude CLI"
+  ],
+  "runtimeReference": "exact committed root-r4 seed",
+  "runtimeNewDependency": "none; private signed/extracted nbd-client bytes only",
+  "nbdSource": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nbd-local-public-copy-r1/nbd-client",
+    "bytes": 56376,
+    "sha256": "0a256b67962d1ffc1ab8bacecd4319b8e459a0535467abb66f83329ce5221167",
+    "acquisition": "completed separately by root; exact pinned local public file; no author/runtime acquisition",
+    "rootCopyReceiptPending": false,
+    "rootCopyReceipt": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nbd-local-public-copy-r1/RESULT.json",
+    "rootCopyReceiptSha256": "a342f5d7365f91620f0fd388db59acee2614b173f1df2a376d0230d312b13d65",
+    "mode": "0400"
+  },
+  "nanMatchingRuntimeLibraries": 13,
+  "sourceExecution": "not performed",
+  "accountCheck": "not performed"
+}

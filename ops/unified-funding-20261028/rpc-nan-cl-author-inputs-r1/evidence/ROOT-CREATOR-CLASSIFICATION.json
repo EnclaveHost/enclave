@@ -1,0 +1,14 @@
+{
+  "source": "Production root message bound to structural read165618139d8a42b8a9efd4b8533fc111",
+  "observation": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-creator-structure-read-r1/OBSERVATION.json",
+  "observationSha256": "812c3f109ef6afa4663782c41b91ad456284f819184d09944870d7e49de98560",
+  "pid": 1281392,
+  "start": "867080689",
+  "interpretation": "Two background node launches before loop; loop only pgrep and sleep5; no node/eval/source/functions/traps inside loop. Complete current census has no node; later sleep child persists. Existing shell is wait-loop, not repeating allocator.",
+  "observedPendingApplicationAllocation": "none observed; revalidate fresh before native admission",
+  "worstCaseFuturePrivilegedGrowth": "not proven; handled by explicitly approved residual/abort policy, not claimed zero",
+  "candidateResidualMiB": 2048,
+  "candidateOwnRemainingMaximumMiB": 4352,
+  "rootRuntimeAdmissionStillRequired": true,
+  "preserveProcessAndFiles": true
+}

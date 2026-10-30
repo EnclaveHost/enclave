@@ -1,0 +1,9 @@
+{
+  "status": "COPIED_PINNED_NOT_EXECUTED",
+  "bytes": 56376,
+  "sha256": "0a256b67962d1ffc1ab8bacecd4319b8e459a0535467abb66f83329ce5221167",
+  "source": "controladmin@172.17.28.159:/home/controladmin/rpc-nbd-tools-20261030-r1/nbd-client",
+  "destination": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nbd-local-public-copy-r1/nbd-client",
+  "matchesPreviouslyQualifiedSignedPackageBinary": true,
+  "remoteMutation": false
+}

@@ -1,0 +1,1 @@
+One strict authenticated read-only copy of alreadyqualified public56376byte NBD client. ExactknownSHArequired, freshlocal0700directory, mode0400/no execution. No package changes/remote mutation/private env/key data. local256/220floor27648CPU1noSwap40s. No retry.
