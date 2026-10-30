@@ -1,0 +1,1 @@
+Prior root fixture execution failed before assertion because extracted client-operations decorators require contextlib. Original fixture/pins retained in repaired-r2/root-test-fixture-checkpoint; product unchanged. New fixture provides same standard-library decorator dependency. Must reproduce baseline wrong reason and pass repaired reason before native admission.

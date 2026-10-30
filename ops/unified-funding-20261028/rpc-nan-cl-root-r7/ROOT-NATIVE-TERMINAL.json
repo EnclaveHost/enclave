@@ -1,0 +1,52 @@
+{
+  "at": 1793378443.2252543,
+  "knownAlive": [],
+  "contentDrift": [],
+  "remoteCleanupVerified": true,
+  "parentUnchanged": true,
+  "clRpcObserved": false,
+  "samples": 173,
+  "sampleEvidence": {
+    "byteLimit": 1048576,
+    "diagnosticIntervalSeconds": 10,
+    "diagnosticSampleLimit": 37,
+    "diagnosticSamples": 35,
+    "droppedSamples": 0,
+    "retainedBytes": 367829,
+    "sampleLimit": 181,
+    "truncated": false,
+    "windowSeconds": 360
+  },
+  "lastMemory": {
+    "memory.current": "2023276544",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+    "memory.peak": "2407010304"
+  },
+  "diagnostics": {
+    "valid": 35,
+    "waits": {
+      "__wait_on_buffer": 1,
+      "futex_wait_queue": 34
+    },
+    "elapsedSeconds": 355.5632142946124,
+    "ioDeltas": {
+      "cancelled_write_bytes": 0,
+      "rchar": 18248656,
+      "read_bytes": 207925248,
+      "syscr": 1097,
+      "syscw": 6595,
+      "wchar": 62072521,
+      "write_bytes": 62230528
+    },
+    "cpuSeconds": 8.93
+  },
+  "clientTermination": {
+    "ExecMainStatus": "9",
+    "InvocationID": "205fdc66ea02477ab9d4cb6c32032df9",
+    "MainPID": "0",
+    "Result": "timeout"
+  },
+  "errors": [
+    "AssertionError:CL-RPC-startup-not-observed"
+  ]
+}

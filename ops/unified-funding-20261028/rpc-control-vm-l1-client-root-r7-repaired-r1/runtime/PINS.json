@@ -1,0 +1,73 @@
+{
+  "originalFileSha256": "deb6eeee4b0e4cb98b20d37766409b660bbd62462ea92805a72ae987782b3084",
+  "publicContentPins": [
+    {
+      "path": "EXTERNAL-PINS.json",
+      "sha256": "5d4a8813caaece71a482473a4fe173a63d262c164303b04a472b00891b112ae1"
+    },
+    {
+      "path": "MANIFEST.json",
+      "sha256": "36fbaaa3d9b456faf72fd0633b56eeb0ffd9b9a7b8468f69ca900804fcbfe1e9"
+    },
+    {
+      "path": "backing-policy.py",
+      "sha256": "a4a2fc8d9756905ae95277ca8e36aadaaf1ab432cfc419bb7569397adbef34e4"
+    },
+    {
+      "path": "capture-local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "capture-remote.py",
+      "sha256": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655"
+    },
+    {
+      "path": "client-main.py",
+      "sha256": "776caa33c891828c3be6a707d3035c84dd749c2b4654f032e8e0dc85c7b47305"
+    },
+    {
+      "path": "client-operations.py",
+      "sha256": "5e07fdbc490292d3b562d14ad92074b0365cb7e29b242dcfcdcf5f9933629a37"
+    },
+    {
+      "path": "disks.json",
+      "sha256": "4f468749ca884a4baa6d9bd660120667a92cb3db62e70f9270101ef1bb51f276"
+    },
+    {
+      "path": "original-reth.toml",
+      "sha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7"
+    },
+    {
+      "path": "payload-manifest.json",
+      "sha256": "f687470bb33fd29367f1c72efbb76e63af47cb6c9c7b52ec2d84aef08ab006bb"
+    },
+    {
+      "path": "proposed-reth.toml",
+      "sha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320"
+    },
+    {
+      "path": "recovery-progress.py",
+      "sha256": "fb5307d2cfa5e229097ff5d7550803b42459908a453f3fa4cc8db509631c256b"
+    },
+    {
+      "path": "remote-program.py",
+      "sha256": "f7160bae772324f14598664c80cf5397414bc495f45a9360dfeddb0971205f31"
+    },
+    {
+      "path": "run-body.py",
+      "sha256": "c7eb7c8c3ff82543014d95bc9def5923893e809d79da075bbc7d25df18db5f8d"
+    },
+    {
+      "path": "run.py",
+      "sha256": "faa0ac89a1070f606749c5d7993976520fd1c9d42dbda7f57e149001acb5aeda"
+    },
+    {
+      "path": "transport-helpers.py",
+      "sha256": "60b8729249d9d7c41a90e059cc5cba34b26ece871279a193dc918d0a6f46ad68"
+    },
+    {
+      "path": "trial-chain-service.py",
+      "sha256": "b8a4c8559e34e038b550a75ae1666a1b2f1d9914a78dd4b8404777099f4f3c86"
+    }
+  ]
+}

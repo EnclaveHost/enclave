@@ -1,0 +1,23 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/client-operations.py
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r7/source/client-operations.py
+@@ -1,8 +1,8 @@
+ # PREPARED ONLY. Appended to the qualified transport/ownership helpers.
+ import pwd,grp,secrets,shutil,urllib.request,urllib.error,contextlib
+-PAYLOAD=EXEC/'payload';SLICE='enclavel1trialr6.slice';GUARD_SLICE='enclavel1guardianr6.slice';ATTACH_SLICE='enclavel1attachr6.slice';NBD_UNIT='enclave-rpc-l1-nbd-r6.service'
+-UNITS={'el':'enclave-rpc-l1-el-trial-r6.service','cl':'enclave-rpc-l1-cl-trial-r6.service'}
+-HELPER='enclave-rpc-l1-helper-r6.service';WATCH='enclave-rpc-l1-watch-r6.service'
++PAYLOAD=EXEC/'payload';SLICE='enclavel1trialr7.slice';GUARD_SLICE='enclavel1guardianr7.slice';ATTACH_SLICE='enclavel1attachr7.slice';NBD_UNIT='enclave-rpc-l1-nbd-r7.service'
++UNITS={'el':'enclave-rpc-l1-el-trial-r7.service','cl':'enclave-rpc-l1-cl-trial-r7.service'}
++HELPER='enclave-rpc-l1-helper-r7.service';WATCH='enclave-rpc-l1-watch-r7.service'
+ STOP=ROOT/'STOP';DONE=ROOT/'CLEANUP.json';LOCK=ROOT/'operation.lock'
+ def atomic_json(path,value):
+     tmp=path.with_suffix('.next')
+@@ -321,7 +321,7 @@
+             time.sleep(.5)
+     except Exception as e:reason='watchdog:'+type(e).__name__+':'+str(e)[:100]
+     return clean_trial(reason)
+-def wait_cleanup(seconds=85):
++def wait_cleanup(seconds=140):
+     until=time.monotonic()+seconds
+     while not DONE.exists() and time.monotonic()<until:time.sleep(.2)
+     assert DONE.is_file(),'watchdog-cleanup-missing'

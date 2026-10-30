@@ -1,0 +1,12 @@
+{
+  "status": "PREPARED_SOURCE_ONLY",
+  "derivedFrom": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6",
+  "nonce": "2c51a7be-4d7b-4f34-8161-ba3d97d8bfed",
+  "testsExecuted": false,
+  "assemblyExecuted": false,
+  "syntaxCheckExecuted": false,
+  "imageAccess": false,
+  "remoteCalls": false,
+  "nativeAdmitted": false,
+  "rootOwnsQualificationAndExecution": true
+}
