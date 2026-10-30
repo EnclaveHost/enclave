@@ -1,0 +1,20 @@
+{
+  "rc": 2,
+  "reason": null,
+  "elapsedSeconds": 2.3928315099328756,
+  "stdout": "RESULT_JSON={\"action\": \"verify\", \"errors\": [\"FileNotFoundError:[Errno 2] No such file or directory: '/run/enclave-rpc-nan-client-n1/state.json'\"], \"ok\": false}\n",
+  "stderr": "",
+  "bytesObserved": {
+    "stdout": 160,
+    "stderr": 0
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

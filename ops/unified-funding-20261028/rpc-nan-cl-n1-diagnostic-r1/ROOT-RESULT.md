@@ -1,0 +1,1 @@
+ONE readonly failed-attempt observation terminal0. No privateconfig/payload read/mutation. No NBDmodule/mount/client/account from n1; exactbootstrap/helper/verification results retained. Socket and empty slices retained. Does not turn original automated cleanup failure into success.

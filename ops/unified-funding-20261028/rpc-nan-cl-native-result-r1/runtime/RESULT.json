@@ -1,0 +1,327 @@
+{
+  "status": "CLIENT_TRIAL_FAILED_NO_RETRY",
+  "errors": [
+    "AssertionError:remote:main",
+    "independent-cleanup:AssertionError:remote:verify",
+    "PRIVATE_COW_CLEANUP_UNPROVEN_NO_PRODUCTION_ADMISSION"
+  ],
+  "results": {
+    "originalBackingChain": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.10622648103162646,
+      "stdout": "[\n    {\n        \"children\": [\n            {\n                \"name\": \"file\",\n                \"info\": {\n                    \"children\": [\n                    ],\n                    \"virtual-size\": 528387407872,\n                    \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n                    \"format\": \"file\",\n                    \"actual-size\": 461808537600,\n                    \"format-specific\": {\n                        \"type\": \"file\",\n                        \"data\": {\n                        }\n                    },\n                    \"dirty-flag\": false\n                }\n            }\n        ],\n        \"virtual-size\": 4000000000000,\n        \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"cluster-size\": 65536,\n        \"format\": \"qcow2\",\n        \"actual-size\": 461808537600,\n        \"format-specific\": {\n            \"type\": \"qcow2\",\n            \"data\": {\n                \"compat\": \"1.1\",\n                \"compression-type\": \"zlib\",\n                \"lazy-refcounts\": false,\n                \"refcount-bits\": 16,\n                \"corrupt\": false,\n                \"extended-l2\": false\n            }\n        },\n        \"dirty-flag\": false\n    }\n]\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 1204,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "createPrivateClientCow": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.1606937861070037,
+      "stdout": "Formatting '/vm/enclave-volumes/rpc-nan-cl-n1/overlay.qcow2', fmt=qcow2 cluster_size=65536 extended_l2=off compression_type=zlib size=4000000000000 backing_file=/vm/enclave-volumes/rpc-production/l1-origin.qcow2 backing_fmt=qcow2 lazy_refcounts=off refcount_bits=16\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 266,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "backingChain": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.10476783197373152,
+      "stdout": "[\n    {\n        \"children\": [\n            {\n                \"name\": \"file\",\n                \"info\": {\n                    \"children\": [\n                    ],\n                    \"virtual-size\": 256512,\n                    \"filename\": \"/vm/enclave-volumes/rpc-nan-cl-n1/overlay.qcow2\",\n                    \"format\": \"file\",\n                    \"actual-size\": 258048,\n                    \"format-specific\": {\n                        \"type\": \"file\",\n                        \"data\": {\n                        }\n                    },\n                    \"dirty-flag\": false\n                }\n            }\n        ],\n        \"backing-filename-format\": \"qcow2\",\n        \"virtual-size\": 4000000000000,\n        \"filename\": \"/vm/enclave-volumes/rpc-nan-cl-n1/overlay.qcow2\",\n        \"cluster-size\": 65536,\n        \"format\": \"qcow2\",\n        \"actual-size\": 258048,\n        \"format-specific\": {\n            \"type\": \"qcow2\",\n            \"data\": {\n                \"compat\": \"1.1\",\n                \"compression-type\": \"zlib\",\n                \"lazy-refcounts\": false,\n                \"refcount-bits\": 16,\n                \"corrupt\": false,\n                \"extended-l2\": false\n            }\n        },\n        \"full-backing-filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"backing-filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"dirty-flag\": false\n    },\n    {\n        \"children\": [\n            {\n                \"name\": \"file\",\n                \"info\": {\n                    \"children\": [\n                    ],\n                    \"virtual-size\": 528387407872,\n                    \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n                    \"format\": \"file\",\n                    \"actual-size\": 461808537600,\n                    \"format-specific\": {\n                        \"type\": \"file\",\n                        \"data\": {\n                        }\n                    },\n                    \"dirty-flag\": false\n                }\n            }\n        ],\n        \"virtual-size\": 4000000000000,\n        \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"cluster-size\": 65536,\n        \"format\": \"qcow2\",\n        \"actual-size\": 461808537600,\n        \"format-specific\": {\n            \"type\": \"qcow2\",\n            \"data\": {\n                \"compat\": \"1.1\",\n                \"compression-type\": \"zlib\",\n                \"lazy-refcounts\": false,\n                \"refcount-bits\": 16,\n                \"corrupt\": false,\n                \"extended-l2\": false\n            }\n        },\n        \"dirty-flag\": false\n    }\n]\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 2594,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "uploadDirectory": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 2.7354226079769433,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 149,
+      "stdinBytesRequested": 149,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:lighthouse": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 21.196808581938967,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:manifest.json": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 3.5596137491520494,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:chain.json": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 3.572144400794059,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:chain_service.py": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 3.7511220241431147,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:disks.json": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 3.564617353025824,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:program.py": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 4.67359379096888,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:nbd-client": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 3.9094186760485172,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "bootstrap": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 3.20881208893843,
+      "stdout": "{\"root\": \"/run/enclave-rpc-nan-client-n1\", \"programSha256\": \"e7497283dbb25752faa77860e27aee3898b938f50f3224a69772ac25bee3c80b\", \"sliceMaximum\": 134217728, \"clientStarted\": false}\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 179,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 34677,
+      "stdinBytesRequested": 34677,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "remote:main": {
+      "rc": 2,
+      "reason": null,
+      "elapsedSeconds": 2.7381166080012918,
+      "stdout": "RESULT_JSON={\"action\": \"main\", \"errors\": [\"AssertionError:libraryOwner:libstdc++.so.6\"], \"libraryOwner:libstdc++.so.6\": {\"bytesObserved\": {\"stderr\": 85, \"stdout\": 64}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.24091873317956924, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 1, \"reason\": \"capture-error:AssertionError\", \"remoteDeathProven\": false, \"stderr\": \"dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libstdc++.so.6.0.33\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"libstdc++6:amd64: /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33\\n\", \"truncated\": false}, \"ok\": false}\nSTOP_POST_JSON={\"action\": \"wait-cleanup\", \"errors\": [], \"ok\": true, \"preMutationExit\": true}\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 788,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "remote:request-stop": {
+      "rc": 2,
+      "reason": null,
+      "elapsedSeconds": 2.4152760801371187,
+      "stdout": "RESULT_JSON={\"action\": \"request-stop\", \"errors\": [\"FileNotFoundError:[Errno 2] No such file or directory: '/run/enclave-rpc-nan-client-n1/state.json'\"], \"ok\": false}\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 166,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "requestStopFailure": "AssertionError",
+    "remote:verify": {
+      "rc": 2,
+      "reason": null,
+      "elapsedSeconds": 2.3928315099328756,
+      "stdout": "RESULT_JSON={\"action\": \"verify\", \"errors\": [\"FileNotFoundError:[Errno 2] No such file or directory: '/run/enclave-rpc-nan-client-n1/state.json'\"], \"ok\": false}\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 160,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "stop:tunnel-trial": {
+      "pid": 2868840,
+      "rc": 0,
+      "reaped": true
+    },
+    "stop:export-trial": {
+      "pid": 2868837,
+      "rc": 0,
+      "reaped": true
+    }
+  },
+  "remoteCleanupVerified": false,
+  "parentUnchanged": true,
+  "privateCowRetained": "/vm/enclave-volumes/rpc-nan-cl-n1/overlay.qcow2",
+  "productionReady": false,
+  "consumerChanged": false,
+  "baseStarted": false
+}

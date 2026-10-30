@@ -1,0 +1,20 @@
+{
+  "rc": 2,
+  "reason": null,
+  "elapsedSeconds": 2.7381166080012918,
+  "stdout": "RESULT_JSON={\"action\": \"main\", \"errors\": [\"AssertionError:libraryOwner:libstdc++.so.6\"], \"libraryOwner:libstdc++.so.6\": {\"bytesObserved\": {\"stderr\": 85, \"stdout\": 64}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.24091873317956924, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 1, \"reason\": \"capture-error:AssertionError\", \"remoteDeathProven\": false, \"stderr\": \"dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libstdc++.so.6.0.33\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"libstdc++6:amd64: /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33\\n\", \"truncated\": false}, \"ok\": false}\nSTOP_POST_JSON={\"action\": \"wait-cleanup\", \"errors\": [], \"ok\": true, \"preMutationExit\": true}\n",
+  "stderr": "",
+  "bytesObserved": {
+    "stdout": 788,
+    "stderr": 0
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
