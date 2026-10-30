@@ -58,7 +58,7 @@ try{
     Invoke-FiniteProcess $exe @((Join-Path $work 'identities')) 30000 'inert'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'inert.out'))
     $results=@($lines|ForEach-Object{$_|ConvertFrom-Json})
-    if($results.Count -ne 8 -or @($results|Where-Object{-not $_.passed}).Count){throw 'Incomplete inert qualification'}
+    if($results.Count -ne 11 -or @($results|Where-Object{-not $_.passed}).Count){throw 'Incomplete inert qualification'}
     $results|ConvertTo-Json -Depth 8
 }finally{
     # Helpers have no unbounded loop: sleeps <=5s, allocation <=192MiB. These

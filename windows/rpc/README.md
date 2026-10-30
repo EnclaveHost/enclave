@@ -68,3 +68,28 @@ Windows API references used for this candidate:
 - [Job memory limits](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information)
 - [Job accounting](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_accounting_information)
 - [Job termination](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-terminatejobobject)
+
+## Candidate supervisor envelope (not yet compiled or exercised)
+
+`EnterSupervisorEnvelope` optionally applies a one-shot private job to the current
+process before any `Run` attempt. It retains the noninheritable job handle until
+process teardown; there is no detach, close or retry operation. Limits and exact
+self membership are checked after assignment. Any failed envelope permanently
+blocks subsequent `Run` calls in that process. The fixed choices are128MiB or
+256MiB committed-memory limit, four processes including the caller, and CPU1
+placement. This is not a CPU-time quota. Descendant jobs consume the same parent
+aggregate; their caps must not be counted twice.
+
+The current private-memory snapshot must be at most64MiB before assignment. This
+is neither a startup peak measurement nor a hard bound on earlier allocations.
+[Microsoft documents that assignment does not examine earlier memory operations](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject).
+A separate bootstrap reservation and external deadline owner remain necessary.
+The candidate does not solve observer-loss termination or provider settlement.
+A separate observer job cannot kill an independently scheduled owner merely by
+exiting. Task Scheduler duration settings are a potential backstop, not an exact
+process-death receipt or a memory limit.
+
+The next CI candidate runs the eight existing cases inside a256MiB supervisor
+job and adds membership/readback, one-shot refusal and failed-entry work-gate checks. Its inner128MiB
+allocation test does not behaviorally prove exhaustion of the outer256MiB cap.
+This candidate is source-only until a separate exact-commit run is reviewed.

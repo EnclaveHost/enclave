@@ -61,6 +61,15 @@ static class Harness {
     }
     static int Helper(string mode,string path) {
         Identity(path);
+        if (mode=="invalid-envelope") {
+            bool rejected=false;
+            try { BoundedWorker.EnterSupervisorEnvelope(1); }
+            catch(ArgumentOutOfRangeException) { rejected=true; }
+            if (!rejected) return 72;
+            try { Run("zero",path+".unexpected",1000); }
+            catch(InvalidOperationException) { return 71; }
+            return 73;
+        }
         if (mode=="zero") return 0;
         if (mode=="seven") return 7;
         if (mode=="sleep") { Thread.Sleep(5000); return 0; }
@@ -85,7 +94,20 @@ static class Harness {
             if (args.Length==3 && args[0]=="helper") return Helper(args[1],args[2]);
             if (args.Length==2 && args[0]=="supervisor") { Run("sleep",args[1],4000); return 0; }
             if (args.Length!=1) return 98;
+            var envelope=BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);
+            Check("supervisor-envelope-readback",envelope.ProcessId>0 && envelope.CreationFileTime>0 &&
+                envelope.MembershipVerified && envelope.LimitsVerified &&
+                envelope.JobCommitLimitBytes==256UL*1024*1024 && envelope.BootstrapPrivateBytes>0 &&
+                !envelope.CoversPreAssignmentMemory && !envelope.BoundsWallTime && !envelope.ReservationMayRelease,envelope);
+            bool repeatRefused=false;
+            try { BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024); }
+            catch(InvalidOperationException) { repeatRefused=true; }
+            Check("supervisor-envelope-one-shot",repeatRefused,null);
             string dir=Path.GetFullPath(args[0]); Directory.CreateDirectory(dir);
+            var invalidEnvelope=Run("invalid-envelope",Path.Combine(dir,"invalid-envelope"),3000);
+            Check("invalid-envelope-poisons-work",Dead(invalidEnvelope) && invalidEnvelope.ExitCode==71 &&
+                !invalidEnvelope.TimedOut && !invalidEnvelope.LocalSuccess &&
+                !File.Exists(Path.Combine(dir,"invalid-envelope.unexpected")),invalidEnvelope);
             var zero=Run("zero",Path.Combine(dir,"zero"),3000);
             Check("normal-zero",Dead(zero) && zero.LocalSuccess,zero);
             var seven=Run("seven",Path.Combine(dir,"seven"),3000);

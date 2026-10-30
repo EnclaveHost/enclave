@@ -33,6 +33,20 @@ namespace Enclave.OwnedRpc {
         public bool ReservationMayRelease { get { return false; } }
     }
 
+    // Receipt covers only allocations after self-assignment. Existing allocations
+    // and bootstrap need a separate admission allowance; it is not whole-process RSS.
+    public sealed class SupervisorEnvelopeReceipt {
+        public uint ProcessId;
+        public long CreationFileTime;
+        public ulong JobCommitLimitBytes;
+        public long BootstrapPrivateBytes;
+        public bool MembershipVerified;
+        public bool LimitsVerified;
+        public bool CoversPreAssignmentMemory { get { return false; } }
+        public bool BoundsWallTime { get { return false; } }
+        public bool ReservationMayRelease { get { return false; } }
+    }
+
     public static class BoundedWorker {
         const uint Suspended = 4, NoWindow = 0x08000000, ExtendedStartup = 0x00080000;
         const uint UnicodeEnvironment = 0x400, KillOnClose = 0x2000;
@@ -41,6 +55,13 @@ namespace Enclave.OwnedRpc {
         const int ExtendedLimitsClass = 9, AccountingClass = 1;
         // ProcThreadAttributeValue(JobList=13, thread=false, input=true, additive=false).
         static readonly IntPtr JobListAttribute = new IntPtr(0x0002000d);
+        static readonly object EnvelopeLock = new object();
+        static bool envelopeAttempted;
+        static bool envelopeVerified;
+        static bool operationAttempted;
+        // Deliberately retained until OS process teardown. Closing a kill-on-close
+        // job containing ourselves would terminate us and every descendant.
+        static IntPtr processLifetimeEnvelope;
 
         [StructLayout(LayoutKind.Sequential)] struct BasicLimits {
             public long ProcessUserTime, JobUserTime;
@@ -89,6 +110,10 @@ namespace Enclave.OwnedRpc {
         static extern bool QueryLimits(IntPtr job, int kind, out ExtendedLimits value, uint size, IntPtr returned);
         [DllImport("kernel32.dll", SetLastError=true)]
         static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool member);
+        [DllImport("kernel32.dll", SetLastError=true)]
+        static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+        [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
+        [DllImport("kernel32.dll")] static extern uint GetCurrentProcessId();
         [DllImport("kernel32.dll", SetLastError=true)]
         static extern bool InitializeProcThreadAttributeList(IntPtr list, int count, uint flags, ref UIntPtr size);
         [DllImport("kernel32.dll", SetLastError=true)]
@@ -140,6 +165,70 @@ namespace Enclave.OwnedRpc {
             return block.Append('\0').ToString();
         }
 
+        // Optional one-shot caller containment, NOT a production admission API.
+        // Call before creating any children. There is no detach/close/retry API.
+        // The caller's independent deadline owner must already be armed; native
+        // setup calls here cannot be made interruptible by an elapsed-time check.
+        public static SupervisorEnvelopeReceipt EnterSupervisorEnvelope(ulong memoryBytes) {
+            lock (EnvelopeLock) {
+                if (envelopeAttempted || operationAttempted) throw new InvalidOperationException("Envelope must precede work and may be attempted only once");
+                envelopeAttempted=true;
+                if (IntPtr.Size != 8 || Environment.OSVersion.Platform != PlatformID.Win32NT)
+                    throw new PlatformNotSupportedException("64-bit Windows required");
+                if (memoryBytes != 128UL*1024*1024 && memoryBytes != 256UL*1024*1024)
+                    throw new ArgumentOutOfRangeException("memoryBytes");
+                long bootstrapPrivate;
+                using (var self=Process.GetCurrentProcess()) {
+                    self.Refresh(); bootstrapPrivate=self.PrivateMemorySize64;
+                }
+                if (bootstrapPrivate<=0 || bootstrapPrivate>64L*1024*1024)
+                    throw new InvalidOperationException("Bootstrap private-memory snapshot exceeds allowance");
+                IntPtr job=CreateJobObject(IntPtr.Zero,null);
+                Check(job != IntPtr.Zero,"Create supervisor envelope");
+                bool assignmentAttempted=false;
+                try {
+                    var limits=new ExtendedLimits();
+                    limits.Basic.Flags=KillOnClose|JobMemory|ActiveLimit|AffinityLimit;
+                    limits.Basic.ActiveProcessLimit=4;
+                    limits.Basic.Affinity=new UIntPtr(2);
+                    limits.JobMemory=new UIntPtr(memoryBytes);
+                    Check(SetInformationJobObject(job,ExtendedLimitsClass,ref limits,
+                        (uint)Marshal.SizeOf(typeof(ExtendedLimits))),"Set supervisor envelope limits");
+                    ExtendedLimits actual;
+                    Check(QueryLimits(job,ExtendedLimitsClass,out actual,
+                        (uint)Marshal.SizeOf(typeof(ExtendedLimits)),IntPtr.Zero),"Read supervisor envelope limits");
+                    if (actual.Basic.Flags!=limits.Basic.Flags || actual.Basic.ActiveProcessLimit!=4 ||
+                        actual.Basic.Affinity.ToUInt64()!=2 || actual.JobMemory.ToUInt64()!=memoryBytes)
+                        throw new InvalidOperationException("Supervisor envelope limits differ");
+                    // Retain BEFORE assignment: an exception after successful native
+                    // assignment must not silently detach/close our containment.
+                    processLifetimeEnvelope=job;
+                    assignmentAttempted=true;
+                    Check(AssignProcessToJobObject(job,GetCurrentProcess()),"Assign current supervisor only");
+                    bool member;
+                    Check(IsProcessInJob(GetCurrentProcess(),job,out member),"Verify supervisor membership");
+                    if (!member) throw new InvalidOperationException("Supervisor outside envelope");
+                    Check(QueryLimits(job,ExtendedLimitsClass,out actual,
+                        (uint)Marshal.SizeOf(typeof(ExtendedLimits)),IntPtr.Zero),"Recheck assigned envelope limits");
+                    if (actual.Basic.Flags!=limits.Basic.Flags || actual.Basic.ActiveProcessLimit!=4 ||
+                        actual.Basic.Affinity.ToUInt64()!=2 || actual.JobMemory.ToUInt64()!=memoryBytes)
+                        throw new InvalidOperationException("Assigned envelope limits differ");
+                    long creation,exit,kernel,user;
+                    Check(GetProcessTimes(GetCurrentProcess(),out creation,out exit,out kernel,out user),
+                        "Read supervisor creation identity");
+                    var receipt=new SupervisorEnvelopeReceipt { ProcessId=GetCurrentProcessId(),
+                        CreationFileTime=creation,JobCommitLimitBytes=memoryBytes,BootstrapPrivateBytes=bootstrapPrivate,
+                        MembershipVerified=true,LimitsVerified=true };
+                    envelopeVerified=true;
+                    return receipt;
+                } finally {
+                    // No assignment was attempted, so closing cannot kill this process.
+                    // If assignment was attempted, retain even an uncertain result.
+                    if (!assignmentAttempted) Check(CloseHandle(job),"Close unused supervisor job");
+                }
+            }
+        }
+
         // Caller must qualify/pin executable, argv, environment, working directory,
         // ACL ancestry and all script/module bytes. This is not an authorization API.
         // There is deliberately no shell, process lookup by PID or inherited handle.
@@ -151,6 +240,11 @@ namespace Enclave.OwnedRpc {
                 application.IndexOf('\0') >= 0 || directory.IndexOf('\0') >= 0 ||
                 commandLine == null || commandLine.IndexOf('\0') >= 0 || commandLine.Length > 30000)
                 throw new ArgumentException("Explicit bounded executable and command required");
+            lock (EnvelopeLock) {
+                if (envelopeAttempted && !envelopeVerified)
+                    throw new InvalidOperationException("Supervisor envelope failed; work gate poisoned");
+                operationAttempted=true;
+            }
             long remaining=absoluteDeadlineMs-MonotonicMilliseconds();
             if (remaining < 1 || remaining > 30000 || cleanupMs < 1 || cleanupMs > 5000 ||
                 memoryBytes < 16UL*1024*1024 || memoryBytes > 256UL*1024*1024)
