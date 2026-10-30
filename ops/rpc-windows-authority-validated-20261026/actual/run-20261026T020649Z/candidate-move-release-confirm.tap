@@ -1,0 +1,130 @@
+TAP version 13
+# Subtest: the real moveSnapshot shape (bigint block, bigint tuple fields) validates; a number block is normalized
+ok 1 - the real moveSnapshot shape (bigint block, bigint tuple fields) validates; a number block is normalized
+  ---
+  duration_ms: 1.114538
+  type: 'test'
+  ...
+# Subtest: malformed or inconsistent snapshots fail closed: never an absence, never cleared
+ok 2 - malformed or inconsistent snapshots fail closed: never an absence, never cleared
+  ---
+  duration_ms: 3.430002
+  type: 'test'
+  ...
+# Subtest: a malformed read between two valid absences neither confirms nor resets
+ok 3 - a malformed read between two valid absences neither confirms nor resets
+  ---
+  duration_ms: 0.698512
+  type: 'test'
+  ...
+# Subtest: the host's released:true is reported as the host's claim; cleared still needs the owner's two observations
+ok 4 - the host's released:true is reported as the host's claim; cleared still needs the owner's two observations
+  ---
+  duration_ms: 0.182118
+  type: 'test'
+  ...
+# Subtest: a 2xx without released:true is not a host release claim
+ok 5 - a 2xx without released:true is not a host release claim
+  ---
+  duration_ms: 0.243098
+  type: 'test'
+  ...
+# Subtest: deep receipt after restart/outage: 503 release_unconfirmed + observed absence -> cleared, no host release claim
+ok 6 - deep receipt after restart/outage: 503 release_unconfirmed + observed absence -> cleared, no host release claim
+  ---
+  duration_ms: 0.203458
+  type: 'test'
+  ...
+# Subtest: release_unconfirmed whose transaction lands late is followed for the full 90 s window
+ok 7 - release_unconfirmed whose transaction lands late is followed for the full 90 s window
+  ---
+  duration_ms: 0.303907
+  type: 'test'
+  ...
+# Subtest: changed generation: another runner holds the lease -> cleared as taken
+ok 8 - changed generation: another runner holds the lease -> cleared as taken
+  ---
+  duration_ms: 0.129969
+  type: 'test'
+  ...
+# Subtest: the source's lease that ran out (same runner, not held) -> cleared as lapsed
+ok 9 - the source's lease that ran out (same runner, not held) -> cleared as lapsed
+  ---
+  duration_ms: 0.349346
+  type: 'test'
+  ...
+# Subtest: a later observation of the source's lease resets the count (observation only, not reorg protection)
+ok 10 - a later observation of the source's lease resets the count (observation only, not reorg protection)
+  ---
+  duration_ms: 0.371916
+  type: 'test'
+  ...
+# Subtest: absence observed once, then the source's lease until the deadline -> clear-unconfirmed (unknown)
+ok 11 - absence observed once, then the source's lease until the deadline -> clear-unconfirmed (unknown)
+  ---
+  duration_ms: 0.327077
+  type: 'test'
+  ...
+# Subtest: reads at the same or a lower block (QuorumChain never goes below lastBlock) neither confirm nor reset
+ok 12 - reads at the same or a lower block (QuorumChain never goes below lastBlock) neither confirm nor reset
+  ---
+  duration_ms: 0.150659
+  type: 'test'
+  ...
+# Subtest: quorum outage for the whole window -> quorum-unavailable, bounded polling, ONE release
+ok 13 - quorum outage for the whole window -> quorum-unavailable, bounded polling, ONE release
+  ---
+  duration_ms: 0.342006
+  type: 'test'
+  ...
+# Subtest: outage then recovery inside the window -> cleared once two increasing blocks are observed
+ok 14 - outage then recovery inside the window -> cleared once two increasing blocks are observed
+  ---
+  duration_ms: 0.123368
+  type: 'test'
+  ...
+# Subtest: the source holds the lease on every valid read -> still-held
+ok 15 - the source holds the lease on every valid read -> still-held
+  ---
+  duration_ms: 0.172238
+  type: 'test'
+  ...
+# Subtest: a definite ManagementError refusal + a valid read of the source's lease -> refused, one read, no sleep
+ok 16 - a definite ManagementError refusal + a valid read of the source's lease -> refused, one read, no sleep
+  ---
+  duration_ms: 0.107669
+  type: 'test'
+  ...
+# Subtest: a definite refusal with every read down -> quorum-unavailable, never 'refused/still held' on zero reads
+ok 17 - a definite refusal with every read down -> quorum-unavailable, never 'refused/still held' on zero reads
+  ---
+  duration_ms: 0.283747
+  type: 'test'
+  ...
+# Subtest: a definite refusal with only malformed reads -> quorum-unavailable
+ok 18 - a definite refusal with only malformed reads -> quorum-unavailable
+  ---
+  duration_ms: 0.140959
+  type: 'test'
+  ...
+# Subtest: an ordinary Error, or a ManagementError without an explicit outcomeUnknown:false, is outcome-unknown, not definite
+ok 19 - an ordinary Error, or a ManagementError without an explicit outcomeUnknown:false, is outcome-unknown, not definite
+  ---
+  duration_ms: 0.614733
+  type: 'test'
+  ...
+# Subtest: the boundary is required and the release is never sent twice in any outcome
+ok 20 - the boundary is required and the release is never sent twice in any outcome
+  ---
+  duration_ms: 2.829818
+  type: 'test'
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 20
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 240.483432

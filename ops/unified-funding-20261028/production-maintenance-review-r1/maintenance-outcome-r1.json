@@ -1,0 +1,15 @@
+{
+  "status": "ABORTED_BEFORE_ACTIVATION_RESTORED",
+  "operation": "funding-activation-r1-20261028",
+  "reason": "Explicit zero active upstream restart check not met: aggregate 8100 count observed 3,6,3; requests not attributable to session writes. Stable nonces/journal are supporting evidence, not in-memory proof.",
+  "relayPid": 228946,
+  "sourceUnchanged": true,
+  "activationMarkerAbsent": true,
+  "restoredRoutesSha256": "26d27de76ff19c1844afcaf589e01e243fa694e816a5a6d0a1b1b91a5217025a",
+  "gateAbsent": true,
+  "watchdogStopped": true,
+  "legacyConfigStatus": 200,
+  "financialSends": false,
+  "at": "2026-10-28T22:49:00Z",
+  "timestampNote": "Approximate narrative time; actual SSH tool output is authoritative."
+}

@@ -1,0 +1,13 @@
+[queue] START available=87961MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+    "image-end-offset": 3110666240,
+    "total-clusters": 524288,
+    "check-errors": 0,
+    "allocated-clusters": 47435,
+    "filename": "/vm/enclave-volumes/rpc-production/os.qcow2",
+    "format": "qcow2",
+    "fragmented-clusters": 400
+}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

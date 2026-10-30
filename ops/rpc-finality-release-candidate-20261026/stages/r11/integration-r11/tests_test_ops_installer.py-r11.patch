@@ -1,0 +1,13 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10-ops-followup-r2/tests/test_ops_installer.py	2026-10-26 00:16:50.726667259 -0700
++++ tests/test_ops_installer.py	2026-10-26 00:25:59.517033904 -0700
+@@ -187,8 +187,8 @@
+ 
+     def test_qualification_needs_the_exact_r6_lines(self):
+         q, rc = self.t / 'q.out', self.t / 'q.rc'; rc.write_text('0\n')
+-        q.write_text('## finality-r10 rc=0\n## r10 SHA256SUMS abc\n'); IV.qualified(q, rc, 'abc')
+-        for bad in ('## finality-r5 rc=0\n## r10 SHA256SUMS abc\n', '## finality-r9 rc=0\n## r9 SHA256SUMS abc\n'):   # r10: an r9 run never qualifies r10
++        q.write_text('## finality-r11 rc=0\n## r11 SHA256SUMS abc\n'); IV.qualified(q, rc, 'abc')
++        for bad in ('## finality-r5 rc=0\n## r11 SHA256SUMS abc\n', '## finality-r9 rc=0\n## r9 SHA256SUMS abc\n', '## finality-r10 rc=0\n## r10 SHA256SUMS abc\n'):   # r11: no earlier run qualifies r11
+             q.write_text(bad)
+             with self.assertRaises(IV.Refused):
+                 IV.qualified(q, rc, 'abc')

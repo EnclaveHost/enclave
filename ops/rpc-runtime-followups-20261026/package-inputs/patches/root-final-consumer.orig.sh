@@ -1,0 +1,231 @@
+#!/bin/bash
+# final-consumer-composition-stage: ROOT job for the EXACT release-candidate source tree (reader + paid + writer). No network, no
+# native build, no activation, no live system; nothing written outside $OUT. Consumer tree 33e9cabc (FINAL-TREE) =
+#   base 64156dcd + KVM v3 34a3c0d6d reader closure (reader-runtime-composition-stage/r2 tree 9dd20e76, 33/33)
+#   + paid derived adapter r7 (paid-derived-v3-composition-stage tree 5037054a, root full 1297 PASS)
+#   + finalized writer r2 patch eb804950 (finalized-writer-integration-stage r3, root 1273: 23 tests + 5 startup + 6 API checks)
+#   + patches/integration-resolution.patch (4 files: the shared network/onchain-qualification.mjs back to base bytes; the
+#     pipelined attestation submission moved into the provider-only derived runtime; the adapter test follows).
+# Modes (ROOT runs them; foreground; caps as given):
+#   cd /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025
+#   bash jobs/q-exit-status.sh final-consumer-package     768 unshare -Urn bash final-consumer-composition-stage/jobs/root-final-consumer.sh package
+#   bash jobs/q-exit-status.sh final-consumer-integration 768 unshare -Urn bash final-consumer-composition-stage/jobs/root-final-consumer.sh integration
+#   bash jobs/q-exit-status.sh final-consumer-relay      2560 unshare -Urn bash final-consumer-composition-stage/jobs/root-final-consumer.sh relay
+#   bash jobs/q-exit-status.sh final-consumer-mutants     512 unshare -Urn bash final-consumer-composition-stage/jobs/root-final-consumer.sh mutants
+# pristine = base 64156dcd; final = the consumer tree; both exported from git objects; node_modules linked read-only from the
+# clean 64156dcd candidate checkout (lock 9ada1611, viem 2.53.1). This assembly does NOT resolve fresh-state authority and does
+# NOT prove feature availability: the writer's derived mode stays fail-closed (120 s ceiling; the relay runtime does not carry
+# the reader: "not composed"), the paid adapter's tests use labelled stand-ins, nothing touches Base, SNP or a measured image.
+set -uo pipefail
+MODE=${1:-package}; case $MODE in package|integration|relay|mutants) ;; *) echo "usage: $0 package|integration|relay|mutants"; exit 2;; esac
+ip link set lo up 2>/dev/null || true
+P=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025
+ST=$P/final-consumer-composition-stage; PV=$P/paid-derived-v3-composition-stage; RC=$P/reader-runtime-composition-stage/r2
+WS=$P/finalized-writer-integration-stage; R4=$P/paid-derived-adapter-stage; R7=$R4/r7
+T=$P/rpc-final-candidate-20261026/tree; HEAD=64156dcd91ff1e769e74f9c26a846be19254c716; PF=5037054a3dc70ed860eb6e7599ae617727af4d33
+LOCK=9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20; RUNTIME_PIN=e12c5bafb8b17abb891fb26fe1cdc054159d7bd2de5486d2c1a2480430671ed6
+OUT=$ST/runs/$(date -u +%Y%m%dT%H%M%SZ)-$MODE-$$; L=$OUT/logs; export GIT_OPTIONAL_LOCKS=0
+die() { echo "## INVALID: $*"; echo "## final-consumer $MODE rc=1"; exit 1; }
+[ ! -e "$OUT" ] && mkdir -p $L $OUT/tmp || die "output dir"
+ip -o route 2>/dev/null | grep -q . && die "network route present: run under unshare -Urn"
+# ---- 1 every input stage exactly as frozen
+(cd $ST && sha256sum -c --quiet SHA256SUMS) || die "this stage != SHA256SUMS"
+(cd $PV && sha256sum -c --quiet SHA256SUMS) && cmp -s $PV/SHA256SUMS $ST/inputs/paid-v3-SHA256SUMS || die "paid-v3 stage changed"
+(cd $RC && sha256sum -c --quiet SHA256SUMS) || die "reader r2 stage changed"
+(cd $R7 && sha256sum -c --quiet SHA256SUMS) && (cd $R4 && sha256sum -c --quiet SHA256SUMS) || die "paid r7 / r4 stage changed"
+[ "$(sha256sum < $WS/r2/SHA256SUMS | cut -c1-64)" = fab96a8f0743352f2f32a55c42ab7d6ea5b38330c5d9203c97d45b6c9c60f5b2 ] && (cd $WS/r2 && sha256sum -c --quiet SHA256SUMS) || die "writer r2 changed"
+(cd $WS/r3 && sha256sum -c --quiet SHA256SUMS) && cmp -s $WS/r3/SHA256SUMS $ST/inputs/writer-r3-SHA256SUMS || die "writer r3 changed"
+cmp -s $WS/r2/patches/finalized-writer-adapter-r2.patch $ST/patches/finalized-writer-adapter-r2.patch || die "writer patch here != writer r2's"
+FINAL=$(cat $ST/FINAL-TREE)
+# ---- 2 reproduce the consumer tree twice in a private git (stage objects read-only)
+G=$OUT/git; git init -q --bare $G && { cat $ST/git/objects/info/alternates; echo $ST/git/objects; } > $G/objects/info/alternates || die "private git"
+GIT=(git --git-dir=$G)
+tree_of() { local dir=$1 idx=$OUT/idx.$RANDOM; GIT_INDEX_FILE=$idx "${GIT[@]}" read-tree $HEAD && (cd $dir && GIT_INDEX_FILE=$idx "${GIT[@]}" --work-tree=$dir add -A -f . >/dev/null) && GIT_INDEX_FILE=$idx "${GIT[@]}" write-tree; rm -f $idx; }
+mkdir -p $OUT/rb/a $OUT/rb/b
+"${GIT[@]}" archive $HEAD | tar -x -C $OUT/rb/a && (cd $OUT/rb/a && git apply --whitespace=nowarn $ST/patches/final-consumer-vs-64156.patch) || die "base + consumer patch"
+"${GIT[@]}" archive $PF | tar -x -C $OUT/rb/b && (cd $OUT/rb/b && git apply $ST/patches/finalized-writer-adapter-r2.patch && git apply --whitespace=nowarn $ST/patches/integration-resolution.patch) || die "paid-v3 + writer + resolution"
+TA=$(tree_of $OUT/rb/a); TB=$(tree_of $OUT/rb/b); rm -rf $OUT/rb
+[ "$TA" = $FINAL ] && [ "$TB" = $FINAL ] || die "consumer tree does not reproduce (base+patch $TA, paid+writer+resolution $TB, recorded $FINAL)"
+# ---- 3 static composition facts
+[ "$("${GIT[@]}" diff --name-only $HEAD $FINAL)" = "$(awk '{print $2}' $ST/CONSUMER-BLOBS.txt)" ] || die "changed-file set != CONSUMER-BLOBS.txt"
+while read -r b f; do [ "$("${GIT[@]}" rev-parse $FINAL:$f)" = $b ] || die "blob of $f"; done < $ST/CONSUMER-BLOBS.txt
+"${GIT[@]}" diff --name-only $HEAD $FINAL | grep -E '^(windows/|test/windows-)' && die "the Windows path changed"
+"${GIT[@]}" ls-tree -r $FINAL network/derived-reader network/lifecycle-finality-bridge.mjs network/deployment-lifecycle-journal.mjs network/deployment-restart-policy.mjs | awk '{print $3"  "$4}' | cmp -s - $ST/inputs/KVM-34a3-CLOSURE.blobs || die "reader closure != writer r3's committed 34a3 closure"
+[ "$("${GIT[@]}" rev-parse $FINAL:network/onchain-qualification.mjs)" = "$("${GIT[@]}" rev-parse $HEAD:network/onchain-qualification.mjs)" ] || die "the shared onchain-qualification.mjs is not base bytes"
+echo "consumer tree $FINAL reproduced; Windows path, reader closure and shared modules as recorded" | tee $L/compose.txt
+# ---- 4 tools and node_modules
+[ "$(git -C $T rev-parse HEAD)" = $HEAD ] && [ -z "$(git -C $T status --porcelain --untracked-files=no)" ] || die "candidate checkout is not a clean 64156dcd"
+[ "$(sha256sum < $T/package-lock.json | cut -c1-64)" = $LOCK ] && grep -q '"version": "2.53.1"' $T/node_modules/viem/package.json || die "node_modules identity"
+export PATH=/home/steven/.foundry/bin:/usr/bin:/bin HOME=$OUT/tmp TMPDIR=$OUT/tmp TEST_TMP=$OUT/tmp FOUNDRY_OFFLINE=true
+[ $MODE = relay ] || export NODE_OPTIONS=--max-old-space-size=384      # relay mode: as the candidate job ran those tests (no heap cap)
+[ "$(sha256sum < "$(command -v anvil)" | cut -c1-64)" = 10c1c727d6c1de973aeb160e59875b9a9a23464d6e74149ee8abb30b3500311b ] || die "anvil is not the pinned one"
+[ "$(sha256sum < "$(command -v forge)" | cut -c1-64)" = 4f77da0810de94325734855d0ad58d70640aa8a5b2a837608ddf8c26da34355c ] || die "forge is not the pinned 1.7.1"
+for side in pristine final; do src=$HEAD; [ $side = final ] && src=$FINAL
+  mkdir -p $OUT/$side && "${GIT[@]}" archive $src | tar -x -C $OUT/$side || die "export $side"
+  ln -s $T/node_modules $OUT/$side/node_modules; ln -s $T/network/node_modules $OUT/$side/network/node_modules; ln -s $T/relay/node_modules $OUT/$side/relay/node_modules
+  # the release prerequisite: the generated relay runtime bundle, built per side exactly as the release does
+  (cd $OUT/$side && timeout -k 10 600 node relay/build-network.mjs < /dev/null) > $L/build-network--$side.out 2>&1 || die "node relay/build-network.mjs ($side)"
+  (cd $OUT/$side/relay && sha256sum network-runtime.bundle.mjs network-runtime.bundle.mjs.manifest.json) > $L/runtime-bundle--$side.sha256
+done
+# the consumer's relay runtime closure is untouched: its generated bundle must be the base's, byte for byte
+cmp -s $OUT/pristine/relay/network-runtime.bundle.mjs $OUT/final/relay/network-runtime.bundle.mjs && cmp -s $OUT/pristine/relay/network-runtime.bundle.mjs.manifest.json $OUT/final/relay/network-runtime.bundle.mjs.manifest.json || die "the generated relay runtime bundle differs from the base's"
+run() { local side=$1 f=$2 n; n=$side--$(basename $f .mjs)
+  (cd $OUT/$side && timeout -k 10 900 node --test --test-reporter=tap --test-concurrency=1 --test-timeout=600000 $f < /dev/null) > $L/$n.tap 2>&1; echo $? > $L/$n.rc; }
+
+if [ $MODE = package ]; then
+  # P1 committed pins of the generated runtime bundle (route-dns package, platform-api guest manifest): status per side
+  for side in pristine final; do
+    (cd $OUT/$side && timeout -k 10 900 node scripts/build-host-service-packages.mjs --check < /dev/null) > $L/host-packages-check--$side.out 2>&1; echo $? > $L/host-packages-check--$side.rc
+    (cd $OUT/$side && timeout -k 10 900 node scripts/build-mcp-guest-bundle.mjs --check < /dev/null) > $L/mcp-bundle-check--$side.out 2>&1; echo $? > $L/mcp-bundle-check--$side.rc
+    (cd $OUT/$side && timeout -k 10 900 node scripts/build-platform-api-guest-bundle.mjs --check < /dev/null) > $L/platform-api-check--$side.out 2>&1; echo $? > $L/platform-api-check--$side.rc
+  done
+  # P2 the measured platform-api guest bundle carries relay/api-relay.js: regenerate it from the consumer tree (its own
+  # deterministic generator), then --check must pass; the new bytes are a RELEASE OUTPUT (a measured-image change)
+  cp $OUT/final/metal/guest/platform-api.bundle.mjs.manifest.json $OUT/platform-api.manifest.committed.json
+  (cd $OUT/final && timeout -k 10 900 node scripts/build-platform-api-guest-bundle.mjs < /dev/null) > $L/platform-api-regenerate.out 2>&1 || die "platform-api guest bundle regeneration"
+  (cd $OUT/final && timeout -k 10 900 node scripts/build-platform-api-guest-bundle.mjs --check < /dev/null) > $L/platform-api-check--regenerated.out 2>&1; echo $? > $L/platform-api-check--regenerated.rc
+  mkdir -p $OUT/release/metal-guest && cp $OUT/final/metal/guest/platform-api.bundle.mjs $OUT/final/metal/guest/platform-api.bundle.mjs.manifest.json $OUT/release/metal-guest/
+  # P3 the provider/consumer release artifacts through the actual pipeline
+  (cd $OUT/final && timeout -k 10 900 node scripts/network/build-consumers.mjs $OUT/release/consumers < /dev/null) > $L/build-consumers.out 2>&1; echo $? > $L/build-consumers.rc
+  (cd $OUT/release && find . -type f | LC_ALL=C sort | xargs sha256sum) > $OUT/RELEASE.sha256
+  # P4 the packaged provider: quorum without derived files; derived (v3 reader config) with them; derived without them refuses
+  mkdir -p $OUT/pkg/alone $OUT/pkg/rel
+  cp $OUT/release/consumers/provider.mjs $OUT/pkg/alone/wg-provider.mjs; cp $OUT/release/consumers/provider.mjs $OUT/pkg/rel/wg-provider.mjs
+  cp $OUT/release/consumers/derived-runtime.mjs $OUT/release/consumers/schedule_reader.mjs $OUT/pkg/rel/
+  python3 -I - "$R4/config/provider.derived-local-verifier.example.json" "$OUT/final/network/derived-reader/config.v3.example.json" "$OUT/tmp" <<'PY' || die "provider configs"
+import json, sys
+c = json.load(open(sys.argv[1])); c["derivedFinality"]["readerConfigFile"] = sys.argv[2]
+json.dump(c, open(f"{sys.argv[3]}/cfg-derived-v3.json", "w"))
+json.dump({k: v for k, v in c.items() if k not in ("chainAuthority", "chainVerifier", "txBackend", "paidFinality", "derivedFinality", "pricePerGiB6", "kind", "hostId")}, open(f"{sys.argv[3]}/cfg-quorum.json", "w"))
+PY
+  for c in alone:quorum alone:derived-v3 rel:derived-v3 rel:quorum; do d=${c%%:*} k=${c#*:}
+    (cd $OUT/tmp && timeout -k 5 60 node $OUT/pkg/$d/wg-provider.mjs --check-config $OUT/tmp/cfg-$k.json < /dev/null) > $L/pkgcheck--$d--$k.out 2>&1; echo $? > $L/pkgcheck--$d--$k.rc; done
+  # P5 the relay entrypoint: syntax, the writer r3 startup cases (exact) with THIS tree's generated runtime, the API composition
+  node --check $OUT/final/relay/api-relay.js > $L/relay-check.out 2>&1; echo $? > $L/relay-check.rc
+  BOOK=ADDRESS_BOOK_ADDRESS=0x7777777777777777777777777777777777777777
+  startup() { local name=$1 want=$2; shift 2
+    (cd $OUT/final/relay && env -i PATH=$PATH HOME=$OUT/tmp API_RELAY_PORT=0 $BOOK "$@" timeout -k 5 90 node api-relay.js) > $L/startup-$name.txt 2>&1; local rc=$?
+    if [ $rc = 1 ] && grep -q "fatal: writer authority: .*$want" $L/startup-$name.txt; then echo "startup $name: OK"; else echo "startup $name: FAIL (rc $rc)"; fi; }
+  { startup no-verifier "needs the relay's verifier authority" ENCLAVE_WRITER_AUTHORITY_SOURCE=derived ENCLAVE_DERIVED_READER_CONFIG=/nonexistent/r.json ENCLAVE_DERIVED_ANCHOR_JOURNAL=/nonexistent/j.json
+    startup bad-value 'must be "derived" or unset' ENCLAVE_WRITER_AUTHORITY_SOURCE=quorum
+    startup url-config "absolute file path" ENCLAVE_CHAIN_AUTHORITY=verifier ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:9 ENCLAVE_WRITER_AUTHORITY_SOURCE=derived ENCLAVE_DERIVED_READER_CONFIG=http://127.0.0.1:9/reader ENCLAVE_DERIVED_ANCHOR_JOURNAL=/nonexistent/j.json
+    startup not-composed "not composed" ENCLAVE_CHAIN_AUTHORITY=verifier ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:9 ENCLAVE_WRITER_AUTHORITY_SOURCE=derived ENCLAVE_DERIVED_READER_CONFIG=/nonexistent/r.json ENCLAVE_DERIVED_ANCHOR_JOURNAL=/nonexistent/j.json
+    (cd $OUT/final/relay && env -i PATH=$PATH HOME=$OUT/tmp API_RELAY_PORT=0 $BOOK ENCLAVE_CHAIN_AUTHORITY=verifier ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:9 timeout -k 5 25 node api-relay.js) > $L/startup-unset.txt 2>&1
+    if grep -q "\[lease-generation\] REFUSED under the verifier authority" $L/startup-unset.txt && ! grep -q "fatal: writer authority" $L/startup-unset.txt; then echo "startup unset: OK"; else echo "startup unset: FAIL"; fi; } > $L/startup.txt
+  mkdir -p $OUT/tmp/api && (cd $OUT/final && timeout -k 5 120 node $WS/r3/jobs/api-composition-check.mjs $OUT/final $OUT/tmp/api) > $L/api-composition.txt 2>&1; echo $? > $L/api-composition.rc
+  # P6 the relay deploy closure (deploy.sh's scp list walked through the import graph) on both sides
+  run pristine test/relay-deploy-closure.test.mjs; run final test/relay-deploy-closure.test.mjs
+fi
+
+if [ $MODE = integration ]; then
+  # writer: its 3 suites exactly as r3 runs them (KVM_TREE = this tree; ABIs: the candidate's generated copies, r3's bytes)
+  for c in EnclaveDeployments EnclaveAddressBook; do mkdir -p $OUT/final/contracts/foundry/out/$c.sol && cp $T/contracts/foundry/out/$c.sol/$c.json $OUT/final/contracts/foundry/out/$c.sol/ || die "abi $c"; done
+  (cd $T && sha256sum contracts/foundry/out/EnclaveDeployments.sol/EnclaveDeployments.json contracts/foundry/out/EnclaveAddressBook.sol/EnclaveAddressBook.json) > $L/abi.sha256
+  (cd $OUT/final && KVM_TREE=$OUT/final timeout -k 5 600 node --test --test-reporter=tap --test-concurrency=1 test/derived-writer-authority.test.mjs test/derived-writer-authority-abi.test.mjs test/derived-writer-authority-kvm-store.test.mjs < /dev/null) > $L/writer.tap 2>&1; echo $? > $L/writer.rc
+  # reader: KVM's 33, exactly as the reader r2 root job runs them
+  (cd $OUT/final && env -i PATH=/usr/bin:/bin HOME=$OUT/tmp TMPDIR=$OUT/tmp timeout 1200 node --test --test-timeout=120000 --test-reporter=tap test/derived-reader.test.mjs test/lifecycle-finality-bridge.test.mjs < /dev/null) > $L/kvm.tap 2>&1; echo $? > $L/kvm.rc
+  # paid: adapter 15 and packaging 5 (the nested whole suite against the release runtime) on the consumer tree
+  run final test/paid-derived-adapter.test.mjs; run final test/paid-derived-packaging.test.mjs
+  # paid regressions and the Windows lease keeper: base vs consumer
+  for f in test/stack-provider-authority.test.mjs test/attested-provider-collateral.test.mjs test/wg-provider.test.mjs test/paid-network.test.mjs test/verified-chain.test.mjs \
+           test/service-index.test.mjs test/attested-paid-provider.test.mjs test/attested-route-composition.test.mjs test/attested-chain-verifier.test.mjs test/windows-node-lease-renewal-keeper.test.mjs; do
+    run pristine $f; run final $f; done
+fi
+
+if [ $MODE = relay ]; then
+  # the 8 candidate relay tests whose closure carries relay/api-relay.js: base vs consumer, with the candidate job's fixtures
+  OT=$P/offchain-registration-fixture-stage/runs/20261026T040819Z-831175/tree/contracts/foundry; RM=$P/rig-artifact-closure-stage/r2/run/20261026T034813Z/ARTIFACTS-after-final.sha256
+  for side in pristine final; do
+    mkdir -p $OUT/$side/contracts/foundry/out && (cd $OT && find out -type f -not -path 'out/build-info/*' -print0 | xargs -0 cp --parents -t $OUT/$side/contracts/foundry/) || die "artifact copy $side"
+    diff <(grep -v build-info $RM | LC_ALL=C sort -k2) <(cd $OUT/$side/contracts/foundry && find out -type f | LC_ALL=C sort | xargs sha256sum | LC_ALL=C sort -k2) > $L/artifacts--$side.diff || die "artifacts != rig-r2 manifest ($side)"
+  done
+  # the consumer's measured platform-api guest bundle regenerated from its source (as the release does); base keeps its committed one
+  (cd $OUT/final && timeout -k 10 900 node scripts/build-platform-api-guest-bundle.mjs < /dev/null) > $L/platform-api-regenerate.out 2>&1 || die "platform-api regeneration"
+  for f in test/native-relay-chain-authority.test.mjs test/platform-api-admin-cli.test.mjs test/platform-api-admin-status.test.mjs test/platform-api-forward.test.mjs \
+           test/platform-api-handoff-production.test.mjs test/platform-api-hosted.test.mjs test/platform-api-native-issuer.test.mjs test/relay-chain-consumers.test.mjs; do
+    run pristine $f; run final $f; done
+fi
+
+if [ $MODE = mutants ]; then
+  run final test/paid-derived-adapter.test.mjs
+  D=$OUT/final/network/wg-provider/derived-submission.mjs; cp $D $OUT/derived-submission.orig
+  python3 -I -c 'import json,sys; [print(m["name"]) for m in json.load(open(sys.argv[1]))]' $R4/jobs/mutants.json > $OUT/mutant-names.txt
+  while read -r name; do
+    python3 -I - "$R4/jobs/mutants.json" "$name" "$D" <<'PY' || die "mutant $name does not apply"
+import json, sys
+m = next(x for x in json.load(open(sys.argv[1])) if x["name"] == sys.argv[2]); s = open(sys.argv[3]).read()
+assert s.count(m["find"]) == 1; open(sys.argv[3], "w").write(s.replace(m["find"], m["replace"]))
+PY
+    (cd $OUT/final && timeout -k 10 300 node --test --test-reporter=tap --test-concurrency=1 --test-timeout=120000 test/paid-derived-adapter.test.mjs < /dev/null) > $L/mutant--$name.tap 2>&1; echo $? > $L/mutant--$name.rc
+    cp $OUT/derived-submission.orig $D
+  done < $OUT/mutant-names.txt
+fi
+
+python3 -I - "$L" "$MODE" "$P/rpc-final-candidate-20261026/TESTS.tsv" "$RUNTIME_PIN" <<'PY' > $OUT/verdict.json; rc=$?
+import json, re, sys, pathlib
+L, mode, tsv, pin = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
+def counts(name):
+    s = (L / f"{name}.tap").read_text(errors="replace"); r = int((L / f"{name}.rc").read_text())
+    return {"rc": r, **{k: int(m.group(1)) for k in ("tests", "pass", "fail", "skipped", "todo", "cancelled") for m in [re.search(rf"^# {k} (\d+)$", s, re.M)] if m}}
+clean = lambda c, n=None: c["rc"] == 0 and c.get("tests", 0) > 0 and c.get("pass") == c.get("tests") and (n is None or c.get("tests") == n) and not any(c.get(k) for k in ("fail", "skipped", "todo", "cancelled"))
+rcf = lambda n: int((L / f"{n}.rc").read_text())
+out, ok = {"mode": mode}, True
+def same(f):
+    a, b = counts(f"pristine--{f}"), counts(f"final--{f}")
+    return {"pristine": a, "final": b, "same": all(a.get(k) == b.get(k) for k in ("tests", "pass", "fail", "skipped", "todo", "cancelled")) and a["rc"] == b["rc"], "finalClean": clean(b)}
+rt = {s: dict(l.split()[::-1] for l in (L / f"runtime-bundle--{s}.sha256").read_text().splitlines()) for s in ("pristine", "final")}
+out["runtimeBundle"] = {"identicalToBase": rt["pristine"] == rt["final"], "sha256": rt["final"]["network-runtime.bundle.mjs"], "matchesCommittedPin": rt["final"]["network-runtime.bundle.mjs"] == pin}
+ok = ok and out["runtimeBundle"]["identicalToBase"]
+if mode == "package":
+    st = {k: {s: rcf(f"{k}--{s}") for s in ("pristine", "final")} for k in ("host-packages-check", "mcp-bundle-check", "platform-api-check")}
+    out["committedGeneratedArtifacts"] = st
+    # host-service packages and the MCP bundle: the consumer changes none of their inputs -> the base's status, exactly
+    ok = ok and st["host-packages-check"]["pristine"] == st["host-packages-check"]["final"] and st["mcp-bundle-check"]["pristine"] == st["mcp-bundle-check"]["final"]
+    # the platform-api guest bundle carries relay/api-relay.js: stale before, fresh after regeneration from the consumer source
+    regen = rcf("platform-api-check--regenerated")
+    rel = {l.split()[1]: l.split()[0] for l in (L.parent / "RELEASE.sha256").read_text().splitlines() if l.strip()}
+    out["platformApiGuestBundle"] = {"committedStaleOnConsumer": st["platform-api-check"]["final"] != 0, "regeneratedCheckRc": regen,
+        "regeneratedSha256": rel.get("./metal-guest/platform-api.bundle.mjs"), "regeneratedManifestSha256": rel.get("./metal-guest/platform-api.bundle.mjs.manifest.json")}
+    ok = ok and st["platform-api-check"]["final"] != 0 and regen == 0
+    ok = ok and rcf("build-consumers") == 0
+    pk = {f"{d}/{k}": (rcf(f"pkgcheck--{d}--{k}"), (L / f"pkgcheck--{d}--{k}.out").read_text(errors="replace")) for d, k in (("alone", "quorum"), ("alone", "derived-v3"), ("rel", "derived-v3"), ("rel", "quorum"))}
+    pkok = {"alone/quorum": pk["alone/quorum"][0] == 0, "alone/derived-v3": pk["alone/derived-v3"][0] != 0 and "did not load" in pk["alone/derived-v3"][1],
+            "rel/derived-v3": pk["rel/derived-v3"][0] == 0 and '"paidFinality":"derived"' in pk["rel/derived-v3"][1], "rel/quorum": pk["rel/quorum"][0] == 0}
+    out["packagedProvider"] = pkok; ok = ok and all(pkok.values())
+    su = (L / "startup.txt").read_text(); out["writerStartup"] = {"ok": su.count(": OK"), "fail": su.count(": FAIL")}; ok = ok and su.count(": OK") == 5 and ": FAIL" not in su
+    ac = (L / "api-composition.txt").read_text(errors="replace"); m = re.search(r'\{"ok":\s*true,\s*"checks":\s*(\d+)', ac)
+    out["writerApiComposition"] = {"rc": rcf("api-composition"), "checks": int(m.group(1)) if m else None}; ok = ok and rcf("api-composition") == 0 and m is not None and int(m.group(1)) == 6
+    out["relayCheck"] = rcf("relay-check"); ok = ok and rcf("relay-check") == 0
+    d = same("relay-deploy-closure.test"); out["relayDeployClosure"] = d; ok = ok and d["same"] and d["finalClean"]
+if mode == "integration":
+    w = counts("writer"); out["writer"] = w; ok = ok and clean(w, 23)
+    k = counts("kvm"); out["kvmReader"] = k; ok = ok and clean(k, 33)
+    a = counts("final--paid-derived-adapter.test"); p = counts("final--paid-derived-packaging.test"); out["paidAdapter"] = a; out["paidPackaging"] = p
+    pt = (L / "final--paid-derived-packaging.test.tap").read_text(errors="replace")
+    nested = re.search(r"^[ ]*# nested adapter suite: tests 15 pass 15 fail 0 skipped 0 todo 0 cancelled 0 against \S+/release/derived-runtime\.mjs$", pt, re.M)
+    out["paidNestedSuite"] = bool(nested); ok = ok and clean(a, 15) and clean(p, 5) and bool(nested) and "called recursively" not in pt
+    out["regression"] = {}
+    for f in ("stack-provider-authority", "attested-provider-collateral", "wg-provider", "paid-network", "verified-chain", "service-index", "attested-paid-provider",
+              "attested-route-composition", "attested-chain-verifier", "windows-node-lease-renewal-keeper"):
+        r = same(f + ".test"); out["regression"][f] = r; ok = ok and r["same"] and r["finalClean"]
+if mode == "relay":
+    want = {l.split("\t")[0]: l.split("\t")[1] for l in open(tsv) if l.startswith("test/")}
+    out["relayTests"] = {}
+    for f in ("native-relay-chain-authority", "platform-api-admin-cli", "platform-api-admin-status", "platform-api-forward", "platform-api-handoff-production",
+              "platform-api-hosted", "platform-api-native-issuer", "relay-chain-consumers"):
+        r = same(f + ".test"); e = want.get(f"test/{f}.test.mjs", "-"); r["expected"] = e
+        good = r["same"] and r["finalClean"] and (e == "-" or r["final"].get("tests") == int(e)); r["ok"] = good; out["relayTests"][f] = r; ok = ok and good
+if mode == "mutants":
+    b = counts("final--paid-derived-adapter.test"); out["baseline"] = b; ok = ok and clean(b, 15)
+    out["mutants"] = {}
+    for t in sorted(L.glob("mutant--*.tap")):
+        s = t.read_text(errors="replace"); r = int(t.with_suffix(".rc").read_text()); f = re.search(r"^# fail (\d+)$", s, re.M); n = re.search(r"^# tests (\d+)$", s, re.M)
+        killed = r != 0 and n is not None and int(n.group(1)) == 15 and f is not None and int(f.group(1)) >= 1
+        out["mutants"][t.stem.split("--", 1)[1]] = {"rc": r, "killed": killed}; ok = ok and killed
+    ok = ok and len(out["mutants"]) == 12
+out["ok"] = ok; out["scope"] = "release-candidate SOURCE assembly; NOT fresh-state authority, NOT feature availability, NOT production"
+print(json.dumps(out, indent=1)); sys.exit(0 if ok else 1)
+PY
+(cd $ST && sha256sum -c --quiet SHA256SUMS) || { echo "## stage files changed during the run"; rc=1; }
+rm -rf $OUT/pristine $OUT/final $OUT/pkg $OUT/tmp $OUT/git
+cat $OUT/verdict.json; echo "## outputs: $OUT"; echo "## final-consumer $MODE rc=$rc"; exit $rc

@@ -1,0 +1,15 @@
+{
+  "publicUrl": "https://api.enclave.host/t/metal0",
+  "dist": "/home/steven/enclave-prod/dist-leasegas-deabf8f90",
+  "leaseGas": {
+    "relays": [
+      "https://134.209.248.172"
+    ],
+    "rpcHostnames": [
+      "base-rpc.publicnode.com",
+      "mainnet.base.org",
+      "base-mainnet.public.blastapi.io"
+    ],
+    "quorum": 2
+  }
+}

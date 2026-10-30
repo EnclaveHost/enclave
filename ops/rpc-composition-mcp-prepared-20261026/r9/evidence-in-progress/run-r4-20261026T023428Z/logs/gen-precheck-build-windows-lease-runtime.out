@@ -1,0 +1,8 @@
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/final/scripts/build-windows-lease-runtime.mjs:25
+  if (!bytes.equals(await fs.readFile(output))) throw new Error("Windows shared lease bundle is stale");
+                                                      ^
+
+Error: Windows shared lease bundle is stale
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/final/scripts/build-windows-lease-runtime.mjs:25:55
+
+Node.js v22.23.3

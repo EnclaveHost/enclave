@@ -1,0 +1,7 @@
+[queue] START available=30467MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+{"verified":true,"transactions":4}
+[memory-guard] exit=0 peakTreeRssMiB=135 minHostAvailableMiB=30400
+[memory-guard] at peak: node:88 anvil:47
+[memory-guard] exit=0 peakTreeRssMiB=195 minHostAvailableMiB=30401
+[memory-guard] at peak: node:88 node:60 anvil:47
+[queue] EXIT 0

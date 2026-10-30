@@ -1,0 +1,46 @@
+{
+  "existing": [
+    "enclave/contracts/WalletSessionVault.sol",
+    "enclave/contracts/WalletSessionPolicy.sol",
+    "enclave/relay/wallet-session-policy.mjs",
+    "enclave/relay/sessions.mjs",
+    "enclave/relay/sessions-abi.mjs",
+    "enclave/relay/api-relay.js",
+    "enclave/relay/secrets.js",
+    "enclave/relay/secrets-release.mjs",
+    "enclave/relay/shield-secrets.mjs",
+    "enclave/windows/node/session-api-auth.mjs",
+    "enclave/windows/node/host.mjs",
+    "enclave/windows/node/agent.mjs",
+    "enclave/supervisor.js",
+    "enclave/cli/enclave.mjs",
+    "enclave/Dockerfile",
+    "enclave/windows/node/deploy-files.mjs",
+    "enclave/windows/installer/stage-bundle.sh",
+    "enclave/sdk/sessions/build.mjs"
+  ],
+  "patterns": [
+    "enclave/sdk/sessions/src/*",
+    "enclave/test/wallet-session/*"
+  ],
+  "boundedNewPaths": {
+    "immutableProfileSolidity": "At most one focused file under enclave/contracts; legacy contracts immutable.",
+    "provenanceManifestModules": "At most two focused JS modules; exact paths/imports require root scope review.",
+    "artifactBuilder": "At most one source-only builder; no execution or generated artifact fabrication.",
+    "newTests": "Small focused SDK and Solidity regression files, no constructor-heavy rigs and no changes to existing Solidity assertions."
+  },
+  "reports": [
+    "REPORT-R2.md",
+    "CLOSURE-R2.json"
+  ],
+  "immutable": [
+    "All seed/evidence/metadata outside candidate",
+    "Legacy SessionVault.sol, ledger, catalog, source deployment records",
+    "Installed funding/fee/quarantine controls",
+    "r3 UI/site/vendor and shipped SDK/dist",
+    "Package versions and locks",
+    "Original Solidity test assertions"
+  ],
+  "testConstraint": "Node seven-author/three-root security assertions preserved; only explicit fixture proof-reader additions, with mapping and exact originals in evidence. Do not double-count overlapping seven.",
+  "note": "Manual scope review is required after successful Write/Edit replay. This allowlist is not an OS sandbox or proof of acceptable semantic changes."
+}

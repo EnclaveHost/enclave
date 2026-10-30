@@ -1,0 +1,30 @@
+{
+  "changes": {
+    "control/windows/node/install-operator-effects.mjs": {
+      "seedSha256": "8e0311890cb9303ad3a5d9306afe35b59b69ff7155419efba0b701b6bbb71521",
+      "finalSha256": "6d4787aedeb51d5eb7f75c47d07bdde7219a760a15307be95c610ce6c0a83acd",
+      "kind": "modified"
+    },
+    "control/windows/node/operator-effects-config.mjs": {
+      "seedSha256": "f53568438572f60c41faba42ea4ae47301ba824668d6b666a3365bfc9e9ec02f",
+      "finalSha256": "b910f50c38a5d1a2106bbebdfc21d1ea865b9662cd4288a2c4edb95ed68847f8",
+      "kind": "modified"
+    },
+    "control/windows/vbslike/manager/psrun.mjs": {
+      "seedSha256": "39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6",
+      "finalSha256": "41142d0dc36ccad20941c74aa89c5189bdb9dcc904e267bbc5f79726111732ab",
+      "kind": "modified"
+    },
+    "test/windows-permit/helpers/ow-fixture.mjs": {
+      "seedSha256": null,
+      "finalSha256": "65bfcf6e2c90acf332d183d26b21594b49bc0a95d1f240ec74f07d13c6695767",
+      "kind": "new"
+    },
+    "test/windows-permit/ow-r1-operator-windows-wiring.test.mjs": {
+      "seedSha256": "ca546af7642a618fce3fde0ca91c96e93340819af389117de618059d3fa155dd",
+      "finalSha256": "4c9b232ce4a0442187636644d45ec614933b5a5f354e264883185b03cbf23a01",
+      "kind": "modified"
+    }
+  },
+  "removed": []
+}

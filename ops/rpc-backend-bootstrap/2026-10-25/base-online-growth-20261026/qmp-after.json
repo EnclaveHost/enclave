@@ -1,0 +1,241 @@
+[
+  {
+    "io-status": "ok",
+    "device": "",
+    "locked": false,
+    "removable": false,
+    "inserted": {
+      "iops_rd": 0,
+      "detect_zeroes": "off",
+      "active": true,
+      "image": {
+        "limits": {
+          "write-zeroes-alignment": 65536,
+          "request-alignment": 1,
+          "min-mem-alignment": 1,
+          "discard-alignment": 65536,
+          "opt-mem-alignment": 4096,
+          "max-iov": 1024
+        },
+        "virtual-size": 34359738368,
+        "filename": "/vm/enclave-volumes/rpc-production/os.qcow2",
+        "cluster-size": 65536,
+        "format": "qcow2",
+        "actual-size": 18200907776,
+        "format-specific": {
+          "type": "qcow2",
+          "data": {
+            "compat": "1.1",
+            "compression-type": "zlib",
+            "lazy-refcounts": false,
+            "refcount-bits": 16,
+            "corrupt": false,
+            "extended-l2": false
+          }
+        },
+        "dirty-flag": false
+      },
+      "iops_wr": 0,
+      "ro": false,
+      "children": [
+        {
+          "node-name": "#block014",
+          "child": "file"
+        }
+      ],
+      "node-name": "os0",
+      "backing_file_depth": 0,
+      "drv": "qcow2",
+      "iops": 0,
+      "bps_wr": 0,
+      "write_threshold": 0,
+      "encrypted": false,
+      "bps": 0,
+      "bps_rd": 0,
+      "cache": {
+        "no-flush": false,
+        "direct": false,
+        "writeback": true
+      },
+      "file": "/vm/enclave-volumes/rpc-production/os.qcow2"
+    },
+    "qdev": "/machine/peripheral-anon/device[1]",
+    "type": "unknown"
+  },
+  {
+    "io-status": "ok",
+    "device": "",
+    "locked": false,
+    "removable": false,
+    "inserted": {
+      "iops_rd": 0,
+      "detect_zeroes": "off",
+      "active": true,
+      "image": {
+        "limits": {
+          "write-zeroes-alignment": 65536,
+          "request-alignment": 1,
+          "min-mem-alignment": 1,
+          "discard-alignment": 65536,
+          "opt-mem-alignment": 4096,
+          "max-iov": 1024
+        },
+        "virtual-size": 4000000000000,
+        "filename": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+        "cluster-size": 65536,
+        "format": "qcow2",
+        "actual-size": 431336239104,
+        "format-specific": {
+          "type": "qcow2",
+          "data": {
+            "compat": "1.1",
+            "compression-type": "zlib",
+            "lazy-refcounts": false,
+            "refcount-bits": 16,
+            "corrupt": false,
+            "extended-l2": false
+          }
+        },
+        "dirty-flag": false
+      },
+      "iops_wr": 0,
+      "ro": false,
+      "children": [
+        {
+          "node-name": "#block118",
+          "child": "file"
+        }
+      ],
+      "node-name": "l10",
+      "backing_file_depth": 0,
+      "drv": "qcow2",
+      "iops": 0,
+      "bps_wr": 0,
+      "write_threshold": 0,
+      "encrypted": false,
+      "bps": 0,
+      "bps_rd": 0,
+      "cache": {
+        "no-flush": false,
+        "direct": false,
+        "writeback": true
+      },
+      "file": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2"
+    },
+    "qdev": "/machine/peripheral-anon/device[2]",
+    "type": "unknown"
+  },
+  {
+    "io-status": "ok",
+    "device": "",
+    "locked": false,
+    "removable": false,
+    "inserted": {
+      "iops_rd": 0,
+      "detect_zeroes": "off",
+      "active": true,
+      "image": {
+        "limits": {
+          "write-zeroes-alignment": 65536,
+          "request-alignment": 1,
+          "min-mem-alignment": 1,
+          "discard-alignment": 65536,
+          "opt-mem-alignment": 4096,
+          "max-iov": 1024
+        },
+        "virtual-size": 4000000000000,
+        "filename": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+        "cluster-size": 65536,
+        "format": "qcow2",
+        "actual-size": 710914932736,
+        "format-specific": {
+          "type": "qcow2",
+          "data": {
+            "compat": "1.1",
+            "compression-type": "zlib",
+            "lazy-refcounts": false,
+            "refcount-bits": 16,
+            "corrupt": false,
+            "extended-l2": false
+          }
+        },
+        "dirty-flag": false
+      },
+      "iops_wr": 0,
+      "ro": false,
+      "children": [
+        {
+          "node-name": "#block220",
+          "child": "file"
+        }
+      ],
+      "node-name": "base0",
+      "backing_file_depth": 0,
+      "drv": "qcow2",
+      "iops": 0,
+      "bps_wr": 0,
+      "write_threshold": 0,
+      "encrypted": false,
+      "bps": 0,
+      "bps_rd": 0,
+      "cache": {
+        "no-flush": false,
+        "direct": false,
+        "writeback": true
+      },
+      "file": "/mnt/usb/enclave-rpc-production/base-origin.qcow2"
+    },
+    "qdev": "/machine/peripheral-anon/device[3]",
+    "type": "unknown"
+  },
+  {
+    "io-status": "ok",
+    "device": "",
+    "locked": true,
+    "removable": true,
+    "inserted": {
+      "iops_rd": 0,
+      "detect_zeroes": "off",
+      "active": true,
+      "image": {
+        "limits": {
+          "request-alignment": 1,
+          "min-mem-alignment": 1,
+          "opt-mem-alignment": 4096,
+          "max-iov": 1024
+        },
+        "virtual-size": 391168,
+        "filename": "/home/steven/.local/state/enclave-rpc-production/seed.iso",
+        "format": "raw",
+        "actual-size": 393216,
+        "dirty-flag": false
+      },
+      "iops_wr": 0,
+      "ro": true,
+      "children": [
+        {
+          "node-name": "#block328",
+          "child": "file"
+        }
+      ],
+      "node-name": "seed0",
+      "backing_file_depth": 0,
+      "drv": "raw",
+      "iops": 0,
+      "bps_wr": 0,
+      "write_threshold": 0,
+      "encrypted": false,
+      "bps": 0,
+      "bps_rd": 0,
+      "cache": {
+        "no-flush": false,
+        "direct": false,
+        "writeback": true
+      },
+      "file": "/home/steven/.local/state/enclave-rpc-production/seed.iso"
+    },
+    "qdev": "/machine/peripheral-anon/device[4]",
+    "tray_open": false,
+    "type": "unknown"
+  }
+]

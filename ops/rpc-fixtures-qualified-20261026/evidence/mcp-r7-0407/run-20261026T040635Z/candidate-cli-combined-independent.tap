@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: login: the owner's own wallet approves the printed grant, a separate payer opens it, the CLI adopts exactly it; account, top-up-link, logout
+ok 1 - login: the owner's own wallet approves the printed grant, a separate payer opens it, the CLI adopts exactly it; account, top-up-link, logout
+  ---
+  duration_ms: 2860.207957
+  type: 'test'
+  ...
+# Subtest: login hand-back: another account only signs the grant; the CLI checks it on chain and its OWN gas key submits
+ok 2 - login hand-back: another account only signs the grant; the CLI checks it on chain and its OWN gas key submits
+  ---
+  duration_ms: 1817.386955
+  type: 'test'
+  ...
+# Subtest: host: init/install/run/check through `enclave host` with the plan's quorum; key FILE and BASE_RPCS; check is never ready
+ok 3 - host: init/install/run/check through `enclave host` with the plan's quorum; key FILE and BASE_RPCS; check is never ready
+  ---
+  duration_ms: 1609.512194
+  type: 'test'
+  ...
+# Subtest: dispatch: custody and signer reach their commands; secrets stays refused, naming the pending owner read; --signer-mode needs --independent
+not ok 4 - dispatch: custody and signer reach their commands; secrets stays refused, naming the pending owner read; --signer-mode needs --independent
+  ---
+  duration_ms: 1014.145354
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/standalone-mcp-authority-stage/r7/run/20261026T040635Z/cand/test/cli-combined-independent.test.mjs:156:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /--signer-mode apply to independent mode: add --independent/. Input:
+    
+    'error: --quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei, --signer-mode and --chain-verifier apply to independent mode: add --independent\n'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    error: --quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei, --signer-mode and --chain-verifier apply to independent mode: add --independent
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/standalone-mcp-authority-stage/r7/run/20261026T040635Z/cand/test/cli-combined-independent.test.mjs:170:43)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7472.06671

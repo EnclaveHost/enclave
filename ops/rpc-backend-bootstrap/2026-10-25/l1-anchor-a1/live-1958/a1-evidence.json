@@ -1,0 +1,85 @@
+{
+ "verdict": "A1-authenticated",
+ "N": "52866960",
+ "outputRoot": "0xa996c517b0e797b56426059d57c93ac8352b21b61e04b2fc66866dd61d056700",
+ "game": "0x343b3a99527af07d2cfb2652747b9e37715e21ac",
+ "asr": "0x909f6cf47ed12f010a796527f562bfc26c7f4e72",
+ "respectedGameType": 621,
+ "l1": {
+  "number": 26271848,
+  "hash": "0x3762b17e8235efae14eee170ee13c4f9b316dae37bfd4d9527915085db007cd4",
+  "stateRoot": "0x35948eabfd56fd6f10cbb3c5a3b418f390bbd3e10d32d5e789c7ec2e3d9ac6f2",
+  "timestamp": 1792957271,
+  "ageSec": 952
+ },
+ "pins": {
+  "0x49048044d57e1c92a77f79988d21fa8faf74e97e": {
+   "codeHash": "0x7d1cd19d713c8d64bf663f4168250abfbf690dbb6214c25bf757fee383816914",
+   "storageRoot": "0xd54cc42c3919cd34ccb60e4a49b62ea21bf3749ec04dc8406c00d79678bd2df0",
+   "slots": {
+    "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc": "0x00000000000000000000000003863ab7f64b733cff85c8ff44a86601c568ca70",
+    "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103": "0x0000000000000000000000000475cbcaebd9ce8afa5025828d5b98dfb67e059e"
+   },
+   "eip1967Implementation": "0x03863ab7f64b733cff85c8ff44a86601c568ca70",
+   "eip1967Admin": "0x0475cbcaebd9ce8afa5025828d5b98dfb67e059e"
+  },
+  "0x909f6cf47ed12f010a796527f562bfc26c7f4e72": {
+   "codeHash": "0xfa8c9db6c6cab7108dea276f4cd09d575674eb0852c0fa3187e59e98ef977998",
+   "storageRoot": "0x468501ebf2dd10c4ed0e7dfda4349cebba1f69316da5d57478c90e32fbab3954",
+   "slots": {
+    "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc": "0x0000000000000000000000004483f964f6711cb55f633820ed174e780369b99d",
+    "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103": "0x0000000000000000000000000475cbcaebd9ce8afa5025828d5b98dfb67e059e"
+   },
+   "eip1967Implementation": "0x4483f964f6711cb55f633820ed174e780369b99d",
+   "eip1967Admin": "0x0475cbcaebd9ce8afa5025828d5b98dfb67e059e"
+  },
+  "0x343b3a99527af07d2cfb2652747b9e37715e21ac": {
+   "codeHash": "0xbf530c4112fdac21c5f76954a3fc25ffd1dfb6d7619211e328222b1b95eeef65",
+   "storageRoot": "0xde6b60d0c67150a4e7b9eaec1e1b82c99ed6aec62b76072468fdc480994bfbe4",
+   "slots": {
+    "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103": "0x0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "eip1967Implementation": "0x0000000000000000000000000000000000000000",
+   "eip1967Admin": "0x0000000000000000000000000000000000000000"
+  }
+ },
+ "asrCandidates": [
+  {
+   "address": "0xdb9091e48b1c42992a1213e6916184f9ebdbfedf",
+   "provenance": "base v1.5.1 crates/common/genesis/src/chain/addresses.rs:134 (address-book fixture; UNAUTHENTICATED)",
+   "authenticatedMatch": false
+  },
+  {
+   "address": "0x909f6cf47ed12f010a796527f562bfc26c7f4e72",
+   "provenance": "root Helios-verified portal getter at 0x3762b17e8235efae14eee170ee13c4f9b316dae37bfd4d9527915085db007cd4",
+   "authenticatedMatch": true
+  }
+ ],
+ "reads": {
+  "l1Finalized": "helios-call",
+  "portalAsr": "helios-call",
+  "anchorRoot": "helios-call",
+  "anchorGame": "helios-call",
+  "respectedGameType": "helios-call",
+  "paused": "helios-call",
+  "disputeGameFactory": "helios-call",
+  "isGameFinalized": "helios-call",
+  "isGameRespected": "helios-call",
+  "isGameBlacklisted": "helios-call",
+  "isGameRetired": "helios-call",
+  "gameStatus": "helios-call",
+  "gameRootClaim": "helios-call",
+  "gameL2SequenceNumber": "helios-call",
+  "gameType": "helios-call",
+  "gameAnchorStateRegistry": "helios-call",
+  "account:0x49048044d57e1c92a77f79988d21fa8faf74e97e": "mpt-proof",
+  "account:0x909f6cf47ed12f010a796527f562bfc26c7f4e72": "mpt-proof",
+  "account:0x343b3a99527af07d2cfb2652747b9e37715e21ac": "mpt-proof"
+ },
+ "observations": {
+  "elHeaderNumber": "0x190e068"
+ },
+ "at": "2026-10-25T19:58:03.973Z",
+ "label": "A1 read: Helios-light-client-relative; not SNP/attested"
+}

@@ -1,0 +1,6 @@
+[queue] START available=18233MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Read-only live l1-ready, source 6a4d7aa5da385bf1d8dea74c37060eb1332d5d468625d54ae02ae878c7135189; no install/start/restart
+{"l1Block": 26275660, "l1Finalized": 26275576, "blobSlot": 15514931, "l1Identity": {"basis": "pruned-el-genesis+mainnet-cl-paired-finalized", "elEarliestAvailable": 26100000, "pairedFinalized": {"number": 26275576, "hash": "0xce61e41359022a22ee767258da1a6e72e62cc21790e6ea0bdf6f5eb89bf1b916"}}}
+[memory-guard] exit=0 peakTreeRssMiB=16 minHostAvailableMiB=18226
+[memory-guard] at peak: ssh:10 bash:4 timeout:2
+[queue] EXIT 0

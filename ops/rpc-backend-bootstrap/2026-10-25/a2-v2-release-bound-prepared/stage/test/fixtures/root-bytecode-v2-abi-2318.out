@@ -1,0 +1,39 @@
+[queue] START available=23284MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+b55e6b78c6ac8e0a672f69e238135eca7466d1081479cd0868204cee9a1654d7  /root/enclave-rpc-bytecode-v2-abi-20261025-2318/base-bytecode-check
+87bce27f2f9bdebbb78b82099c6b18016508229c4828a8547b07447d94d61242  /root/enclave-rpc-bytecode-v2-abi-20261025-2318/abi-smoke.sh
+Running as unit: enclave-rpc-bytecode-v2-abi-2318.service; invocation ID: d11841409e2948af8e0d9466bced795f
+== environment audit (refusals happen BEFORE the binary is launched)
+[ok] no LD_* variable
+[ok] /etc/ld.so.preload absent
+[ok] binary sha256 b55e6b78c6ac8e0a672f69e238135eca7466d1081479cd0868204cee9a1654d7 size 1276048
+[info] Linux 6.8.0-147-generic x86_64; Ubuntu 24.04.5 LTS; system glibc 2.39
+[info] network interfaces up: lo 
+== launch + refusal cases (each: stdin /dev/null, empty environment, timeout 30 s, must exit 1 with the exact message)
+    [usage] Error: "usage: base-bytecode-check <datadir>"
+[ok] usage: rc=1 and refused as expected
+    [extra-arg] Error: "usage: base-bytecode-check <datadir>"
+[ok] extra-arg: rc=1 and refused as expected
+    [absent-db] Error: Could not open database at path: /root/enclave-rpc-bytecode-v2-abi-20261025-2318/absent-datadir/db
+    [absent-db] 
+    [absent-db] Caused by:
+    [absent-db]     failed to open the database: No such file or directory (2)
+    [absent-db] 
+    [absent-db] Location:
+    [absent-db]     /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/build/cargo-home/git/checkouts/reth-babcd6134566c621/7134be3/crates/storage/db/src/mdbx.rs:146:10
+[ok] absent-db: rc=1 and refused as expected
+    [non-utf8] Error: "datadir is not UTF-8"
+[ok] non-utf8: rc=1 and refused as expected
+== nothing created, binary unchanged
+[ok] no file or directory was created in /root/enclave-rpc-bytecode-v2-abi-20261025-2318
+[ok] binary unchanged
+ABI launch/refusal smoke PASS; no live database accessed
+## abi-smoke rc=0
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 48ms
+CPU time consumed: 60ms
+Memory peak: 1.2M
+Memory swap peak: 0B
+[memory-guard] exit=0 peakTreeRssMiB=18 minHostAvailableMiB=23278
+[memory-guard] at peak: ssh:10 bash:4 tar:4
+[queue] EXIT 0

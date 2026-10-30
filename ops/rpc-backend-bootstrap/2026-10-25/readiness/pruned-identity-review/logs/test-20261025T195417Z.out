@@ -1,0 +1,12 @@
+[queue] START available=20035MiB required=18688MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1792MiB
+b15b77afa653ee70439596d1a6aa6b8b4add0371e0a6d01eb506e276c114cec8  orig/readiness_sampler.py
+9aa80ab8a2cbe156f513349f44366c4ad2c8588539666ac802ed9015c771d055  patched/readiness_sampler.py
+b8f79ccc33a6bc4893cc1db2e412e081a71a60b0bb9f60e62d1e028c5a0df500  patched/test_readiness_sampler.py
+6b63b901ea07375ea273fd828cb0d0e97baa0859c1b83490c1cb60e15cb3c86c  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/coverage/origin_extract.py
+=== full suite, patched
+test_base_el_syncing (test_readiness_sampler.TestBaseNegative.test_base_el_syncing) ... ok
+test_base_finality_rewritten_between_samples (test_readiness_sampler.TestBaseNegative.test_base_finality_rewritten_between_samples) ... ok
+test_l1origin_not_canonical_on_our_l1 (test_readiness_sampler.TestBaseNegative.test_l1origin_not_canonical_on_our_l1) ... ok
+test_nonadvancing_finality (test_readiness_sampler.TestBaseNegative.test_nonadvancing_finality) ... ok
+test_nonadvancing_safe (test_readiness_sampler.TestBaseNegative.test_nonadvancing_safe) ... ok
+test_reported_l1origin_disagrees_with_deposit (test_readiness_sampler.TestBaseNegative.test_reported_l1origin_disagrees_with_deposit) ... 

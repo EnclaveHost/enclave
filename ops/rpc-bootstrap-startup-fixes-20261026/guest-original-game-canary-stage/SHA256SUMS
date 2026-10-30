@@ -1,0 +1,6 @@
+07e12cff206c10fdf11207faab357d11aead506c34bc93fa569cfd238abf5b70  ./COMPOSED-STAGE-PINS.json
+da292f1c739cb356eb17eceae6736fcb10d920bf7b00023c076ade4ed0c2fd6e  ./CONSUMER-CONTRACT.json
+4cec02f25f06afce9b7d2cae44728c7f766844f6ba163180f2dae96cd06a2d53  ./README.md
+4b24f50de24c46a6ccf66db7ccac107c266230a29a613883c3b2cc604a438792  ./guest/canary_driver.py
+e1b5db7deaa6a1b0854923534fe6d479821d77235d31930af089600bda932ab6  ./jobs/root-original-game-canary.sh
+01dc033d37761a33e0f5ebed72e74a3ef6e40139008786d230ccc9d2659f292d  ./tools/assemble.py

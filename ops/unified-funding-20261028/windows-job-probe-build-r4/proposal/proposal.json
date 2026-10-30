@@ -1,0 +1,71 @@
+{
+  "status": "NONRUNNABLE SOURCE PROPOSAL ONLY. Native probe authored NOT built/run. No remote staging/execution, no admission approval.",
+  "knownLauncher": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-exlock-launcher-build-r2/owned-job.c",
+    "sourceSha256": "509356d9833cd29aed0cc605c82a1d80a739570118e6b1e92f433378993734ee",
+    "binarySha256": "94a8483ed8eb40734cf578c7b2ffa5c3e6f83357d8268950acff5c47723e8d7c",
+    "binaryBytes": 5632,
+    "status": "Coordinator local build only; no Windows qualification"
+  },
+  "admissionWithoutNewMechanism": [
+    "Use the existing coordinator as sole owner of test admission and host/financial changes for this bounded window. Do not add a production scheduler, global lock service or on-chain operation.",
+    "Immediately before the one attempt, re-observe actual8091+8095 health/inventory/epochs and8097 durable pending reservation. Count full physical memory of all starting domains plus router pending not already represented; count future already-admitted but not-started work and other known host work from current coordinator records. Never translate unobserved work to zero. Double counting is safe; unproven deduplication is not.",
+    "Require explicit accounted pending upper bound P and fresh OS available physical F >= 17408 + 256 + P MiB; this retains the existing17GiB routing reserve plus the entire test commit budget initially. Also require available commit >=256MiB. These are additional launch checks, not a claim of an atomic reservation.",
+    "Existing17GiB router admission floor has1GiB above the desired16GiB minimum; the256MiB owned test fits inside that margin under accounted admissions. Launcher pressure checks at17GiB every50ms kill only this test if margin shrinks. Pressure sampling is best effort, not a proof that future/concurrent jobs cannot consume memory.",
+    "Coordinator must account for/prohibit overlapping new work it controls during the <=30sec attempt. If uncontrolled direct launches or pending commitments cannot be bounded, leave the test unadmitted. Do not stop production apps or claim future capacity zero."
+  ],
+  "minimalQualificationSequence": [
+    {
+      "step": 1,
+      "name": "Disposable source/build and staging review",
+      "action": "Prepare a tiny no-CRT Win32 probe as a separate source-only artifact; coordinator alone reviews/builds it using existing toolchain, pins binary/source/imports. Do not Add-Type or compile on Windows during the test. Use one exact randomly named private directory and whitelisted pinned launcher/probe files, protected ACL/reparse/link checks and ownership marker. No production journal paths."
+    },
+    {
+      "step": 2,
+      "name": "Readback and inheritance",
+      "action": "Record immediate-job numeric flags, commit cap, active process limit, affinity and exact probe/first-child/recovery-child PID+creation FILETIME strings. Child exit zero means its own immediate-job limits matched the pinned constants. This does not identify all ancestors or prove an exclusive job identity."
+    },
+    {
+      "step": 3,
+      "name": "Bounded behavioral checks in same owned job",
+      "action": "Collect slot-four creation, slot-five attempt, breakaway attempt and normal-child recovery receipts with immediate raw GetLastError on each failure and before/after active/total/terminated counts. Allocate/touch at most256MiB in1MiB chunks, capture immediate allocation error, historical job peak commit before/after, available system commit/physical, free errors and positive allocation recovery. No arbitrary CreateProcess/VirtualAlloc failure is called enforcement success. Historical peak near cap is supporting evidence only, not current commit or causal attribution. All waits/allocations remain bounded."
+    },
+    {
+      "step": 4,
+      "name": "Exit/death cleanup observation",
+      "action": "A successful limits run alone must NOT label kill-on-close qualified. For actual death coverage, root needs one separately reviewed observer controlling the exact created wrapper process handle and a child receipt, kills only that handle, then confirms its recorded descendants absent. Charge observer overhead separately in P and bound its lifetime. If this is not approved/composed, explicitly leave owner-death/kill-on-close qualification pending instead of setting booleans from source. Normal parent exit plus ownedjob termination can be checked in first run, but is not unexpected owner-death evidence."
+    },
+    {
+      "step": 5,
+      "name": "Record and clean",
+      "action": "Output only fixed-size structured PID/creation/limits/results, no environment/private data. Exact owned files only, nonrecursive cleanup after known processes gone. If timeout/pressure/transport loss leaves outcome unknown, record incomplete evidence and owned path for coordinator inspection; no broad sweep or automatic retry."
+    }
+  ],
+  "limits": {
+    "launcherWholeJobCommitMiB": 256,
+    "processCount": 4,
+    "cpuAffinityMask": 1,
+    "childSelfTimeoutMs": 2500,
+    "pressurePollMs": 50,
+    "remoteTransportTimeoutSec": 45,
+    "testFileBytesMax": 1048576,
+    "stdoutBytesMax": 16384,
+    "launcherEntryRelativeDeadlineMs": 30000,
+    "watchdogStarts": "After own-job assignment, before CreateProcess. Early setup is not independently bounded."
+  },
+  "exclusions": [
+    "No EXLOCK file test until Job qualification and current admission independently reviewed.",
+    "No NTFS powerloss,Windows guard,realVM orBase claim from this probe.",
+    "The separate observer is not silently included in256MiB job cap; budget/qualification scope must say so.",
+    "Revised launcher watchdog uses entry baseline but begins after selfjobassignment; early setup before watchdog remains outside independenttimeout."
+  ],
+  "nextConcreteWork": "Coordinator source review first. No build, run, staging, retry or follow-on authorized. Any observed result needs independent causal assessment; unknown errors remain unknown.",
+  "concreteFiles": {
+    "job-probe.c": "Version2 receipt-only source. Actual numeric limits, exact PID/creation, immediate failure errors and accounting/positive controls. evidenceCollected means required observations collected, even when observations contradict expected behavior. scopePassed, limitAttributionQualified and ownerDeathQualified always false. Exit0 is NOT a qualification pass.",
+    "job.template.ps1": "Nonrunnable uninstantiated receipt collection template. Accepts only schema2 and explicit unqualified flags. Does not authorize EXLOCK.",
+    "exlock-test.cjs": "Exact prior source-only crossprocess exclusion test.",
+    "exlock.template.ps1": "Prior bounded Node test template with stricter17408+256+pending admission. Must be reviewed/executed separately AFTER appropriate Job evidence."
+  },
+  "executionOrder": "No runnable dispatcher provided. Coordinator first reviews/builds native probe locally, reviews exact artifact/staging/host admission, then selects ONE boundedJobtest. No automatic EXLOCK follow-on. Ownerdeath qualification pending requires separately reviewed exact-handle observer and accountedoverhead.",
+  "revision": "Narrow receipt correction preserving original r3 proposal and pinned launcher. No scheduler/launcher changes."
+}

@@ -1,0 +1,6 @@
+rpc-priority/helios: OpenSSL 3.5.1 1 Jul 2025|built on: Fri Oct 23 01:31:58 2026 UTC|
+r3-eeffcc9/helios: OpenSSL 3.5.1 1 Jul 2025|built on: Sun Oct 25 18:24:37 2026 UTC|
+r3-b93fcfd/helios: OpenSSL 3.5.1 1 Jul 2025|built on: Sun Oct 25 18:16:35 2026 UTC|
+r2/witness-check: 
+chain-verifier-inputs/witness-check: 
+[memory-guard] exit=0 peakTreeRssMiB=31 minHostAvailableMiB=21551

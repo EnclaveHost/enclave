@@ -1,0 +1,31 @@
+{
+  "at": "2026-10-30T00:56:58.850076+00:00",
+  "identity": {
+    "MainPID": "101767",
+    "InvocationID": "42ba0e50e6e84484b183aefc1bcd658c"
+  },
+  "origins": [
+    "base-rpc.publicnode.com",
+    "base-sepolia-rpc.publicnode.com",
+    "base.drpc.org",
+    "eth.drpc.org",
+    "ethereum-rpc.publicnode.com",
+    "mainnet.base.org",
+    "sepolia.base.org"
+  ],
+  "sourceStructure": [
+    "// Credential-bearing RPC upstreams stay in this process. No upstream URLs or",
+    "// credentials are returned in errors, health responses, or request logs.",
+    "export function createRpcGateway({upstreams,fetchImpl=fetch,now=Date.now,maxEntries=4096,maxBytes=16*1024*1024,timeoutMs=3000,maxInflight=32,maxUpstreamPerSecond=30}={}) {",
+    "  async function upstream(network,method,params){",
+    "      const urls=upstreams[network];",
+    "          if(!response.ok){await response.body?.cancel();throw Error('upstream unavailable');}",
+    "            // because some providers echo URLs and request credentials in them.",
+    "      stats.errors++;return failure(-32002,'RPC upstream unavailable');",
+    "    if(!upstreams?.[network])return wrap(failure(-32602,'Unsupported network'));",
+    "    const task=upstream(network,method,params).then(value=>{",
+    "    // Bound memory and total upstream spend even if forwarded addresses are spoofed.",
+    "  const config=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));",
+    "  server.listen(config.port??8190,'127.0.0.1',()=>console.log('RPC gateway ready; upstream credentials private'));"
+  ]
+}

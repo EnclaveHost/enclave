@@ -1,0 +1,166 @@
+{
+  "artifacts": {
+    "EnclaveAddressBook.sol/EnclaveAddressBook": {
+      "deviationsFromOriginalFoundryToml": [
+        "optimizer runs 1 (original foundry.toml 200)"
+      ],
+      "from": "session-r1/out/EnclaveAddressBook.sol/EnclaveAddressBook.json",
+      "settings": {
+        "evmVersion": "osaka",
+        "runs": 1,
+        "solc": "0.8.35+commit.47b9dedd",
+        "viaIR": true
+      },
+      "sha256": "547449efe3593a8d54e63859474dc39349ef956021fee979d9cfa45479dca9f1",
+      "sources": {
+        "contracts/EnclaveAddressBook.sol": "0xe830fd1c38323296c8c252704f010bb1ba2dcc8632fe69a1bf136f3ead1aa3d4"
+      },
+      "target": "contracts/EnclaveAddressBook.sol:EnclaveAddressBook"
+    },
+    "EnclaveAppCatalog.sol/EnclaveAppCatalog": {
+      "deviationsFromOriginalFoundryToml": [
+        "optimizer runs 1 (original foundry.toml 200)"
+      ],
+      "from": "session-r1/out/EnclaveAppCatalog.sol/EnclaveAppCatalog.json",
+      "settings": {
+        "evmVersion": "osaka",
+        "runs": 1,
+        "solc": "0.8.35+commit.47b9dedd",
+        "viaIR": true
+      },
+      "sha256": "15f7bd4b3982847a5d89e42dbce8cbc1ad291b41946c59a95c902472373129dc",
+      "sources": {
+        "contracts/EnclaveAppCatalog.sol": "0xf4d7e6d0e234c5b223593f599ef41abe1b4ac3dc7d64cc7c7c13384a36185976"
+      },
+      "target": "contracts/EnclaveAppCatalog.sol:EnclaveAppCatalog"
+    },
+    "EnclaveDeployments.sol/EnclaveDeployments": {
+      "deviationsFromOriginalFoundryToml": [],
+      "from": "session-r1/out/EnclaveDeployments.sol/EnclaveDeployments.json",
+      "settings": {
+        "evmVersion": "osaka",
+        "runs": 1,
+        "solc": "0.8.35+commit.47b9dedd",
+        "viaIR": true
+      },
+      "sha256": "311b6accf01d1aa5a56db31ae6f48a61b51e103151123f97ca6a047b691f6822",
+      "sources": {
+        "contracts/EnclaveDeployments.sol": "0x92ae38ee09ee220a6ceef7dd78831ad0f8ed1fbf96cc7e6e83f4e515b6704bf0"
+      },
+      "target": "contracts/EnclaveDeployments.sol:EnclaveDeployments"
+    },
+    "EnclaveDeployments.sol/EnclaveLedgerBandwidth": {
+      "deviationsFromOriginalFoundryToml": [],
+      "from": "session-r1/out/EnclaveDeployments.sol/EnclaveLedgerBandwidth.json",
+      "settings": {
+        "evmVersion": "osaka",
+        "runs": 1,
+        "solc": "0.8.35+commit.47b9dedd",
+        "viaIR": true
+      },
+      "sha256": "f0226350f6e994e5659620f9435277bccea4c132338b7941397c5ffd2c56c1c8",
+      "sources": {
+        "contracts/EnclaveDeployments.sol": "0x92ae38ee09ee220a6ceef7dd78831ad0f8ed1fbf96cc7e6e83f4e515b6704bf0"
+      },
+      "target": "contracts/EnclaveDeployments.sol:EnclaveLedgerBandwidth"
+    },
+    "PaymentRouter.sol/PaymentRouter": {
+      "deviationsFromOriginalFoundryToml": [
+        "optimizer runs 1 (original foundry.toml 200)"
+      ],
+      "from": "session-r1/out/PaymentRouter.sol/PaymentRouter.json",
+      "settings": {
+        "evmVersion": "osaka",
+        "runs": 1,
+        "solc": "0.8.35+commit.47b9dedd",
+        "viaIR": true
+      },
+      "sha256": "e829e09df246a8840552868035d7e909a30611fdba9f7ef6f918ceef7cce643b",
+      "sources": {
+        "contracts/PaymentRouter.sol": "0xa4930c76f1a60be78be53a14a4001e738b32d52612c5853ea33ad4501b9a9912"
+      },
+      "target": "contracts/PaymentRouter.sol:PaymentRouter"
+    },
+    "SessionMocks.sol/MockUSDC3009": {
+      "deviationsFromOriginalFoundryToml": [
+        "optimizer runs 1 (original foundry.toml 200)"
+      ],
+      "from": "session-r1/out/SessionMocks.sol/MockUSDC3009.json",
+      "settings": {
+        "evmVersion": "osaka",
+        "runs": 1,
+        "solc": "0.8.35+commit.47b9dedd",
+        "viaIR": true
+      },
+      "sha256": "07011c210be0fc625cb6b5cf669edc0424e58601256c339fe467e49d2608900b",
+      "sources": {
+        "contracts/EnclaveDeployments.sol": "0x92ae38ee09ee220a6ceef7dd78831ad0f8ed1fbf96cc7e6e83f4e515b6704bf0",
+        "contracts/foundry/test/mocks/MockUSDC.sol": "0x35697c7ec71f58526a35295f32967175f66068797bcc85670d944c4fd380e0d4",
+        "contracts/foundry/test/mocks/SessionMocks.sol": "0xe70f2e7dad318e7529cceebf317b83fcb8e9b291496841cb3b49089d655feaa7"
+      },
+      "target": "contracts/foundry/test/mocks/SessionMocks.sol:MockUSDC3009"
+    },
+    "SessionMocks.sol/SessionRegistryStub": {
+      "deviationsFromOriginalFoundryToml": [
+        "optimizer runs 1 (original foundry.toml 200)"
+      ],
+      "from": "session-r1/out/SessionMocks.sol/SessionRegistryStub.json",
+      "settings": {
+        "evmVersion": "osaka",
+        "runs": 1,
+        "solc": "0.8.35+commit.47b9dedd",
+        "viaIR": true
+      },
+      "sha256": "2486580f1d5d4050b46c564a1f9ac5c4e371119fa67db0596ed1b2054fbd68e9",
+      "sources": {
+        "contracts/EnclaveDeployments.sol": "0x92ae38ee09ee220a6ceef7dd78831ad0f8ed1fbf96cc7e6e83f4e515b6704bf0",
+        "contracts/foundry/test/mocks/MockUSDC.sol": "0x35697c7ec71f58526a35295f32967175f66068797bcc85670d944c4fd380e0d4",
+        "contracts/foundry/test/mocks/SessionMocks.sol": "0xe70f2e7dad318e7529cceebf317b83fcb8e9b291496841cb3b49089d655feaa7"
+      },
+      "target": "contracts/foundry/test/mocks/SessionMocks.sol:SessionRegistryStub"
+    }
+  },
+  "chain": "local anvil, chain 31337, --hardfork osaka, native P-256 required, public anvil dev keys only",
+  "files": {
+    "contracts/foundry/out/EnclaveAddressBook.sol/EnclaveAddressBook.json": "547449efe3593a8d54e63859474dc39349ef956021fee979d9cfa45479dca9f1",
+    "contracts/foundry/out/EnclaveAppCatalog.sol/EnclaveAppCatalog.json": "15f7bd4b3982847a5d89e42dbce8cbc1ad291b41946c59a95c902472373129dc",
+    "contracts/foundry/out/EnclaveDeployments.sol/EnclaveDeployments.json": "311b6accf01d1aa5a56db31ae6f48a61b51e103151123f97ca6a047b691f6822",
+    "contracts/foundry/out/EnclaveDeployments.sol/EnclaveLedgerBandwidth.json": "f0226350f6e994e5659620f9435277bccea4c132338b7941397c5ffd2c56c1c8",
+    "contracts/foundry/out/PaymentRouter.sol/PaymentRouter.json": "e829e09df246a8840552868035d7e909a30611fdba9f7ef6f918ceef7cce643b",
+    "contracts/foundry/out/SessionMocks.sol/MockUSDC3009.json": "07011c210be0fc625cb6b5cf669edc0424e58601256c339fe467e49d2608900b",
+    "contracts/foundry/out/SessionMocks.sol/SessionRegistryStub.json": "2486580f1d5d4050b46c564a1f9ac5c4e371119fa67db0596ed1b2054fbd68e9",
+    "relay/auth.js": "f306187959c97944c18d27f485ca1eee1f3ccdfd3dbb891a15a67b16692f526c",
+    "relay/funding-abi.mjs": "6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7",
+    "relay/funding-route.mjs": "87e6df639df4569d6a5c44439d0448a4fe3ce4c2580c2b7e997baab61f5aa7bc",
+    "relay/package.json": "afa6bffde4fc35e8d42d2dd2373019853a2b25b0048336e20c25e7aa3fec3d6f",
+    "relay/sessions.mjs": "eb0f5543f2d16bc846ab158b291d26379dc32a7e11461946b1c3537f1b9cd7ba",
+    "relay/sso.js": "cef16bf239cedec471f78436acda5ad81744b394413767e19772a4eb6066dd1d",
+    "test/helpers/sessions-chain.mjs": "6985591425cd4cb7161625aeca0408ed92c800c7e697194363f814845739dc69",
+    "test/sessions.test.mjs": "481ad082e1300c873dc4aea63c6dc498cf317ae7ee09fb5ae3892f83844e290b"
+  },
+  "missing": [],
+  "patched": {
+    "patched/relay/funding-abi.mjs": "6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7",
+    "patched/relay/funding-route.mjs": "87e6df639df4569d6a5c44439d0448a4fe3ce4c2580c2b7e997baab61f5aa7bc",
+    "patched/relay/sessions.mjs": "eb0f5543f2d16bc846ab158b291d26379dc32a7e11461946b1c3537f1b9cd7ba"
+  },
+  "source": {
+    "relay/sessions.mjs": "457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d",
+    "test/helpers/sessions-chain.mjs": "b8a734fca2e948ec1c75614d4279f48ab6d9b0cd90d294bb0106c9f6a58e45f8",
+    "test/sessions.test.mjs": "d0608c60da2c7c669ccc3e7e142a0f2b6a43a070fa4ad564652e128ed6f1c60a"
+  },
+  "stage": "host-queue-r1 legacy-host regression tree (source only until the root runs it)",
+  "symlinks": {
+    "deploy/ledger/EnclaveDeployments.sol": "../../../../../source/deploy/ledger/EnclaveDeployments.sol",
+    "node_modules": "../../../source/node_modules",
+    "relay/node_modules": "../../deps/node_modules",
+    "relay/sessions-abi.mjs": "../../../../source/relay/sessions-abi.mjs",
+    "relay/snp-verify.mjs": "../../../../source/relay/snp-verify.mjs",
+    "relay/store.js": "../../../../source/relay/store.js",
+    "relay/vaultsvc.js": "../../../../source/relay/vaultsvc.js",
+    "scripts/deploy-session-vault.mjs": "../../../../source/scripts/deploy-session-vault.mjs",
+    "sdk/sessions/dist": "../../../../../source/sdk/sessions/dist",
+    "site/js/lib/contract-linker.js": "../../../../../../source/site/js/lib/contract-linker.js"
+  },
+  "unpinned": {}
+}

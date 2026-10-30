@@ -1,0 +1,7 @@
+# Read-only view safeguards qualified; automatic batch runner withheld
+
+The r6 view adapter passed all 13 actual fixtures. It now rejects writable file descriptors, defaults all view commands to production kind, checks source bindings against the pinned manifest and code, and preserves part permissions/ctime. Two metadata-only checks also passed against the actual part-0 copy and verification records. This does not import a full production view or establish database integrity. A future owned-process lifecycle must bind the QEMU process identity and recheck parts after use; canonical state validation remains outstanding.
+
+The attached first batch-runner version is NOT approved or active. Independent source review confirmed that a stop signal received while waiting in the queue could be lost, allowing a subsequent copy. Its inventory also did not reject all wrong-target or out-of-range filenames. A separate revision is being prepared with persistent stop intent and regression fixtures. No actual tests were run on this known-defective version; the attached source is preserved for audit. Do not launch it.
+
+The currently running first preservation batch uses the earlier reviewed wrapper, with a separate watcher that verifies exactly parts 1..8 after successful copy. None of these changes modify the qualified live preserver. Original array writes, VM boot and downloads remain paused. Administrator controls and applications are unchanged.

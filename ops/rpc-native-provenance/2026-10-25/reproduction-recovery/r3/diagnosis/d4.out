@@ -1,0 +1,6 @@
+.rodata differing window: +0xbada0 .. +0xc276d (31182 bytes)
+window [+0xbada0, +0xc276e] 31183 bytes; strings pin 675 cand 675
+strings only in pin (1): ['built on: Fri Oct 23 01:31:58 2026 UTC']
+strings only in cand (1): ['built on: Sun Oct 25 18:24:37 2026 UTC']
+.rela.dyn differing entries 674; types {(8, 8): 674}; NOT (same slot+type, both addends inside the string window): 0
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a

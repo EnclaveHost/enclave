@@ -1,0 +1,128 @@
+[queue] START available=24619MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+candidateCount 2453
+generations [0, 3326586236, 3941633993]
+[
+  {
+    "sequence": 17169,
+    "journalBlock": 118422,
+    "commitUtc": "2026-10-26T15:15:39+00:00",
+    "mode": 33188,
+    "size": 1138166333440,
+    "links": 1,
+    "dtime": 0,
+    "generation": 3326586236,
+    "extentMagic": "0xf30a",
+    "extentEntries": 1,
+    "extentDepth": 2,
+    "extentRoot": "0af30100040002000000000000000000f981c01d0000cd0e0038a70000a8800f0000cd0e00a04e01001833100000ce0e00a0f4010020e4100000ce0e",
+    "checksumVerified": false
+  },
+  {
+    "sequence": 17028,
+    "journalBlock": 117975,
+    "commitUtc": "2026-10-26T14:51:51+00:00",
+    "mode": 33188,
+    "size": 1138166333440,
+    "links": 1,
+    "dtime": 0,
+    "generation": 3326586236,
+    "extentMagic": "0xf30a",
+    "extentEntries": 1,
+    "extentDepth": 2,
+    "extentRoot": "0af30100040002000000000000000000f981c01d0000cd0e0038a70000a8800f0000cd0e00a04e01001833100000ce0e00a0f4010020e4100000ce0e",
+    "checksumVerified": false
+  },
+  {
+    "sequence": 17027,
+    "journalBlock": 117938,
+    "commitUtc": "2026-10-26T14:51:50+00:00",
+    "mode": 33188,
+    "size": 1138166333440,
+    "links": 1,
+    "dtime": 0,
+    "generation": 3326586236,
+    "extentMagic": "0xf30a",
+    "extentEntries": 1,
+    "extentDepth": 2,
+    "extentRoot": "0af30100040002000000000000000000f981c01d0000cd0e0038a70000a8800f0000cd0e00a04e01001833100000ce0e00a0f4010020e4100000ce0e",
+    "checksumVerified": false
+  },
+  {
+    "sequence": 17026,
+    "journalBlock": 117934,
+    "commitUtc": "2026-10-26T14:51:50+00:00",
+    "mode": 33188,
+    "size": 1138166333440,
+    "links": 1,
+    "dtime": 0,
+    "generation": 3326586236,
+    "extentMagic": "0xf30a",
+    "extentEntries": 1,
+    "extentDepth": 2,
+    "extentRoot": "0af30100040002000000000000000000f981c01d0000cd0e0038a70000a8800f0000cd0e00a04e01001833100000ce0e00a0f4010020e4100000ce0e",
+    "checksumVerified": false
+  },
+  {
+    "sequence": 16554,
+    "journalBlock": 116510,
+    "commitUtc": "2026-10-26T13:31:17+00:00",
+    "mode": 33188,
+    "size": 1138166333440,
+    "links": 1,
+    "dtime": 0,
+    "generation": 3326586236,
+    "extentMagic": "0xf30a",
+    "extentEntries": 1,
+    "extentDepth": 2,
+    "extentRoot": "0af30100040002000000000000000000f981c01d0000cd0e0038a70000a8800f0000cd0e00a04e01001833100000ce0e00a0f4010020e4100000ce0e",
+    "checksumVerified": false
+  },
+  {
+    "sequence": 16553,
+    "journalBlock": 116500,
+    "commitUtc": "2026-10-26T13:31:08+00:00",
+    "mode": 33188,
+    "size": 1137782411264,
+    "links": 1,
+    "dtime": 0,
+    "generation": 3326586236,
+    "extentMagic": "0xf30a",
+    "extentEntries": 1,
+    "extentDepth": 2,
+    "extentRoot": "0af30100040002000000000000000000f981c01d0000cd0e0038a70000a8800f0000cd0e00a04e01001833100000ce0e00a0f4010020e4100000ce0e",
+    "checksumVerified": false
+  },
+  {
+    "sequence": 16552,
+    "journalBlock": 109954,
+    "commitUtc": "2026-10-26T13:31:03+00:00",
+    "mode": 33184,
+    "size": 1137495244800,
+    "links": 1,
+    "dtime": 0,
+    "generation": 3326586236,
+    "extentMagic": "0xf30a",
+    "extentEntries": 1,
+    "extentDepth": 2,
+    "extentRoot": "0af30100040002000000000000000000f981c01d0000cd0e0038a70000a8800f0000cd0e00a04e01001833100000ce0e00a0f4010020e4100000ce0e",
+    "checksumVerified": false
+  },
+  {
+    "sequence": 16551,
+    "journalBlock": 109934,
+    "commitUtc": "2026-10-26T13:30:56+00:00",
+    "mode": 33184,
+    "size": 1136404725760,
+    "links": 1,
+    "dtime": 0,
+    "generation": 3326586236,
+    "extentMagic": "0xf30a",
+    "extentEntries": 1,
+    "extentDepth": 2,
+    "extentRoot": "0af30100040002000000000000000000f981c01d0000cd0e0038a70000a8800f0000cd0e00a04e01001833100000ce0e00a0f4010020e4100000ce0e",
+    "checksumVerified": false
+  }
+]
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

@@ -1,0 +1,9 @@
+c1336cd00b6e3e69756814c489fb84954ba6e30a2f6614fdea49019172f17f4d  ./COMPOSITION.md
+5132d47436802dd4411bccb5584b489a0f9217e6f1d9ed856a2afa22cf75e745  ./README.md
+ff4da80c1333f9dc719f2265be3cf037a7d57d6abdf951dc8b25442710e2ee6e  ./bridge/witness_rpc_bridge.py
+f0e910fc1fdb724c4d07d2c77d61349ebf599815e1549137d3bb268be2430241  ./jobs/root-witness-rpc-access-tests.sh
+9607b831c8941d1108022a500cf1ae328367b84a110e38b00fdd18476ff4656a  ./overlay/wrapper/chain_service.py
+1d783924145059ed3e07b355331fffcedeadff208bc9f1f8dc7c0c51df2a1d57  ./patches/wrapper_chain_service.py.patch
+89f14cdd7f0afd5cc3f461ec70d62e8a1e5913a360b31b421f85b6f0d02a8356  ./tests/test_witness_rpc_access.py
+e4bdc94784d2bc6cb1e29a30d62c8e65a24846585271009224754960b22b9611  ./units/enclave-witness-bridge-base.service
+dd82cd45eaf854e1f9d13793adfcda260d13de1aef3a894fffa3dda1d4faf429  ./units/enclave-witness-bridge-l1.service

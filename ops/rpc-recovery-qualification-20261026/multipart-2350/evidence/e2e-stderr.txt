@@ -1,0 +1,23 @@
+test_e1_copy_then_verify_in_a_separate_session_equals_the_r9_model (__main__.E2E.test_e1_copy_then_verify_in_a_separate_session_equals_the_r9_model) ... ok
+test_e2_wrong_plan_parent_request_or_mode_refused_before_any_session (__main__.E2E.test_e2_wrong_plan_parent_request_or_mode_refused_before_any_session) ... ok
+test_e3_an_impostor_peer_is_refused_and_the_session_cleans_up (__main__.E2E.test_e3_an_impostor_peer_is_refused_and_the_session_cleans_up) ... ERROR
+test_e4_cancel_while_waiting_for_the_server_cleans_socket_and_session (__main__.E2E.test_e4_cancel_while_waiting_for_the_server_cleans_socket_and_session) ... ok
+test_e5_budget_stop_then_resume_in_a_new_session (__main__.E2E.test_e5_budget_stop_then_resume_in_a_new_session) ... ok
+test_e6_server_killed_mid_copy_unconfirms_the_session_until_a_fresh_verify (__main__.E2E.test_e6_server_killed_mid_copy_unconfirms_the_session_until_a_fresh_verify) ... ok
+
+======================================================================
+ERROR: test_e3_an_impostor_peer_is_refused_and_the_session_cleans_up (__main__.E2E.test_e3_an_impostor_peer_is_refused_and_the_session_cleans_up)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r2/tests/test_e2e.py", line 173, in test_e3_an_impostor_peer_is_refused_and_the_session_cleans_up
+    self.assertEqual(p.returncode, 3, o + e); self.assertIn("not a child of our session", o)
+                                              ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/unittest/case.py", line 1189, in assertIn
+    if member not in container:
+       ^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: a bytes-like object is required, not 'str'
+
+----------------------------------------------------------------------
+Ran 6 tests in 27.214s
+
+FAILED (errors=1)

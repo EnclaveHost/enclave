@@ -1,0 +1,83 @@
+{
+  "scope": "Static literal project imports from operator chain/store and reviewed ownership entries; full230 source seed separately pinned. No module execution. Dynamic expressions/npm/platform acceptance not qualified.",
+  "entries": [
+    "control/windows/node/chain.mjs",
+    "control/windows/node/operator-obligations.mjs",
+    "control/network/owned-durable-state.mjs",
+    "control/windows/vbslike/manager/win-durable.mjs",
+    "control/windows/vbslike/manager/win-exclusion.mjs"
+  ],
+  "projectFiles": {
+    "control/network/owned-durable-state.mjs": "2bfe43b939a979dba3c9bfa42c2157c20968e7c85b191559eb8e8181d65ce1d1",
+    "control/network/runtime-lock.mjs": "256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a",
+    "control/windows/node/chain.mjs": "f68f1995129282397c6315f17469aca26c0091a1c450de2b66a81c281230f45f",
+    "control/windows/node/host-admission.bundle.mjs": "6bef372d00a27567e94a11d00f165312f9d715a795519e7a7ad77b4718623b18",
+    "control/windows/node/lease-gas-runtime.bundle.mjs": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d",
+    "control/windows/node/operator-obligations.mjs": "bd1421aee31ad3085dae19f23d8fe3dbb09f5ada712d46b0ebd814ae65d5d8de",
+    "control/windows/node/verification-checkpoints.mjs": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+    "control/windows/node/waf.mjs": "d44da8feb6b55073e1f18264d028e3f854c85215ae3a97208ef329638c1ee94a",
+    "control/windows/vbslike/manager/win-durable.mjs": "cac3cb1e78658ed37d93d1da96a03806ec477c0a327f6d5ad522b843587dd556",
+    "control/windows/vbslike/manager/win-exclusion.mjs": "fd8acdf57c82e1932d457079bf3f2fc709f3746911409c43480135cc9a4aee51"
+  },
+  "edges": [
+    {
+      "from": "control/network/owned-durable-state.mjs",
+      "specifier": "./runtime-lock.mjs",
+      "to": "control/network/runtime-lock.mjs"
+    },
+    {
+      "from": "control/windows/node/chain.mjs",
+      "specifier": "./host-admission.bundle.mjs",
+      "to": "control/windows/node/host-admission.bundle.mjs"
+    },
+    {
+      "from": "control/windows/node/chain.mjs",
+      "specifier": "./waf.mjs",
+      "to": "control/windows/node/waf.mjs"
+    },
+    {
+      "from": "control/windows/node/chain.mjs",
+      "specifier": "./verification-checkpoints.mjs",
+      "to": "control/windows/node/verification-checkpoints.mjs"
+    },
+    {
+      "from": "control/windows/node/chain.mjs",
+      "specifier": "./lease-gas-runtime.bundle.mjs",
+      "to": "control/windows/node/lease-gas-runtime.bundle.mjs"
+    },
+    {
+      "from": "control/windows/node/chain.mjs",
+      "specifier": "./operator-obligations.mjs",
+      "to": "control/windows/node/operator-obligations.mjs"
+    }
+  ],
+  "externalModules": [
+    "node:child_process",
+    "node:crypto",
+    "node:fs",
+    "node:path",
+    "viem",
+    "viem/accounts",
+    "viem/chains"
+  ],
+  "generatedBundleLeaves": [
+    "control/windows/node/host-admission.bundle.mjs",
+    "control/windows/node/lease-gas-runtime.bundle.mjs"
+  ],
+  "missingProjectImports": [],
+  "sponsoredReference": "readonly-reference/sponsored-runtime/provenance.json",
+  "rootRepairsPreserved": {
+    "control/isolation/m4/guestd/control-client.mjs": {
+      "author": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+      "root": "df77d6dbbcab2d57729e6cb6b70e5f8fab006c8c1ac5be9eb7baf1440df934b4"
+    },
+    "control/windows/node/protected-isolation.mjs": {
+      "author": "559a77511c8c357995c9009038340716458fade24a964b0877946fca2b92ad55",
+      "root": "bfbab051a4784bb45d1510596b7d8a337d80b0bccf45447149c6181ecb65f160"
+    },
+    "control/windows/node/protected-supervisor.mjs": {
+      "author": "c9996bb1fe9b09e95b5f65c390140e114d469593195fbbf0cae3cdef65196ee8",
+      "root": "1cd9be0545bd0284ffb26c12131c4233b340d1e6773872fecdff8f8f540e8408"
+    }
+  }
+}

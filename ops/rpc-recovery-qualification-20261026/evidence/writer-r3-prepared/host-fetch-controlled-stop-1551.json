@@ -1,0 +1,11 @@
+{
+  "pid": 2076781,
+  "before": 99052683264,
+  "reason": "brief coordinated yield of small256 lane for KVM owner-policy simulation",
+  "signal": "SIGTERM",
+  "at": "2026-10-26T18:40:00Z",
+  "committed": 99052683264,
+  "archiveSize": 99052683264,
+  "pidGone": true,
+  "terminal": 143
+}

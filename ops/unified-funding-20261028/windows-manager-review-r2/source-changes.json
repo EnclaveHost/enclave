@@ -1,0 +1,45 @@
+{
+  "changes": {
+    "REPORT-WINDOWS-PERMIT-R2.md": {
+      "seedSha256": null,
+      "finalSha256": "71a7286b818cdfd3a798a484bbdd237090d66a33a94bb609c484e10accedaaf7",
+      "kind": "new"
+    },
+    "control/windows/vbslike/guard/guard-core.mjs": {
+      "seedSha256": "f616c24915c755fc1519b80d2bf4103de249c93a1c7151cb66687aec3984e7c3",
+      "finalSha256": "77f305c27dfdc629a783d3c676e0221484467e033204d35943b14d30beee769b",
+      "kind": "modified"
+    },
+    "control/windows/vbslike/manager/authority-chain-reader.mjs": {
+      "seedSha256": null,
+      "finalSha256": "1471dd4dedc44180f19f5eacbdbadfabf11eea0bc25d07c1fe6cb2a0ee327c21",
+      "kind": "new"
+    },
+    "control/windows/vbslike/manager/permit-enforcement.mjs": {
+      "seedSha256": "d60b5004b826296a41d0d316e32f5027771beca22ef186781fab9aeb88e186bb",
+      "finalSha256": "65d40ddc993ddb8623e158923c985a6c80d41ac9f81eea7c90e2595cd0862230",
+      "kind": "modified"
+    },
+    "control/windows/vbslike/manager/permit-journal.mjs": {
+      "seedSha256": "a44baa74a3a434cae1343ddd0f733f46db426ae1e438bf4ac1c18be4b9a6f7aa",
+      "finalSha256": "9c24ca820313f24100146e2f2851ad0f140268e1d68e74e55e59ec0a0c2ceea0",
+      "kind": "modified"
+    },
+    "control/windows/vbslike/manager/win-exclusion.mjs": {
+      "seedSha256": null,
+      "finalSha256": "fd8acdf57c82e1932d457079bf3f2fc709f3746911409c43480135cc9a4aee51",
+      "kind": "new"
+    },
+    "test/windows-permit/helpers/world.mjs": {
+      "seedSha256": "966c9fc7ff9c6d8444f881cb0d85039fa744fd1ec31da702a37d0f8a458b6fa9",
+      "finalSha256": "2a74e748a160b961cb5975f9044d7b2016867461944b11ddfafcf2d32315d84e",
+      "kind": "modified"
+    },
+    "test/windows-permit/r2-repairs.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "96e4a766b12c5ed09754b5350516bd8b579244caf1610e4c8446e15b6fbb62d8",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}

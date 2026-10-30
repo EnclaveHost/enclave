@@ -1,0 +1,5 @@
+gpg: WARNING: unsafe ownership on homedir '/etc/pacman.d/gnupg'
+gpg: Signature made Fri Jun 13 07:53:52 2025 MST
+gpg:                using EDDSA key 531ECF3644A44FEA0B47DBCDE1E3CF0539448BFF
+gpg: Note: trustdb not writable
+gpg: Good signature from "Ike Devolder <ike.devolder@archlinux.org>" [full]

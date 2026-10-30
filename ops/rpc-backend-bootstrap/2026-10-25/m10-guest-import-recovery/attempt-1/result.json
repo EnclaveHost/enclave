@@ -1,0 +1,14 @@
+{
+  "exit": 1,
+  "reason": "remote command failed or disconnected",
+  "minimumAvailableMiB": 21524,
+  "started": true,
+  "stop": {
+    "exit": 5,
+    "output": "Failed to stop m10-guest-validation-1.service: Unit m10-guest-validation-1.service not loaded.\n"
+  },
+  "start": "2026-10-25T22:45:08.960421+00:00",
+  "end": "2026-10-25T23:08:38.490866+00:00",
+  "unit": "m10-guest-validation-1.service",
+  "manifest": "dd9df0ab82e9f8b53a90063808bdd2199b873eafcf037fb6313d4406d4fb49ee"
+}

@@ -1,0 +1,16 @@
+{
+  "schema": "enclave-funding-addon-config-cutover-r1",
+  "release": "disabled",
+  "reviewed": false,
+  "note": "Disabled funding-cutover-r1 release: all five FUNDING_* explicitly null, humanApproval null. overrides/acceptLegacy as in the reviewed r2 disabled config (empty; every config.js literal must be in the live chunks).",
+  "overrides": [],
+  "acceptLegacy": [],
+  "humanApproval": null,
+  "funding": {
+    "FUNDING_RUNTIME": null,
+    "FUNDING_MIGRATION_PROPOSAL": null,
+    "FUNDING_MIGRATION_APPROVAL": null,
+    "FUNDING_MIGRATION_CUTOVER": null,
+    "FUNDING_CUTOVER_ACTIVATION": null
+  }
+}

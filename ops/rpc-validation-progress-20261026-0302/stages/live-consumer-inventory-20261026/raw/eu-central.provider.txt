@@ -1,0 +1,21 @@
+utc=2026-10-26T02:47:14Z host=eu-central
+provider_config_paths=/etc/enclave-network/provider-pinned-8b37c37.json
+config /etc/enclave-network/provider-pinned-8b37c37.json sha16=bfeec2bd3fc22fd2
+ top_keys ['operatorKeyFile', 'publicAddress', 'uplink', 'roles', 'pricePerGiB6', 'region', 'kind', 'hostId', 'ports', 'rpc', 'addressBook', 'relay', 'checkers', 'zone', 'probeZone', 'stateDir', 'budget', 'localRoutes', 'directories', 'authorityPins', 'noSniRoute']
+ cfg /rpc[0] = https://mainnet.base.org
+ cfg /rpc[1] = https://base-rpc.publicnode.com
+ cfg /rpc[2] = https://base.drpc.org
+ cfg /relay = https://api.enclave.host
+ cfg /localRoutes/api.enclave.host/host = 127.0.0.1
+ cfg /localRoutes/api.enclave.host/tls = 30443
+ cfg /localRoutes/api.enclave.host/http = 30080
+ cfg /localRoutes/mcp.enclave.host/host = 127.0.0.1
+ cfg /localRoutes/mcp.enclave.host/tls = 30443
+ cfg /localRoutes/mcp.enclave.host/http = 30080
+ cfg /localRoutes/api.enclavehost.eth/host = 127.0.0.1
+ cfg /localRoutes/api.enclavehost.eth/tls = 30443
+ cfg /localRoutes/api.enclavehost.eth/http = 30080
+ cfg /localRoutes/mcp.enclavehost.eth/host = 127.0.0.1
+ cfg /localRoutes/mcp.enclavehost.eth/tls = 30443
+ cfg /localRoutes/mcp.enclavehost.eth/http = 30080
+labels ['ef514ed3'] n_deployments 1

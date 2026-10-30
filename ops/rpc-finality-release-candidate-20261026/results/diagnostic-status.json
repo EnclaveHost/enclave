@@ -1,0 +1,18 @@
+{
+ "format": "enclave-guest-call-diagnostic-status/v3",
+ "kind": "diagnostic observations only; NOT a capture, readiness or finality verdict",
+ "variants": [
+  "100",
+  "400"
+ ],
+ "phases": {
+  "A": "complete",
+  "B100": "complete",
+  "B400": "complete"
+ },
+ "invariants": {
+  "ok": true,
+  "violations": []
+ },
+ "complete": true
+}

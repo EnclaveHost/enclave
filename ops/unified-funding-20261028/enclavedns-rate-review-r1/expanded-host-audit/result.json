@@ -1,0 +1,16 @@
+{
+  "expectedPayoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+  "capturedAt": "2026-10-29T23:09:20.037Z",
+  "readOnly": true,
+  "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+  "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+  "scope": "Public exact deployment and all registry hosts (maximum 32) with expected payout-wallet comparisons and host-specific pricing at one quorum block. No signatures, sends, config fetches or funds. Canonical observation, not finality.",
+  "error": {
+    "message": "no 2 RPCs agreed at block 53263004 (1rpc.io: Requested resource not found.; mainnet.base.org: HTTP request failed.)",
+    "failures": [
+      "1rpc.io: Requested resource not found.",
+      "mainnet.base.org: HTTP request failed."
+    ]
+  }
+}

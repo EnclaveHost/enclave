@@ -1,0 +1,8 @@
+{
+  "preparedSha256": "a7e90eb8628bf105088813e2ceb0dabf0f7c8c93662720db6ff30adae6698c37",
+  "launchAuthorized": true,
+  "scope": "ONE SOURCEONLY author; no tests, image operations or activation",
+  "reviewedAt": 1793342828.924153,
+  "rootAccountResultSha256": "bba826bdfad38b7175ddf6c38e8f7c509ce83a13081a38dbb291b3324f40e088",
+  "limits": "1536hard/1408RSS/floor27648/CPU1/noSwap/sharedqueue;20turn900child1200outer"
+}

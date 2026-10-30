@@ -1,0 +1,11 @@
+Root review in progress, 2026-10-28 05:11 UTC. No VM start yet.
+Guest init tests: seven top-level tests pass. Initial root service command lacked WorkingDirectory (no tests ran); corrected. TestConfigureChild fixture wrote 'max' regular file, then non-truncating cgroup writer left '0ax'; changed fixture initial content to '0\n'. Product cgroup writes intentionally remain non-creating/non-truncating.
+Static binaries and initramfs built bounded256MiB actual61.6MiB peak, swap0. Kernel/firmware pinned, no model host bulk hash.
+Required host runner corrections before execution:
+- Snapshot exact existing QEMU identities (PID,starttime,nominal RAM); verify each boot and every watchdog cycle, excluding ONLY own verified PID. Abort owned canary if any guest appears/disappears/changes.
+- Reserve existing guests full nominal RAM (currently13GiB) conservatively again, not old1551MiB pending minimum. During run preserve floor plus conservative reserved capacity.
+- Helper exceptions/unrecognized watchdog stops must never classify success.
+- Record cleanup before emitting a receipt even for early-return branches; avoid finish-before-finally outcome.
+- Hold both shared queue locks for actual VM so newly arriving coding jobs cannot start during preflight/boot.
+- No production changes. Only public-model readonly disk, no GPU/network/wallet. Exact approved plans checked; source-only SNP configuration is not independent attestation.
+Follow-up: all listed runner corrections were implemented and their relevant fixtures passed before execution. Four loader boots (AB, BA) passed; exact results and limitations are in RESULTS.json and README.md. No GPU or production inference qualification yet.

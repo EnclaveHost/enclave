@@ -1,0 +1,21 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate",
+  "sourceManifest": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/source-pins.json",
+  "sourceManifestSha256": "385b4df74895666609ff0b3cfcef67adb443e0f3d4d91f49857277b9e38c405e",
+  "seedFiles": 165,
+  "seedManifestSha256": "c77fc53d6eaca76ad4d49bed9a29221cd787a5077a2b0de9c024af80887788a9",
+  "preAuthorProductEdits": [],
+  "rootFixes": [
+    {
+      "file": "control/windows/vbslike/manager/compose.mjs",
+      "before": "55c8ad1e6eb14d02492bcfa403d94f58e8399ceb5d0a65a94026be19853729d4",
+      "after": "25cf15600e8708543c3284061f0250af7f37514c48f477bf9be7b1248f6c9d77"
+    },
+    {
+      "file": "control/windows/vbslike/router/control.mjs",
+      "before": "ea55bfc8987d4d34ec730893845633e9b36294ffaf1d4cc463a0f403aa80a571",
+      "after": "22f362e1b4d9e8d5792484bee616dcf43e6a65b56a68509a57b85d8488bdc52b"
+    }
+  ],
+  "noCandidateCodeExecuted": true
+}

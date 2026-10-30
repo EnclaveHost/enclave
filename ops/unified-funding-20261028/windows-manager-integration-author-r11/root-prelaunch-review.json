@@ -1,0 +1,18 @@
+{
+  "at": 1793296374.4862235,
+  "preparedSha256": "f0ee244167cd166e9dc396dde05827aec8c8902139e582017f0fc66f0b43a0f3",
+  "readonlyPins": 6217,
+  "seedFiles": 222,
+  "seedDrift": [],
+  "extraSeedFiles": [],
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "taskRead": true,
+  "runnerRead": true,
+  "collectorUnchanged": "c0a16176148b0e3abb0acd6fcb10f3aca56257246298653c53183396ac4504c5",
+  "sponsoredReferenceNotOldBundle": true,
+  "rootAuthorizesOneSourceOnlyLaunch": true
+}

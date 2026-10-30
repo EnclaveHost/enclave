@@ -1,0 +1,17 @@
+diff --git a/test/derived-reader-endpoints.test.mjs b/test/derived-reader-endpoints.test.mjs
+index bd3703f..c9f01ec 100644
+--- a/test/derived-reader-endpoints.test.mjs
++++ b/test/derived-reader-endpoints.test.mjs
+@@ -114,8 +114,10 @@ test("compose refusals: absent image or template, tampered template, template wi
+     assert.throws(() => composeDerivedReader({ cfg: CFG(), root, image: img }), (e) => e.code === code, code);
+     assert.equal(fs.existsSync(path.join(root, "derived-reader")), false);
+   }
+-  // an unbound (forged) endpoint at the role is refused too (defence in depth: bind already refuses it)
+-  const { image: img, root } = image(), cfg = CFG();
++  // an unbound (forged) endpoint at the role is refused too (defence in depth: bind already refuses it). The canonical
++  // config is deep-frozen: forge on a clone, so the ROLE's refusal (not a TypeError) is what is tested
++  const { image: img, root } = image(), cfg = structuredClone(CFG());
++  assert.ok(Object.isFrozen(CFG().platformApi.derivedReader));
+   cfg.platformApi.derivedReader = { ...cfg.platformApi.derivedReader, baseUrl: "http://203.0.113.9:8545" };
+   assert.throws(() => composeDerivedReader({ cfg, root, image: img }), (e) => e.code === "derived_reader_endpoint");
+ });

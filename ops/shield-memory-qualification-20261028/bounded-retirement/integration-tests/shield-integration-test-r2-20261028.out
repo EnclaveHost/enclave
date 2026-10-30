@@ -1,0 +1,49 @@
+[queue] START available=88032MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# [shielded] blk.0.ffn_gate.weight: private compact weights 65536 -> 66640 bytes
+# [shielded] blk.0.ffn_up.weight: private compact weights 65536 -> 66640 bytes
+# [shielded] blk.1.ffn_gate.weight: private compact weights 65536 -> 66640 bytes
+# [shielded] blk.1.ffn_up.weight: private compact weights 65536 -> 66640 bytes
+# [shielded] blk.0.ffn_gate.weight: private compact weights 32768 -> 33360 bytes
+# [shielded] blk.0.ffn_gate.weight: private compact weights 32768 -> 33360 bytes
+# [shielded] blk.0.ffn_up.weight: private compact weights 32768 -> 33360 bytes
+# [shielded] blk.0.ffn_up.weight: private compact weights 32768 -> 33360 bytes
+# [shielded] blk.1.ffn_gate.weight: private compact weights 32768 -> 33360 bytes
+# [shielded] blk.1.ffn_gate.weight: private compact weights 32768 -> 33360 bytes
+# [shielded] blk.1.ffn_up.weight: private compact weights 32768 -> 33360 bytes
+# [shielded] blk.1.ffn_up.weight: private compact weights 32768 -> 33360 bytes
+# [shielded] blk.0.ffn_up.weight: source weight authentication failed; aborting model load
+# [shielded] blk.0.ffn_up.weight: authenticated registration failed; aborting model load
+# [shielded] blk.1.ffn_gate.weight: authenticated registration failed; aborting model load
+# [shielded] blk.0.ffn_up.weight: source weight authentication failed; aborting model load
+# [shielded] blk.0.ffn_up.weight: authenticated registration failed; aborting model load
+# [shielded] blk.1.ffn_gate.weight: authenticated registration failed; aborting model load
+# Subtest: candidate bounded retirement with the exact backend: mid-batch retirement, authenticated rereads, exact local products
+ok 1 - candidate bounded retirement with the exact backend: mid-batch retirement, authenticated rereads, exact local products
+  ---
+  duration_ms: 13928.594976
+  type: 'test'
+  ...
+# scenario bounded_local
+# scenario bounded_split_local
+# scenario tiny_local
+# scenario default_local
+# scenario default_split_local
+# scenario bounded_compact
+# scenario bounded_compact_split
+# scenario private_tamper
+# scenario punch_fail
+# scenario backing_tamper_reread
+# scenario backing_truncate_reread
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13976.251729
+[memory-guard] exit=0 peakTreeRssMiB=611 minHostAvailableMiB=87500
+[memory-guard] at peak: cc1plus:490 node:61 node:56 c++:4
+[queue] EXIT 0

@@ -1,0 +1,20 @@
+{"step": "plan", "ok": false, "refused": "unparsed: db settings get did not print storage_v2"}
+test_post_exit_size_orphans_and_mutation_stdout (test_a2a4.Gates.test_post_exit_size_orphans_and_mutation_stdout) ... FAIL
+
+======================================================================
+FAIL: test_post_exit_size_orphans_and_mutation_stdout (test_a2a4.Gates.test_post_exit_size_orphans_and_mutation_stdout)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.a6IJsCDG0M/test/test_a2a4.py", line 268, in test_post_exit_size_orphans_and_mutation_stdout
+    os.environ['FAKE_BIG'] = 'settings get'; self.refused('plan', 'bounded')         # oversize after a quick exit
+                                             ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.a6IJsCDG0M/test/test_a2a4.py", line 131, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : unparsed: db settings get did not print storage_v2
+
+----------------------------------------------------------------------
+Ran 1 test in 0.457s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}

@@ -1,0 +1,45 @@
+[queue] START available=23013MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+test_01_production_allowlist_exact (__main__.T.test_01_production_allowlist_exact) ... ok
+test_02_allowlist_refusals (__main__.T.test_02_allowlist_refusals) ... ok
+test_03_copy_exact_and_double_read (__main__.T.test_03_copy_exact_and_double_read) ... ok
+test_04_no_symlink_or_hardlink_or_metadata_drift (__main__.T.test_04_no_symlink_or_hardlink_or_metadata_drift) ... ok
+test_05_stop_leaves_partial_only (__main__.T.test_05_stop_leaves_partial_only) ... ok
+test_06_plan_qemu_info_receipt (__main__.T.test_06_plan_qemu_info_receipt) ... ok
+test_07_view_mount_and_fs_header (__main__.T.test_07_view_mount_and_fs_header) ... ok
+test_08_ready_only_from_our_exec_child (__main__.T.test_08_ready_only_from_our_exec_child) ... ok
+test_09_production_refusals_before_anything (__main__.T.test_09_production_refusals_before_anything) ... REFUSED: production needs --request, --request-sha256, --stage-sums and at least the pinned floors
+REFUSED: production needs --request, --request-sha256, --stage-sums and at least the pinned floors
+REFUSED: production needs --request, --request-sha256, --stage-sums and at least the pinned floors
+REFUSED: fixture mode needs --backup --allowlist --uuid --fs-blocks --fuse2fs(+sha) --view-target
+ok
+test_10_coordination_filter (__main__.T.test_10_coordination_filter) ... ok
+test_11_lane_1024_and_host_floor_headroom (__main__.T.test_11_lane_1024_and_host_floor_headroom) ... ok
+test_12_backup_bound_to_its_fresh_post_chmod_identity (__main__.T.test_12_backup_bound_to_its_fresh_post_chmod_identity) ... ok
+test_13_receipt_write_failure_is_never_rc0 (__main__.T.test_13_receipt_write_failure_is_never_rc0) ... ok
+test_14_state_pins_only_from_a_clean_receipt (__main__.T.test_14_state_pins_only_from_a_clean_receipt) ... REFUSED: --run-dir is not a production extraction run dir
+ok
+test_15_fixture_mode_never_touches_production (__main__.T.test_15_fixture_mode_never_touches_production) ... REFUSED: fixture mode must never name the production backup
+REFUSED: fixture dest must lie in a /vm E2E workspace /vm/enclave-volumes/tr004-base-recovery-20261026/compact-header-e2e-<UTC>-<pid>[/x[/y]]
+REFUSED: fixture mode uses the same pinned floors
+REFUSED: fixture mode uses the same pinned floors
+ok
+test_16_metadata_fixture_mirrors_production (__main__.T.test_16_metadata_fixture_mirrors_production) ... ok
+test_17_publish_complete_and_durable (__main__.T.test_17_publish_complete_and_durable) ... ok
+test_18_file_fsync_failure_leaves_nothing (__main__.T.test_18_file_fsync_failure_leaves_nothing) ... ok
+test_19_close_failure_leaves_nothing (__main__.T.test_19_close_failure_leaves_nothing) ... ok
+test_20_publication_failure_leaves_nothing (__main__.T.test_20_publication_failure_leaves_nothing) ... ok
+test_21_directory_fsync_failure_after_publication_removes_our_final (__main__.T.test_21_directory_fsync_failure_after_publication_removes_our_final) ... ok
+test_22_existing_final_or_foreign_partial_never_touched (__main__.T.test_22_existing_final_or_foreign_partial_never_touched) ... ok
+test_23_inner_clean_alone_never_suffices (__main__.T.test_23_inner_clean_alone_never_suffices) ... ok
+test_24_cheap_production_markers (__main__.T.test_24_cheap_production_markers) ... ok
+test_25_wrapper_job_receipt_is_never_0_when_its_measurements_disagree (__main__.T.test_25_wrapper_job_receipt_is_never_0_when_its_measurements_disagree) ... ok
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.732s
+
+OK
+## PASS (25)
+## outputs /tmp/che1881-unit-GnvMSyRq
+[memory-guard] exit=0 peakTreeRssMiB=82 minHostAvailableMiB=22883
+[memory-guard] at peak: python3:57 python3:10 python3:10 bash:4 timeout:2
+[queue] EXIT 0

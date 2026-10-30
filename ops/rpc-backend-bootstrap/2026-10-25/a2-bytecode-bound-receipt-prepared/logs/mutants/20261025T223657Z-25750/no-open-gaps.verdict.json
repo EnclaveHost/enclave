@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "Steps.test_bytecode_step_binds_this_db_and_release_still_refuses_while_the_gap_is_open": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "Steps.test_bytecode_step_binds_this_db_and_release_still_refuses_while_the_gap_is_open"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

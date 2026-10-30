@@ -1,0 +1,6 @@
+{
+  "prepare.py": "e07cfa9307ac8c84eec06cd3325894c9ebc1a39ae9ad75ec49f3187d6fb7b670",
+  "test/native-host.test.mjs": "89b87dfe648dd9a155eb681c79cc2771e3a78e66e4ded68a8ce0d3745f9cbabc",
+  "fixture/foundry.toml": "4ed9a8ff93f9d46f0583b0866f017ac1c61057afcc01700cae21763555d4fe13",
+  "fixture/src/MockQuoterV2.sol": "6d6755ea3dff58add9f07606d90283e2e8347cae49cf6f930ddcafbc6e86c562"
+}

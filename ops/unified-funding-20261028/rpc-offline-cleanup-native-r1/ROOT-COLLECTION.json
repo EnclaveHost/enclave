@@ -1,0 +1,10 @@
+{
+  "invocation": "9c476d1981674320909032c294aa887e",
+  "unit": "enclave-rpc-offline-cleanup-native-r1-20261030.service",
+  "status": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+  "pinCount": 27,
+  "drift": [],
+  "tempPath": "/vm/enclave-volumes/rpc-production-maint/synthetic-writer-oshyai_i",
+  "tempExists": true,
+  "syntheticFixturesPreserved": true
+}

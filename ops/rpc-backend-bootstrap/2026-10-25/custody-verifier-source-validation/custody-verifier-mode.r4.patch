@@ -1,0 +1,388 @@
+--- a/custody/chain.mjs
++++ b/custody/chain.mjs
+@@ -48,6 +48,7 @@
+ export const endpointIdOf = (endpoint) => keccak256(toBytes(endpoint));   // EnclaveRegistry: id = keccak256(bytes(endpoint))
+ 
+ const ZERO = "0x0000000000000000000000000000000000000000";
++const VERIFIER_MARK = Symbol.for("enclave.chain-authority.local-verifier");   // network/chain-authority.mjs VERIFIER_CLIENT
+ const b = (h) => hexToBytes(h === "0x" ? "0x" : h);
+ const err = (code, message, status = 503) => Object.assign(new Error(message), { code, status });
+ 
+@@ -91,6 +92,9 @@
+   const clients = given || (rpcs || []).map((url) => createPublicClient({ transport: http(url, { timeout: timeoutMs, retryCount: 1 }) }));
+   if (!clients.length) throw new Error("chain: no RPC configured");
+   if (!Number.isInteger(minAgree) || minAgree < 1 || minAgree > clients.length) throw new Error(`chain: minAgree must be 1..${clients.length} (state it explicitly)`);
++  // the local verifier is ONE authority (custody/chain-source.mjs): never a vote among RPCs, never mixed with them
++  if (clients.some((c) => !!c && !!c[VERIFIER_MARK]) && (clients.length !== 1 || minAgree !== 1 || (rpcs && rpcs.length)))
++    throw new Error("chain: the local verifier is one chain authority: clients [verifier], minAgree 1, no RPC URLs");
+   async function agreed(fn) {
+     const heads = await Promise.allSettled(clients.map((c) => c.getBlockNumber({ cacheTime: 0 })));   // never a cached head: it would read a state older than the caller knows
+     const ok = heads.filter((h) => h.status === "fulfilled").map((h) => h.value);
+--- a/custody/custodian-daemon.mjs
++++ b/custody/custodian-daemon.mjs
+@@ -29,6 +29,8 @@
+ import { base } from "viem/chains";
+ import { openKeyFile, sealKeyFile, generateKeys, readKeyFile, writeKeyFile } from "./keystore.mjs";
+ import { createChainReader, VAULT_ABI } from "./chain.mjs";
++import { custodyChainSource } from "./chain-source.mjs";
++import { custodianConfigFromEnv } from "./custodian-config.mjs";
+ import { createCustodian, serveCustodian } from "./custodian.mjs";
+ import { productionVerifiers } from "./verifiers.mjs";
+ import { makeDeal, receiveDeals } from "./reshare.mjs";
+@@ -50,13 +52,7 @@
+   return openKeyFile(readKeyFile(env.CUSTODY_KEYFILE || die("CUSTODY_KEYFILE is required")), passphrase());
+ }
+ function config() {
+-  const vault = String(env.CUSTODY_VAULT || "").toLowerCase();
+-  if (!/^0x[0-9a-f]{40}$/.test(vault)) die("CUSTODY_VAULT must be the vault's address");
+-  const rpcs = String(env.CUSTODY_RPCS || "").split(",").map((s) => s.trim()).filter(Boolean);
+-  const minAgree = parseInt(env.CUSTODY_MIN_AGREE || "2", 10);
+-  if (rpcs.length < minAgree) die(`CUSTODY_RPCS names ${rpcs.length} RPC(s) and CUSTODY_MIN_AGREE is ${minAgree}`);
+-  const maxAgeSec = env.CUSTODY_MAX_AGE_SEC === "off" ? null : parseInt(env.CUSTODY_MAX_AGE_SEC || "120", 10);
+-  return { vault, rpcs, minAgree, maxAgeSec, chainId: parseInt(env.CUSTODY_CHAIN_ID || "8453", 10), stateDir: path.resolve(env.CUSTODY_STATE_DIR || "custodian-state") };
++  try { return custodianConfigFromEnv(env); } catch (e) { die(e.message); }
+ }
+ 
+ // high-water marks survive a restart: an RPC that serves an older state after the restart is still refused
+@@ -71,6 +67,12 @@
+   };
+ }
+ 
++// the chain reader for this configuration: the legacy RPC quorum (default, unchanged) or the explicit local verifier
++function readerFor(c, extra = {}) {
++  const src = custodyChainSource(c);
++  return { src, reader: createChainReader({ rpcs: src.rpcs, clients: src.clients, minAgree: src.minAgree, vault: c.vault, ...extra }) };
++}
++
+ const cmd = process.argv[2];
+ if (cmd === "keygen") {
+   const out = arg("--out") || die("keygen --out <file>");
+@@ -85,20 +87,22 @@
+ } else if (cmd === "serve") {
+   const c = config(), k = keys();
+   const collateral = cachedCollateral({ dir: path.join(c.stateDir, "amd"), upstream: httpCollateral({ timeoutMs: 8000 }) });
++  const { src, reader: chainReader } = readerFor(c, { maxAgeSec: c.maxAgeSec });
+   const custodian = createCustodian({ chainId: c.chainId, vault: c.vault, encPrivateKey: k.encPrivateKey,
+-    chain: createChainReader({ rpcs: c.rpcs, vault: c.vault, minAgree: c.minAgree, maxAgeSec: c.maxAgeSec }),
++    chain: chainReader,
+     verifiers: productionVerifiers({ collateral }), highWater: fileHighWater(c.stateDir) });
+   const [host, port] = String(env.CUSTODY_LISTEN || "127.0.0.1:8787").split(":");
+   // behind the TLS proxy every request comes from the proxy: CUSTODY_CLIENT_HEADER names the header it sets (x-forwarded-for)
+   const hdr = String(env.CUSTODY_CLIENT_HEADER || "").toLowerCase();
+   const clientOf = hdr ? (req) => String(req.headers[hdr] || "").split(",")[0].trim() || req.socket.remoteAddress : undefined;
+   const srv = await serveCustodian(custodian, { host, port: Number(port), clientOf, info: { vault: c.vault, chainId: c.chainId, operator: k.operator } });
+-  console.log(`custodian: share key 0x${k.encKey.slice(0, 16)}…, operator ${k.operator}, vault ${c.vault}, ${c.rpcs.length} RPCs (${c.minAgree} must agree), listening on ${host}:${srv.address().port}`);
++  console.log(`custodian: share key 0x${k.encKey.slice(0, 16)}…, operator ${k.operator}, vault ${c.vault}, ${src.mode === "verifier" ? "the local verifier (one authority, unsafe tier, no L1 finality)" : `${c.rpcs.length} RPCs (${c.minAgree} must agree)`}, listening on ${host}:${srv.address().port}`);
+ } else if (["approve-epoch", "deal", "receive"].includes(cmd)) {
+   const c = config(), k = keys();
+   const account = privateKeyToAccount(k.operatorPrivateKey);
+-  const reader = createChainReader({ rpcs: c.rpcs, vault: c.vault, minAgree: c.minAgree });
+-  const wallet = createWalletClient({ account, chain: { ...base, id: c.chainId }, transport: http(c.rpcs[0]) });
++  const { src, reader } = readerFor(c);
++  // verifier: prepared through the verifier, sent ONLY to the bound own backend (refused without one); quorum: unchanged
++  const wallet = createWalletClient({ account, chain: { ...base, id: c.chainId }, transport: src.mode === "verifier" ? src.authority.transport : http(c.rpcs[0]) });
+   const send = async (abi, functionName, args) => {
+     const hash = await wallet.writeContract({ address: c.vault, abi, functionName, args });
+     console.log(`custodian: ${functionName} sent ${hash}`);
+--- a/custody/v2/quorum.mjs
++++ b/custody/v2/quorum.mjs
+@@ -5,6 +5,7 @@
+ const fail = (code, message) => Object.assign(new Error(message), {code, status:503});
+ const fingerprint = value => JSON.stringify(value, (_, v) => typeof v === 'bigint' ? `n${v}` : v instanceof Uint8Array ? `x${bytesToHex(v)}` : v);
+ const hashPattern = /^0x[0-9a-fA-F]{64}$/;
++const VERIFIER_MARK = Symbol.for('enclave.chain-authority.local-verifier');   // network/chain-authority.mjs VERIFIER_CLIENT
+ export const MAX_RPCS = 16;
+ // Policy bounds: finite, and small enough that a misconfiguration cannot silently disable freshness or block forever.
+ const POLICY = { confirmations: [0, 1000], timeoutMs: [1, 300_000], maxAgeSec: [0, 7 * 86400], maxFutureSec: [0, 3600] };
+@@ -38,6 +39,10 @@
+     if (!c || typeof c !== 'object' || needs.some((m) => typeof c[m] !== 'function')) throw Error(`chain: RPC client ${i + 1} is malformed (needs ${needs.join(', ')})`);
+   });
+   if (new Set(clients).size !== clients.length) throw Error('chain: distinct RPC clients required');
++  // v2 needs strict same-block evidence ({blockHash, requireCanonical: true}); the pinned verifier drops requireCanonical,
++  // and a hash->number translation is not equivalent (A-B-A reorg). Refused, alone or mixed (custody/chain-source.mjs).
++  if (clients.some((c) => !!c[VERIFIER_MARK]))
++    throw Object.assign(Error('chain: v2 custody reads cannot use the local verifier yet (it does not enforce requireCanonical on block-hash reads)'), {code: 'chain_verifier_unsupported'});
+   // A client that exposes its transport URL (viem http) is identified by it; a custom transport without one is known by
+   // its object identity only. An exposed URL that is not a valid http(s) URL is refused, never ignored.
+   const origins = clients.flatMap((c) => {
+--- /dev/null
++++ b/custody/chain-source.mjs
+@@ -0,0 +1,44 @@
++// Custody chain source: which chain authority a custodian (v1 custodian-daemon, v2 readers given `clients`) reads through.
++//
++//   quorum (DEFAULT, unchanged): the configured RPC URLs and an explicit minAgree, exactly as before. No verifier setting
++//     may be present.
++//   verifier (explicit opt-in): the operator's LOCAL VERIFIER (network/chain-authority.mjs, loopback only) as the ONE chain
++//     authority: state is executed/proven against the state root of a block on the verifier's sequencer-signed head chain,
++//     blocks come from that chain. NO provider RPC may be configured with it (no fallback, no mixed quorum: a verifier is
++//     never one vote among RPCs), minAgree is 1, submissions go only to the operator's own backend after it is bound to
++//     the verifier's head (txBackend; without it nothing is sent).
++// Trust change (stated, not hidden): a quorum trusts that a majority of the configured RPCs is honest; the verifier trusts
++// its own proof checks and the sequencer's unsafe-block signature. NEITHER mode has L1 finality: every custody reader keeps
++// its own confirmations / maxAgeSec / high-water / checkpoint rules unchanged on top of either source.
++// v1 ONLY. v2 readers (custody/v2/quorum.mjs) REFUSE a verifier client: v2 requires strict same-block evidence (EIP-1898
++// {blockHash, requireCanonical: true}); the pinned Helios accepts that object and pins STATE to the hash, but its source
++// never reads require_canonical (core/src/execution/cache/provider.rs: BlockId::Hash(hash) => hash.into()), so the
++// canonical requirement would be silently dropped. Translating the hash to a block number is NOT equivalent (an A-B-A
++// reorg between the checks and the read returns another block's state) and is not done. v2 stays on its RPC quorum until
++// the verifier enforces canonical hash-pinned reads and a measured-config release carries the change.
++import { base } from "viem/chains";
++import { createChainAuthority, isVerifierClient } from "../network/chain-authority.mjs";
++
++export const CHAIN_SOURCES = Object.freeze(["quorum", "verifier"]);
++const PROVIDER_KEYS = ["rpcs", "rpc", "bindingRpcs", "fallbackRpcs", "minAgree"];
++const VERIFIER_KEYS = ["verifier", "txBackend"];
++const bad = (m) => Object.assign(new Error(`custody chain source: ${m}`), { code: "bad_config", status: 500 });
++const has = (cfg, k) => cfg[k] !== undefined && cfg[k] !== null && String(cfg[k]).trim() !== "";
++
++/** -> { mode: "quorum", rpcs, minAgree, clients: null } | { mode: "verifier", rpcs: null, minAgree: 1, clients: [client], authority } */
++export function custodyChainSource(cfg = {}, { chain = base, createAuthority = createChainAuthority, ...authorityOpts } = {}) {
++  const mode = cfg.chainSource ?? "quorum";
++  if (!CHAIN_SOURCES.includes(mode)) throw bad("chainSource must be quorum or verifier");
++  if (mode === "quorum") {
++    const stray = VERIFIER_KEYS.filter((k) => has(cfg, k));
++    if (stray.length) throw bad(`${stray.join(", ")} set but chainSource is not verifier`);
++    return { mode, rpcs: cfg.rpcs, minAgree: cfg.minAgree, clients: null, authority: null };
++  }
++  const mixed = PROVIDER_KEYS.filter((k) => has(cfg, k));
++  if (mixed.length) throw bad(`chainSource verifier: ${mixed.join(", ")} must be unset (the local verifier is the one authority: no RPC fallback, no mixed quorum)`);
++  if (!has(cfg, "verifier")) throw bad("chainSource verifier needs verifier (the local verifier URL)");
++  if (cfg.chainId !== undefined && cfg.chainId !== null && Number(cfg.chainId) !== chain.id) throw bad(`chainId ${cfg.chainId} is not the verifier's chain ${chain.id}`);
++  const authority = createAuthority({ verifier: cfg.verifier, backend: cfg.txBackend || null, chain, ...authorityOpts });
++  if (!isVerifierClient(authority.client)) throw bad("the chain authority did not yield a verifier client");
++  return { mode, rpcs: null, minAgree: 1, clients: [authority.client], authority };   // v1 readers only (see above)
++}
+--- /dev/null
++++ b/custody/custodian-config.mjs
+@@ -0,0 +1,34 @@
++// The v1 custodian daemon's configuration from its environment, as a PURE function (no file, key or network access) so the
++// chain-source rules are testable: custodian-daemon.mjs config() calls it and turns a throw into its usual die().
++//   CUSTODY_CHAIN_SOURCE unset or "quorum": exactly the legacy rules (CUSTODY_RPCS, CUSTODY_MIN_AGREE default 2); any
++//     verifier variable present (even blank) is refused.
++//   CUSTODY_CHAIN_SOURCE=verifier: CUSTODY_CHAIN_VERIFIER required; CUSTODY_RPCS and CUSTODY_MIN_AGREE must be ABSENT - a
++//     present-but-blank value is refused too (a blank variable is a configuration mistake, never "no fallback").
++import path from "node:path";
++
++const present = (env, k) => Object.prototype.hasOwnProperty.call(env, k) && env[k] !== undefined;
++const bad = (m) => Object.assign(new Error(m), { code: "bad_config" });
++
++export function custodianConfigFromEnv(env) {
++  const vault = String(env.CUSTODY_VAULT || "").toLowerCase();
++  if (!/^0x[0-9a-f]{40}$/.test(vault)) throw bad("CUSTODY_VAULT must be the vault's address");
++  const maxAgeSec = env.CUSTODY_MAX_AGE_SEC === "off" ? null : parseInt(env.CUSTODY_MAX_AGE_SEC || "120", 10);
++  const chainId = parseInt(env.CUSTODY_CHAIN_ID || "8453", 10), stateDir = path.resolve(env.CUSTODY_STATE_DIR || "custodian-state");
++  const chainSource = present(env, "CUSTODY_CHAIN_SOURCE") ? String(env.CUSTODY_CHAIN_SOURCE).trim() : "quorum";
++  if (chainSource === "verifier") {
++    const mixed = ["CUSTODY_RPCS", "CUSTODY_MIN_AGREE"].filter((k) => present(env, k));
++    if (mixed.length) throw bad(`CUSTODY_CHAIN_SOURCE=verifier: ${mixed.join(", ")} must be unset, not blank (the local verifier is the one chain authority)`);
++    const verifier = String(env.CUSTODY_CHAIN_VERIFIER || "").trim();
++    if (!verifier) throw bad("CUSTODY_CHAIN_SOURCE=verifier needs CUSTODY_CHAIN_VERIFIER (the local verifier URL)");
++    const txBackend = present(env, "CUSTODY_TX_BACKEND") ? String(env.CUSTODY_TX_BACKEND).trim() : "";
++    if (present(env, "CUSTODY_TX_BACKEND") && !txBackend) throw bad("CUSTODY_TX_BACKEND is blank: unset it (reads only) or name the own backend");
++    return { vault, chainSource, verifier, txBackend: txBackend || null, maxAgeSec, chainId, stateDir };
++  }
++  if (chainSource !== "quorum") throw bad("CUSTODY_CHAIN_SOURCE must be quorum (default) or verifier");
++  const stray = ["CUSTODY_CHAIN_VERIFIER", "CUSTODY_TX_BACKEND"].filter((k) => present(env, k));
++  if (stray.length) throw bad(`${stray.join(", ")} set but CUSTODY_CHAIN_SOURCE is not verifier`);
++  const rpcs = String(env.CUSTODY_RPCS || "").split(",").map((s) => s.trim()).filter(Boolean);
++  const minAgree = parseInt(env.CUSTODY_MIN_AGREE || "2", 10);
++  if (rpcs.length < minAgree) throw bad(`CUSTODY_RPCS names ${rpcs.length} RPC(s) and CUSTODY_MIN_AGREE is ${minAgree}`);
++  return { vault, rpcs, minAgree, maxAgeSec, chainId, stateDir };
++}
+--- /dev/null
++++ b/test/custody-chain-source.test.mjs
+@@ -0,0 +1,194 @@
++// custody/chain-source.mjs: the explicit local-verifier custody chain source (legacy quorum default unchanged). The
++// verifier is the REAL network/chain-authority.mjs client; only its HTTP peer is faked (injected fetch: a small signed-
++// chain model answering eth_chainId / eth_blockNumber / eth_getBlockBy{Number,Hash} / eth_call), so every refusal below
++// is the reviewed authority's or the custody readers' own behaviour, not the fake's. v2 refuses the verifier (see
++// custody/chain-source.mjs); the A-B-A test pins that a hash read is never number-translated.
++import test from "node:test";
++import assert from "node:assert/strict";
++import { keccak256, toHex, encodeFunctionResult, encodeFunctionData, decodeFunctionData, decodeFunctionResult } from "viem";
++import { spawnSync } from "node:child_process";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { custodyChainSource } from "../custody/chain-source.mjs";
++import { custodianConfigFromEnv } from "../custody/custodian-config.mjs";
++import { createChainReaderV2 } from "../custody/v2/chain.mjs";
++import { createChainReader, VAULT_ABI } from "../custody/chain.mjs";
++import { createQuorumReader } from "../custody/v2/quorum.mjs";
++
++const VERIFIER = "http://127.0.0.1:8545";
++const VAULT = "0x" + "11".repeat(20), BOOK = "0x" + "22".repeat(20), OWNER = "0x" + "33".repeat(20), ZERO = "0x" + "00".repeat(20);
++const ID = "0x" + "44".repeat(32), CID = "0x" + "55".repeat(32);
++const BOOK_ABI = [{ type: "function", name: "addr", stateMutability: "view", inputs: [{ name: "key", type: "bytes32" }], outputs: [{ type: "address" }] }];
++const ABI = [...VAULT_ABI, ...BOOK_ABI];
++
++function fakeVerifier() {
++  const st = { head: 1000n, lagSec: 0n, paused: false, down: false, fork: "", urls: new Set(), callBlocks: [] };
++  const hashOf = (n, fork = st.fork) => keccak256(toHex(`block:${n}:${fork}`));
++  const block = (n, fork) => ({ number: toHex(n), hash: hashOf(n, fork), parentHash: hashOf(n - 1n, fork), transactions: [], gasLimit: "0x1c9c380", gasUsed: "0x0",
++    timestamp: toHex(BigInt(Math.floor(Date.now() / 1000)) - (st.head - n) * 2n - st.lagSec), baseFeePerGas: "0x1", miner: ZERO, difficulty: "0x0", extraData: "0x", size: "0x1", uncles: [] });
++  const call = ({ to, data }) => {
++    const { functionName, args } = decodeFunctionData({ abi: ABI, data });
++    const out = {
++      policyOf: [OWNER, 3n, 7n, CID, st.paused, "0x"], bundleOf: [7n, 0, "0x"], book: BOOK, beneficialOwnerOf: OWNER, addr: ZERO, committeeOf: [OWNER, 2],
++    }[functionName];
++    if (out === undefined || (functionName === "addr" ? to.toLowerCase() !== BOOK : to.toLowerCase() !== VAULT)) throw new Error(`fake: no ${functionName} at ${to} ${args}`);
++    return encodeFunctionResult({ abi: ABI, functionName, result: out });
++  };
++  const answer = ({ method, params }) => {
++    if (method === "eth_chainId") return "0x2105";
++    if (method === "eth_blockNumber") return toHex(st.head);
++    if (method === "eth_getBlockByNumber") { const n = BigInt(params[0]); return n <= st.head ? block(n) : null; }
++    if (method === "eth_getBlockByHash") {
++      for (const fork of [st.fork, "sibling"]) for (let n = st.head; n > st.head - 50n; n--) if (hashOf(n, fork) === params[0]) return block(n, fork);
++      return null;
++    }
++    if (method === "eth_call") {
++      st.callBlocks.push(params[1]);
++      // A-B-A: the canonical block at abaNumber is A before and after, but a by-NUMBER read lands on B in between
++      if (st.abaNumber !== undefined && typeof params[1] === "string" && BigInt(params[1]) === st.abaNumber) return encodeFunctionResult({ abi: ABI, functionName: "book", result: "0x" + "bb".repeat(20) });
++      return call(params[0]);
++    }
++    throw new Error(`fake: ${method}`);
++  };
++  const fetch = async (url, init) => {
++    st.urls.add(String(url));
++    if (st.down) throw new Error("connect ECONNREFUSED");
++    const body = JSON.parse(init.body);
++    try { return new Response(JSON.stringify({ jsonrpc: "2.0", id: body.id, result: answer(body) }), { headers: { "content-type": "application/json" } }); }
++    catch (e) { return new Response(JSON.stringify({ jsonrpc: "2.0", id: body.id, error: { code: -32000, message: e.message } }), { headers: { "content-type": "application/json" } }); }
++  };
++  return { st, fetch, hashOf };
++}
++const verifierSource = (fake, extra = {}) => custodyChainSource({ chainSource: "verifier", verifier: VERIFIER, chainId: 8453, ...extra }, { fetch: fake.fetch });
++
++test("legacy default and explicit quorum are unchanged; verifier settings are refused there", () => {
++  const cfg = { rpcs: ["https://a.example", "https://b.example"], minAgree: 2 };
++  assert.deepEqual(custodyChainSource(cfg), { mode: "quorum", rpcs: cfg.rpcs, minAgree: 2, clients: null, authority: null });
++  assert.equal(custodyChainSource({ ...cfg, chainSource: "quorum" }).mode, "quorum");
++  for (const k of ["verifier", "txBackend"]) assert.throws(() => custodyChainSource({ ...cfg, [k]: VERIFIER }), /not verifier/, k);
++});
++
++test("verifier mode refuses mixed or public-fallback configuration", () => {
++  const fake = fakeVerifier();
++  for (const [k, v] of [["rpcs", ["https://mainnet.base.org"]], ["rpc", "https://mainnet.base.org"], ["bindingRpcs", ["https://x.example"]], ["fallbackRpcs", ["https://x.example"]], ["minAgree", 2]])
++    assert.throws(() => verifierSource(fake, { [k]: v }), /must be unset/, k);
++  assert.throws(() => custodyChainSource({ chainSource: "verifier" }, { fetch: fake.fetch }), /needs verifier/);
++  assert.throws(() => verifierSource(fake, { verifier: "https://mainnet.base.org" }), /loopback|verifier/i, "a public RPC is never the verifier");
++  assert.throws(() => verifierSource(fake, { chainId: 1 }), /not the verifier's chain/);
++  assert.throws(() => custodyChainSource({ chainSource: "public" }), /quorum or verifier/);
++  assert.equal(fake.st.urls.size, 0, "nothing was contacted while refusing");
++});
++
++test("a verifier is never one vote in a v1 quorum; v2 refuses it alone or mixed", () => {
++  const [v] = verifierSource(fakeVerifier()).clients;
++  const other = { getBlockNumber: async () => 1n, getBlock: async () => ({}), getChainId: async () => 8453, readContract: async () => null };
++  assert.throws(() => createChainReader({ clients: [v, other], minAgree: 1, vault: VAULT }), /one chain authority/);
++  assert.throws(() => createChainReader({ clients: [v, other], minAgree: 2, vault: VAULT }), /one chain authority/);
++  assert.throws(() => createChainReader({ clients: [v], rpcs: ["https://a.example"], minAgree: 1, vault: VAULT }), /one chain authority/);
++  assert.ok(createChainReader({ clients: [v], minAgree: 1, vault: VAULT }), "v1: the verifier alone, minAgree 1");
++  // v2 (r3): unsupported mode, refused at construction whether alone or mixed into a quorum
++  for (const [clients, minAgree] of [[[v, other, { ...other }], 2], [[v], 1]])
++    assert.throws(() => createQuorumReader({ clients, minAgree, chainId: 8453 }), (e) => e.code === "chain_verifier_unsupported");
++});
++
++test("v1 reads go through the verifier at head - confirmations and see a revoked (paused) policy at once", async () => {
++  const fake = fakeVerifier(), src = verifierSource(fake);
++  const r = createChainReader({ clients: src.clients, minAgree: src.minAgree, vault: VAULT, confirmations: 3, maxAgeSec: 120 });
++  const a = await r.readState({ id: ID });
++  assert.equal(a.blockNumber, 997n); assert.equal(a.policy.paused, false); assert.equal(a.policy.owner, OWNER);
++  fake.st.paused = true; fake.st.head = 1001n; fake.st.callBlocks.length = 0;
++  const b = await r.readState({ id: ID });
++  assert.equal(b.blockNumber, 998n); assert.equal(b.policy.paused, true, "the owner's pause is seen at the next verified block");
++  assert.ok(fake.st.callBlocks.length > 0 && fake.st.callBlocks.every((x) => x === toHex(998n)), "every state read is pinned to that block number");
++  assert.ok(fake.st.urls.size > 0 && [...fake.st.urls].every((u) => u.startsWith(VERIFIER)), "only the verifier was asked");
++});
++
++test("v1 via the verifier: a stale head and confirmations past the head fail closed; v2 checkpoint mode is unreachable", async () => {
++  const fake = fakeVerifier(), src = verifierSource(fake);
++  fake.st.lagSec = 1000n;
++  const r = createChainReader({ clients: src.clients, minAgree: 1, vault: VAULT, maxAgeSec: 120 });
++  await assert.rejects(r.readState({ id: ID }), (e) => e.code === "chain_stale");
++  await assert.rejects(r.readRelease({ id: ID }), (e) => e.code === "chain_stale");
++  fake.st.lagSec = 0n;
++  const deep = createChainReader({ clients: src.clients, minAgree: 1, vault: VAULT, confirmations: 1001, maxAgeSec: 120 });
++  await assert.rejects(deep.readState({ id: ID }), (e) => e.code === "chain_unconfirmed", "no block below genesis is invented");
++  // v1 has NO sealed checkpoint API (its restart protection is the custodian's high-water marks, custody/custodian.mjs,
++  // not exercised here). The v2 checkpoint/rollback rules stay covered by test/custody-v2-chain-quorum.test.mjs (RPC
++  // quorum, regression); with a verifier, v2 is refused before any read:
++  const f2 = fakeVerifier(), saved = { blockNumber: "2000", blockHash: f2.hashOf(2000n), blockTimestamp: Math.floor(Date.now() / 1000) };
++  assert.throws(() => createQuorumReader({ clients: verifierSource(f2).clients, minAgree: 1, chainId: 8453, checkpoint: { load: async () => saved, save: async () => {} } }),
++    (e) => e.code === "chain_verifier_unsupported");
++  assert.equal(f2.st.urls.size, 0, "the refused v2 reader contacted nothing");
++});
++
++test("verifier outage fails closed for every v1 read and never falls back to another server", async () => {
++  const fake = fakeVerifier(), src = verifierSource(fake);
++  fake.st.down = true;
++  const r = createChainReader({ clients: src.clients, minAgree: 1, vault: VAULT, maxAgeSec: 120 });
++  for (const read of [() => r.readState({ id: ID }), () => r.readRelease({ id: ID }), () => r.readCommittee({ committeeId: CID }), () => r.readEpoch({ committeeId: CID, epoch: 1 })])
++    await assert.rejects(read(), (e) => e.code === "chain_unconfirmed");
++  assert.ok(fake.st.urls.size > 0 && [...fake.st.urls].every((u) => u.startsWith(VERIFIER)), "only the verifier was ever contacted");
++});
++
++test("no finality is invented: the authority refuses safe/finalized, v1 reads only numbered blocks, the chain is pinned", async () => {
++  const fake = fakeVerifier(), [v] = verifierSource(fake).clients;
++  for (const tag of ["safe", "finalized"]) {
++    await assert.rejects(v.request({ method: "eth_getBlockByNumber", params: [tag, false] }), /no safe or finalized tier/);
++    await assert.rejects(v.request({ method: "eth_call", params: [{ to: VAULT, data: encodeFunctionData({ abi: ABI, functionName: "book" }) }, tag] }), /no safe or finalized tier/);
++  }
++  await createChainReader({ clients: [v], minAgree: 1, vault: VAULT, confirmations: 2, maxAgeSec: 120 }).readState({ id: ID });
++  assert.ok(fake.st.callBlocks.length > 0 && fake.st.callBlocks.every((b) => /^0x[0-9a-f]+$/.test(b)), "v1 state reads use block numbers, never a tag");
++  assert.throws(() => verifierSource(fakeVerifier(), { chainId: 10 }), /not the verifier's chain/, "v1 verifier source is pinned to Base");
++});
++
++test("v2 refuses the verifier (alone or mixed): requireCanonical is not enforced by the pinned verifier", () => {
++  const [v] = verifierSource(fakeVerifier()).clients;
++  const other = { getBlockNumber: async () => 1n, getBlock: async () => ({}), getChainId: async () => 8453 };
++  for (const clients of [[v], [v, other, { ...other }]])
++    assert.throws(() => createQuorumReader({ clients, minAgree: clients.length === 1 ? 1 : 2, chainId: 8453 }), (e) => e.code === "chain_verifier_unsupported");
++  assert.throws(() => createChainReaderV2({ clients: [v], vault: VAULT, minAgree: 1, chainId: 8453 }), (e) => e.code === "chain_verifier_unsupported");
++});
++
++test("wrong-branch / A-B-A negative: a hash read is never translated to a block number", async () => {
++  const fake = fakeVerifier(), [v] = verifierSource(fake).clients;
++  fake.st.abaNumber = 990n;
++  const pin = { blockHash: fake.hashOf(990n), requireCanonical: true };
++  const data = encodeFunctionData({ abi: ABI, functionName: "book" });
++  const out = await v.request({ method: "eth_call", params: [{ to: VAULT, data }, pin] });
++  assert.deepEqual(fake.st.callBlocks.at(-1), pin, "the canonical hash object reaches the verifier unchanged");
++  assert.equal(decodeFunctionResult({ abi: ABI, functionName: "book", data: out }).toLowerCase(), BOOK, "block A's state, not B's");
++  // what a number translation would have read in the A-B-A window (the rejected r2 design): B's state
++  const byNumber = await v.request({ method: "eth_call", params: [{ to: VAULT, data }, toHex(990n)] });
++  assert.notEqual(decodeFunctionResult({ abi: ABI, functionName: "book", data: byNumber }).toLowerCase(), BOOK);
++});
++
++const ENV0 = { CUSTODY_VAULT: VAULT };
++test("v1 daemon config (pure): legacy unchanged; verifier needs RPC settings ABSENT, blank is refused", () => {
++  assert.deepEqual(custodianConfigFromEnv({ ...ENV0, CUSTODY_RPCS: "https://a.example, https://b.example" }),
++    { vault: VAULT, rpcs: ["https://a.example", "https://b.example"], minAgree: 2, maxAgeSec: 120, chainId: 8453, stateDir: path.resolve("custodian-state") });
++  assert.throws(() => custodianConfigFromEnv({ ...ENV0, CUSTODY_RPCS: "" }), /names 0 RPC/, "legacy: blank RPCs still refused as before");
++  const V = { ...ENV0, CUSTODY_CHAIN_SOURCE: "verifier", CUSTODY_CHAIN_VERIFIER: VERIFIER };
++  const ok = custodianConfigFromEnv(V);
++  assert.deepEqual([ok.chainSource, ok.verifier, ok.txBackend, ok.rpcs, ok.minAgree], ["verifier", VERIFIER, null, undefined, undefined]);
++  for (const [k, val] of [["CUSTODY_RPCS", ""], ["CUSTODY_RPCS", "https://mainnet.base.org"], ["CUSTODY_MIN_AGREE", ""], ["CUSTODY_MIN_AGREE", "1"]])
++    assert.throws(() => custodianConfigFromEnv({ ...V, [k]: val }), /must be unset, not blank/, `${k}=${JSON.stringify(val)}`);
++  assert.throws(() => custodianConfigFromEnv({ ...V, CUSTODY_TX_BACKEND: "" }), /blank/);
++  assert.throws(() => custodianConfigFromEnv({ ...V, CUSTODY_CHAIN_VERIFIER: "" }), /needs CUSTODY_CHAIN_VERIFIER/);
++  assert.throws(() => custodianConfigFromEnv({ ...ENV0, CUSTODY_RPCS: "https://a.example,https://b.example", CUSTODY_CHAIN_VERIFIER: VERIFIER }), /not verifier/);
++  for (const src of ["", "public", "rpc"]) assert.throws(() => custodianConfigFromEnv({ ...ENV0, CUSTODY_CHAIN_SOURCE: src }), /quorum \(default\) or verifier/);
++  // the daemon's reader wiring for that config: the verifier source, one authority
++  const s = custodyChainSource(ok, { fetch: fakeVerifier().fetch });
++  assert.equal(s.mode, "verifier"); assert.ok(createChainReader({ rpcs: s.rpcs, clients: s.clients, minAgree: s.minAgree, vault: VAULT }));
++});
++
++test("the real custodian daemon refuses a mixed or blank verifier config before any key, file or network use", () => {
++  const daemon = path.join(path.dirname(fileURLToPath(import.meta.url)), "../custody/custodian-daemon.mjs");
++  const run = (extra) => spawnSync(process.execPath, [daemon, "serve"], { env: { PATH: process.env.PATH, CUSTODY_VAULT: VAULT, CUSTODY_STATE_DIR: "/nonexistent/custody-test", ...extra }, encoding: "utf8", timeout: 20_000 });
++  for (const extra of [{ CUSTODY_CHAIN_SOURCE: "verifier", CUSTODY_CHAIN_VERIFIER: VERIFIER, CUSTODY_RPCS: "" },
++                       { CUSTODY_CHAIN_SOURCE: "verifier", CUSTODY_CHAIN_VERIFIER: VERIFIER, CUSTODY_MIN_AGREE: "1" },
++                       { CUSTODY_CHAIN_SOURCE: "public" }, { CUSTODY_RPCS: "https://a.example,https://b.example", CUSTODY_TX_BACKEND: "http://127.0.0.1:9" }]) {
++    const r = run(extra);
++    assert.equal(r.status, 1, JSON.stringify(extra) + r.stderr);
++    assert.match(r.stderr, /custodian: (CUSTODY_CHAIN_SOURCE|CUSTODY_TX_BACKEND)/, r.stderr);
++  }
++});

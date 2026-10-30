@@ -1,0 +1,30 @@
+# r6: DERIVED from the static artifact map (rig-artifact-closure-stage/map/ARTIFACT-MAP.tsv, needed-main-mcp.txt): every
+# contracts/foundry/out artifact read (art/mainArt/haveTools gate) by the closure of the 5 MCP test files (73 tests) at b6ac5d657 + the
+# r2 patch (which adds no artifact read). One source per forge invocation, -j 1, the repo's own foundry.toml (settings untouched).
+# Sources and their full Solidity import closures are pinned in SOURCE-PINS.sha256 (verified in both clones before any build).
+# r5 -> r6: + contracts/EnclaveReviews.sol (mcp-independent-rig.mjs:60 mainArt EnclaveReviews) and
+#           + contracts/foundry/test/EnclaveDeployments.multicallValue.t.sol (cli-independent-rig.mjs:124 art MockFeed);
+#           + artifact EnclaveAddressBook (mcp-independent-rig.mjs:60; its source was already compiled in r5).
+# Not here (built by the test itself at run time, lease-gas-forge.mjs into $TMPDIR): the leased() artifacts of mcp-independent-rig.mjs:27.
+source contracts/EnclaveAddressBook.sol
+source contracts/EnclaveRegistry.sol
+source contracts/EnclaveAppCatalog.sol
+source contracts/EnclaveDeployments.sol
+source contracts/PaymentRouter.sol
+source contracts/PinnedSessionVaultFactory.sol
+source contracts/SessionVault.sol
+source contracts/foundry/test/mocks/SessionMocks.sol
+source contracts/EnclaveReviews.sol
+source contracts/foundry/test/EnclaveDeployments.multicallValue.t.sol
+artifact EnclaveAddressBook.sol/EnclaveAddressBook.json
+artifact EnclaveAppCatalog.sol/EnclaveAppCatalog.json
+artifact EnclaveDeployments.multicallValue.t.sol/MockFeed.json
+artifact EnclaveDeployments.sol/EnclaveDeployments.json
+artifact EnclaveDeployments.sol/EnclaveLedgerBandwidth.json
+artifact EnclaveRegistry.sol/EnclaveRegistry.json
+artifact EnclaveReviews.sol/EnclaveReviews.json
+artifact PaymentRouter.sol/PaymentRouter.json
+artifact PinnedSessionVaultFactory.sol/PinnedSessionVaultFactory.json
+artifact SessionMocks.sol/MockUSDC3009.json
+artifact SessionVault.sol/SessionVault.json
+artifact SessionVault.sol/SessionVaultLib.json

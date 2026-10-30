@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: ROOT cross-deployment identical authorization stays quarantined: withheld
+not ok 1 - ROOT cross-deployment identical authorization stays quarantined: withheld
+  ---
+  duration_ms: 489.647178
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r2/root-quarantine.test.mjs:95:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    no additional authorization or lease signature while account nonce remains held
+    + actual - expected
+    
+      {
+    +   auth: 2,
+    +   typed: 2
+    -   auth: 1,
+    -   typed: 1
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    auth: 1
+    typed: 1
+  actual:
+    auth: 2
+    typed: 2
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r2/root-quarantine.test.mjs:107:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: ROOT cross-deployment identical authorization stays quarantined: posted-unknown
+not ok 2 - ROOT cross-deployment identical authorization stays quarantined: posted-unknown
+  ---
+  duration_ms: 226.256191
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r2/root-quarantine.test.mjs:95:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    no additional authorization or lease signature while account nonce remains held
+    + actual - expected
+    
+      {
+    +   auth: 2,
+    +   typed: 2
+    -   auth: 1,
+    -   typed: 1
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    auth: 1
+    typed: 1
+  actual:
+    auth: 2
+    typed: 2
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r2/root-quarantine.test.mjs:107:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 956.15548

@@ -1,0 +1,39 @@
+# Frozen r10 admission/consumer review
+
+Source-only inspection of frozen `author-delivery`, manifest `c2ce5554636fa47eea7d760451cc4fa1dd8b07def05358cc95b4d77545c112ff`. No source changes, module evaluation, tests, builds or financial activity. Findings below are source evidence, not executed regressions. Paths/lines refer to this frozen tree.
+
+## Confirmed interface: configCid and owner exist in the real ABI path
+
+`control/network/deployment-chain-adapter.mjs:495` reads `get(id)` on the selected ledger using `LEDGER_ABI`. Both the retained `control/deploy/lifecycle/artifacts/EnclaveDeployments.json` get tuple and the actual schema3 `control/deploy/lifecycle/schema3/bundle.json` contract `candidate/deploy/EnclaveDeployments.sol:EnclaveDeployments` get tuple have named `configCid:string` and `owner:address`. The schema3 tuple also contains id/appRef/ports/cpuMilli/gpuMilli/appPort/isPublic/active and lease fields. Thus those two new snapshot fields are supported by the actual retained ABI, rather than only by the old Host's assumptions.
+
+The real finality path is `createLifecycleFinalitySnapshot` -> `pinnedClient` -> `readContract` -> viem `decodeFunctionResult` (`verified-chain.mjs:80–83`), within the authenticated anchor/same-block callback. The adapter adds the envelope at line155 from that `v.d`. This inspection resolves the author's specific field-existence uncertainty. It does not prove an actual derived-chain read, finality, successful startup, or completeness of the whole application configuration.
+
+## Still stale after initial policy parse
+
+`control/windows/node/protected-supervisor.mjs:246` reloads enrollment only when the module variable is `undefined`. A successfully parsed policy or `null` (no policy) remains cached; `protectedSupervisorFor` uses the same cache. No file/env/hash revalidation or production invalidation mechanism was added. `enrollmentState` also delegates to this cache. Consequently corruption/removal/hash or configured-path changes after a successful parse do not produce unknown at any of the new final Host gates. Initial malformed-policy tests do not exercise that case. The report's statement that a policy becoming unknown after a decision causes no send is not established by these cached lookups.
+
+Actual queue gaps remain independent of that cache: `host.mjs:787` calls `chain.claimDeployment(id, host)` and line2721 calls `chain.releaseDeployment(id)` after a Host-local check. `chain.mjs:344/349` do not accept/forward a gate, although their underlying `leaseSend` queues the work. Renewal does forward the gate (`chain.mjs:346`), but that gate calls the cached enrollment. In the direct operator sender, the gate is evaluated before awaited simulation/nonce reads (`chain.mjs:216–226`); no subsequent gate is evaluated immediately before `writeContract` or a retry. The app-funded path likewise checks at queue entry before awaiting its sender. No claim that an actual transaction was sent in this review.
+
+Recommended execution: first establish a valid cached policy, hold an actual consumer send at the queue/await boundary, then invalidate policy/ownership and require no side effect. Include claim and release as well as renewal; initial-unknown and empty keeper-state tests cannot substitute for this.
+
+## New admission read does not replace or bind the staged snapshot
+
+`lifecycle-host-dispatch.mjs:669` accepts a supplied snapshot, then `freshDecision` reads another authenticated snapshot at lines321–327 and stores it in `freshSnapshots`. The new `admitStart` uses the decision for host owner/incarnation checks, but still runs its post-await resource check and `checkedShares` on the supplied snapshot (lines684–689). `admittedRuntime.ensureStaged` (`protected-authority-factory.mjs:153`) discards the admission result and passes the original snapshot to the underlying runtime.
+
+`createSnapshotHostAdmission` (`lifecycle-host-authority.mjs:112`) decides host ownership/policy/canonical host lifecycle; it does not validate the deployment assignment state/generation or bind the supplied launch configuration to the freshly read snapshot. A fresh read can therefore reveal a stopped/reassigned/resized deployment while the caller's earlier queued snapshot continues to the runtime. The runtime itself checks the snapshot it is given for queued state (`deployment-isolation-runtime.mjs:171–173`), not the fresh snapshot observed during admission. This requires an actual regression; it is not an executed stale-start claim. Preserve proof checks and compare/consume exact fresh assignment/resources/config before the start effect, rather than trusting the old snapshot because the host decision is fresh.
+
+## Reservation lifecycle is conservative but lacks terminal-stage reconciliation
+
+The wrapper updates allocation retirement only on external `stop === true` or revoke results with `absent:true`. The current real runtime's revoke results include confirmed absence plus held acknowledgment; retaining allocation when those methods throw is conservative. `retired()` also retains any journal commitment flag, which should not be cleared merely because local compute is absent.
+
+However, `admittedRuntime.ensureStaged` reserves before calling the real runtime and does not reconcile the result or an exception. The runtime can reject a verified plan before any spawn (`deployment-isolation-runtime.mjs:167–170`), report a definitive refused spawn as `ended:true` (line183), or run its internal `stop` after the startup deadline (lines194–196). That internal stop does not invoke the wrapper's `confirmRetired`. Dispatch observation does not clear physical state on an absent listing while `reserved` remains true (`lifecycle-host-dispatch.mjs:258`), and only `retired` clears the reservation. These paths can leave a reservation without a way to release it through routine observation. Fixes must require exact terminal raw-operation/absence evidence, never clear unknown work merely on timeout or a rejected request.
+
+The Host view also retains prior CPU/GPU fields when a noncommitted allocation patch arrives (`host.mjs:2902`), while `Host.occupies` may still count an old `provisioning` or instance-bearing record. Explicit authenticated Stop clears status/instance fields through `#protectedOutcome`, but a definitive ended startup is a different path. A positive stage -> refusal/ended -> confirmed absence -> capacity available regression is needed, alongside pending/unknown retention and neighbor accounting.
+
+## What the revised Host actually separates, and what it does not
+
+`tick` now invokes `protectedTick` independently of the legacy in-flight guard; the normal Host scheduler uses periodic calls (`host.mjs:385`), so a hung legacy promise does not by itself prevent the next independent call. This is concrete progress over r9. New protected configuration no longer calls the retired Host `chain.readDeployment/resolveAppRef` path.
+
+Within the protected pass, authority calls are sequential across routes and phase2 planning/launch awaits share one protected in-flight guard (`host.mjs:2944`). A hung plan/launch for one route can therefore keep subsequent protected passes joined and delay another route's later Offline processing. Existing runtime/permit deadline and cleanup behavior remain separate defenses; this is not a perpetual-serving claim. Full useful multi-route behavior still needs a consuming test.
+
+The author explicitly did not deliver actual Host + real factory/runtime/client/manager/router queued stage -> Running -> serve -> Stop/Offline. PartA of its new test uses a TEST owned runtime and a plan reachability probe; PartB proves refusal/recovery accounting without positive admission. No native-role or workload-boundary implementation was added. These limits must remain visible even if all authored tests pass.

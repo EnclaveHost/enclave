@@ -1,0 +1,8 @@
+[queue] START available=23106MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+## node v22.23.3
+## [A] regenerate the management vendor manifest (scripts/build-management-vendor.mjs, unmodified) in a fresh clone
+
+[memory-guard] STOPPING own job: process tree RSS 541 MiB > 512 MiB
+[memory-guard] exit=SIGTERM peakTreeRssMiB=541 minHostAvailableMiB=22766 STOPPED: process tree RSS 541 MiB > 512 MiB
+[memory-guard] at peak: git:515 git:10 git-upload-pack:6 git:5 bash:4
+[queue] EXIT 99

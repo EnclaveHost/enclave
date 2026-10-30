@@ -1,0 +1,15 @@
+{
+  "kind": "offline-mask-unit-pins/1",
+  "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1/guest_mask.py",
+  "sourceSha256": "fe744bde89a985906c9db53130f5a856994d8f3542a576451cbae6c8d5b66d7f",
+  "units": {
+    "enclave-rpc-base-snapshot.service": "f7a193f1f50ab147aa15d33cb7de9fbddc1ad0c01c244ffef852b417551950f4",
+    "enclave-rpc-l1-snapshot.service": "42cfc951d82ff4996460a4d180a9d6b91257d1bdfbee76e23c755d7e1e267070",
+    "enclave-base-retention.service": "f02388268aa110612dbf2648f9a90a90bdc2a2e36d237cab0e869fc49b59ceee",
+    "enclave-base-holder.path": "8accb496663c590e2a52a83cd73815d42a81d994b430dde96d17df1e56bf4329",
+    "enclave-base-holder.service": "3d305f2ef091af5ee7edec61bcd47607c7e969e64873dec66d021db34f5955ef",
+    "enclave-l1-el.path": "d2b379983fb5b5d6a442aef9ec7738e7f09641a2166353227d214ef1579656e3",
+    "enclave-l1-el.service": "be00a7d9542f79515658f09d49bc3ad546d3d80de3f30a531a4ee5d1fd72086d",
+    "enclave-l1-cl.service": "54791e1a9ac7e27d4e12ce7630d903363ba1069f9fb3529acade709a4a8bb547"
+  }
+}

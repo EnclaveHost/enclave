@@ -1,0 +1,7 @@
+{
+ "note": "Coordination with da0 (production-bootstrap-wiring-stage), filled ONLY from his FROZEN first-bootstrap consumer (never guessed). Any null refuses. consumer = '<stage path>:<file> sha256 <...>' of the code that runs the capture module's `recheck` mode for first bootstrap. initialReceiptSupply = how that consumer gives the pinned initial receipt to the module: 'sources-key' (the composed SOURCES_KEYS has initialReceipt) or 'replace-after-from_settings' (dataclasses.replace on the from_settings result). initialReceiptInstallPath = the MANIFEST dest of the b9a90847 receipt. captureKwargs = the exact capture() keyword arguments the consumer passes (the canary only raises helios_timeout to >= 900 for its cold-started Helios). Re-freeze this stage after filling.",
+ "consumer": null,
+ "initialReceiptSupply": null,
+ "initialReceiptInstallPath": null,
+ "captureKwargs": null
+}

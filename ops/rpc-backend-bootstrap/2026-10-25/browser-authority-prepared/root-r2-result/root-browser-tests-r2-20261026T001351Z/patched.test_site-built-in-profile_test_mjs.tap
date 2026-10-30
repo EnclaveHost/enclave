@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: build arguments: none (unchanged build), both flags, or a refusal
+ok 1 - build arguments: none (unchanged build), both flags, or a refusal
+  ---
+  duration_ms: 1.384286
+  type: 'test'
+  ...
+# Subtest: a profile file is accepted only with its reviewed digest, as UTF-8, and when the dashboard's parser accepts it
+ok 2 - a profile file is accepted only with its reviewed digest, as UTF-8, and when the dashboard's parser accepts it
+  ---
+  duration_ms: 3.845379
+  type: 'test'
+  ...
+# Subtest: the bundled independent.js carries exactly the reviewed text, and an empty browser loads it as its built-in profile
+ok 3 - the bundled independent.js carries exactly the reviewed text, and an empty browser loads it as its built-in profile
+  ---
+  duration_ms: 24.840516
+  type: 'test'
+  ...
+# Subtest: the embedding refuses a module whose declaration is missing or repeated
+ok 4 - the embedding refuses a module whose declaration is missing or repeated
+  ---
+  duration_ms: 76.045843
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 164.112197

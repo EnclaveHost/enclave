@@ -1,0 +1,71 @@
+{
+  "capturedAt": 1793349388.1479445,
+  "units": [
+    {
+      "Id": "enclave-rpc-production-vm.service",
+      "Requires": "app.slice enclave-rpc-production-guard.service basic.target",
+      "Wants": "",
+      "PartOf": "",
+      "Upholds": "",
+      "Triggers": "",
+      "TriggeredBy": "",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "FragmentPath": "/home/steven/.config/systemd/user/enclave-rpc-production-vm.service",
+      "DropInPaths": "",
+      "UnitFileState": "disabled",
+      "InvocationID": "",
+      "Restart": "on-failure",
+      "MainPID": "0"
+    },
+    {
+      "Id": "enclave-rpc-production-guard.service",
+      "Requires": "app.slice basic.target",
+      "Wants": "",
+      "PartOf": "enclave-rpc-production-vm.service",
+      "Upholds": "",
+      "Triggers": "",
+      "TriggeredBy": "",
+      "LoadState": "loaded",
+      "ActiveState": "inactive",
+      "FragmentPath": "/home/steven/.config/systemd/user/enclave-rpc-production-guard.service",
+      "DropInPaths": "",
+      "UnitFileState": "static",
+      "InvocationID": "",
+      "Restart": "no",
+      "MainPID": "0"
+    }
+  ],
+  "mounts": [
+    {
+      "mountId": "42",
+      "parentId": "1",
+      "device": "253:0",
+      "root": "/",
+      "mountPoint": "/",
+      "options": "rw,relatime",
+      "optional": [
+        "shared:1"
+      ],
+      "filesystem": "ext4",
+      "source": "/dev/mapper/cryptroot",
+      "superOptions": "rw"
+    },
+    {
+      "mountId": "63",
+      "parentId": "42",
+      "device": "253:1",
+      "root": "/",
+      "mountPoint": "/vm",
+      "options": "rw,relatime",
+      "optional": [
+        "shared:123"
+      ],
+      "filesystem": "ext4",
+      "source": "/dev/mapper/cryptvm",
+      "superOptions": "rw"
+    }
+  ],
+  "scope": "known user RPC VM/guard and current mount namespace only; no global no-writer claim",
+  "noMutation": true
+}

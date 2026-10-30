@@ -1,0 +1,164 @@
+TAP version 13
+# Subtest: od-r1: no configured store -> no write (fail closed)
+ok 1 - od-r1: no configured store -> no write (fail closed)
+  ---
+  duration_ms: 6.172767
+  type: 'test'
+  ...
+# Subtest: od-r1: a configured but never-initialized store is NOT first use: refused, nothing created, no write
+ok 2 - od-r1: a configured but never-initialized store is NOT first use: refused, nothing created, no write
+  ---
+  duration_ms: 12.079337
+  type: 'test'
+  ...
+# Subtest: od-r1: uncertain write -> same module refuses; a SECOND owner is refused; fresh process after restart refuses; mined fence -> new nonce
+ok 3 - od-r1: uncertain write -> same module refuses; a SECOND owner is refused; fresh process after restart refuses; mined fence -> new nonce
+  ---
+  duration_ms: 2135.352864
+  type: 'test'
+  ...
+# Subtest: od-r1 ROOT gap 1: an established store DELETED after an uncertain write -> a fresh process refuses; no second write
+ok 4 - od-r1 ROOT gap 1: an established store DELETED after an uncertain write -> a fresh process refuses; no second write
+  ---
+  duration_ms: 1569.554027
+  type: 'test'
+  ...
+# Subtest: od-r1 ROOT gap 2: final post-persist refusal -> 0 writes, exact discharge (durable), later unchanged-permission positive at the SAME nonce
+ok 5 - od-r1 ROOT gap 2: final post-persist refusal -> 0 writes, exact discharge (durable), later unchanged-permission positive at the SAME nonce
+  ---
+  duration_ms: 1106.868618
+  type: 'test'
+  ...
+# Subtest: od-r1: a later refused attempt never discharges an earlier unresolved write (discharge is exact to its own attempt)
+ok 6 - od-r1: a later refused attempt never discharges an earlier unresolved write (discharge is exact to its own attempt)
+  ---
+  duration_ms: 74.74777
+  type: 'test'
+  ...
+# Subtest: od-r1: owner loss (lock file replaced) latches refusal; the recorded obligation stays on disk
+ok 7 - od-r1: owner loss (lock file replaced) latches refusal; the recorded obligation stays on disk
+  ---
+  duration_ms: 73.460362
+  type: 'test'
+  ...
+# Subtest: od-r1: a foreign-domain store and a storage failure before the effect leave no unauthorized write
+ok 8 - od-r1: a foreign-domain store and a storage failure before the effect leave no unauthorized write
+  ---
+  duration_ms: 115.74931
+  type: 'test'
+  ...
+# Subtest: win-log: explicit init, one owner, put/remove survive reopen; status never claims production for the TEST exclusion
+ok 9 - win-log: explicit init, one owner, put/remove survive reopen; status never claims production for the TEST exclusion
+  ---
+  duration_ms: 47.93647
+  type: 'test'
+  ...
+# Subtest: win-log: foreign domain, foreign record, torn tail and legacy records all refuse
+ok 10 - win-log: foreign domain, foreign record, torn tail and legacy records all refuse
+  ---
+  duration_ms: 54.625023
+  type: 'test'
+  ...
+# Subtest: win-log: a short write latches the store (outcome unknown); every later read/change refuses
+ok 11 - win-log: a short write latches the store (outcome unknown); every later read/change refuses
+  ---
+  duration_ms: 22.558187
+  type: 'test'
+  ...
+# Subtest: win-log: bounded - a full store refuses NEW records, settlement stays possible; an oversized request is refused, never truncated
+ok 12 - win-log: bounded - a full store refuses NEW records, settlement stays possible; an oversized request is refused, never truncated
+  ---
+  duration_ms: 224.988845
+  type: 'test'
+  ...
+# Subtest: linux: genuine flock - a second in-process owner AND a separate process are refused while held; after release the child owns it
+ok 13 - linux: genuine flock - a second in-process owner AND a separate process are refused while held; after release the child owns it
+  ---
+  duration_ms: 122.976108
+  type: 'test'
+  ...
+# Subtest: linux: deletion of an established store, a foreign domain and an fsync failure all refuse; never re-created as empty
+ok 14 - linux: deletion of an established store, a foreign domain and an fsync failure all refuse; never re-created as empty
+  ---
+  duration_ms: 77.088911
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored (root r12 fixtureclosure FAIL, intended behaviour): release signature-time refusal -> pending from the OWNED record; legacy entry kept, not settled unsent; deadline fence settles both
+ok 15 - od-r1 sponsored (root r12 fixtureclosure FAIL, intended behaviour): release signature-time refusal -> pending from the OWNED record; legacy entry kept, not settled unsent; deadline fence settles both
+  ---
+  duration_ms: 172.542394
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored: supersession is LATCHED - a restored Boolean permission does not revive the operation
+ok 16 - od-r1 sponsored: supersession is LATCHED - a restored Boolean permission does not revive the operation
+  ---
+  duration_ms: 136.921288
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored: refusal after an earlier POST is an unknown outcome; the posted record survives restart and holds the id
+ok 17 - od-r1 sponsored: refusal after an earlier POST is an unknown outcome; the posted record survives restart and holds the id
+  ---
+  duration_ms: 201.952542
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored: queue-entry refusal signs nothing; positive renew settles its record; an uninitialized store refuses before signing
+ok 18 - od-r1 sponsored: queue-entry refusal signs nothing; positive renew settles its record; an uninitialized store refuses before signing
+  ---
+  duration_ms: 204.939056
+  type: 'test'
+  ...
+# Subtest: ROOT final gate removes established state: no inert write
+not ok 19 - ROOT final gate removes established state: no inert write
+  ---
+  duration_ms: 32.122835
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r1/root-final-store-loss.test.mjs:65:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    external loss occurs after the intent was persisted
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r1/root-final-store-loss.test.mjs:70:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: ROOT final gate removes established.established: no inert write
+not ok 20 - ROOT final gate removes established.established: no inert write
+  ---
+  duration_ms: 23.454809
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r1/root-final-store-loss.test.mjs:65:2'
+  failureType: 'testCodeFailure'
+  error: |-
+    external loss occurs after the intent was persisted
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-durability-root-review-r1/root-final-store-loss.test.mjs:70:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 18
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6703.331603

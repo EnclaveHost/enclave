@@ -1,0 +1,9 @@
+# base-finality-proof-stage/r6 (SOURCE ONLY): republish every 2 min (the sampler accepts <= 900 s old publications)
+[Unit]
+Description=Republish Base post-anchor finality status
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=2min
+AccuracySec=10s
+[Install]
+WantedBy=timers.target

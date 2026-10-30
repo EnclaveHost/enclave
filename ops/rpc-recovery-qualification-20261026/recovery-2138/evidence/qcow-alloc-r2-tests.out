@@ -1,0 +1,7 @@
+[queue] START available=24314MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+test_1_long_socket_path_known_regions_classified_exactly_image_unchanged (__main__.Alloc.test_1_long_socket_path_known_regions_classified_exactly_image_unchanged) ... FAIL
+test_2_chunking_and_clipping (__main__.Alloc.test_2_chunking_and_clipping) ... qcow-allocation-nbd-stage/r2/jobs/tests.sh: line 12: 2378304 Killed                     env -i PATH=/usr/bin:/bin:/usr/sbin LC_ALL=C TMPDIR=$T ALLOC_QEMU_NBD_SHA256=$QNBD_SHA PYTHONDONTWRITEBYTECODE=1 timeout -k 10 600 python3 -I -B $S/tests/test_alloc_check.py -v < /dev/null
+## qcow-alloc-r2-tests rc=1
+[memory-guard] exit=1 peakTreeRssMiB=49 minHostAvailableMiB=24041
+[memory-guard] at peak: python3:32 qemu-nbd:10 bash:4 bash:2 timeout:2
+[queue] EXIT 1

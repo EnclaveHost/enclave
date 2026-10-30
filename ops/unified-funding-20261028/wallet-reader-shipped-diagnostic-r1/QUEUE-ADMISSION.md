@@ -1,0 +1,1 @@
+First unit02076fe55c7241289ddb16cd4d2b172d never started the reader: shared small lane held, exit98/MainPID0. Capturefa6f4752d3364774a29b3a151bffd97b is now terminal. Root admits the first actual reader execution in a new unit, preserving the failed admission. No HTTP call or financial action was repeated from that rejected admission.

@@ -1,0 +1,122 @@
+ACTUAL TARGET / TRUSTED-ADMIN MODEL — 2026-10-29 00:23 UTC
+Source and metadata reads only. No production attach, stop, restart, environment
+change, financial send, or additional synthetic execution.
+
+What the actual evidence closes
+PID228946/startTicks43738495 began 2026-10-28 10:01:00 UTC. argv is exactly
+/usr/bin/node /opt/nan-relay/api-relay.js; cwd is /opt/nan-relay. Hash of the
+executable via /proc/228946/exe is93956de2e59480474a7b46571da1651180b1a050cdf32641ebec4ce6e478e068.
+No NODE_OPTIONS, NODE_PATH, LD_PRELOAD or LD_AUDIT are present. No extra startup
+arguments, mapped .node/libnode files, or installed .node dependency files found.
+No environment values or private keys were exported.
+
+79 literal local import-closure files (including manifest/lock) and4528 installed
+dependency JS/MJS/CJS/JSON/native files were hashed. Dependency total15,334,186B;
+no symlink skipped. Every recorded mtime AND ctime predates process startup.
+Core hashes match prior exact installed pins. No unresolved relative literal
+imports. Dependency manifests: viem2.54.3, ws8.21.0, jose5.10.0,
+@simplewebauthn/server13.3.2. package-lockSHA
+e5d896baf563d6cc1662000fb87b56f9673c87c502b4cb8ea43836b1687f0b56.
+This is credible deployment provenance in the existing trusted-admin model,
+not a cryptographic measurement of the loaded heap. We do not require proving
+absence of arbitrary malicious administrator timestamp rewriting/monkeypatching.
+The literal-import collector is deliberately not a complete JavaScript resolver;
+dependency inventory is a disk superset, not proof every file was loaded.
+
+Actual source/send scope
+SESSIONS_RELAYER_KEY is consumed only by sessions.mjs1217 in the collected app
+closure. api-relay.js3088 is the only initSessions call. It creates local-account
+viem wallet1232-33, one journal1251, one service and TxQueue408. All session sends
+in this source reach _send174 after record append169. Actual attestorEnv supplies
+no alternate queue. The returned service exposes queue/account but actual callers
+in api-relay.js use route/verify/store lookups; no outside direct send was found.
+The dependency privateKeyToAccount is local secp256k1 signing; viem's local branch
+signs then delegates sendRawTransaction. It does not hand this key to a remote
+signer or use the unrelated Tempo worker pool.
+
+Other actual financial senders EXIST, so don't claim process-wide sole TxQueue:
+provisioner.js214/235/239 and vaultsvc.js279/299/378/404/477 use
+PROVISIONER_PRIVATE_KEY. Startup public logs identify that account as
+0x3d447593739C3f2BaF1A7579CD874baA3e0971aA, different from sessions relayer
+0xf4B78D91911e1c064A02E4D28C69E2De6056bE57. host-sponsor.mjs189 sends using
+HOST_SPONSOR_BUNDLER_KEY, lazily initialized by api-relay.js225. Its key is
+configured; public signer identity has not been observed in the bounded startup
+log window. This is the concrete remaining same-signer configuration question.
+Freeze coordinator/external financial senders as already agreed; disk-source
+audit cannot exclude another authorized process holding the same account.
+No need to postulate malicious arbitrary code to state these boundaries.
+
+Actual shutdown hooks and workers
+Collected application registrations are store.js54 SIGTERM/SIGINT sync flush,
+fleet.mjs33 unhandledRejection logging and34 uncaughtException->exit1. No exit
+listener, worker_threads import or Worker construction found in app closure.
+Dependency scan finds no process.on/once/prependListener/addListener registration.
+Only worker matches are ox Tempo VirtualMaster salt-mining implementation (ESM
+and CJS). Worker creation is inside resolveNode->spawn; called by mineSaltAsync,
+not module top-level. Actual app imports neither Tempo nor VirtualMaster; viem
+main/accounts exports used here contain no Tempo/VirtualMaster imports. Therefore
+these installed worker definitions are not evidence of a live financial worker.
+No observed source path creates a new financial delegation synchronously during
+the JsonStore flush loop or process.exit. The generic exit/getter scenarios in
+financial-coverage-invariant.txt are conditional examples, not actual findings.
+
+Journal shape and uniqueness
+JsonStore constructs data from ordinary initial object + JSON.parse disk data;
+journal is {txs:[]}. TxQueue appends ordinary record literals containing label,
+address, nonce, hashes array, status and time; later mutations are hash/error/
+receipt scalar fields. No toJSON, descriptor/proxy or global prototype/stringify
+patch affecting these records was found. Only this constructor uses the exact
+sessions-relayer.json filename, and mutations/flush calls are in this TxQueue.
+No alternate live service initialization is called by collected source. Actual
+shared .tmp filename is safe only while the agreed sole journal writer remains
+true; no independent process-writer inventory or in-memory inspection is claimed.
+Retention500 is real, not hypothetical. A durable prefix/archive must bridge
+any old pruned unknown attempts. Unknown status send_failed/nonce_lost/stuck is
+not proof of nonbroadcast. A no-hash record covers ambiguity, not its outcome.
+
+Finite remaining evidence plan
+1. Resolve actual configured host-sponsor account identity using existing public
+   startup/runtime facts or a separately reviewed presence/equality-only local
+   check; no exported private keys. If same account, include its inflight domain.
+2. Preserve the operation's private pre/post journal/index snapshots and establish
+   canonical prefix. Confirm retention does not remove any unreconciled tail;
+   actual count/range metadata can be reported without raw financial state.
+3. Qualify successful exact journal serialization/write/rename plus final inode
+   identity/readback and writer death. Record PID/startTicks/source/executable
+   identities at stop. Swallowed flush failure, stale rename, partial observer
+   coverage and SIGKILL/OOM must refuse, even on exit0 or unchanged JSON hash.
+4. Use the actual-source record-before-delegation invariant for covered pending
+   I/O; do not require zero unrelated shutdown syscalls. Explicitly change and
+   qualify that acceptance model before applying it. The existing conservative
+   fixture result stays REFUSED: it did not classify fd14/io_uring and is not
+   retroactively marked verified by this reasoning.
+5. After death, reconcile every known nonce family including no-hash/failed
+   attempts and original refund using pinned chain reads. Any unknown outcome
+   retains write quarantine; a waiting deadline or latest=pending cannot clear it.
+6. Startup/fallback must preserve immutable quarantine and disabled intake until
+   that reconciliation succeeds. A failed successor never restarts old writer.
+
+Specific bounded fault tests to qualify the revised model (proposal, NOT RUN)
+A. Exact old TxQueue + exact JsonStore with public TEST key and owned loopback
+   RPC: pause before record (gas/fee/nonce await), stop; assert no delegation.
+B. Pause RPC after receiving send but before responding; stop; final snapshot
+   contains sending/no-hash nonce. Let owned RPC retain/complete request after
+   exit: coverage holds, financial outcome stays UNKNOWN, never resend.
+C. Receipt/replacement-await stop: all hashes/attempts grouped under original
+   nonce/record. Queue item behind it must not newly delegate after capture.
+D. Force temp write and rename failures separately; handler exit0 must REFUSE.
+   Include normal pre-signal rename then failed final flush to reject stale proof.
+E. Kill before final rename (SIGKILL) / incomplete metadata capture: REFUSE.
+F. >500 records with an unresolved old attempt: REFUSE unless immutable archive
+   and reconciled prefix explicitly cover it. Test pruned unknown vs safe prefix.
+G. Deliberate TEST exit listener/new send or duplicate journal writer is a
+   negative validation case: source-profile mismatch/coverage REFUSE, not a claim
+   those mechanisms exist in production.
+H. Candidate failure after old stop: owned candidate stopped, gate/marker retained,
+   original remains stopped; no journal restoration. This checks rollback wiring.
+Do not execute these until the coordinator reviews exact fixture/resources/scope.
+None requires live process attach, keys, real RPC sends or zero network syscalls.
+
+Evidence files: metadata.json, dependency-metadata.json, source/ and selected
+dependency-source/. Preserve private evidence; summarize counts/hashes/public
+addresses only. This assessment does not authorize production write resumption.

@@ -1,0 +1,85 @@
+{
+  "admission": {
+    "unit": "enclave-wallet-owned-session-create-r1-20261029-author.service",
+    "invocationId": "8d94dc3a6d9a46278fea528aa067091b",
+    "mainPid": 2190532,
+    "runnerPid": 2190577,
+    "claudePid": 2190586,
+    "observedAt": 1793328446.4041133,
+    "unitProperties": {
+      "ActiveState": "active",
+      "SubState": "running",
+      "InvocationID": "8d94dc3a6d9a46278fea528aa067091b",
+      "MainPID": "2190532",
+      "CPUQuotaPerSecUSec": "1s",
+      "AllowedCPUs": "1",
+      "MemoryMax": "1610612736",
+      "MemorySwapMax": "0"
+    },
+    "processes": {
+      "2190532": {
+        "startTicks": 163354271,
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "cpuAllowed": [
+          "Cpus_allowed_list:\t0-31"
+        ]
+      },
+      "2190577": {
+        "startTicks": 163354282,
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "cpuAllowed": [
+          "Cpus_allowed_list:\t1"
+        ]
+      },
+      "2190586": {
+        "startTicks": 163354316,
+        "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+        "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-create-r1-20261029",
+        "cpuAllowed": [
+          "Cpus_allowed_list:\t1"
+        ]
+      }
+    },
+    "runnerAccount": {
+      "loggedIn": true,
+      "email": "steven.r.batchelor@gmail.com",
+      "subscriptionType": "max"
+    }
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 0,
+    "finishedAt": 1793329187.1371884,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "1ab6f90d-aff1-45f2-84da-655ac30a8b96",
+  "duration_ms": 757174,
+  "num_turns": 76,
+  "configuredMaxAgenticTurns": 55,
+  "distinctAssistantMessageIds": 38,
+  "transcriptUserRows": 76,
+  "turnMetricNote": "Raw success-result num_turns is a different user-message counter from max-agentic/API-turn limit; retain without conflating. See pinned turn-metric-investigation.json.",
+  "is_error": false,
+  "outputParseFailed": false,
+  "files": 202,
+  "changedFiles": 14,
+  "removedFiles": [],
+  "manifestSha256": "540149a2dad049c3e63dcb3741461d9cbb1dd9986fc30765241a236b6072c1ef",
+  "firstMutations": 14,
+  "firstMutationManifestSha256": "314c5cb6a661a956d49bb5e205f797d34c6629b59e967523361019d9f22127d5",
+  "currentInvocationTools": {
+    "Read": 28,
+    "Grep": 18,
+    "Write": 8,
+    "Edit": 21
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [],
+  "mutationAuditSha256": "857deb63b3963f30bd47d4c7e5e2a588ac9deb55e9199a8b94918fb1944217fb",
+  "innerGuard": "[memory-guard] exit=0 peakTreeRssMiB=299 minHostAvailableMiB=31392\n",
+  "outerGuard": "[memory-guard] exit=0 peakTreeRssMiB=364 minHostAvailableMiB=31392\n"
+}

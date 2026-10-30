@@ -1,0 +1,37 @@
+{
+ "format": "bsro-guard-test-receipt/r7",
+ "pass": true,
+ "stageSums": "7d4ccc8f873c435f6e1fd5577e8f6d40e833479605c79701fe742dfcb00e0056",
+ "suites": {
+  "test_disk_guard": {
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expected": 10,
+   "pass": true,
+   "ran": [
+    "10"
+   ],
+   "rc": 0
+  },
+  "test_mount_identity": {
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expected": 6,
+   "pass": true,
+   "ran": [
+    "6"
+   ],
+   "rc": 0
+  }
+ }
+}

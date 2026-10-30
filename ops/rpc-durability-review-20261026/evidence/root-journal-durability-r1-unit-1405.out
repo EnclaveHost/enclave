@@ -1,0 +1,6 @@
+[queue] START available=21833MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+PASS test/journal-durability.test.mjs: 12
+Results: /home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-rollout-20261026/journal-durability-r1/results/20261026T151732Z-1947280-unit
+[memory-guard] exit=0 peakTreeRssMiB=161 minHostAvailableMiB=21698
+[memory-guard] at peak: node:81 node:64 python3:13 bash:4
+[queue] EXIT 0

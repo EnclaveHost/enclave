@@ -1,0 +1,14 @@
+f9ff2f13b21698561638f59402cfcd90d82e02c8dc8a08d52c718bdd9779c866  ./README.md
+b7de4344154fdd9f4e000059cc0d130426e67d5a34474cc714407c2f7e656c00  ./claude-test-queue.candidate-1792.py
+07f144ce4caf500ccc36f212f372449f22e519076e23a657225160c1737c5db6  ./logs/test-queue-1792.guard
+47dd57604e7c7eeb60ca0fbcd036e6dbb26f3a4e5f4261f65f11aff305003712  ./logs/test-queue-1792.out
+93ff7811a209e2a8479230bbb9b6bc19f7f311d3af383ec350c1db2a7e7d5494  ./logs/test-queue-1792.rc
+4035b8b1dda3fae284afef0955ac706f2395380c1f8f1d2353a1b3ebe8e3532d  ./logs/test-queue-1792.try1-warnings.guard
+fdd671157a1cf1e6c657ce5cbc51869600adb5709d5d0829feef4c68e4c430fc  ./logs/test-queue-1792.try1-warnings.out
+93ff7811a209e2a8479230bbb9b6bc19f7f311d3af383ec350c1db2a7e7d5494  ./logs/test-queue-1792.try1-warnings.rc
+eef4dc589c0a5418abaee17eb6caacb8f100b87c7682757797789ed2cb1180d7  ./queue-1792.patch
+f04e3d62809f00028b3c8f0bbd9c38133a416babb37c8aab0085e091261b0b89  ./root-installed.sha256
+39df0eed93a3a2f98393d9b73e0dde0c15df63e9f86f527c9355ca4cac4c645b  ./run-tests.sh
+e0134bca709cfb1e30ff44c7dae60d85258dd54fd6cce8b7ba05b5c8f5e7d474  ./superseded-not-executed/NOTE.md
+1e22e897f152a418907759a7f9290fef5fada6ec241702dc8bff3f7309ddf940  ./superseded-not-executed/control-rerun.sh
+0a5d7a32213ae344b641e8e57113b6b798ce3fecb5aefbcb5d6e02d3144365d5  ./test_queue_1792.py

@@ -1,0 +1,19 @@
+[queue] START available=22537MiB required=19456MiB cap=2560MiB floor=16384MiB concurrentSmall=256MiB
+## neg-wrong-digest: refused as expected (rc 1)
+## neg-digest-missing: refused as expected (rc 1)
+## legacy build (no flags)
+     10.3 KB  dist/js/chunks/chunk-NXJPPJVR.js
+      3.8 KB  dist/js/chunks/chunk-DRRCG5VQ.js
+[build] dist/: 236 files · 28.5 MB
+## own-rpc build (fixture)
+     10.3 KB  dist/js/chunks/chunk-NXJPPJVR.js
+      3.8 KB  dist/js/chunks/chunk-DRRCG5VQ.js
+[build] dist/: 236 files · 28.5 MB
+## build smoke: legacy 236 files, own 236 files, own embeds fixture True, legacy embeds False, failures 0
+## DRIFT/STATUS /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r3/build-work-20261026T002047Z/build-legacy: 3 entries:  M site/css/site.css;  M site/js/gen/contract-artifacts.js; ?? node_modules
+## DRIFT/STATUS /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r3/build-work-20261026T002047Z/build-own: 12 entries:  M scripts/build-site.mjs;  M site/css/site.css;  M site/js/core/chain.js;  M site/js/core/config.js;  M site/js/core/sessions.js;  M site/js/core/wallet.js;  M site/js/gen/contract-artifacts.js; ?? docs/network/browser-read-authority.md
+## logs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r3/logs/root-r3-build-20261026T002047Z (dist + clones stay in /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r3/build-work-20261026T002047Z, private)
+## aggregate rc=0
+[memory-guard] exit=0 peakTreeRssMiB=948 minHostAvailableMiB=21960
+[memory-guard] at peak: git:897 git:36 git-upload-pack:6 git:5 bash:4
+[queue] EXIT 0

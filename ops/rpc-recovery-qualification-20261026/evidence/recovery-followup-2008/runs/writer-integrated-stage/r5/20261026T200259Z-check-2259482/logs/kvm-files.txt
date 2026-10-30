@@ -1,0 +1,6 @@
+test/journal-durability.test.mjs
+test/lifecycle-finality-bridge.test.mjs
+test/deployment-lifecycle-journal.test.mjs
+test/derived-reader/provider.test.mjs
+test/derived-reader/boundaries.test.mjs
+test/derived-reader/coverage.test.mjs

@@ -1,0 +1,26 @@
+{
+  "capturedAt": "2026-10-29T23:11:45.712Z",
+  "readOnly": true,
+  "assurance": "Single Enclave RPC diagnostic only, not quorum-confirmed, not authority for transactions",
+  "vault": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+  "wallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+  "observation": {
+    "blockNumber": "53263078",
+    "blockHash": "0x020d825ad3684ad330c2a79db028842fe89c9bdebd8d5f72dfba1a2ba03f9d4b",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "factory": "0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C",
+    "isVault": true,
+    "vaultFor": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+    "factoryCodeHash": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
+    "expectedFactory": {
+      "address": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
+      "codeHash": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
+      "name": "legacy SessionVault factory"
+    },
+    "apiMcpAdapter": {
+      "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "rate": "0",
+      "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a"
+    }
+  }
+}

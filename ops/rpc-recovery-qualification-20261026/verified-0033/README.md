@@ -1,0 +1,7 @@
+# First 36 GiB independently verified; sequential runner active
+
+The new verification session independently re-read the source and destination for parts 1..8 and passed every byte comparison. It ended CONFIRMED, original metadata unchanged, complete cleanup, no leftover processes and unchanged peers. All nine saved parts (36 GiB including the canary) are now committed and independently verified. No stale, unconfirmed, invalid or failed records were reported. Verification data-service time was 634.647 seconds for 32 GiB (51.63 MiB/s under current conditions); this is not a whole-dataset ETA. Host available memory stayed above 20,976 MiB.
+
+The qualified driver activated automatically after both existing jobs returned zero. Its first production admission for parts 9..16 passed against every prior verified part and exact full remaining reservation. Root free space was 534,677,581,824 bytes, leaving 6,396,604,416 bytes beyond remaining logical data + 40 GiB floor + 8 GiB external native-build reservation. The /vm margin was 40,364,527,616 bytes beyond remaining data + 40 GiB floor. The copy wrapper started; no result for that new batch is claimed in this checkpoint.
+
+Original USB writes, downloads and RPC VM boot remain paused. This is preservation progress, not MDBX integrity, canonical-state validation or production RPC readiness. The original remains protected and no RAID reset is authorized.

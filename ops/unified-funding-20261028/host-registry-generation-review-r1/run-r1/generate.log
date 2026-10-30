@@ -1,0 +1,16 @@
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-schema3-host-composition-r1/src/tools/insertion-patch.mjs:20
+  if (got !== expectedSha256) throw Error(`${what} hash ${got} is not the pinned ${expectedSha256}`);
+                                    ^
+
+Error: lifecycle-host-profile.mjs hash 98e33cfeb1b7612d49e8a30260d8272b8863808f558971f0c68a798c965d9176 is not the pinned 98e33cfe1b7612d49e8a30260d8272b8863808f558971f0c68a798c965d9176
+    at applyInsertions (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-schema3-host-composition-r1/src/tools/insertion-patch.mjs:20:37)
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-registry-generation-preflight-r1/author-snapshot/generate-lifecycle-host-registry-host-candidate.mjs:111:5
+    at Array.map (<anonymous>)
+    at generateHostRegistryHostFiles (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-registry-generation-preflight-r1/author-snapshot/generate-lifecycle-host-registry-host-candidate.mjs:110:51)
+    at writeHostRegistryHostFiles (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-registry-generation-preflight-r1/author-snapshot/generate-lifecycle-host-registry-host-candidate.mjs:119:13)
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-registry-generation-preflight-r1/author-snapshot/generate-lifecycle-host-registry-host-candidate.mjs:131:30
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.3

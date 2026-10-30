@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-28T11:42:00Z",
+  "host": "Metal0",
+  "launcherSha256": "dbdba982705171cac4f69b10cfc6a9a198d5ce5aedc74a706921fe3243566935",
+  "helperSha256": "fe3743b12902f07a03f7ee9ca295b4cdd97f67a9291dd320ed4a2eef88d4bc75",
+  "sourceCommit": "dcd6908e843b9c88be3ed2926c8dfab53af5f00d",
+  "reaperEnabled": true,
+  "reaperResult": "success",
+  "reaperExitStatus": 0,
+  "guest": "gd81579473",
+  "guestUnit": "m2-gd81579473-283910.service",
+  "mainPID": 283939,
+  "padLogicalBytes": 549755813888,
+  "padAllocatedBlocks512": 1073742200,
+  "padInode": 199101094,
+  "freeRootGiBApprox": 440,
+  "maxPadGiB": 704,
+  "freeSpaceFloorGiB": 100,
+  "productionRestartByThisVerification": false
+}

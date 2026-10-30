@@ -1,0 +1,34 @@
+{
+  "kind": "guestd-commitments/1",
+  "seq": 1,
+  "instance": "240ddcbd0e5d7f91",
+  "pool": {
+    "budgetMemMiB": 98304,
+    "allocatedMemMiB": 65049,
+    "guests": 1,
+    "floorMiB": 18432,
+    "memAvailableMiB": 29123,
+    "pendingMiB": 4963,
+    "unreadUnits": 0
+  },
+  "inference": {
+    "cards": 2,
+    "cardBudgetBytes": 33285996544,
+    "cardAllocatedBytes": 26628797235,
+    "cardFreeBytes": 6657199309,
+    "shareBoundedMemory": true,
+    "modelFloorsMiB": {
+      "qwen3.8-27b-mtp-q4-vl-gguf": 73728,
+      "z-image-turbo-q4km-sd": 6144
+    }
+  },
+  "held": [
+    {
+      "idSha256": "af5a47073e9cd61e",
+      "status": "running",
+      "memMiB": 65049,
+      "cpuPct": 1600,
+      "gpuCardBytes": 26628797235
+    }
+  ]
+}

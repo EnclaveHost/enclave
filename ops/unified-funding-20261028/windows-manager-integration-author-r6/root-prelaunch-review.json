@@ -1,0 +1,16 @@
+{
+  "reviewedAt": 1793288071.808367,
+  "preparedSha256": "b41f59bea04c894966845ae3c3a8476e4ba580986ab24f54fd760c79c66d72b5",
+  "readonlyPinsVerified": 2048,
+  "seedFilesVerified": 161,
+  "sourceOnly": true,
+  "taskRead": true,
+  "runnerAndCollectorRead": true,
+  "limitsReviewed": true,
+  "sameAuthorityFixPreserved": true,
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  }
+}

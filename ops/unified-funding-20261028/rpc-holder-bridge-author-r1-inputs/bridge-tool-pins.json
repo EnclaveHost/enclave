@@ -1,0 +1,47 @@
+{
+  "scope": "file hashing only; no native tool or account invocation",
+  "tools": {
+    "/usr/bin/python3": {
+      "resolvedPath": "/usr/bin/python3.14",
+      "sha256": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b",
+      "executed": false
+    },
+    "/usr/bin/node": {
+      "resolvedPath": "/usr/bin/node",
+      "sha256": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9",
+      "executed": false
+    },
+    "/usr/bin/taskset": {
+      "resolvedPath": "/usr/bin/taskset",
+      "sha256": "8bf4947cca932588598aa0b2413f520df438f6964057edff09a112518decc75d",
+      "executed": false
+    },
+    "/usr/bin/systemd-run": {
+      "resolvedPath": "/usr/bin/systemd-run",
+      "sha256": "62a4f4021eb356f8124953eea7ba7c95b2daf96c2e83808399ad043ba2447a99",
+      "executed": false
+    },
+    "/usr/bin/systemctl": {
+      "resolvedPath": "/usr/bin/systemctl",
+      "sha256": "6e727451366c75070ab02f02d945e3c83f8774ddf7e1661c5d71cbbf0d59b3cc",
+      "executed": false
+    },
+    "/usr/bin/sudo": {
+      "resolvedPath": "/usr/bin/sudo",
+      "sha256": "e9f8a0d0b52fff1391dbde8fbd2c14a010a1b4daa338e948a9f2e217de84e689",
+      "executed": false
+    },
+    "/usr/bin/visudo": {
+      "resolvedPath": "/usr/bin/visudo",
+      "sha256": "a433e8f12b8e1ed4cfde37fe9918442052c5f6a9f649312c4d86f9760addb79e",
+      "executed": false
+    }
+  },
+  "localPrimaryDocs": {
+    "/usr/share/man/man1/systemd-run.1.gz": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-holder-bridge-author-r1-20261030/evidence/systemd-run.man.txt",
+    "/usr/share/man/man5/systemd.service.5.gz": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-holder-bridge-author-r1-20261030/evidence/systemd.service.man.txt",
+    "/usr/share/man/man5/systemd.resource-control.5.gz": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-holder-bridge-author-r1-20261030/evidence/systemd.resource-control.man.txt",
+    "/usr/share/man/man5/systemd.exec.5.gz": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-holder-bridge-author-r1-20261030/evidence/systemd.exec.man.txt",
+    "/usr/share/man/man5/sudoers.5.gz": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-holder-bridge-author-r1-20261030/evidence/sudoers.man.txt"
+  }
+}

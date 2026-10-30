@@ -1,0 +1,3 @@
+1f47894692afdb81c0e8227cb5c29da59fd24e0df3be6f0c6b7f7d9a5dc7635c  windows/node/chain.mjs
+30ef9f09eca5276abdbf04202f178dcccd082327f45161b46f5f8986d1057fd1  windows/node/host-onchain.mjs
+39b483536df622c4cc0726125f41ac401b3ffd9b48e86d2bccc7b2fc3040f1a3  test/windows-owner-cli.test.mjs

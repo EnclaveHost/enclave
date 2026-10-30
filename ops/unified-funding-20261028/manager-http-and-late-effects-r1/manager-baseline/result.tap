@@ -1,0 +1,29 @@
+TAP version 13
+ROOT health evidence {"backend":"hyperv-partition-per-app","supports":{"gpu":false,"secrets":false,"egress":false,"config":false,"ports":false,"configCid":false,"set":false,"mem64":false},"expiryEnforced":null}
+# Subtest: current manager reports readiness capabilities, never claims continuing lifecycle deadline enforcement
+ok 1 - current manager reports readiness capabilities, never claims continuing lifecycle deadline enforcement
+  ---
+  duration_ms: 25.638052
+  type: 'test'
+  ...
+# Subtest: legacy start/read/explicit stop still works through exact-source HTTP without treating readiness as a permit
+ok 2 - legacy start/read/explicit stop still works through exact-source HTTP without treating readiness as a permit
+  ---
+  duration_ms: 31.977029
+  type: 'test'
+  ...
+# Subtest: unimplemented deadline endpoint refuses; HTTP success on legacy VM is not an enforcement acknowledgment
+ok 3 - unimplemented deadline endpoint refuses; HTTP success on legacy VM is not an enforcement acknowledgment
+  ---
+  duration_ms: 37.107135
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 194.788968

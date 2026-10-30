@@ -1,0 +1,9 @@
+# Client recovery review r3 — not activated
+
+Root reviewed the reorg-proof ordering, finality header checks, pinned-chain expiry evidence, and finite partition accounting. Actual guarded stage run on October28 passed all42 tests with zero skips:18 canonical receipt/event tests,3 unchanged root reorg regressions,14 migration/offline tests,7 partition cases. Sequential Node test concurrency1;512MiB hard cap/noSwap,450MiB process-tree cap,27648MiB host floor. Observed outer peak200MiB and minimum available30685MiB.
+
+The earlier three independently reproduced failures now pass. Canonical proofs are rechecked before later sends/adoption; disappeared or moved receipts retain evidence and refuse. Optional finalized caching is not approved. Gas partitions are explicit, disjoint and complete, total exactly1USDC, plus29 legacy, with separate nonextractable keys and original legacy key preserved. The proposed0.9/0.1 split is not approved: the image partition may be too small for an actual fee quote. No current-price inference from fixtures.
+
+These tests use Node WebCrypto, public fixture keys, scripted chain/relay and memory storage. They do not establish real browser IndexedDB/reload/concurrency, actual original-to-successor HTTP/contract integration, fresh runtime/scope/fee pins or production readiness. A source-only Claude task is preparing those missing integration fixtures. No real session termination, grant, approval, USDC movement, or relay activation.
+
+This is a source/evidence snapshot, not a portable installed package. Original staging-relative imports are retained; prepare-expect.json is null and refuses staging. The site candidate remains unbuilt/default-off and its raw development UI is not a final signing handoff. Production wallet contract deployments are a separate human-approved workflow.

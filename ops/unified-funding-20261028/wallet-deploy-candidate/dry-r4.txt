@@ -1,0 +1,8 @@
+[queue] START available=18095MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+
+[memory-guard] STOPPING own job: host MemAvailable 18034 MiB < floor 27648 MiB
+[memory-guard] exit=SIGTERM peakTreeRssMiB=80 minHostAvailableMiB=18034 STOPPED: host MemAvailable 18034 MiB < floor 27648 MiB
+[memory-guard] at peak: node:80
+[memory-guard] exit=99 peakTreeRssMiB=128 minHostAvailableMiB=18036
+[memory-guard] at peak: node:78 node:50
+[queue] EXIT 99

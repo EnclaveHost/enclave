@@ -1,0 +1,48 @@
+{
+  "scope": "Loader only; no inference or production admission qualification",
+  "rows": [
+    {
+      "run": "bench-run-r1",
+      "arm": "A",
+      "host_peak_sampled_bytes": 38769819648,
+      "guest_child_peak_bytes": 35170607104,
+      "copy_verify_ms": 30494,
+      "digest_verified": true,
+      "advice_failures": 0,
+      "cleanup": "clean"
+    },
+    {
+      "run": "bench-run-r1",
+      "arm": "B",
+      "host_peak_sampled_bytes": 21198712832,
+      "guest_child_peak_bytes": 17612918784,
+      "copy_verify_ms": 21609,
+      "digest_verified": true,
+      "advice_failures": 0,
+      "cleanup": "clean"
+    },
+    {
+      "run": "bench-run-r2",
+      "arm": "B",
+      "host_peak_sampled_bytes": 21172940800,
+      "guest_child_peak_bytes": 17612922880,
+      "copy_verify_ms": 21511,
+      "digest_verified": true,
+      "advice_failures": 0,
+      "cleanup": "clean"
+    },
+    {
+      "run": "bench-run-r2",
+      "arm": "A",
+      "host_peak_sampled_bytes": 38752235520,
+      "guest_child_peak_bytes": 35166355456,
+      "copy_verify_ms": 30232,
+      "digest_verified": true,
+      "advice_failures": 0,
+      "cleanup": "clean"
+    }
+  ],
+  "production_changed": false,
+  "experiment_spend_usd": 0,
+  "snp_attestation_independently_verified": false
+}

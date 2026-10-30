@@ -1,0 +1,42 @@
+[
+  {
+    "path": "INPUT-PINS.json",
+    "sha256": "2b0e10bc74253079019d8e2f5306821f9e866a02d92667ffd2a08bba52abadd9"
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "sha256": "9d8e057fe69ee0a399ad3ef9aadb16bc17811e4409c83dc552f70cfe50c87c8f"
+  },
+  {
+    "path": "attempt.json",
+    "sha256": "72dc77b1ebe0cc02a8f72da8253628104c968f268284fa63b173832ea5ac9980"
+  },
+  {
+    "path": "config.json",
+    "sha256": "0e241aeb4fb5fdeeccddd763eae5f74d65815e81f28de24a2c9b03d7ea9c5902"
+  },
+  {
+    "path": "discovery-hints.json",
+    "sha256": "1314d22d28a3c44255b1ecb986e3ddded8ac97080d409c6da36fd699f8a69959"
+  },
+  {
+    "path": "inner.guard.log",
+    "sha256": "d982d6acfe9858414ce6fa6c2276aba325c52217c3c98d4fbfccce6569bb2ade"
+  },
+  {
+    "path": "ledger-artifact.json",
+    "sha256": "2a2d46d2e705cddae0ce7b8eda896a91e00dbcc3c9d9f78d595fbe8c07bb58d5"
+  },
+  {
+    "path": "outer.guard.log",
+    "sha256": "93bce9337cc619d8119e177fe504395dd96da2feb1de195e1c20797320493743"
+  },
+  {
+    "path": "read.mjs",
+    "sha256": "fb9b189a0b88c3e1ea1f2275a737caeddd6c6fdc6c78cd35e8ee9a676ad0e93f"
+  },
+  {
+    "path": "result.json",
+    "sha256": "ee7011a718acf5d7e32dcf410b0971858b65efdbd964cdab59921177b76a6394"
+  }
+]

@@ -1,0 +1,19 @@
+{
+ "format": "postdelete-bitmap-case/r1",
+ "inode": 1950053,
+ "oldGeneration": 3326586236,
+ "metadataBlocks": 28,
+ "inputs": {
+  "journalSha256": "d95d81fcaf1fdecb305f5645bc5bf2d6093d0a7fc40affbfc769894798cbc073",
+  "fsStatsSha256": "ee9e72357c187d465f1da380151f6a69457ebb5bd4db437e8853e728d8f369d2",
+  "coverageSha256": "94ceb13f5ada6fe58e2db3f02929d49bcaf689f8488360b9892515a5471acb15"
+ },
+ "expect": {
+  "fsUuid": "11c6bbacf8234052a87a066eed6ad590",
+  "inodeTableBlock": 499122230,
+  "slotOffset": 1024,
+  "lastLiveSequence": 17169,
+  "deletionStartSequence": 17170,
+  "oldSize": 1138166333440
+ }
+}

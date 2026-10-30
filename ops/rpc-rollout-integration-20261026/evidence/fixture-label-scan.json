@@ -1,0 +1,19 @@
+{
+  "scope": "Exact public class name, no broader rule suppression",
+  "cases": {
+    "public": {
+      "exit": 0,
+      "findings": 0
+    },
+    "changed": {
+      "exit": 1,
+      "findings": 1
+    },
+    "other-path": {
+      "exit": 1,
+      "findings": 1
+    }
+  },
+  "fixtureSha256": "c7f6388536dd23113c40ed7aad52f60e717bc1316728073014881a2f47db7af8",
+  "applied": true
+}

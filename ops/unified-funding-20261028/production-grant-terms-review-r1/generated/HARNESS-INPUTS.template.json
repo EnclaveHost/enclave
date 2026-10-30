@@ -1,0 +1,14 @@
+{
+  "schema": "production-grant-terms-r1-harness-inputs/v1",
+  "note": "TEMPLATE. Root copies this to generated/HARNESS-INPUTS.json after building page/dist/harness.js and the successor vendor bundle from candidate/sdk/funding, and fills every null. out/server.mjs refuses to start on null or drift. vendor maps the two static routes to hash-gated files served byte for byte.",
+  "files": {
+    "production-grant-terms-r1/page/index.html": null,
+    "production-grant-terms-r1/page/dist/harness.js": null,
+    "production-grant-terms-r1/candidate/site/vendor/funding.js": null,
+    "../source/sdk/sessions/dist/browser.mjs": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997"
+  },
+  "vendor": {
+    "/harness/vendor/funding.js": "production-grant-terms-r1/candidate/site/vendor/funding.js",
+    "/harness/vendor/sessions.js": "../source/sdk/sessions/dist/browser.mjs"
+  }
+}

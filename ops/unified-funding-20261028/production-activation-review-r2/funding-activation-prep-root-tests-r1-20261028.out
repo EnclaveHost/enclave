@@ -1,0 +1,168 @@
+[queue] START available=89085MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: well-formed common header accepted
+ok 1 - well-formed common header accepted
+  ---
+  duration_ms: 1.21063
+  type: 'test'
+  ...
+# Subtest: malformed or unsafe pinned timestamp refused: not-a-time
+not ok 2 - malformed or unsafe pinned timestamp refused: not-a-time
+  ---
+  duration_ms: 0.624575
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-activation-prep-r1/root-review/observation.test.mjs:7:54'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-activation-prep-r1/root-review/observation.test.mjs:7:188)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: malformed or unsafe pinned timestamp refused: 9007199254740993
+ok 3 - malformed or unsafe pinned timestamp refused: 9007199254740993
+  ---
+  duration_ms: 0.155979
+  type: 'test'
+  ...
+# Subtest: missing pinned timestamp refused
+ok 4 - missing pinned timestamp refused
+  ---
+  duration_ms: 0.139548
+  type: 'test'
+  ...
+# Subtest: unlisted sequencer grace weakening refused
+not ok 5 - unlisted sequencer grace weakening refused
+  ---
+  duration_ms: 0.375897
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-activation-prep-r1/root-review/observation.test.mjs:9:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-activation-prep-r1/root-review/observation.test.mjs:9:245)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: same sequencer grace requires no change
+ok 6 - same sequencer grace requires no change
+  ---
+  duration_ms: 0.736234
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 4
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 131.400114
+ORIGINAL_FAILURES_RETAINED; running corrected tests
+TAP version 13
+# Subtest: well-formed common header accepted
+ok 1 - well-formed common header accepted
+  ---
+  duration_ms: 1.193631
+  type: 'test'
+  ...
+# Subtest: malformed or unsafe pinned timestamp refused: not-a-time
+ok 2 - malformed or unsafe pinned timestamp refused: not-a-time
+  ---
+  duration_ms: 0.323938
+  type: 'test'
+  ...
+# Subtest: malformed or unsafe pinned timestamp refused: 9007199254740993
+ok 3 - malformed or unsafe pinned timestamp refused: 9007199254740993
+  ---
+  duration_ms: 0.113289
+  type: 'test'
+  ...
+# Subtest: missing pinned timestamp refused
+ok 4 - missing pinned timestamp refused
+  ---
+  duration_ms: 0.132529
+  type: 'test'
+  ...
+# Subtest: unlisted sequencer grace weakening refused
+ok 5 - unlisted sequencer grace weakening refused
+  ---
+  duration_ms: 0.492606
+  type: 'test'
+  ...
+# Subtest: same sequencer grace requires no change
+ok 6 - same sequencer grace requires no change
+  ---
+  duration_ms: 0.499936
+  type: 'test'
+  ...
+# Subtest: unreviewed or credentialed providers refused before fetch
+ok 7 - unreviewed or credentialed providers refused before fetch
+  ---
+  duration_ms: 0.935422
+  type: 'test'
+  ...
+# Subtest: send method refused before fetch
+ok 8 - send method refused before fetch
+  ---
+  duration_ms: 0.341498
+  type: 'test'
+  ...
+# Subtest: matching bounded read succeeds
+ok 9 - matching bounded read succeeds
+  ---
+  duration_ms: 14.658791
+  type: 'test'
+  ...
+# Subtest: mismatched response identity refused
+ok 10 - mismatched response identity refused
+  ---
+  duration_ms: 0.370717
+  type: 'test'
+  ...
+# Subtest: JSON-RPC errors and absent version refused
+ok 11 - JSON-RPC errors and absent version refused
+  ---
+  duration_ms: 0.644144
+  type: 'test'
+  ...
+# Subtest: oversized streaming response refused without trusting content length
+ok 12 - oversized streaming response refused without trusting content length
+  ---
+  duration_ms: 1.31148
+  type: 'test'
+  ...
+# Subtest: oversized announced body refused
+ok 13 - oversized announced body refused
+  ---
+  duration_ms: 1.021132
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 261.262031
+[memory-guard] exit=0 peakTreeRssMiB=168 minHostAvailableMiB=89009
+[memory-guard] at peak: node:65 node:53 node:50
+[memory-guard] exit=0 peakTreeRssMiB=216 minHostAvailableMiB=89015
+[memory-guard] at peak: node:62 node:53 node:50 node:50
+[queue] EXIT 0

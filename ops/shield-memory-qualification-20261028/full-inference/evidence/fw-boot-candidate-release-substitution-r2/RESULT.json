@@ -1,0 +1,496 @@
+{
+  "scope": "GPU-free boot/rejection qualification; not inference or independently verified attestation",
+  "spec": {
+    "target": "candidate-release",
+    "case": "substitution",
+    "firmware_sha256": "5c4840cdac447322ec9f3547026c394570fad3086ffdab35c6e7f593f72a777a",
+    "image_sha256": "7a71d50dfe4282a895d677377347f47f0230b0fc69000b697f38c6a3da8846ec",
+    "qemu": "/home/steven/.cache/enclave-isolation/parallel-vmsa-qemu-hashtest/build/qemu-system-x86_64",
+    "qemu_sha256": "80907c75de32a16b469c0476f994b4db5ff2df4a45743dd74e0698c674e32ccc",
+    "guest_mib": 4096,
+    "cap_mib": 6144,
+    "no_gpu": true,
+    "no_disks": true,
+    "no_network": true,
+    "override_sha256": "459df8724f83fbcfc143d429e9e0edd8ce37b2665289616a51bc0c71e8d18e07"
+  },
+  "argv": [
+    "systemd-run",
+    "--user",
+    "--unit",
+    "fullbench-d417378ac32944ae-fw.service",
+    "--service-type=exec",
+    "-p",
+    "MemoryMax=6144M",
+    "-p",
+    "MemorySwapMax=0",
+    "-p",
+    "CPUQuota=200%",
+    "-p",
+    "TasksMax=128",
+    "-p",
+    "RuntimeMaxSec=120",
+    "-p",
+    "TimeoutStopSec=10",
+    "-p",
+    "KillMode=control-group",
+    "--setenv=LD_LIBRARY_PATH=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/test-qemu-compat",
+    "--setenv=ENCLAVE_TEST_HASH_INITRD=/home/steven/.cache/enclave-isolation/parallel-review-m4b/measinit-probe0.cpio.gz",
+    "--",
+    "/home/steven/.cache/enclave-isolation/parallel-vmsa-qemu-hashtest/build/qemu-system-x86_64",
+    "-machine",
+    "q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1",
+    "-object",
+    "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on",
+    "-object",
+    "memory-backend-memfd,id=ram1,size=4096M,share=true",
+    "-cpu",
+    "host",
+    "-smp",
+    "2",
+    "-m",
+    "4096M",
+    "-bios",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/OVMF.candidate-release.fd",
+    "-kernel",
+    "/home/steven/enclave-prod/release-5cab66e4/kernel",
+    "-initrd",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/A.cpio.gz",
+    "-append",
+    "console=ttyS0 rdinit=/init loglevel=3",
+    "-nodefaults",
+    "-no-user-config",
+    "-nic",
+    "none",
+    "-monitor",
+    "none",
+    "-display",
+    "none",
+    "-serial",
+    "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fw-boot-candidate-release-substitution-r2/serial.log",
+    "-debugcon",
+    "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fw-boot-candidate-release-substitution-r2/debug.log",
+    "-global",
+    "isa-debugcon.iobase=0x402",
+    "-no-reboot"
+  ],
+  "samples": [
+    {
+      "t": 1793169213.105717,
+      "host_available": 88733224960
+    },
+    {
+      "t": 1793169214.119927,
+      "host_available": 88786952192
+    },
+    {
+      "t": 1793169215.146465,
+      "host_available": 88309305344
+    },
+    {
+      "t": 1793169216.1741946,
+      "host_available": 86388674560
+    },
+    {
+      "t": 1793169217.1968362,
+      "host_available": 84453842944
+    },
+    {
+      "t": 1793169218.2121906,
+      "host_available": 84443271168
+    },
+    {
+      "t": 1793169219.2279828,
+      "host_available": 84441579520
+    },
+    {
+      "t": 1793169220.2434819,
+      "host_available": 84437975040
+    },
+    {
+      "t": 1793169221.2588227,
+      "host_available": 84398649344
+    },
+    {
+      "t": 1793169222.2742426,
+      "host_available": 84419260416
+    },
+    {
+      "t": 1793169223.2891579,
+      "host_available": 84396630016
+    },
+    {
+      "t": 1793169224.3046308,
+      "host_available": 84399480832
+    },
+    {
+      "t": 1793169225.3201826,
+      "host_available": 84415373312
+    },
+    {
+      "t": 1793169226.3371906,
+      "host_available": 84401823744
+    },
+    {
+      "t": 1793169227.3521879,
+      "host_available": 84450795520
+    },
+    {
+      "t": 1793169228.3673937,
+      "host_available": 84443369472
+    },
+    {
+      "t": 1793169229.3831024,
+      "host_available": 84438323200
+    },
+    {
+      "t": 1793169230.39845,
+      "host_available": 84438724608
+    },
+    {
+      "t": 1793169231.414111,
+      "host_available": 84419989504
+    },
+    {
+      "t": 1793169232.4294624,
+      "host_available": 84392960000
+    },
+    {
+      "t": 1793169233.4446867,
+      "host_available": 84385488896
+    },
+    {
+      "t": 1793169234.4597297,
+      "host_available": 84386693120
+    },
+    {
+      "t": 1793169235.4744172,
+      "host_available": 84523905024
+    },
+    {
+      "t": 1793169236.4897108,
+      "host_available": 84488712192
+    },
+    {
+      "t": 1793169237.50534,
+      "host_available": 84485066752
+    },
+    {
+      "t": 1793169238.5208466,
+      "host_available": 84481064960
+    },
+    {
+      "t": 1793169239.536037,
+      "host_available": 84477784064
+    },
+    {
+      "t": 1793169240.5539353,
+      "host_available": 84401254400
+    },
+    {
+      "t": 1793169241.5691564,
+      "host_available": 84391485440
+    },
+    {
+      "t": 1793169242.584843,
+      "host_available": 84420202496
+    },
+    {
+      "t": 1793169243.600135,
+      "host_available": 84420427776
+    },
+    {
+      "t": 1793169244.615508,
+      "host_available": 84404449280
+    },
+    {
+      "t": 1793169245.6311352,
+      "host_available": 84507586560
+    },
+    {
+      "t": 1793169246.646685,
+      "host_available": 84494893056
+    },
+    {
+      "t": 1793169247.662599,
+      "host_available": 84488306688
+    },
+    {
+      "t": 1793169248.678168,
+      "host_available": 84475817984
+    },
+    {
+      "t": 1793169249.6939125,
+      "host_available": 84460953600
+    },
+    {
+      "t": 1793169250.7094944,
+      "host_available": 84456017920
+    },
+    {
+      "t": 1793169251.7249951,
+      "host_available": 84516831232
+    },
+    {
+      "t": 1793169252.7406166,
+      "host_available": 84511645696
+    },
+    {
+      "t": 1793169253.7563071,
+      "host_available": 84493742080
+    },
+    {
+      "t": 1793169254.7717717,
+      "host_available": 84459134976
+    },
+    {
+      "t": 1793169255.7874434,
+      "host_available": 84451840000
+    },
+    {
+      "t": 1793169256.804294,
+      "host_available": 84436238336
+    },
+    {
+      "t": 1793169257.8198836,
+      "host_available": 84434104320
+    },
+    {
+      "t": 1793169258.835365,
+      "host_available": 84436221952
+    },
+    {
+      "t": 1793169259.8507752,
+      "host_available": 84437213184
+    },
+    {
+      "t": 1793169260.8664246,
+      "host_available": 84433633280
+    },
+    {
+      "t": 1793169261.881951,
+      "host_available": 84431794176
+    },
+    {
+      "t": 1793169262.8974302,
+      "host_available": 84431060992
+    },
+    {
+      "t": 1793169263.9128764,
+      "host_available": 84432674816
+    },
+    {
+      "t": 1793169264.9283292,
+      "host_available": 84431298560
+    },
+    {
+      "t": 1793169265.9440498,
+      "host_available": 84442619904
+    },
+    {
+      "t": 1793169266.9595797,
+      "host_available": 84482781184
+    },
+    {
+      "t": 1793169267.9752538,
+      "host_available": 84495020032
+    },
+    {
+      "t": 1793169268.9904401,
+      "host_available": 84494835712
+    },
+    {
+      "t": 1793169270.0061507,
+      "host_available": 84480217088
+    },
+    {
+      "t": 1793169271.0220544,
+      "host_available": 84442148864
+    },
+    {
+      "t": 1793169272.0373602,
+      "host_available": 84482539520
+    },
+    {
+      "t": 1793169273.0533948,
+      "host_available": 84478545920
+    },
+    {
+      "t": 1793169274.0685902,
+      "host_available": 84474228736
+    },
+    {
+      "t": 1793169275.0837111,
+      "host_available": 84477554688
+    },
+    {
+      "t": 1793169276.0991743,
+      "host_available": 84463349760
+    },
+    {
+      "t": 1793169277.1146584,
+      "host_available": 84465434624
+    },
+    {
+      "t": 1793169278.1301816,
+      "host_available": 84468232192
+    },
+    {
+      "t": 1793169279.1456366,
+      "host_available": 84469641216
+    },
+    {
+      "t": 1793169280.1610165,
+      "host_available": 84459106304
+    },
+    {
+      "t": 1793169281.1764197,
+      "host_available": 84457050112
+    },
+    {
+      "t": 1793169282.1921794,
+      "host_available": 84444471296
+    },
+    {
+      "t": 1793169283.2077043,
+      "host_available": 84439707648
+    },
+    {
+      "t": 1793169284.2235374,
+      "host_available": 84466237440
+    },
+    {
+      "t": 1793169285.2403538,
+      "host_available": 84461891584
+    },
+    {
+      "t": 1793169286.255909,
+      "host_available": 84463411200
+    },
+    {
+      "t": 1793169287.2727225,
+      "host_available": 84452773888
+    },
+    {
+      "t": 1793169288.28791,
+      "host_available": 84455526400
+    },
+    {
+      "t": 1793169289.3036692,
+      "host_available": 84454600704
+    },
+    {
+      "t": 1793169290.3192148,
+      "host_available": 84456280064
+    },
+    {
+      "t": 1793169291.3344762,
+      "host_available": 84456177664
+    },
+    {
+      "t": 1793169292.350465,
+      "host_available": 84456136704
+    },
+    {
+      "t": 1793169293.3654735,
+      "host_available": 84458725376
+    },
+    {
+      "t": 1793169294.3813553,
+      "host_available": 84458164224
+    },
+    {
+      "t": 1793169295.396362,
+      "host_available": 84477771776
+    },
+    {
+      "t": 1793169296.4118075,
+      "host_available": 84482568192
+    },
+    {
+      "t": 1793169297.4274993,
+      "host_available": 84484988928
+    },
+    {
+      "t": 1793169298.4433863,
+      "host_available": 84482150400
+    },
+    {
+      "t": 1793169299.458923,
+      "host_available": 84483592192
+    },
+    {
+      "t": 1793169300.4743898,
+      "host_available": 84483866624
+    },
+    {
+      "t": 1793169301.490152,
+      "host_available": 84471582720
+    },
+    {
+      "t": 1793169302.5058017,
+      "host_available": 84468690944
+    },
+    {
+      "t": 1793169303.521439,
+      "host_available": 84468551680
+    },
+    {
+      "t": 1793169304.53696,
+      "host_available": 84454318080
+    },
+    {
+      "t": 1793169305.5520627,
+      "host_available": 84456095744
+    },
+    {
+      "t": 1793169306.5674448,
+      "host_available": 84452732928
+    },
+    {
+      "t": 1793169307.5829048,
+      "host_available": 84448817152
+    },
+    {
+      "t": 1793169308.5981205,
+      "host_available": 84572901376
+    },
+    {
+      "t": 1793169309.6138716,
+      "host_available": 84555976704
+    },
+    {
+      "t": 1793169310.6292474,
+      "host_available": 84541214720
+    },
+    {
+      "t": 1793169311.6446216,
+      "host_available": 84532215808
+    },
+    {
+      "t": 1793169312.659523,
+      "host_available": 84523864064
+    }
+  ],
+  "outcome": "timeout",
+  "identity": {
+    "unit": "fullbench-d417378ac32944ae-fw.service",
+    "binary": "/home/steven/.cache/enclave-isolation/parallel-vmsa-qemu-hashtest/build/qemu-system-x86_64",
+    "created_by_us": true,
+    "invocation": "1e2fe30196b544fda46beb5e33608576",
+    "main_pid": 4187093,
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/fullbench-d417378ac32944ae-fw.service",
+    "pid_start": "147432679"
+  },
+  "cleanup_errors": [],
+  "cleanup": "clean",
+  "kernel_entered": false,
+  "fallback": false,
+  "substitution_active": true,
+  "verifier_success": {
+    "kernel": false,
+    "initrd": false,
+    "cmdline": false
+  },
+  "accepted": false
+}

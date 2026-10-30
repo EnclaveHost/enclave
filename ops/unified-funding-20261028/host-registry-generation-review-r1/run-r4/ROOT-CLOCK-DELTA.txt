@@ -1,0 +1,1 @@
+Root fixture clock aligned with injected composer clock; otherwise future-dated fixture snapshot was held before intended generation regression. Initial failure retained. No product freshness check changed.

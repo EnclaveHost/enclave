@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: config is exact and bounded; no key enables the provisional track; 120 s cannot be raised
+ok 1 - config is exact and bounded; no key enables the provisional track; 120 s cannot be raised
+  ---
+  duration_ms: 1.468941
+  type: 'test'
+  ...
+# Subtest: finality first: a due B_f deadline pre-empts a stale provisional S, and the wait is reported as starvation
+ok 2 - finality first: a due B_f deadline pre-empts a stale provisional S, and the wait is reported as starvation
+  ---
+  duration_ms: 3.322158
+  type: 'test'
+  ...
+# Subtest: recovery never passes the saved floor; ranges start small and adapt to the MEASURED duration, never an assumed 1800
+ok 3 - recovery never passes the saved floor; ranges start small and adapt to the MEASURED duration, never an assumed 1800
+  ---
+  duration_ms: 0.951508
+  type: 'test'
+  ...
+# Subtest: single flight across all tracks: one owned step at a time; urgent finality before cold recovery before routine finality
+ok 4 - single flight across all tracks: one owned step at a time; urgent finality before cold recovery before routine finality
+  ---
+  duration_ms: 3.762802
+  type: 'test'
+  ...
+# Subtest: provisional only under the signed binding, no marker, room in the existing evidence bounds; cadence doubles at 75 % fill
+ok 5 - provisional only under the signed binding, no marker, room in the existing evidence bounds; cadence doubles at 75 % fill
+  ---
+  duration_ms: 1.342883
+  type: 'test'
+  ...
+# Subtest: cannotMeet120s: only a provider-confirmed S from this driver counts; 120 s is never relaxed; fixtures cannot make S fresh
+ok 6 - cannotMeet120s: only a provider-confirmed S from this driver counts; 120 s is never relaxed; fixtures cannot make S fresh
+  ---
+  duration_ms: 0.965438
+  type: 'test'
+  ...
+# Subtest: bounded failures: oversized or unknown witnesses are never submitted; refusals halve the range and back off; busy is retry-later
+ok 7 - bounded failures: oversized or unknown witnesses are never submitted; refusals halve the range and back off; busy is retry-later
+  ---
+  duration_ms: 1.308834
+  type: 'test'
+  ...
+# Subtest: shutdown cancels and AWAITS the owned run (the provider aborts its own native run); nothing runs afterwards
+ok 8 - shutdown cancels and AWAITS the owned run (the provider aborts its own native run); nothing runs afterwards
+  ---
+  duration_ms: 1.340233
+  type: 'test'
+  ...
+# Subtest: bootstrap: the first prepare authenticates the ASR root; a refused candidate after that is not a failure
+ok 9 - bootstrap: the first prepare authenticates the ASR root; a refused candidate after that is not a failure
+  ---
+  duration_ms: 0.525643
+  type: 'test'
+  ...
+# Subtest: untrusted hints: a lagging hint never blocks a due finalized step; invalid or failing hints are ignored; routine steps follow the hint
+ok 10 - untrusted hints: a lagging hint never blocks a due finalized step; invalid or failing hints are ignored; routine steps follow the hint
+  ---
+  duration_ms: 0.851689
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 86.270733

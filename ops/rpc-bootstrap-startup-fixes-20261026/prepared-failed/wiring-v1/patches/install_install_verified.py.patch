@@ -1,0 +1,13 @@
+--- a/install/install_verified.py
++++ b/install/install_verified.py
+@@ -344,7 +344,9 @@
+ 
+ # ---- ACTIVATION -------------------------------------------------------------------------------------------------------------
+ ACTIVATION_FILE = '/etc/enclave-rpc/finality-activation.json'
+-FLAG_MODULE = {'A1_CAPTURE_REVIEWED': '/opt/enclave-rpc/a2a4-recovery/a2a4.py', 'FINALITY_PROTOTYPE_REVIEWED': '/opt/enclave-rpc/finality/src/finality_state.py',
++FLAG_MODULE = {'A1_CAPTURE_REVIEWED': '/opt/enclave-rpc/a2a4-recovery/a2a4.py',
++               'A1_FIRST_CAPTURE_REVIEWED': '/opt/enclave-rpc/a2a4/a2a4.py',   # production-bootstrap-wiring: harness-first capture-original-recheck
++               'FINALITY_PROTOTYPE_REVIEWED': '/opt/enclave-rpc/finality/src/finality_state.py',
+                'FINALITY_PROOF_REVIEWED': '/opt/enclave-rpc/base-launch/base_launch.py', 'LAUNCH_PRODUCER_REVIEWED': '/opt/enclave-rpc/chain_service.py'}
+ 
+ 

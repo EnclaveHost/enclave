@@ -1,0 +1,19 @@
+ROOT COORDINATION ONLY — prepared commands, not executed here.
+
+Offline r2 fixture qualification (512 MiB, no Cargo/build/live RPC):
+python /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 512 --log /home/steven/Documents/Codex/2026-10-23/it/work/signed-payload-capture-stage/r2/logs/root-offline.log -- unshare -Urn bash /home/steven/Documents/Codex/2026-10-23/it/work/signed-payload-capture-stage/r2/test.sh /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/target/debug/examples/signed_payload_candidate
+
+11 tests expected. No skips allowed. Inherits pinned581d native; synthetic signed
+header refusal is not positive execution. Tests include runtime dependency drift,
+policy refusal before RPC, config/schedule result mutation, unsupported tx types,
+and offline namespace assertion. Keep r1 and its qualification unchanged.
+
+Deferred release qualification — ONLY after root admits memory/cache lane:
+python /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 3072 --log /home/steven/Documents/Codex/2026-10-23/it/work/signed-payload-capture-stage/r2/logs/root-release.log -- timeout 7500 unshare -Urnm bash /home/steven/Documents/Codex/2026-10-23/it/work/signed-payload-capture-stage/r2/jobs/release-build-test.sh
+
+Single Cargo job; offline/frozen native r2 source; same cache flock/private mounts;
+release tests/build each3600s ceiling, outer7500s. Guard preserves host16GiB floor.
+This allocation is a proposed ceiling, not a measured sufficient build budget.
+98/99 remain not-started/guard-killed, never success. Requires a free coordinated
+resource window. It does not change581d or49f4, publish images or run a live block.
+Review release receipts and pin actual bytes in a later revision before use.

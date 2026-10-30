@@ -1,0 +1,22 @@
+{
+  "status": "prepared-not-run",
+  "base": "b7dcf5af9fe8255e537dd7faa51c218448864ea2",
+  "previousStage": "journal-durability-r2",
+  "changedFiles": [
+    "network/deployment-journal-owner.mjs",
+    "network/deployment-lifecycle-journal.mjs",
+    "network/derived-reader/coverage-store.mjs",
+    "network/derived-reader/enrollment.mjs",
+    "network/derived-reader/journal.mjs",
+    "network/derived-reader/provider.mjs",
+    "network/journal-commit.mjs",
+    "network/lifecycle-finality-bridge.mjs",
+    "test/derived-reader/coverage.test.mjs",
+    "test/derived-reader/provider.test.mjs",
+    "test/journal-durability.test.mjs",
+    "test/lifecycle-finality-bridge.test.mjs"
+  ],
+  "testsExecuted": false,
+  "productionMutations": 0,
+  "requiredNext": "root unit admission, full regression/native owner tests, actual-role IPC/replica and rotate/recover composition"
+}

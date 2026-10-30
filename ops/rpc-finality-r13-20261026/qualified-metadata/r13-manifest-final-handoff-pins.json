@@ -1,0 +1,37 @@
+{
+ "note": "r13-manifest-final handoff (metadata-only revision of root-qualified r13-final f58b0b4f). Values computed from the frozen bytes; root reviews before use.",
+ "composedStagePins": {
+  "stage": "base-finality-proof-stage/r13-manifest-final",
+  "stageSha256sums": "80cea88861f069540bd6d4214cdcd9e2020c897558f7dd4badcf572edecccd60",
+  "manifest": "2ff892564dff248c854374be18542122fa13ea7583b3f9e4dd72da890ef01964",
+  "bundleOrigin": "4121a5f6d80528babe0929034066816df00ce91dff0242ec229e2ee20aa80bdf",
+  "captureModule": "8da369de00c176364aadac5af57842f2a2d02f3abee20f63fe4361b7a1b0793e",
+  "finalityState": "5e4e38ca5742fbf91d0dda0f782525d0db0216a17de7a3de43a291a1c302e02e",
+  "finalityCore": "686cbc22cd837dbc0bb79512105972297c5addbe512dbd6dce2cfac28aaa6eab",
+  "a1Read": "da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85",
+  "a1RecheckRead": "78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825"
+ },
+ "systemdCanaryFinalPins": {
+  "stage": "base-finality-proof-stage/r13-manifest-final",
+  "stageSha256sums": "80cea88861f069540bd6d4214cdcd9e2020c897558f7dd4badcf572edecccd60",
+  "files": {
+   "bootstrap/holder_gate.py": "dd68006175135c3a72b668dbc483492980612f5c2ad075ffd481396234892c07",
+   "wrapper/chain_service.py": "6a4d7aa5da385bf1d8dea74c37060eb1332d5d468625d54ae02ae878c7135189",
+   "src/finality_state.py": "5e4e38ca5742fbf91d0dda0f782525d0db0216a17de7a3de43a291a1c302e02e",
+   "units/enclave-base-holder.service.d/60-release-mode.conf": "2df07889f713d43a9d352ed954fa8f57489a9867ffcf879bb3e268acdaf6e6be",
+   "units/enclave-base-finality-reproof.service": "b36ee8d8e700b9aabf302d9ee237c7131bb4ae8adedeecf0628854acf603e945"
+  }
+ },
+ "firstBootstrapConsumer": {
+  "bootstrap/a1_capture_original.py": "2f7656b8fc58f4a9d987fe16819a27b83c917e11c9945f88040ff33f149c5420"
+ },
+ "qualificationReceipt": {
+  "path": "logs/claude-r13-manifest-final-1.out",
+  "sha256": "cd553f24b2e1e600e7afdf13d2756302089cb270a58ba734e286118e4797b0e5",
+  "rc": "logs/claude-r13-manifest-final-1.rc",
+  "lines": [
+   "## r13 SHA256SUMS 80cea88861f069540bd6d4214cdcd9e2020c897558f7dd4badcf572edecccd60",
+   "## finality-r13 rc=0"
+  ]
+ }
+}

@@ -1,0 +1,186 @@
+TAP version 13
+# Subtest: the generated network-runtime bundle is present and exports relayChainAuthority
+not ok 1 - the generated network-runtime bundle is present and exports relayChainAuthority
+  ---
+  duration_ms: 1.029653
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/dns-relay-chain-authority.smoke.test.mjs:55:1'
+  failureType: 'testCodeFailure'
+  error: 'build it first: (cd relay && node build-network.mjs)'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/dns-relay-chain-authority.smoke.test.mjs:57:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: mixed selection (verifier + BASE_RPC) stops dns-relay at startup before any listener or chain request
+not ok 2 - mixed selection (verifier + BASE_RPC) stops dns-relay at startup before any listener or chain request
+  ---
+  duration_ms: 50.098987
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/dns-relay-chain-authority.smoke.test.mjs:61:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    node:internal/modules/esm/resolve:275
+        throw new ERR_MODULE_NOT_FOUND(
+              ^
+    
+    Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/relay/dns-relay.js
+        at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+        at moduleResolve (node:internal/modules/esm/resolve:865:10)
+        at defaultResolve (node:internal/modules/esm/resolve:989:11)
+        at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+        at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+        at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+        at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+      code: 'ERR_MODULE_NOT_FOUND',
+      url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/relay/network-runtime.bundle.mjs'
+    }
+    
+    Node.js v22.23.3
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    node:internal/modules/esm/resolve:275
+        throw new ERR_MODULE_NOT_FOUND(
+              ^
+    
+    Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/relay/dns-relay.js
+        at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+        at moduleResolve (node:internal/modules/esm/resolve:865:10)
+        at defaultResolve (node:internal/modules/esm/resolve:989:11)
+        at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+        at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+        at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+        at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+      code: 'ERR_MODULE_NOT_FOUND',
+      url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/relay/network-runtime.bundle.mjs'
+    }
+    
+    Node.js v22.23.3
+    
+  operator: 'match'
+  stack: |-
+    finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    moduleResolve (node:internal/modules/esm/resolve:865:10)
+    defaultResolve (node:internal/modules/esm/resolve:989:11)
+    #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/dns-relay-chain-authority.smoke.test.mjs:66:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: clean verifier selection: the fleet's registry read goes to the local verifier, never to BASE_RPC
+not ok 3 - clean verifier selection: the fleet's registry read goes to the local verifier, never to BASE_RPC
+  ---
+  duration_ms: 42.263731
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/dns-relay-chain-authority.smoke.test.mjs:72:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    dns-relay exited: node:internal/modules/esm/resolve:275
+        throw new ERR_MODULE_NOT_FOUND(
+              ^
+    
+    Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/relay/dns-relay.js
+        at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+        at moduleResolve (node:internal/modules/esm/resolve:865:10)
+        at defaultResolve (node:internal/modules/esm/resolve:989:11)
+        at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+        at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+        at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+        at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+      code: 'ERR_MODULE_NOT_FOUND',
+      url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/relay/network-runtime.bundle.mjs'
+    }
+    
+    Node.js v22.23.3
+    
+    
+    1 !== null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    moduleResolve (node:internal/modules/esm/resolve:865:10)
+    defaultResolve (node:internal/modules/esm/resolve:989:11)
+    #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/dns-relay-chain-authority.smoke.test.mjs:78:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: legacy (no verifier env): the same read goes to BASE_RPC - default path unchanged
+not ok 4 - legacy (no verifier env): the same read goes to BASE_RPC - default path unchanged
+  ---
+  duration_ms: 39.978597
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/dns-relay-chain-authority.smoke.test.mjs:84:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    dns-relay exited: node:internal/modules/esm/resolve:275
+        throw new ERR_MODULE_NOT_FOUND(
+              ^
+    
+    Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/relay/dns-relay.js
+        at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+        at moduleResolve (node:internal/modules/esm/resolve:865:10)
+        at defaultResolve (node:internal/modules/esm/resolve:989:11)
+        at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+        at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+        at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+        at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+      code: 'ERR_MODULE_NOT_FOUND',
+      url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/relay/network-runtime.bundle.mjs'
+    }
+    
+    Node.js v22.23.3
+    
+    
+    1 !== null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    moduleResolve (node:internal/modules/esm/resolve:865:10)
+    defaultResolve (node:internal/modules/esm/resolve:989:11)
+    #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/dns-relay-chain-authority.smoke.test.mjs:89:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 0
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 250.416328

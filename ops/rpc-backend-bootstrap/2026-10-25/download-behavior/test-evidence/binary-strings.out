@@ -1,0 +1,10 @@
+[queue] START available=20554MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f
+h2-0.4.15/src 286
+reqwest-0.13.4/src 13
+reqwest-0.13.4/src/async_impl/client.rs 1
+h2-0.4.15/src/client.rs 5
+hyper-util 62
+[memory-guard] exit=0 peakTreeRssMiB=6 minHostAvailableMiB=20546
+[memory-guard] at peak: sh:4 sh:2
+[queue] EXIT 0

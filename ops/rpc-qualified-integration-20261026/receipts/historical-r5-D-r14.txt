@@ -1,0 +1,32 @@
+test_consumer_dropin_cannot_pull_the_holder (test_ops_readiness.Enforce.test_consumer_dropin_cannot_pull_the_holder) ... ok
+test_not_ready_stops_only_listed_consumers_and_never_starts (test_ops_readiness.Enforce.test_not_ready_stops_only_listed_consumers_and_never_starts) ... ok
+test_ready_starts_consumers_never_the_holder (test_ops_readiness.Enforce.test_ready_starts_consumers_never_the_holder) ... ok
+test_unit_without_the_reviewed_dropin_is_refused_and_nothing_is_touched (test_ops_readiness.Enforce.test_unit_without_the_reviewed_dropin_is_refused_and_nothing_is_touched) ... ok
+test_vm_hypervisor_and_base_units_are_never_controlled (test_ops_readiness.Enforce.test_vm_hypervisor_and_base_units_are_never_controlled) ... ok
+test_writable_units_file_is_refused (test_ops_readiness.Enforce.test_writable_units_file_is_refused) ... ok
+test_changed_status_entry_or_block_refuses (test_ops_readiness.Gate.test_changed_status_entry_or_block_refuses) ... ok
+test_fresh_old_ready_with_a_different_holder_pid_refuses (test_ops_readiness.Gate.test_fresh_old_ready_with_a_different_holder_pid_refuses) ... ok
+test_fresh_old_ready_with_dead_holder_pid_refuses (test_ops_readiness.Gate.test_fresh_old_ready_with_dead_holder_pid_refuses) ... ok
+test_fresh_old_ready_with_reused_pid_refuses (test_ops_readiness.Gate.test_fresh_old_ready_with_reused_pid_refuses) ... ok
+test_full_cycle_stays_ready_with_live_identity (test_ops_readiness.Gate.test_full_cycle_stays_ready_with_live_identity) ... ok
+test_not_ready_or_untrusted_report_refuses (test_ops_readiness.Gate.test_not_ready_or_untrusted_report_refuses) ... ok
+test_r6_helper_flapped_on_the_same_healthy_report (test_ops_readiness.Gate.test_r6_helper_flapped_on_the_same_healthy_report) ... ok
+test_r7_changed_or_withdrawn_acceptance_is_refused (test_ops_readiness.Gate.test_r7_changed_or_withdrawn_acceptance_is_refused) ... ok
+test_r7_proven_but_unrecorded_proof_is_never_admitted (test_ops_readiness.Gate.test_r7_proven_but_unrecorded_proof_is_never_admitted) ... ok
+test_report_beyond_one_cycle_refuses_and_age_alone_never_admits (test_ops_readiness.Gate.test_report_beyond_one_cycle_refuses_and_age_alone_never_admits) ... ok
+test_report_from_an_older_sampler_without_starttime_refuses (test_ops_readiness.Gate.test_report_from_an_older_sampler_without_starttime_refuses) ... ok
+test_revoked_status_refuses_even_with_a_fresh_ready (test_ops_readiness.Gate.test_revoked_status_refuses_even_with_a_fresh_ready) ... ok
+test_status_for_another_process_refuses (test_ops_readiness.Gate.test_status_for_another_process_refuses) ... ok
+test_status_not_root_owned_or_writable_refuses (test_ops_readiness.Gate.test_status_not_root_owned_or_writable_refuses) ... ok
+test_stopped_or_failed_holder_refuses (test_ops_readiness.Gate.test_stopped_or_failed_holder_refuses) ... ok
+test_stopped_status_publisher_refuses (test_ops_readiness.Gate.test_stopped_status_publisher_refuses) ... ok
+test_missing_invalid_or_untrusted_settings_fail_closed (test_ops_readiness.Publisher.test_missing_invalid_or_untrusted_settings_fail_closed) ... ok
+test_not_ready_stub_is_refused_by_the_consumer_gate (test_ops_readiness.Publisher.test_not_ready_stub_is_refused_by_the_consumer_gate) ... ok
+test_unit_uses_only_the_settings_file (test_ops_readiness.Publisher.test_unit_uses_only_the_settings_file) ... ok
+test_valid_settings_pass_every_required_input_to_the_sampler (test_ops_readiness.Publisher.test_valid_settings_pass_every_required_input_to_the_sampler) ... ok
+test_finality_gate_info_carries_the_proven_start_time (test_ops_readiness.SamplerStartTime.test_finality_gate_info_carries_the_proven_start_time) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 0.032s
+
+OK

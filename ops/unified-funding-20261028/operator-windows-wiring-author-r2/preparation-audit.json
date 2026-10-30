@@ -1,0 +1,21 @@
+{
+  "status": "PREPARATION_FILE_HASH_STATIC_IMPORT_INVENTORY_AND_HELPER_AST_ONLY",
+  "preparedSha256": "a11b1f3b9f537e51b4bc223033ab67c77f122380830d711680408f5d8f6ddd0f",
+  "seedFiles": 248,
+  "candidateExactFrozenSeed": true,
+  "preAuthorProductEdits": 0,
+  "rootChainQuarantinePreserved": true,
+  "rootRepairsPreserved": 3,
+  "readonlyPins": 12295,
+  "inputDrift": [],
+  "authorLaunched": false,
+  "candidateExecuted": false,
+  "testsOrBuildsRun": false,
+  "rootTopLevelEvidenceFiles": 34,
+  "operatorLiteralProjectClosureFiles": 14,
+  "missingProjectImports": [],
+  "qualificationAdmissible": false,
+  "accountStatus": "Fresh verification delegated to root prelaunch and enforced by unchanged runner policy",
+  "baseline": "92PASS0FAIL",
+  "rootBoundaries": "0PASS7FAIL"
+}

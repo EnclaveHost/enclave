@@ -1,0 +1,49 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "seedEntries": 249,
+  "readonlyInputPins": 13817,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "mutationPolicy": "Candidate subtree only; terminal Write/Edit result audit and successful-mutation replay; missing/mismatched/outside outcomes never called clean",
+  "turnLimit": 55,
+  "turnMetric": "CLI max-agentic/API-turns; success result num_turns is separate user-message counter; preserve both",
+  "childTimeoutSec": 1800,
+  "outerTimeoutSec": 2100,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r3-20261029/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "hashes": {
+    "TASK.txt": "f1ea97b2dbb0debb3942d90b8ea5463fb5067d27ee90c64307737c8b5cda514d",
+    "REVIEW-STATUS.txt": "6fa8687c94acf95d683c2c53280d4833b3fe83d9418f90edfe1196a892f3d73d",
+    "run.py": "d4445ffb1b0fc646f2bcae2ea37993b5f644e4e9d3215181c7c47bf24b929f8c",
+    "launch-command.txt": "c674a03f49a2d6f2afe0ef5eec9ddd57ec68cd0edaea41420ed9e3ee225d2ecc",
+    "input-pins.json": "7ae5d3cea0f12ecbc0266d660858bc753efccb31411d384de04ffa9a92639393",
+    "seed-pins.json": "fe17e86506a13a2ae396a2dac9d90021dff0651f45ca2ba958de582924421551",
+    "seed-provenance.json": "f03eef512283d651c30d11f4de64e9c4dc28b5ea6c1d5067f24b1296c175317f",
+    "evidence-index.json": "9a9653c40a0d7400ef053a80652aee59518cfad8cc3354892ad442d4eb21cc72",
+    "interface-map.json": "ba1b5fb7251a7d4bd9796875b084e2825f194efea57c1d5fccd8475dcb47f535",
+    "collect-terminal.py": "c0a16176148b0e3abb0acd6fcb10f3aca56257246298653c53183396ac4504c5",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8",
+    "materialization.json": "2c702649fa84fe9632c1357acd9a6c5686e25e39f0dd81a6d2652a923ea7e06c",
+    "readonly-reference/sponsored-runtime/source-manifest.json": "98d4ed77ff83defe2e04d78a32dad77fbbd7c590caccf570077486f14c08e359",
+    "readonly-reference/sponsored-runtime/provenance.json": "e0bd1455457d48af2908375872b47caf6a56f6488503ed8eb36e9f8e180a21f4",
+    "operator-source-closure.json": "af2cbc963fdede8fbf867fc06a5f0bd40fa8463166647b2bee7f119751146adb",
+    "qualification-admission-plan.json": "7538040f2a3e6af511984b17f95684c4e1450034276c5d65647f50beaa990c95"
+  },
+  "originalSeedEntries": 249,
+  "addedPinnedDependencies": 0
+}

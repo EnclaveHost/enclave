@@ -1,0 +1,380 @@
+--- a/ops/rpc-backend-bootstrap/2026-10-25/chain_service.py
++++ b/ops/rpc-backend-bootstrap/2026-10-25/chain_service.py
+@@ -448,6 +448,100 @@
+         distance = lookup['distance']
+     return args + ['--prune.transaction-lookup.distance', str(distance)]
+ 
++# ---- Combined M7+M10 Base release (OPT-IN; without manifest.json "baseRelease" every path below is unused) -----------
++# The ONLY release this wrapper can select: root receipt m7-m10-release-completed-0055 (base 1.5.1 = 5476069f + M7
++# e9dfb8c6 + fixed M10 d97c31b5, lock f122da76). It lives at a fixed versioned path next to, never instead of, bin/base.
++BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'
++BASE_RELEASE_PATH = ROOT / 'releases' / ('base-m7m10-' + BASE_RELEASE_SHA256[:16]) / 'base'
++BOOTSTRAP_DIR = pathlib.Path('/etc/enclave-rpc/base-bootstrap')
++LAUNCH_FORMAT = 'enclave-base-bootstrap-launch/v1'
++LIFECYCLE_FORMAT = 'enclave-base-bootstrap-lifecycle/v1'
++ANCHOR_RE = re.compile(r'([1-9][0-9]{0,18}):(0x[0-9a-f]{64})')
++HEX64 = re.compile(r'[0-9a-f]{64}')
++# UNRESOLVED (fail closed): no reviewed producer of the launch record exists. The A2-A4 harness step_release writes only
++# m10-launch.json {bootstrapAnchor, at} (and only with OPEN_GAPS empty); binding it, the A2/A4/bytecode receipts and the
++# release into ONE root-reviewed launch record is a reviewed step that has not happened. Until a reviewed change sets
++# this, an anchored start is refused. It is a source constant, never a config switch.
++LAUNCH_PRODUCER_REVIEWED = False
++
++TRUSTED_TOP = pathlib.Path('/')            # the walk below starts here (production: the filesystem root)
++ROOT_UID = 0                               # owner of the release, the bootstrap evidence and every parent directory
++
++def _secure_path(path, owner, leaf='file', top=None):
++    """`path` and every component from `top` (default TRUSTED_TOP = /) down to it are real (non-symlink) entries owned by
++    `owner` and not group/other writable; the leaf is a regular file (or a directory). Returns the leaf's lstat."""
++    top = pathlib.Path(top or TRUSTED_TOP); p = pathlib.Path(path)
++    assert p.is_absolute() and '..' not in p.parts and (p == top or top in p.parents), f'{p} is not a plain path under {top}'
++    cur, st = top, None
++    for part in [None] + list(p.relative_to(top).parts):
++        if part is not None:
++            cur = cur / part
++        st = os.lstat(cur)
++        assert not stat.S_ISLNK(st.st_mode), f'{cur} is a symlink'
++        assert st.st_uid == owner and not st.st_mode & 0o022, f'{cur} is not owner-{owner} and non-writable by group/other'
++    assert (stat.S_ISREG if leaf == 'file' else stat.S_ISDIR)(st.st_mode), f'{p} is not a regular {leaf}'
++    return st
++
++def base_release(manifest, owner=None):
++    """None (legacy bin/base, unchanged) unless manifest.json pins the reviewed release; then its verified path."""
++    owner = ROOT_UID if owner is None else owner
++    rel = manifest.get('baseRelease')
++    if rel is None:
++        return None
++    assert isinstance(rel, dict) and set(rel) == {'path', 'sha256'}, 'baseRelease must be exactly {path, sha256}'
++    assert rel['sha256'] == BASE_RELEASE_SHA256, 'baseRelease is not the reviewed M7+M10 release'
++    assert rel['path'] == str(BASE_RELEASE_PATH), 'baseRelease path is not the reviewed versioned path'
++    # coverage_activation binds MANIFEST.binaries.base: the coverage receipt/origin must be requalified for THIS binary
++    assert (manifest.get('binaries') or {}).get('base') == BASE_RELEASE_SHA256, \
++        'binaries.base must name the release, so coverage evidence is bound to the binary that runs'
++    _secure_path(rel['path'], owner)
++    with open(rel['path'], 'rb') as f:
++        assert hashlib.file_digest(f, 'sha256').hexdigest() == BASE_RELEASE_SHA256, 'release binary pin mismatch'
++    return rel['path']
++
++def bootstrap_anchor_args(cfg, release_sha, directory=None, owner=None):
++    """The M10 lifecycle, explicit and root-written: -> ['--bootstrap.anchor', 'N:0x..'] | [] ; refuses otherwise.
++    anchor-pending: the one-time anchored start (the client itself refuses unless its EL head is exactly N).
++    bootstrapped:   root recorded finality beyond N; never replay the anchor.
++    anything else (incl. a crash after the head moved past N but before finality passed N): refuse, root decides."""
++    bb = (cfg.get('baseBootstrap') or {}).get('anchorLaunch')
++    directory = pathlib.Path(directory or BOOTSTRAP_DIR); owner = ROOT_UID if owner is None else owner
++    for d in (directory, directory / 'qualification'):
++        _secure_path(d, owner, leaf='dir')
++    assert isinstance(bb, dict) and set(bb) == {'launchSha256', 'lifecycleSha256'} and all(
++        isinstance(bb[k], str) and HEX64.fullmatch(bb[k]) for k in bb), \
++        'release mode needs baseBootstrap.anchorLaunch {launchSha256, lifecycleSha256}: no implicit bootstrap path'
++    l_sha, launch = _evidence(directory / 'launch.json', owner)
++    c_sha, life = _evidence(directory / 'lifecycle.json', owner)
++    assert (l_sha, c_sha) == (bb['launchSha256'], bb['lifecycleSha256']), 'bootstrap evidence bytes differ from the operator pins'
++    assert launch.get('format') == LAUNCH_FORMAT and life.get('format') == LIFECYCLE_FORMAT, 'bootstrap evidence format'
++    assert launch.get('baseReleaseSha256') == release_sha == BASE_RELEASE_SHA256, 'launch record is for another binary'
++    m = ANCHOR_RE.fullmatch(str(launch.get('anchor', '')))
++    assert m, 'launch anchor is not <number>:0x<64 lower-case hex>'
++    n = int(m.group(1))
++    q = launch.get('qualification')
++    assert isinstance(q, dict) and set(q) == {'m10LaunchSha256', 'a2Sha256', 'a4Sha256', 'bytecodesVerifiedSha256'}, \
++        'launch record lacks the A2-A4 qualification hashes'
++    files = {'m10LaunchSha256': 'm10-launch.json', 'a2Sha256': 'a2-authenticated.json', 'a4Sha256': 'a4-rebuilt.json',
++             'bytecodesVerifiedSha256': 'bytecodes-verified.json'}
++    got = {k: _evidence(directory / 'qualification' / f, owner) for k, f in files.items()}
++    for k, (sha, _doc) in got.items():
++        assert sha == q[k], f'qualification {files[k]} bytes differ from the launch record'
++    assert got['m10LaunchSha256'][1].get('bootstrapAnchor') == launch['anchor'], 'launch anchor is not the A2-A4 release anchor'
++    assert got['bytecodesVerifiedSha256'][1].get('a4Sha256') == q['a4Sha256'], 'bytecode verification is for another A4 result'
++    assert life.get('launchSha256') == l_sha, 'lifecycle belongs to another launch record'
++    state = life.get('state')
++    if state == 'anchor-pending':
++        assert LAUNCH_PRODUCER_REVIEWED, 'HOLD: no reviewed producer of the bootstrap launch record (A1-A4/release binding)'
++        return ['--bootstrap.anchor', launch['anchor']]
++    if state == 'bootstrapped':
++        f = life.get('finalizedPastAnchor')
++        assert isinstance(f, dict) and set(f) == {'number', 'hash', 'recordedAt'} and isinstance(f['number'], int) \
++            and not isinstance(f['number'], bool) and f['number'] > n and re.fullmatch(r'0x[0-9a-f]{64}', str(f['hash'])) \
++            and isinstance(f['recordedAt'], str), 'bootstrapped lifecycle needs root-recorded finality beyond N'
++        return []
++    raise AssertionError(f'bootstrap lifecycle state {state!r}: refusing (root must resolve it explicitly)')
++
+ def run(side):
+     role = 'base' if side == 'base' else 'l1'
+     base = mount(role, side)
+@@ -510,8 +604,11 @@
+         slot = str(origin['blobSlot'])
+         commitments = beacon('/eth/v2/beacon/blocks/' + slot)['message']['body']['blob_kzg_commitments']
+         assert commitments and len(beacon('/eth/v1/beacon/blobs/' + slot)) == len(commitments), 'Base origin blobs absent'
++        # every gate above is unchanged; the opt-in release adds its own (pinned path + launch lifecycle) and nothing else
++        release = base_release(MANIFEST)
++        anchor = bootstrap_anchor_args(CONFIG, BASE_RELEASE_SHA256) if release else []
+         env['BASE_NODE_L1_TRUST_RPC'] = 'false'
+-        a = [binary('base'), '--chain', 'mainnet', 'rpc', '--datadir', datadir,
++        a = [release or binary('base'), '--chain', 'mainnet', 'rpc', '--datadir', datadir,
+              '--http', '--http.addr', '127.0.0.1', '--http.port', '18545', '--http.api', 'eth,net,web3',
+              '--txpool.disable-transactions-backup',
+              *prune,
+@@ -524,6 +621,7 @@
+              '--l1.rpc-timeout-ms', '10000', '--upgrade-signal.mode', 'metrics-only']
+         a += forwarding_args()
+         # A forwarded hash is not inclusion: consumers must verify the receipt.
++        a += anchor                               # M10: only in lifecycle state anchor-pending
+     else:
+         raise ValueError('unknown side')
+     print(json.dumps({'starting': side, 'datadir': datadir, 'publicExecutionRpc': False}), flush=True)
+--- /dev/null
++++ b/ops/rpc-backend-bootstrap/2026-10-25/test_chain_service_release.py
+@@ -0,0 +1,253 @@
++"""Offline tests of the OPT-IN M7+M10 release path in chain_service.py (base_release, bootstrap_anchor_args, run('base')).
++Real wrapper functions over a private temp tree (a test-owned TRUSTED_TOP, owner = this uid); only the system/RPC
++boundaries are faked (mount, L1/beacon RPC, execve), exactly as test_chain_service.py does. No network, no client.
++The artifact pin is the real 4a7c013a... in source (asserted); tests substitute a test artifact's hash for that pin."""
++import hashlib, json, os, shutil, stat, tempfile, unittest
++from pathlib import Path
++from unittest.mock import patch
++import test_chain_service as T          # loads ./chain_service.py (the candidate) and its fixtures
++c = T.c
++
++ANCHOR_N, ANCHOR_H = 52866960, '0x' + '5c' * 32
++FAKE_BIN = b'#!/bin/false\nfake release artifact for tests\n'
++sha = lambda b: hashlib.sha256(b).hexdigest()
++
++
++class Tree:
++    """A private root-like tree: TOP/opt/enclave-rpc/releases/base-m7m10-<16>/base and TOP/etc/enclave-rpc/base-bootstrap."""
++    def __init__(self, state='anchor-pending', **over):
++        self.top = Path(tempfile.mkdtemp(prefix='rel-')); os.chmod(self.top, 0o755)
++        self.pin = sha(FAKE_BIN)
++        self.rel = self.top / 'opt/enclave-rpc/releases' / ('base-m7m10-' + self.pin[:16]) / 'base'
++        self.rel.parent.mkdir(parents=True, mode=0o755); self.rel.write_bytes(FAKE_BIN); os.chmod(self.rel, 0o555)
++        for d in [self.top / 'opt', self.top / 'opt/enclave-rpc', self.top / 'opt/enclave-rpc/releases', self.rel.parent]: os.chmod(d, 0o755)
++        self.bd = self.top / 'etc/enclave-rpc/base-bootstrap'; (self.bd / 'qualification').mkdir(parents=True)
++        for d in [self.top / 'etc', self.top / 'etc/enclave-rpc', self.bd, self.bd / 'qualification']: os.chmod(d, 0o755)
++        q = {'m10-launch.json': {'bootstrapAnchor': f'{ANCHOR_N}:{ANCHOR_H}', 'at': 'x'}, 'a2-authenticated.json': {'anchor': {'blockHash': ANCHOR_H}},
++             'a4-rebuilt.json': {'blockHash': ANCHOR_H, 'verifiedStateAt': ANCHOR_N}}
++        q.update(over.pop('qual', {}))
++        hashes = {f: self.put(self.bd / 'qualification' / f, v) for f, v in q.items()}
++        bv = {'a4Sha256': hashes['a4-rebuilt.json'], **over.pop('bytecodes', {})}
++        hashes['bytecodes-verified.json'] = self.put(self.bd / 'qualification' / 'bytecodes-verified.json', bv)
++        launch = {'format': c.LAUNCH_FORMAT, 'anchor': f'{ANCHOR_N}:{ANCHOR_H}', 'baseReleaseSha256': self.pin,
++                  'qualification': {'m10LaunchSha256': hashes['m10-launch.json'], 'a2Sha256': hashes['a2-authenticated.json'],
++                                    'a4Sha256': hashes['a4-rebuilt.json'], 'bytecodesVerifiedSha256': hashes['bytecodes-verified.json']}}
++        launch.update(over.pop('launch', {}))
++        self.launch_sha = self.put(self.bd / 'launch.json', launch)
++        life = {'format': c.LIFECYCLE_FORMAT, 'launchSha256': self.launch_sha, 'state': state}
++        life.update(over.pop('life', {}))
++        self.life_sha = self.put(self.bd / 'lifecycle.json', life)
++        self.manifest = {'mounts': T.manifest['mounts'], 'binaries': {'base': self.pin}, 'baseRelease': {'path': str(self.rel), 'sha256': self.pin}}
++        self.cfg = {'baseBootstrap': {'coverageVerified': True, 'l1Block': 1, 'blobSlot': 2,
++                                      'anchorLaunch': {'launchSha256': self.launch_sha, 'lifecycleSha256': self.life_sha}},
++                    'baseRetention': {'historyFromBlock': T.HISTORY_FROM, 'stateHistoryFromBlock': T.STATE_FROM}}
++    def put(self, p, doc):
++        b = json.dumps(doc).encode(); p.write_bytes(b); os.chmod(p, 0o644); return sha(b)
++    def patches(self, reviewed=True):
++        return [patch.object(c, 'TRUSTED_TOP', self.top), patch.object(c, 'ROOT_UID', os.getuid()), patch.object(c, 'BASE_RELEASE_SHA256', self.pin),
++                patch.object(c, 'BASE_RELEASE_PATH', self.rel), patch.object(c, 'BOOTSTRAP_DIR', self.bd), patch.object(c, 'LAUNCH_PRODUCER_REVIEWED', reviewed)]
++    def close(self): shutil.rmtree(self.top, ignore_errors=True)
++
++
++def launch_base(tree=None, manifest=None, cfg=None, reviewed=True):
++    """run('base') through every EXISTING gate (faked at the system/RPC boundary as in PruneProfileTests) up to execve."""
++    beacon = {'/eth/v2/beacon/blocks/2': {'message': {'body': {'blob_kzg_commitments': ['x']}}}, '/eth/v1/beacon/blobs/2': ['x']}
++    ps = [patch.object(c, 'mount', return_value='/srv/enclave-base-holder'), patch.object(Path, 'is_file', return_value=True),
++          patch.object(Path, 'read_text', return_value=T.BaseRetentionTests.PROFILE), patch.object(c, 'binary', side_effect=lambda n: '/opt/enclave-rpc/bin/' + n),
++          patch.object(c, 'MANIFEST', manifest if manifest is not None else (tree.manifest if tree else T.manifest)),
++          patch.object(c, 'CONFIG', cfg if cfg is not None else (tree.cfg if tree else {'baseBootstrap': {'coverageVerified': True, 'l1Block': 1, 'blobSlot': 2}, 'baseRetention': {'historyFromBlock': T.HISTORY_FROM, 'stateHistoryFromBlock': T.STATE_FROM}})),
++          patch.object(c, 'coverage_activation', return_value=T.BOUND), patch.object(c, 'history_files_present'), patch.object(c, 'segment_files_present'),
++          patch.object(c, 'l1_ready', return_value={'l1Finalized': 30000}),
++          patch.object(c, 'rpc', side_effect=lambda port, m, p: {'hash': T.BOUND_HASH} if m == 'eth_getBlockByNumber' else []),
++          patch.object(c, 'beacon', side_effect=beacon.__getitem__)] + (tree.patches(reviewed) if tree else [])
++    for p in ps: p.start()
++    try:
++        with patch.object(c.os, 'execve', side_effect=T.Executed) as exe:
++            with unittest.TestCase().assertRaises(T.Executed):
++                c.run('base')
++        return exe.call_args.args[1], exe.call_args.args[2]
++    finally:
++        for p in reversed(ps): p.stop()
++
++
++class ReleaseSourcePins(unittest.TestCase):
++    def test_source_pins_the_tested_artifact_and_holds_the_producer(self):
++        self.assertEqual(c.BASE_RELEASE_SHA256, '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f')
++        self.assertEqual(str(c.BASE_RELEASE_PATH), '/opt/enclave-rpc/releases/base-m7m10-4a7c013a510f8816/base')
++        self.assertIs(c.LAUNCH_PRODUCER_REVIEWED, False, 'no reviewed launch-record producer exists: anchored starts stay closed')
++        self.assertEqual((c.TRUSTED_TOP, c.ROOT_UID), (Path('/'), 0))
++
++
++class LegacyUnchanged(unittest.TestCase):
++    def test_without_base_release_the_old_binary_runs_exactly_as_before(self):
++        self.assertIsNone(c.base_release({'binaries': {'base': '9c' * 32}}))
++        argv, env = launch_base()
++        self.assertEqual(argv[0], '/opt/enclave-rpc/bin/base')
++        self.assertNotIn('--bootstrap.anchor', argv)
++        self.assertEqual(env['BASE_NODE_L1_TRUST_RPC'], 'false')
++
++    def test_existing_gate_order_is_kept_in_release_mode(self):
++        t = Tree()
++        try:
++            with patch.object(c, 'mount', return_value='/srv/enclave-base-holder'), patch.object(Path, 'is_file', return_value=True), \
++                    patch.object(Path, 'read_text', return_value=T.BaseRetentionTests.PROFILE), patch.object(c, 'MANIFEST', t.manifest), \
++                    patch.object(c, 'CONFIG', {'baseBootstrap': {'coverageVerified': False}}), patch.object(c, 'l1_ready') as ready:
++                with self.assertRaisesRegex(AssertionError, 'coverage not approved'):
++                    c.run('base')
++                ready.assert_not_called()
++        finally:
++            t.close()
++
++
++class ReleaseSelection(unittest.TestCase):
++    def setUp(self): self.t = Tree(); [p.start() for p in self.t.patches()]
++    def tearDown(self): patch.stopall(); self.t.close()
++
++    def test_valid_release_is_selected(self):
++        self.assertEqual(c.base_release(self.t.manifest), str(self.t.rel))
++
++    def test_refusals(self):
++        m = self.t.manifest
++        cases = {'not the reviewed': {**m, 'baseRelease': {**m['baseRelease'], 'sha256': '00' * 32}},
++                 'versioned path': {**m, 'baseRelease': {**m['baseRelease'], 'path': str(self.t.rel) + '2'}},
++                 'binaries.base must name the release': {**m, 'binaries': {'base': '9c' * 32}},
++                 'exactly': {**m, 'baseRelease': {**m['baseRelease'], 'extra': 1}}}
++        for why, man in cases.items():
++            with self.subTest(why), self.assertRaisesRegex(AssertionError, why):
++                c.base_release(man)
++        self.t.rel.chmod(0o755); self.t.rel.write_bytes(FAKE_BIN + b'x'); self.t.rel.chmod(0o555)
++        with self.assertRaisesRegex(AssertionError, 'release binary pin mismatch'):
++            c.base_release(m)
++
++    def test_symlinks_and_writable_parents_are_refused(self):
++        real = self.t.rel.parent.with_name('real'); self.t.rel.parent.rename(real)
++        self.t.rel.parent.symlink_to(real)                                       # a symlinked parent directory
++        with self.assertRaisesRegex(AssertionError, 'is a symlink'):
++            c.base_release(self.t.manifest)
++        self.t.rel.parent.unlink(); real.rename(self.t.rel.parent)
++        os.chmod(self.t.rel.parent.parent, 0o777)                                # a group/other-writable parent
++        with self.assertRaisesRegex(AssertionError, 'non-writable'):
++            c.base_release(self.t.manifest)
++        os.chmod(self.t.rel.parent.parent, 0o755)
++        self.t.rel.unlink(); self.t.rel.symlink_to(Path('/bin/true'))             # a symlinked target
++        with self.assertRaisesRegex(AssertionError, 'is a symlink'):
++            c.base_release(self.t.manifest)
++
++
++class BootstrapLifecycle(unittest.TestCase):
++    def args(self, t, reviewed=True):
++        ps = t.patches(reviewed); [p.start() for p in ps]
++        try:
++            return c.bootstrap_anchor_args(t.cfg, t.pin)
++        finally:
++            for p in ps: p.stop()
++
++    def test_anchor_pending_gives_the_one_time_anchor_only_when_the_producer_is_reviewed(self):
++        t = Tree()
++        try:
++            self.assertEqual(self.args(t), ['--bootstrap.anchor', f'{ANCHOR_N}:{ANCHOR_H}'])
++            with self.assertRaisesRegex(AssertionError, 'HOLD: no reviewed producer'):
++                self.args(t, reviewed=False)                                     # the source default
++        finally:
++            t.close()
++
++    def test_bootstrapped_never_replays_the_anchor(self):
++        t = Tree('bootstrapped', life={'finalizedPastAnchor': {'number': ANCHOR_N + 1, 'hash': '0x' + '7a' * 32, 'recordedAt': 'root'}})
++        try:
++            self.assertEqual(self.args(t), [])
++        finally:
++            t.close()
++        for bad in ({'number': ANCHOR_N, 'hash': '0x' + '7a' * 32, 'recordedAt': 'r'}, {'number': True, 'hash': '0x' + '7a' * 32, 'recordedAt': 'r'}, None):
++            t = Tree('bootstrapped', life={'finalizedPastAnchor': bad})
++            try:
++                with self.subTest(bad=bad), self.assertRaisesRegex(AssertionError, 'finality beyond N'):
++                    self.args(t)
++            finally:
++                t.close()
++
++    def test_ambiguous_or_failed_states_refuse_instead_of_skipping_or_replaying(self):
++        for state in ('advanced-unfinalized', 'started', 'failed', 'rolled-back', None):
++            t = Tree(state)
++            try:
++                with self.subTest(state=state), self.assertRaisesRegex(AssertionError, 'lifecycle state'):
++                    self.args(t)
++            finally:
++                t.close()
++
++    def test_evidence_bindings_refuse_any_mismatch(self):
++        cases = [({'launch': {'baseReleaseSha256': '00' * 32}}, 'another binary'),
++                 ({'launch': {'anchor': f'{ANCHOR_N}:0x' + 'AB' * 32}}, 'lower-case hex'),
++                 ({'qual': {'m10-launch.json': {'bootstrapAnchor': f'{ANCHOR_N + 1}:{ANCHOR_H}'}}}, 'not the A2-A4 release anchor'),
++                 ({'bytecodes': {'a4Sha256': '00' * 32}}, 'another A4 result'),
++                 ({'life': {'launchSha256': '00' * 32}}, 'another launch record'),
++                 ({'launch': {'format': 'other'}}, 'format')]
++        for over, why in cases:
++            t = Tree(**over)
++            try:
++                with self.subTest(why), self.assertRaisesRegex(AssertionError, why):
++                    self.args(t)
++            finally:
++                t.close()
++
++    def test_unpinned_partial_or_tampered_evidence_refuses(self):
++        t = Tree()
++        try:
++            t.cfg['baseBootstrap'].pop('anchorLaunch')
++            with self.assertRaisesRegex(AssertionError, 'no implicit bootstrap path'):
++                self.args(t)
++        finally:
++            t.close()
++        t = Tree()
++        try:
++            (t.bd / 'qualification' / 'a4-rebuilt.json').unlink()               # a partial copy (crash during staging)
++            with self.assertRaisesRegex(AssertionError, 'unreadable'):
++                self.args(t)
++        finally:
++            t.close()
++        t = Tree()
++        try:
++            p = t.bd / 'lifecycle.json'; p.chmod(0o644); p.write_text(p.read_text().replace('anchor-pending', 'bootstrapped'))
++            with self.assertRaisesRegex(AssertionError, 'differ from the operator pins'):   # an edit without re-pinning (rollback must re-pin)
++                self.args(t)
++        finally:
++            t.close()
++        t = Tree()
++        try:
++            os.chmod(t.bd / 'qualification', 0o777)
++            with self.assertRaisesRegex(AssertionError, 'non-writable'):
++                self.args(t)
++        finally:
++            t.close()
++
++
++class ReleaseLaunch(unittest.TestCase):
++    def test_release_mode_execs_the_release_with_every_gate_and_the_anchor(self):
++        t = Tree()
++        try:
++            argv, env = launch_base(t)
++            self.assertEqual(argv[0], str(t.rel))
++            self.assertEqual(argv[-2:], ['--bootstrap.anchor', f'{ANCHOR_N}:{ANCHOR_H}'])
++            self.assertEqual(env['BASE_NODE_L1_TRUST_RPC'], 'false')
++            self.assertIn('--l1-eth-rpc', argv)
++        finally:
++            t.close()
++
++    def test_release_mode_with_the_source_hold_never_execs(self):
++        t = Tree()
++        try:
++            with self.assertRaisesRegex(AssertionError, 'HOLD'):
++                launch_base(t, reviewed=False)
++        finally:
++            t.close()
++
++    def test_bootstrapped_restart_execs_the_release_without_the_anchor(self):
++        t = Tree('bootstrapped', life={'finalizedPastAnchor': {'number': ANCHOR_N + 5, 'hash': '0x' + '7a' * 32, 'recordedAt': 'root'}})
++        try:
++            argv, _ = launch_base(t)
++            self.assertEqual(argv[0], str(t.rel)); self.assertNotIn('--bootstrap.anchor', argv)
++        finally:
++            t.close()
++
++
++if __name__ == '__main__':
++    unittest.main()

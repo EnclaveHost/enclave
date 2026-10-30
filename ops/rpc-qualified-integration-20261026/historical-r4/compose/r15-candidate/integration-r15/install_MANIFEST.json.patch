@@ -1,0 +1,96 @@
+--- a/install/MANIFEST.json
++++ b/install/MANIFEST.json
+@@ -1,6 +1,6 @@
+ {
+  "format": "enclave-finality-install-manifest/v1",
+- "stage": "base-finality-proof-stage/r14-witness",
++ "stage": "historical-origin-segments-stage/r4/compose/r15-candidate",
+  "env": {
+   "FINALITY_NODE": "the reviewed node binary",
+   "FINALITY_DEPS_ROOT": "/opt/enclave-rpc/finality/deps",
+@@ -10,7 +10,7 @@
+   {
+    "src": "src/finality_state.py",
+    "dest": "/opt/enclave-rpc/finality/src/finality_state.py",
+-   "sha256": "608565123278e1d877abffe02fc762aba3fccee6c89e249f3ee6d808b618704e",
++   "sha256": "595c77bbdab0b3b8bd3b690fbd94b1cad3438309603608047d6aba0547f8ca11",
+    "mode": "0644",
+    "flagsFalse": [
+     "FINALITY_PROTOTYPE_REVIEWED"
+@@ -64,7 +64,7 @@
+   {
+    "src": "producer/base_launch.py",
+    "dest": "/opt/enclave-rpc/base-launch/base_launch.py",
+-   "sha256": "5e567c93676a7f7fd48040a7f90ffae860f454a0a69efd8f3f1445a5b87b224b",
++   "sha256": "9ecaa494ed3a4cb6d12311bb481acc4631f52382f726dfb2e440994ead11eb2d",
+    "mode": "0755",
+    "flagsFalse": [
+     "FINALITY_PROOF_REVIEWED"
+@@ -73,13 +73,13 @@
+   {
+    "src": "readiness/readiness_sampler.py",
+    "dest": "/opt/enclave-rpc/readiness/readiness_sampler.py",
+-   "sha256": "340b47dc2bf3a3d8ffb1609f0f1db686f06ef7d5a6426c6609595290d71d7d25",
++   "sha256": "4d4b4c542e42550ebd478f7f208bc900ebf833f27c59f904b737377ca58ba8c7",
+    "mode": "0755"
+   },
+   {
+    "src": "wrapper/chain_service.py",
+    "dest": "/opt/enclave-rpc/chain_service.py",
+-   "sha256": "9607b831c8941d1108022a500cf1ae328367b84a110e38b00fdd18476ff4656a",
++   "sha256": "5ebebd701e02c049bbee8caa406d05566e3e3dc31d1142d02cb26fd46bfb2b62",
+    "mode": "0755",
+    "wrapper": true,
+    "flagsFalse": [
+@@ -89,7 +89,7 @@
+   {
+    "src": "readiness/publish_readiness.py",
+    "dest": "/opt/enclave-rpc/readiness/publish_readiness.py",
+-   "sha256": "155b5cb7f9501feb4826426a295816cd4ee7a29583d8e0ddb7ccf5bb9a5d585d",
++   "sha256": "379cc93f0bc55d0c21d6014ce952424723e72eab930a2b3209b7ef3208f75f7d",
+    "mode": "0755"
+   },
+   {
+@@ -179,7 +179,7 @@
+    "src": "src/reproof.py",
+    "dest": "/opt/enclave-rpc/finality/src/reproof.py",
+    "mode": "0755",
+-   "sha256": "344451545b9decfa11d259d92ab4249bb58499871df471e195446b8b0640a2e3"
++   "sha256": "cf4197940ebbc5692ca01525438c835ac0ea84725b9ae8557aec83ad23b55daa"
+   },
+   {
+    "src": "units/enclave-base-finality-reproof.service",
+@@ -199,7 +199,7 @@
+    "src": "recovery/forward_sync.py",
+    "dest": "/opt/enclave-rpc/recovery/forward_sync.py",
+    "mode": "0755",
+-   "sha256": "bc29f8cb992e1ffd15db62c64d7d07ccd2398fed3ec064d878bcb2f05f9dd109"
++   "sha256": "2e709cc10d58c3ab0607f40369e718d1060596a4cf10f46b45b2639736c8f176"
+   },
+   {
+    "src": "units/forward-sync/enclave-base-forward-sync.service",
+@@ -426,6 +426,24 @@
+    "mode": "0644",
+    "sha256": "dd82cd45eaf854e1f9d13793adfcda260d13de1aef3a894fffa3dda1d4faf429",
+    "unit": true
++  },
++  {
++   "src": "lib/anchored-coverage/anchored_origin.py",
++   "dest": "/opt/enclave-rpc/lib/anchored-coverage/anchored_origin.py",
++   "sha256": "ed1a547d4d8aea112cae66479c64cd9e556b531063ef361c9b156c6d2948ddfa",
++   "mode": "0644"
++  },
++  {
++   "src": "lib/anchored-coverage/segments.py",
++   "dest": "/opt/enclave-rpc/lib/anchored-coverage/segments.py",
++   "sha256": "8764f5cc55cc42307eadbe71695bb986ca5fa86c07db671553d50d0635c51aa1",
++   "mode": "0644"
++  },
++  {
++   "src": "lib/anchored-coverage/anchored_acceptance.py",
++   "dest": "/opt/enclave-rpc/lib/anchored-coverage/anchored_acceptance.py",
++   "sha256": "cb68413866d0534822bdfc37702e253acfe04abad30d98e34b2231595518138d",
++   "mode": "0644"
+   }
+  ],
+  "trees": [

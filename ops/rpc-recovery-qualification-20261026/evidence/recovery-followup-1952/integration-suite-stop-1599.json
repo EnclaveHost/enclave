@@ -1,0 +1,8 @@
+{
+  "at": "2026-10-26T19:41:37Z",
+  "pid": 2229364,
+  "signal": "SIGTERM",
+  "reason": "All nine subtests reported; two failed and suite remained alive with leaked handles. Terminated owned timeout to release this failed suite; enclosing qualification continues, result remains failure.",
+  "cwd": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r2/runs/20261026T193742Z-slice-2228394/repo",
+  "tap": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r2/runs/20261026T193742Z-slice-2228394/logs/driver-integration.tap"
+}

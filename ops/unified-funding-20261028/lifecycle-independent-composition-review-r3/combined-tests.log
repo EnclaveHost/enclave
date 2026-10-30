@@ -1,0 +1,528 @@
+TAP version 13
+# Subtest: the generator input is the pinned baseline
+ok 1 - the generator input is the pinned baseline
+  ---
+  duration_ms: 1.034024
+  type: 'test'
+  ...
+# Subtest: insertions only: removing them restores every baseline byte; each guard sits before its legacy effect
+not ok 2 - insertions only: removing them restores every baseline byte; each guard sits before its legacy effect
+  ---
+  duration_ms: 8.80447
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-review-r2/test/generate-lifecycle-host-candidate.test.mjs:19:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    23 !== 18
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 18
+  actual: 23
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-review-r2/test/generate-lifecycle-host-candidate.test.mjs:22:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: refuses a changed baseline hash
+ok 3 - refuses a changed baseline hash
+  ---
+  duration_ms: 1.681511
+  type: 'test'
+  ...
+# Subtest: refuses missing, duplicate and overlapping anchors, duplicate edit names and double application
+ok 4 - refuses missing, duplicate and overlapping anchors, duplicate edit names and double application
+  ---
+  duration_ms: 10.962837
+  type: 'test'
+  ...
+# Subtest: writes a separate candidate: never into the baseline directory, never over an existing file
+ok 5 - writes a separate candidate: never into the baseline directory, never over an existing file
+  ---
+  duration_ms: 17.767458
+  type: 'test'
+  ...
+# Subtest: zero routes: the candidate host behaves exactly like the baseline host
+ok 6 - zero routes: the candidate host behaves exactly like the baseline host
+  ---
+  duration_ms: 140.186007
+  type: 'test'
+  ...
+# Subtest: routed app (configured but not activated) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+ok 7 - routed app (configured but not activated) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+  ---
+  duration_ms: 26.240539
+  type: 'test'
+  ...
+# Subtest: routed app (adapters missing (hold mode)) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+ok 8 - routed app (adapters missing (hold mode)) never reaches a legacy claim/renew/release/prove/restart path; the unrelated app does
+  ---
+  duration_ms: 19.988265
+  type: 'test'
+  ...
+# Subtest: activated route: v2 cadence, legacy tick, keeper and hints run concurrently with one runner execution and no transaction
+ok 9 - activated route: v2 cadence, legacy tick, keeper and hints run concurrently with one runner execution and no transaction
+  ---
+  duration_ms: 11.226596
+  type: 'test'
+  ...
+# Subtest: the owner turning hosting off: the real enforceOff -> \#giveUp path stops at once, then the runner records the stop
+ok 10 - the owner turning hosting off: the real enforceOff -> \#giveUp path stops at once, then the runner records the stop
+  ---
+  duration_ms: 3.45357
+  type: 'test'
+  ...
+# Subtest: address-book changes cannot veto exact finalized handoff; wrong source-ledger proof still refuses
+ok 11 - address-book changes cannot veto exact finalized handoff; wrong source-ledger proof still refuses
+  ---
+  duration_ms: 1.192593
+  type: 'test'
+  ...
+# Subtest: every missing safety adapter is an explicit blocker, never a no-op default
+ok 12 - every missing safety adapter is an explicit blocker, never a no-op default
+  ---
+  duration_ms: 14.019149
+  type: 'test'
+  ...
+# Subtest: hold mode: a configured route with a missing adapter is owned and HELD; no runner, no evidence, no fallback
+ok 13 - hold mode: a configured route with a missing adapter is owned and HELD; no runner, no evidence, no fallback
+  ---
+  duration_ms: 1.428772
+  type: 'test'
+  ...
+# Subtest: invalid, duplicate and wrong-ledger routes are refused at construction
+ok 14 - invalid, duplicate and wrong-ledger routes are refused at construction
+  ---
+  duration_ms: 0.807485
+  type: 'test'
+  ...
+# Subtest: routes are immutable after construction and the dispatch attaches once
+ok 15 - routes are immutable after construction and the dispatch attaches once
+  ---
+  duration_ms: 0.264048
+  type: 'test'
+  ...
+# Subtest: an unactivated route is held: fenced, no chain read, no transaction
+ok 16 - an unactivated route is held: fenced, no chain read, no transaction
+  ---
+  duration_ms: 0.354328
+  type: 'test'
+  ...
+# Subtest: activation requires proof-qualified evidence binding exactly this route
+ok 17 - activation requires proof-qualified evidence binding exactly this route
+  ---
+  duration_ms: 1.346882
+  type: 'test'
+  ...
+# Subtest: handoff binds the old-ledger proof and retained local intents, not the mutable legacy address book
+ok 18 - handoff binds the old-ledger proof and retained local intents, not the mutable legacy address book
+  ---
+  duration_ms: 0.395788
+  type: 'test'
+  ...
+# Subtest: an idle healthy v2 app is served on cadence with no transaction at all
+ok 19 - an idle healthy v2 app is served on cadence with no transaction at all
+  ---
+  duration_ms: 3.57748
+  type: 'test'
+  ...
+# Subtest: a real transition is submitted once; an unresolved intent is never resubmitted
+ok 20 - a real transition is submitted once; an unresolved intent is never resubmitted
+  ---
+  duration_ms: 1.106603
+  type: 'test'
+  ...
+# Subtest: a snapshot from another ledger or controller is refused and never served
+ok 21 - a snapshot from another ledger or controller is refused and never served
+  ---
+  duration_ms: 0.748295
+  type: 'test'
+  ...
+# Subtest: AFTER handoff: old address-book ledger changes do not disable the pinned new ledger
+ok 22 - AFTER handoff: old address-book ledger changes do not disable the pinned new ledger
+  ---
+  duration_ms: 0.889285
+  type: 'test'
+  ...
+# Subtest: AFTER handoff: a legacy release hold refuses new starts only; a running app keeps serving
+ok 23 - AFTER handoff: a legacy release hold refuses new starts only; a running app keeps serving
+  ---
+  duration_ms: 0.382088
+  type: 'test'
+  ...
+# Subtest: a local restriction across the runner await prevents serving and records a revocation
+ok 24 - a local restriction across the runner await prevents serving and records a revocation
+  ---
+  duration_ms: 0.576386
+  type: 'test'
+  ...
+# Subtest: a restriction arriving mid-reconcile stops at once; the runner records the stop; a forced hint clears only the local hold
+ok 25 - a restriction arriving mid-reconcile stops at once; the runner records the stop; a forced hint clears only the local hold
+  ---
+  duration_ms: 11.635413
+  type: 'test'
+  ...
+# Subtest: concurrent reconciles and passes join: one runner execution per deployment
+ok 26 - concurrent reconciles and passes join: one runner execution per deployment
+  ---
+  duration_ms: 0.587897
+  type: 'test'
+  ...
+# Subtest: host admission: unknown fences without stopping, a refusal stops and queues, a malformed answer is unknown
+ok 27 - host admission: unknown fences without stopping, a refusal stops and queues, a malformed answer is unknown
+  ---
+  duration_ms: 16.072458
+  type: 'test'
+  ...
+# Subtest: independent host: a platform ban or outage is not a veto; platform-owned host: it is the owner's legitimate stop
+ok 28 - independent host: a platform ban or outage is not a veto; platform-owned host: it is the owner's legitimate stop
+  ---
+  duration_ms: 1.075734
+  type: 'test'
+  ...
+# Subtest: new-work refusal on a platform-owned host blocks a start, never a running app; an independent host starts
+ok 29 - new-work refusal on a platform-owned host blocks a start, never a running app; an independent host starts
+  ---
+  duration_ms: 0.731536
+  type: 'test'
+  ...
+# Subtest: a pending intent is reconciled read-only under new-work denial, platform refusal or unknown admission; never resent
+ok 30 - a pending intent is reconciled read-only under new-work denial, platform refusal or unknown admission; never resent
+  ---
+  duration_ms: 5.248559
+  type: 'test'
+  ...
+# Subtest: restart: a fresh dispatch (no in-memory status) serves an authenticated running app despite new-work refusal
+ok 31 - restart: a fresh dispatch (no in-memory status) serves an authenticated running app despite new-work refusal
+  ---
+  duration_ms: 0.398098
+  type: 'test'
+  ...
+# Subtest: a local owner stop is never blocked by online denial; a chain outage defers only the ledger record
+ok 32 - a local owner stop is never blocked by online denial; a chain outage defers only the ledger record
+  ---
+  duration_ms: 5.26543
+  type: 'test'
+  ...
+# Subtest: host authority replay, equivocation and foreign bindings are unknown, never allow
+ok 33 - host authority replay, equivocation and foreign bindings are unknown, never allow
+  ---
+  duration_ms: 4.141187
+  type: 'test'
+  ...
+# Subtest: ownership transfer: to a platform wallet the platform policy applies; away from it, it stops applying
+ok 34 - ownership transfer: to a platform wallet the platform policy applies; away from it, it stops applying
+  ---
+  duration_ms: 0.747836
+  type: 'test'
+  ...
+# Subtest: capacity: unknown shares, a full box, the headroom or hosting off refuse a start; allocations count
+ok 35 - capacity: unknown shares, a full box, the headroom or hosting off refuse a start; allocations count
+  ---
+  duration_ms: 1.896649
+  type: 'test'
+  ...
+# Subtest: a claim hint never reconciles or claims a routed id
+ok 36 - a claim hint never reconciles or claims a routed id
+  ---
+  duration_ms: 0.167979
+  type: 'test'
+  ...
+# Subtest: start runs its own off-chain cadence on an injected timer
+ok 37 - start runs its own off-chain cadence on an injected timer
+  ---
+  duration_ms: 1.218083
+  type: 'test'
+  ...
+# Subtest: independently owned host: serves the routed app through a platform ban and outage; the legacy app is still refused
+ok 38 - independently owned host: serves the routed app through a platform ban and outage; the legacy app is still refused
+  ---
+  duration_ms: 6.97323
+  type: 'test'
+  ...
+# Subtest: independently owned host: a queued routed app starts despite the platform new-work refusal
+ok 39 - independently owned host: a queued routed app starts despite the platform new-work refusal
+  ---
+  duration_ms: 1.74015
+  type: 'test'
+  ...
+# Subtest: host owned by a pinned platform wallet: the ban is the owner's legitimate stop (local fence + ledger revocation)
+ok 40 - host owned by a pinned platform wallet: the ban is the owner's legitimate stop (local fence + ledger revocation)
+  ---
+  duration_ms: 1.205103
+  type: 'test'
+  ...
+# Subtest: ownership transfer to the platform wallet makes its ban apply; a replayed older revision cannot undo it
+ok 41 - ownership transfer to the platform wallet makes its ban apply; a replayed older revision cannot undo it
+  ---
+  duration_ms: 1.334892
+  type: 'test'
+  ...
+# Subtest: restart on a platform-owned host under new-work refusal: authenticated running state is served by each fresh host
+ok 42 - restart on a platform-owned host under new-work refusal: authenticated running state is served by each fresh host
+  ---
+  duration_ms: 1.7854
+  type: 'test'
+  ...
+# Subtest: the box owner's own control still stops an independently hosted app (not a platform veto)
+ok 43 - the box owner's own control still stops an independently hosted app (not a platform veto)
+  ---
+  duration_ms: 12.034141
+  type: 'test'
+  ...
+# Subtest: a journaled start intent is reconciled read-only under an accepted platform-owner refusal (new revision); never resent, never replaced
+ok 44 - a journaled start intent is reconciled read-only under an accepted platform-owner refusal (new revision); never resent, never replaced
+  ---
+  duration_ms: 11.389014
+  type: 'test'
+  ...
+# Subtest: a journaled start intent is reconciled read-only under a platform-owner new-work refusal only; never resent, never replaced
+ok 45 - a journaled start intent is reconciled read-only under a platform-owner new-work refusal only; never resent, never replaced
+  ---
+  duration_ms: 0.958965
+  type: 'test'
+  ...
+# Subtest: a journaled start intent is reconciled read-only under the host owner's committed refusal; never resent, never replaced
+ok 46 - a journaled start intent is reconciled read-only under the host owner's committed refusal; never resent, never replaced
+  ---
+  duration_ms: 0.993594
+  type: 'test'
+  ...
+# Subtest: a journaled start intent is reconciled read-only under unknown admission; never resent, never replaced
+ok 47 - a journaled start intent is reconciled read-only under unknown admission; never resent, never replaced
+  ---
+  duration_ms: 0.641987
+  type: 'test'
+  ...
+# Subtest: a journaled start intent is reconciled read-only under a full box; never resent, never replaced
+ok 48 - a journaled start intent is reconciled read-only under a full box; never resent, never replaced
+  ---
+  duration_ms: 0.649856
+  type: 'test'
+  ...
+# Subtest: a journaled start intent is reconciled read-only under the box owner turning hosting off; never resent, never replaced
+ok 49 - a journaled start intent is reconciled read-only under the box owner turning hosting off; never resent, never replaced
+  ---
+  duration_ms: 0.511847
+  type: 'test'
+  ...
+# Subtest: cold restart after finalized handoff does not restore the old global address-book veto
+ok 50 - cold restart after finalized handoff does not restore the old global address-book veto
+  ---
+  duration_ms: 17.984257
+  type: 'test'
+  ...
+# Subtest: recovered Running assignment remains charged to available host capacity
+ok 51 - recovered Running assignment remains charged to available host capacity
+  ---
+  duration_ms: 9.790334
+  type: 'test'
+  ...
+# Subtest: current local owner denial still reaches ledger revocation with operational generation authority
+ok 52 - current local owner denial still reaches ledger revocation with operational generation authority
+  ---
+  duration_ms: 15.70434
+  type: 'test'
+  ...
+# Subtest: an owner restriction during unsigned prepare prevents journaling and sending a new running intent
+ok 53 - an owner restriction during unsigned prepare prevents journaling and sending a new running intent
+  ---
+  duration_ms: 6.876431
+  type: 'test'
+  ...
+# Subtest: a routed snapshot for a different local host is never served
+ok 54 - a routed snapshot for a different local host is never served
+  ---
+  duration_ms: 1.467342
+  type: 'test'
+  ...
+# Subtest: an owner restriction during unsigned prepare of a REVOCATION still journals and sends it once
+ok 55 - an owner restriction during unsigned prepare of a REVOCATION still journals and sends it once
+  ---
+  duration_ms: 3.786879
+  type: 'test'
+  ...
+# Subtest: publisher delisting alone cannot veto an independently owned deployment of the same committed artifact
+ok 56 - publisher delisting alone cannot veto an independently owned deployment of the same committed artifact
+  ---
+  duration_ms: 1.048204
+  type: 'test'
+  ...
+# Subtest: publisher yanking alone cannot veto an independently owned deployment of the same committed artifact
+ok 57 - publisher yanking alone cannot veto an independently owned deployment of the same committed artifact
+  ---
+  duration_ms: 2.890623
+  type: 'test'
+  ...
+# Subtest: integrity always applies; publisher listing and catalog-owner moderation apply only when the host owner elects them
+ok 58 - integrity always applies; publisher listing and catalog-owner moderation apply only when the host owner elects them
+  ---
+  duration_ms: 5.555008
+  type: 'test'
+  ...
+# Subtest: legacy admission is not mutated: hostAdmissionRefusal still applies mandatory platform moderation
+ok 59 - legacy admission is not mutated: hostAdmissionRefusal still applies mandatory platform moderation
+  ---
+  duration_ms: 0.315558
+  type: 'test'
+  ...
+# Subtest: scoped host authority: the production hash-checked commitment, a revision floor, freshness
+ok 60 - scoped host authority: the production hash-checked commitment, a revision floor, freshness
+  ---
+  duration_ms: 11.499284
+  type: 'test'
+  ...
+# Subtest: end to end (real policy code, real runner): an independent host serves a pending-approval app under a platform ban
+ok 61 - end to end (real policy code, real runner): an independent host serves a pending-approval app under a platform ban
+  ---
+  duration_ms: 4.325235
+  type: 'test'
+  ...
+# Subtest: end to end: elected moderation (incl. a publisher yank) or a deny list stops and records a revocation
+ok 62 - end to end: elected moderation (incl. a publisher yank) or a deny list stops and records a revocation
+  ---
+  duration_ms: 2.802374
+  type: 'test'
+  ...
+# Subtest: end to end: a publisher delist or yank of the same artifact, with no elected moderation, keeps serving
+ok 63 - end to end: a publisher delist or yank of the same artifact, with no elected moderation, keeps serving
+  ---
+  duration_ms: 3.830678
+  type: 'test'
+  ...
+# Subtest: end to end: on a host its pinned wallet owns, the platform ban is the owner's stop
+ok 64 - end to end: on a host its pinned wallet owns, the platform ban is the owner's stop
+  ---
+  duration_ms: 1.071444
+  type: 'test'
+  ...
+# Subtest: end to end: an ownership/catalog outage is unknown (fenced, not stopped, never allowed)
+ok 65 - end to end: an ownership/catalog outage is unknown (fenced, not stopped, never allowed)
+  ---
+  duration_ms: 1.009074
+  type: 'test'
+  ...
+# Subtest: snapshot admission: derived from the independent-profile snapshot only; unknown policy is unknown, never a decision
+ok 66 - snapshot admission: derived from the independent-profile snapshot only; unknown policy is unknown, never a decision
+  ---
+  duration_ms: 0.814095
+  type: 'test'
+  ...
+# Subtest: composer: only an independent-profile adapter; bindings from its reviewed pins; named blockers carried through
+ok 67 - composer: only an independent-profile adapter; bindings from its reviewed pins; named blockers carried through
+  ---
+  duration_ms: 1.387752
+  type: 'test'
+  ...
+# Subtest: restart: Host.shareUse counts recovered allocations; legacy and lifecycle new work wait until they are known
+ok 68 - restart: Host.shareUse counts recovered allocations; legacy and lifecycle new work wait until they are known
+  ---
+  duration_ms: 7.966195
+  type: 'test'
+  ...
+# Subtest: simultaneous starts in one Promise.all pass cannot over-admit the real host caps
+ok 69 - simultaneous starts in one Promise.all pass cannot over-admit the real host caps
+  ---
+  duration_ms: 1.079654
+  type: 'test'
+  ...
+# Subtest: fenced uncertainty and failed removal stay in Host.shareUse; only a confirmed stop releases (real enforceOff)
+ok 70 - fenced uncertainty and failed removal stay in Host.shareUse; only a confirmed stop releases (real enforceOff)
+  ---
+  duration_ms: 5.377609
+  type: 'test'
+  ...
+# Subtest: attach: every route starts unresolved and new work is held until its allocation is observed
+ok 71 - attach: every route starts unresolved and new work is held until its allocation is observed
+  ---
+  duration_ms: 10.092932
+  type: 'test'
+  ...
+# Subtest: recovered running allocation is retained through unknown chain, unknown admission and unknown inventory
+ok 72 - recovered running allocation is retained through unknown chain, unknown admission and unknown inventory
+  ---
+  duration_ms: 2.479896
+  type: 'test'
+  ...
+# Subtest: failed or timed-out removal keeps the allocation; only a confirmed stop releases it
+ok 73 - failed or timed-out removal keeps the allocation; only a confirmed stop releases it
+  ---
+  duration_ms: 9.494635
+  type: 'test'
+  ...
+# Subtest: a pending running intent and an ambiguous launch are commitments; a fresh process recovers them before new starts
+ok 74 - a pending running intent and an ambiguous launch are commitments; a fresh process recovers them before new starts
+  ---
+  duration_ms: 1.639391
+  type: 'test'
+  ...
+# Subtest: an unresolved route blocks every other route's NEW start; its own serving continues
+ok 75 - an unresolved route blocks every other route's NEW start; its own serving continues
+  ---
+  duration_ms: 1.401181
+  type: 'test'
+  ...
+# Subtest: simultaneous starts in one Promise.all pass see each other's reservations
+ok 76 - simultaneous starts in one Promise.all pass see each other's reservations
+  ---
+  duration_ms: 0.870475
+  type: 'test'
+  ...
+# Subtest: an unobserved runtime of a held (not yet activated) route still counts
+ok 77 - an unobserved runtime of a held (not yet activated) route still counts
+  ---
+  duration_ms: 0.417568
+  type: 'test'
+  ...
+# Subtest: owned journal: an older journal opens unchanged; floors are monotonic; holds release only after a later owner change
+ok 78 - owned journal: an older journal opens unchanged; floors are monotonic; holds release only after a later owner change
+  ---
+  duration_ms: 8.561621
+  type: 'test'
+  ...
+# Subtest: restart: the persisted floor refuses a lower still-fresh host revision
+ok 79 - restart: the persisted floor refuses a lower still-fresh host revision
+  ---
+  duration_ms: 11.401075
+  type: 'test'
+  ...
+# Subtest: restart: a local hold survives; a forced claim hint clears nothing; only a saved owner caps change releases it
+ok 80 - restart: a local hold survives; a forced claim hint clears nothing; only a saved owner caps change releases it
+  ---
+  duration_ms: 6.708761
+  type: 'test'
+  ...
+# Subtest: generated host: enforceOff persists the hold; consider(force) keeps it; setHostingCaps (owner API) releases it
+ok 81 - generated host: enforceOff persists the hold; consider(force) keeps it; setHostingCaps (owner API) releases it
+  ---
+  duration_ms: 427.937655
+  type: 'test'
+  ...
+# Subtest: durable host authority rejects lower revision after process restart
+ok 82 - durable host authority rejects lower revision after process restart
+  ---
+  duration_ms: 18.611593
+  type: 'test'
+  ...
+# Subtest: durable host authority rejects same revision different owner after process restart
+ok 83 - durable host authority rejects same revision different owner after process restart
+  ---
+  duration_ms: 1.996269
+  type: 'test'
+  ...
+1..83
+# tests 83
+# suites 0
+# pass 82
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4118.79912

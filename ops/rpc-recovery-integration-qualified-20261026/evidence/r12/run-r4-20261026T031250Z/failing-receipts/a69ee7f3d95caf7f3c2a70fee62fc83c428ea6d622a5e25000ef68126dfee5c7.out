@@ -1,0 +1,125 @@
+TAP version 13
+# Subtest: G2: the guest checker and the runtime accept http at a PRIVATE IPv4 literal as an untrusted witness source, nothing wider
+ok 1 - G2: the guest checker and the runtime accept http at a PRIVATE IPv4 literal as an untrusted witness source, nothing wider
+  ---
+  duration_ms: 2.722051
+  type: 'test'
+  ...
+# Subtest: G1: expose "attested" exists only in the HOST_DATA-bound direct config; absent keeps every earlier digest; it makes a verifier-only guest
+ok 2 - G1: expose "attested" exists only in the HOST_DATA-bound direct config; absent keeps every earlier digest; it makes a verifier-only guest
+  ---
+  duration_ms: 2.550381
+  type: 'test'
+  ...
+# Subtest: G1: planDirectBoot of a verifier-only guest: the verifier is the only chain authority, every RPC name refuses, nothing is sold, one filtered route
+ok 3 - G1: planDirectBoot of a verifier-only guest: the verifier is the only chain authority, every RPC name refuses, nothing is sold, one filtered route
+  ---
+  duration_ms: 28.508357
+  type: 'test'
+  ...
+# Subtest: the front exposes ONLY filtered reads of the bound verifier; refusals never reach it; the route shape is fixed
+ok 4 - the front exposes ONLY filtered reads of the bound verifier; refusals never reach it; the route shape is fixed
+  ---
+  duration_ms: 63.540447
+  type: 'test'
+  ...
+# Subtest: a verifier answer above the bound is cut off, never served as complete
+ok 5 - a verifier answer above the bound is cut off, never served as complete
+  ---
+  duration_ms: 71.734138
+  type: 'test'
+  ...
+# Subtest: G3: a replica is used only after attestation through the UNCHANGED verifier; the outcome is "attested", never "verified"
+ok 6 - G3: a replica is used only after attestation through the UNCHANGED verifier; the outcome is "attested", never "verified"
+  ---
+  duration_ms: 32.576107
+  type: 'test'
+  ...
+# Subtest: G3: wrong measurement, another config, a HOST_DATA that binds nothing, an unattested front, and a key change all refuse; failover is availability only
+ok 7 - G3: wrong measurement, another config, a HOST_DATA that binds nothing, an unattested front, and a key change all refuse; failover is availability only
+  ---
+  duration_ms: 72.154495
+  type: 'test'
+  ...
+# Subtest: G4: a plain object is never "attested", whatever it claims (the brand marks only client-built objects; not a boundary against same-process code)
+ok 8 - G4: a plain object is never "attested", whatever it claims (the brand marks only client-built objects; not a boundary against same-process code)
+  ---
+  duration_ms: 0.572166
+  type: 'test'
+  ...
+# Subtest: ERC-1271 and SessionVault owner signatures through the ATTESTED verifier on a real chain: the exact call shapes, no public RPC
+ok 9 - ERC-1271 and SessionVault owner signatures through the ATTESTED verifier on a real chain: the exact call shapes, no public RPC
+  ---
+  duration_ms: 12348.757962
+  type: 'test'
+  ...
+# Subtest: config: minTcb is validated as the verifier does (supported product line, exactly its fields, integers 0-255); roots only with the programmatic flag
+ok 10 - config: minTcb is validated as the verifier does (supported product line, exactly its fields, integers 0-255); roots only with the programmatic flag
+  ---
+  duration_ms: 4.846445
+  type: 'test'
+  ...
+# Subtest: ONE deadline across attestation and every replica: 8 hanging replicas settle at the caller's deadline, not 8 x timeout; 8 dead ones fail fast
+ok 11 - ONE deadline across attestation and every replica: 8 hanging replicas settle at the caller's deadline, not 8 x timeout; 8 dead ones fail fast
+  ---
+  duration_ms: 2030.492801
+  type: 'test'
+  ...
+# Subtest: aborts settle promptly while an attestation is pending; repeated aborts share one attestation; close() leaves no socket open
+ok 12 - aborts settle promptly while an attestation is pending; repeated aborts share one attestation; close() leaves no socket open
+  ---
+  duration_ms: 309.301703
+  type: 'test'
+  ...
+# Subtest: G5: the provider authority is ONE explicit choice; legacy modes unchanged; mixed, paid and root-naming configs refuse
+not ok 13 - G5: the provider authority is ONE explicit choice; legacy modes unchanged; mixed, paid and root-naming configs refuse
+  ---
+  duration_ms: 5.239343
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/attested-chain-verifier.test.mjs:363:1'
+  failureType: 'testCodeFailure'
+  error: '{"chainVerifier":"http://127.0.0.1:1/"}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'provider chain authority: chainVerifier is not used with chainAuthority "attested-verifier" (a local verifier is a different authority): remove it'
+  stack: |-
+    bad (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/network/wg-provider/attested-authority.mjs:36:28)
+    providerChainAuthority (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/network/wg-provider/attested-authority.mjs:90:40)
+    att (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/attested-chain-verifier.test.mjs:374:35)
+    file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/attested-chain-verifier.test.mjs:381:25
+    getActual (node:assert:609:5)
+    Function.throws (node:assert:757:24)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/attested-chain-verifier.test.mjs:381:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/attested-chain-verifier.test.mjs:381:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: packaging: separately bundled reader and client share ONE brand (no duplicate-module mislabel); the provider bundle resolves its closure
+ok 14 - packaging: separately bundled reader and client share ONE brand (no duplicate-module mislabel); the provider bundle resolves its closure
+  ---
+  duration_ms: 216.883392
+  type: 'test'
+  ...
+# Subtest: the REAL supervisor starts in a verifier-only boot (refusing RPC names) and, behind the real front, passes attestation step 6
+ok 15 - the REAL supervisor starts in a verifier-only boot (refusing RPC names) and, behind the real front, passes attestation step 6
+  ---
+  duration_ms: 455.612029
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 14
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 17373.967126

@@ -1,0 +1,27 @@
+{
+  "seedEntries": 13,
+  "candidateEqualsSeed": true,
+  "committedSeedVerified": true,
+  "commit": "56f6930797300b88f6bbd81e0dd728555b8e02c7",
+  "productPreEdits": 0,
+  "readonlyInputPins": 88,
+  "inputDrift": [],
+  "allowedNewFiles": [
+    "holder_protocol.py",
+    "install_holder.py",
+    "holder_launcher.py",
+    "holder_effects.py",
+    "run_offline_observed.py",
+    "test_holder_bridge.py",
+    "qualify_holder_bridge.py",
+    "README-HOLDER.md",
+    "BRIDGE-CLOSURE.json"
+  ],
+  "authorLaunched": false,
+  "accountCheckedNow": false,
+  "testsRun": false,
+  "nativeToolsExecuted": false,
+  "imagesOrDatabaseRead": false,
+  "runtimeOrFinancialAction": false,
+  "metadataGitReadOnly": true
+}

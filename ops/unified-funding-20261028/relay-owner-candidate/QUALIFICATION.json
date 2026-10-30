@@ -1,0 +1,20 @@
+{
+  "status": "SOURCE_CANDIDATE_NOT_DEPLOYED",
+  "tests": {
+    "stage": {
+      "pass": 68,
+      "fail": 0,
+      "skip": 0
+    },
+    "portable": {
+      "pass": 68,
+      "fail": 0,
+      "skip": 0
+    }
+  },
+  "patchedRouteSha256": "87e6df639df4569d6a5c44439d0448a4fe3ce4c2580c2b7e997baab61f5aa7bc",
+  "originalRelaySha256": "457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d",
+  "signingOrBroadcast": false,
+  "actualHostIntegrationQualified": false,
+  "feePolicyConfigured": false
+}

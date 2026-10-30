@@ -1,0 +1,10 @@
+[queue] START available=22436MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+[fix/rpc-relay-consumers-20261025 e4f507d6b] Route Windows host and paid network operations through explicit local chain authority
+ 11 files changed, 589 insertions(+), 44 deletions(-)
+ create mode 100644 test/windows-chain-authority-runtime.test.mjs
+To https://github.com/EnclaveHost/enclave.git
+   aebf4c932..e4f507d6b  HEAD -> fix/rpc-relay-consumers-20261025
+Applied exact 11 tested files; 85 checks passed. Source only; no live cutover.
+[memory-guard] exit=0 peakTreeRssMiB=54 minHostAvailableMiB=22313
+[memory-guard] at peak: python3:20 git-remote-http:16 git:9 git:6 git:4
+[queue] EXIT 0

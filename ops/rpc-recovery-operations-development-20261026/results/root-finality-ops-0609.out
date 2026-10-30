@@ -1,0 +1,14 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] START available=20448MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+FAIL ops-readiness: rc 0, Ran 25 tests in 0.044s, last {"published": "NOT-READY", "why": "settings: missing ['coverage-origin', 'coverage-receipt', 'coverage-verdict', 'expect-chain-config-sha256', 'expect-snapshot-manifest-sha256', 'finality-status'], unknown []"}
+PASS ops-installer: 8
+FAIL sampler: rc 1, Ran 92 tests in 111.229s, last FAILED (failures=75, errors=1)
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6-ops-fixes/logs/run-20261026T060616Z-1007259
+## r6-ops-fixes SHA256SUMS 436063d6e9a6be14807eb2737d38f5c01f2651788bf82c151510c891235c5aef
+## finality-ops-fixes rc=1
+[memory-guard] exit=1 peakTreeRssMiB=57 minHostAvailableMiB=19007
+[memory-guard] at peak: python3:49 bash:4 bash:2 timeout:2
+[queue] EXIT 1

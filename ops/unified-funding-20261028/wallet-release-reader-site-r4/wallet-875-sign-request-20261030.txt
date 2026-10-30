@@ -1,0 +1,60 @@
+ [level=3]
+    - paragraph: Sessions may change a STAGING deployment's version. A PRODUCTION deployment runs only what you promote, and its secrets are released only for that.
+    - term: deployment
+    - definition: "0xcab8fb59882d976bf4005448701149d734b0dab536d9bf46f2b5159b0b0819e9"
+    - term: environment
+    - definition: production
+    - term: promoted
+    - definition:
+      - text: "no"
+      - button "promote current"
+    - heading "Move to wallet" [level=4]
+    - paragraph: "Destination: 0x0b2d009c0c9af05b12100d77f3c815fea822ee61 (the wallet that controls this vault; it cannot be changed)"
+    - status: Cannot move to your wallet yet.
+    - list "Why it cannot move yet":
+      - listitem: It is PRODUCTION but you never promoted its current version; wallet ownership would remove the relay's promotion check without an equivalent approval.
+      - listitem: The release snapshot is too old for a census.
+    - button "Move to wallet" [disabled]
+    - button "Check the chain again"
+    - term: deployment
+    - definition: "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c"
+    - term: environment
+    - definition: staging
+    - term: promoted
+    - definition: "-"
+    - heading "Move to wallet" [level=4]
+    - paragraph: "Destination: 0x0b2d009c0c9af05b12100d77f3c815fea822ee61 (the wallet that controls this vault; it cannot be changed)"
+    - status: Cannot move to your wallet yet.
+    - list "Why it cannot move yet":
+      - listitem: A host lease is still attached (expired but not released). Wait for the host to release it.
+      - listitem: The ledger refuses the transfer while both owner escrow and runtime escrow are nonzero ("refund first"). This path never refunds.
+      - listitem: Your vault's gas reserve for this app is configured or funded; it does not follow a transfer and needs a coordinated handoff.
+    - button "Move to wallet" [disabled]
+    - button "Check the chain again"
+    - term: deployment
+    - definition: "0x87508b958c4d14381b58fe05a781efbd3f185a36d5239abdf37e8f242f944538"
+    - term: environment
+    - definition: staging
+    - term: promoted
+    - definition: "-"
+    - heading "Move to wallet" [level=4]
+    - paragraph: "Destination: 0x0b2d009c0c9af05b12100d77f3c815fea822ee61 (the wallet that controls this vault; it cannot be changed)"
+    - status: Check your wallet… (one Release signature, then one relay submission)
+    - button "Check your wallet…" [disabled]
+    - term: deployment
+    - definition: "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b"
+    - term: environment
+    - definition: production
+    - term: promoted
+    - definition: "yes"
+    - heading "Move to wallet" [level=4]
+    - paragraph: "Destination: 0x0b2d009c0c9af05b12100d77f3c815fea822ee61 (the wallet that controls this vault; it cannot be changed)"
+    - status: Cannot move to your wallet yet.
+    - list "Why it cannot move yet":
+      - listitem: A host lease is still attached (expired but not released). Wait for the host to release it.
+      - listitem: The ledger refuses the transfer while both owner escrow and runtime escrow are nonzero ("refund first"). This path never refunds.
+      - listitem: Your vault's gas reserve for this app is configured or funded; it does not follow a transfer and needs a coordinated handoff.
+      - listitem: It is promoted PRODUCTION. Wallet ownership drops the vault's stored promotion comparison, so future content changes are no longer checked against it; this path moves STAGING apps only.
+      - listitem: The release snapshot is too old for a census.
+    - button "Move to wallet" [disabled]
+    - button "Check the chain again"

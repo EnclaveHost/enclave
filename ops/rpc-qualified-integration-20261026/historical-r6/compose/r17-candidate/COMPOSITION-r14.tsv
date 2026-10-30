@@ -1,0 +1,10 @@
+path	sha256	kind	origin	src	patch
+wrapper/chain_service.py	9607b831c8941d1108022a500cf1ae328367b84a110e38b00fdd18476ff4656a	edit	r13-manifest-final	wrapper/chain_service.py	wrapper_chain_service.py-r14
+src/finality_state.py	608565123278e1d877abffe02fc762aba3fccee6c89e249f3ee6d808b618704e	edit	r13-manifest-final	src/finality_state.py	src_finality_state.py-r14
+recovery/forward_sync.py	bc29f8cb992e1ffd15db62c64d7d07ccd2398fed3ec064d878bcb2f05f9dd109	edit	r13-manifest-final	recovery/forward_sync.py	recovery_forward_sync.py-r14
+producer/base_launch.py	5e567c93676a7f7fd48040a7f90ffae860f454a0a69efd8f3f1445a5b87b224b	edit	r13-manifest-final	producer/base_launch.py	producer_base_launch.py-r14
+src/reproof.py	344451545b9decfa11d259d92ab4249bb58499871df471e195446b8b0640a2e3	edit	r13-manifest-final	src/reproof.py	src_reproof.py-r14
+install/MANIFEST.json	4691319085be89adcbc293ecf9e4e3c6c59209e0501412df32767a4123ba23c1	edit	r13-manifest-final	install/MANIFEST.json	install_MANIFEST.json-r14
+witness/witness_rpc_bridge.py	cb9765418d30d238ded384c6908462516d153161f17631f28c7247905198fc9d	new	witness-rpc-access-r2	bridge/witness_rpc_bridge.py	-
+units/enclave-witness-bridge-base.service	e4bdc94784d2bc6cb1e29a30d62c8e65a24846585271009224754960b22b9611	new	witness-rpc-access-r2	units/enclave-witness-bridge-base.service	-
+units/enclave-witness-bridge-l1.service	dd82cd45eaf854e1f9d13793adfcda260d13de1aef3a894fffa3dda1d4faf429	new	witness-rpc-access-r2	units/enclave-witness-bridge-l1.service	-

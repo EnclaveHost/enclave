@@ -1,0 +1,6 @@
+{
+ "backup": "/vm/enclave-volumes/rpc-production-maint/os-backup-20261030T061922Z-1a31c4/os.qcow2",
+ "next": "launch --evidence /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-maintenance-os-prepare-r2/evidence",
+ "prepared": true,
+ "unit": "enclave-rpc-maint-20261030T061922Z-1a31c4.service"
+}

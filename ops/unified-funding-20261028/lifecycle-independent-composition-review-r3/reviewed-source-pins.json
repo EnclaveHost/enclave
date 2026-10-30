@@ -1,0 +1,19 @@
+{
+  "src/network/lifecycle-host-authority.mjs": "04ef113c78618f5f209db2557e2b250a409c61af23a1f46cf2aacd1b0b396e6f",
+  "src/network/lifecycle-host-dispatch.mjs": "5e209cc001695c72b5b3a67525d12091979a581c8073620845937c8861ef9b26",
+  "src/network/lifecycle-independent-admission.mjs": "9ec46b88e4be5550e6072bc9f6bc566c553edf36e6231b9da4f718f2bbb04db9",
+  "src/tools/generate-lifecycle-adapter-candidate.mjs": "eb0e2e2a85663e1dca247efc82e0f3396c3c254ae21620306334aa468dd7981f",
+  "src/tools/generate-lifecycle-host-candidate.mjs": "9e7c74131adbe16dc815fecc094cc35f2be559026f0f3b3e84f34adf9fad6d17",
+  "src/tools/generate-lifecycle-journal-candidate.mjs": "61ff4a46912b98b4477003d654176542b100934ba2f3d2ca6f93c437f60a06da",
+  "src/tools/insertion-patch.mjs": "53eeef0d475dc9abf2948d5cad4f4e1a067d68a1b1e424e07c40cab90afc372b",
+  "test/generate-lifecycle-host-candidate.test.mjs": "07f278e8151da6fb117d56a738c795f16bb27b6d78daf18a815f248291470a41",
+  "test/helpers/baseline.mjs": "634aef51f53ba3031e79d2691de70e9305e022e09152497ba44c1a9722f1f267",
+  "test/helpers/lifecycle-fixture.mjs": "a5f599b75333771fa1f77c7dc2e98cbfd8a2de1d457e85e0ab49dfbcdac3e387",
+  "test/lifecycle-host-authority.test.mjs": "1e740ccfed6cd70d410f679a7cd06cee7d887c1fab886ce49f753397ff18e146",
+  "test/r3-capacity-host.test.mjs": "ec21c8af048b037238bb5c9ead9b62748853b346e223aaa46d5869850c624359",
+  "test/r3-capacity.test.mjs": "ffb5031c291aee52f98fd62500ec1aa96caa7d317a0ca337cb1468b469f6640e",
+  "test/r3-durable-authority.test.mjs": "e0c6a8aa326706f1227145de5daf370e8a22c3abcd5c12297da028f5f64c8680",
+  "test/root-adapter-generator.test.mjs": "3561e81bec5a7b76ed370e1b68d438aaf10d8811d99c43ba3a33510d0b1278c7",
+  "test/root-independent-adapter.test.mjs": "8421c6c3ad06acb6fd1ff001afa7e1d7753a8fd9007afee3804f8418c0a1ca5d",
+  "test/root-owner-restart.test.mjs": "7a969ab9811d0c9dbcfe42490eea73ba8eff9b4960455cb624a977e38d0ed9d8"
+}

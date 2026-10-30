@@ -1,0 +1,1 @@
+Original global marker HOST_REGISTRY_PROFILE never appeared in dispatch insertion. Use existing inserted comment host-registry r2, present in all three generated files and absent from all three pinned inputs; restoration and hash checks remain unchanged.

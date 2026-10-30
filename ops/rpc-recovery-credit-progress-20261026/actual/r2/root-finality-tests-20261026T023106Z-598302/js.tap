@@ -1,0 +1,130 @@
+TAP version 13
+# Subtest: qualifies: fresh N' authenticated by its own output root, ancestry walked down to the ORIGINAL N
+ok 1 - qualifies: fresh N' authenticated by its own output root, ancestry walked down to the ORIGINAL N
+  ---
+  duration_ms: 56.236944
+  type: 'test'
+  ...
+# Subtest: reads ONLY explicit numbers in [N, N'] plus the chain id: never a label, never above N', never below N
+ok 2 - reads ONLY explicit numbers in [N, N'] plus the chain id: never a label, never above N', never below N
+  ---
+  duration_ms: 9.680058
+  type: 'test'
+  ...
+# Subtest: no proof: a fresh anchor not above N is refused (nothing above N is ever qualified from N itself)
+ok 3 - no proof: a fresh anchor not above N is refused (nothing above N is ever qualified from N itself)
+  ---
+  duration_ms: 0.732235
+  type: 'test'
+  ...
+# Subtest: stale/replayed proof: a fresh anchor not above an already qualified point is refused
+ok 4 - stale/replayed proof: a fresh anchor not above an already qualified point is refused
+  ---
+  duration_ms: 0.224449
+  type: 'test'
+  ...
+# Subtest: wrong chain: chain id other than 8453 refuses before any header read
+ok 5 - wrong chain: chain id other than 8453 refuses before any header read
+  ---
+  duration_ms: 0.736646
+  type: 'test'
+  ...
+# Subtest: wrong root: our header N' does not reproduce the fresh A1 output root -> contradiction
+ok 6 - wrong root: our header N' does not reproduce the fresh A1 output root -> contradiction
+  ---
+  duration_ms: 0.623157
+  type: 'test'
+  ...
+# Subtest: our node on a FORK above N (self-consistent, different state): the fresh root is not reproduced -> contradiction
+ok 7 - our node on a FORK above N (self-consistent, different state): the fresh root is not reproduced -> contradiction
+  ---
+  duration_ms: 17.988167
+  type: 'test'
+  ...
+# Subtest: broken ancestry: one tampered middle header (re-hashed) breaks the parent link -> contradiction
+ok 8 - broken ancestry: one tampered middle header (re-hashed) breaks the parent link -> contradiction
+  ---
+  duration_ms: 5.410066
+  type: 'test'
+  ...
+# Subtest: a header whose claimed `hash` field lies -> contradiction (hash claims are never used)
+ok 9 - a header whose claimed `hash` field lies -> contradiction (hash claims are never used)
+  ---
+  duration_ms: 7.411773
+  type: 'test'
+  ...
+# Subtest: the node answers a different block for a number -> contradiction (discontinuity)
+ok 10 - the node answers a different block for a number -> contradiction (discontinuity)
+  ---
+  duration_ms: 7.623802
+  type: 'test'
+  ...
+# Subtest: wrong original anchor: the path to N' reaches N with another hash than the launch record -> contradiction
+ok 11 - wrong original anchor: the path to N' reaches N with another hash than the launch record -> contradiction
+  ---
+  duration_ms: 41.505358
+  type: 'test'
+  ...
+# Subtest: launch record internally inconsistent (anchor hash vs original root) -> contradiction, never qualified
+ok 12 - launch record internally inconsistent (anchor hash vs original root) -> contradiction, never qualified
+  ---
+  duration_ms: 8.911104
+  type: 'test'
+  ...
+# Subtest: a previously qualified point no longer on the path (reorg / DB swap after restart) -> contradiction
+ok 13 - a previously qualified point no longer on the path (reorg / DB swap after restart) -> contradiction
+  ---
+  duration_ms: 13.441066
+  type: 'test'
+  ...
+# Subtest: not synced: the node lacks N' -> refusal (no state change), and lacks a middle block -> refusal
+ok 14 - not synced: the node lacks N' -> refusal (no state change), and lacks a middle block -> refusal
+  ---
+  duration_ms: 10.231395
+  type: 'test'
+  ...
+# Subtest: an RPC failure is a refusal, never a pass
+ok 15 - an RPC failure is a refusal, never a pass
+  ---
+  duration_ms: 0.270229
+  type: 'test'
+  ...
+# Subtest: a non-Isthmus fresh header (missing requestsHash) is malformed input -> refusal
+ok 16 - a non-Isthmus fresh header (missing requestsHash) is malformed input -> refusal
+  ---
+  duration_ms: 0.247259
+  type: 'test'
+  ...
+# Subtest: span above MAX_SPAN refuses without reading
+ok 17 - span above MAX_SPAN refuses without reading
+  ---
+  duration_ms: 0.171289
+  type: 'test'
+  ...
+# Subtest: malformed inputs refuse (no default, no coercion)
+ok 18 - malformed inputs refuse (no default, no coercion)
+  ---
+  duration_ms: 0.310218
+  type: 'test'
+  ...
+# Subtest: the vendor module is used unchanged: a header N' from a NEWER block than N' (descendant) cannot stand in for N'
+ok 19 - the vendor module is used unchanged: a header N' from a NEWER block than N' (descendant) cannot stand in for N'
+  ---
+  duration_ms: 0.262749
+  type: 'test'
+  ...
+# Subtest: the synthetic header helper matches the vendor hashing (guards the fixture itself)
+ok 20 - the synthetic header helper matches the vendor hashing (guards the fixture itself)
+  ---
+  duration_ms: 0.474557
+  type: 'test'
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 20
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 278.436008

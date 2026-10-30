@@ -1,0 +1,34 @@
+[queue] START available=93245MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+harness: TEST ONLY http://127.0.0.1:43233/  (owned anvil http://127.0.0.1:42857; stops after 1800s or Ctrl-C)
+harness: page TEST databases: client-site-browser-r1-TEST-legacy-7fc59fd49f7ffa27, client-site-browser-r1-TEST-v2-dd9441f28500ba00
+harness: TEST owner signature #1 SessionGrant @ 0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5
+harness: TEST owner signature #2 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST pre-funding-API fault ON
+harness: TEST owner signature #3 Terminate @ 0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5
+harness: TEST owner signature #4 SessionGrant @ 0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5
+harness: TEST owner signature #5 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #6 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #7 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #8 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #9 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner (terminate) reply fault armed: body
+harness: TEST pre-funding-API fault OFF
+harness: TEST time advance 904s: owned anvil 1793233660 -> 1793234568; this process's clock follows
+harness: TEST owner signature #10 SessionGrant @ 0xfB9F0ee8fA682D8638b4F3F3Fd167f7CEC582aE5
+harness: TEST owner signature #11 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #12 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #13 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #14 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #15 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #16 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #17 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #18 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #19 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST owner signature #20 SessionGrant @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST owner signature #21 ReceiveWithAuthorization @ 0x5FbDB2315678afecb367f032d93F642f64180aa3
+harness: TEST execute fault armed: body
+harness: TEST execute fault armed: gateway502
+harness: TEST intake-off fault ON
+harness: TEST owner signature #22 Terminate @ 0xff9af2029778Bcf4F7513419F88E0c95CEef5510
+harness: TEST intake-off fault OFF
+harness: stopping (SIGTERM)

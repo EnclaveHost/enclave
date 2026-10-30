@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: ROOT (extended, root r6 0/1): owner released after the actual accepted stage -> no usable success, exact retirement, cold recovery discharges
+ok 1 - ROOT (extended, root r6 0/1): owner released after the actual accepted stage -> no usable success, exact retirement, cold recovery discharges
+  ---
+  duration_ms: 242.155395
+  type: 'test'
+  ...
+# Subtest: r7 owner lost WHILE the raw stage is pending: the late 202 never recreates owner authority
+ok 2 - r7 owner lost WHILE the raw stage is pending: the late 202 never recreates owner authority
+  ---
+  duration_ms: 132.166729
+  type: 'test'
+  ...
+# Subtest: r7 a FAILED owned write after stage latches: no permit is sent, the loss is reported, retirement of the bound instance is the gate's
+ok 3 - r7 a FAILED owned write after stage latches: no permit is sent, the loss is reported, retirement of the bound instance is the gate's
+  ---
+  duration_ms: 120.565447
+  type: 'test'
+  ...
+# Subtest: ROOT physical owner released during processed permit response (delivered) cannot return serving
+ok 4 - ROOT physical owner released during processed permit response (delivered) cannot return serving
+  ---
+  duration_ms: 459.054043
+  type: 'test'
+  ...
+# Subtest: ROOT physical owner released during processed permit response (lost+reconciled) cannot return serving
+ok 5 - ROOT physical owner released during processed permit response (lost+reconciled) cannot return serving
+  ---
+  duration_ms: 451.841927
+  type: 'test'
+  ...
+# Subtest: r8 positive control: owner kept, delivered permit returns serving
+ok 6 - r8 positive control: owner kept, delivered permit returns serving
+  ---
+  duration_ms: 141.729446
+  type: 'test'
+  ...
+# Subtest: r8 positive control: owner kept, lost permit reply reconciled from the MAC'd view returns serving
+ok 7 - r8 positive control: owner kept, lost permit reply reconciled from the MAC'd view returns serving
+  ---
+  duration_ms: 284.98093
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2118.883967

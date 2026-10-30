@@ -1,0 +1,408 @@
+{
+ "format": "enclave-final-consumer-composition/v1",
+ "base": "64156dcd91ff1e769e74f9c26a846be19254c716",
+ "consumerTree": "33e9cabcde02c6c5623786fca13588daa0d685d6",
+ "components": {
+  "reader": {
+   "source": "reader-runtime-composition-stage/r2 tree 9dd20e7615ca16f69417309664f95db96640399f",
+   "kvmCommit": "34a3c0d6d4c5aebffffb2492437487c9de74fb66",
+   "receipt": "root 33/33 (reader r2), 33 again in paid-v3 full 1297"
+  },
+  "paid": {
+   "source": "paid-derived-v3-composition-stage tree 5037054a3dc70ed860eb6e7599ae617727af4d33 (paid-derived-adapter-stage/r7 patch b3b0da6b)",
+   "receipt": "root paid-v3 full 1297 PASS; mutants 1304 pending"
+  },
+  "writer": {
+   "source": "finalized-writer-integration-stage/r2 patch eb8049507ecca63a888ab142b0add15de3b13b35b223f37359004eaf342f0398 (r2 sums fab96a8f)",
+   "receipt": "root writer r3 1273: 23 tests + 5 startup + 6 API checks",
+   "status": "derived writer authority NOT enabled (120 s ceiling; relay runtime carries no reader: not composed)"
+  }
+ },
+ "intermediateTree": "60154393e7e9300276671b597da5079a79d4aa83 (paid-v3 + writer r2)",
+ "integrationResolution": {
+  "patch": "patches/integration-resolution.patch",
+  "files": [
+   "network/onchain-qualification.mjs",
+   "network/wg-provider/derived-runtime.mjs",
+   "network/wg-provider/main.mjs",
+   "test/paid-derived-adapter.test.mjs"
+  ],
+  "why": "network/onchain-qualification.mjs is in the closure of relay/network-runtime.mjs; the generated relay runtime bundle is pinned (e12c5baf) by the committed host-service package route-dns and by the measured platform-api guest manifest. Keeping it at base bytes keeps that generated bundle identical to the base build; the pipelined submission now lives in the provider-only derived-runtime.mjs."
+ },
+ "counts": {
+  "added": 42,
+  "modified": 7,
+  "reader": 32,
+  "paid": 11,
+  "writer": 6
+ },
+ "filesVsBase": [
+  {
+   "path": "network/deployment-lifecycle-journal.mjs",
+   "status": "A",
+   "blob": "9dbf0864e78c91529d92ef02c0d922fdbff5b7fb",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/deployment-restart-policy.mjs",
+   "status": "A",
+   "blob": "83f5c52a1cfec88ed5ef62ea50cc99fe6d8137e8",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/COVERAGE.md",
+   "status": "A",
+   "blob": "d9855b737e0852bae6f11376f5335bcfea2ca735",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/README.md",
+   "status": "A",
+   "blob": "778d3638d1c4bcfa404094cd5d09c29c213b9de2",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/api.mjs",
+   "status": "A",
+   "blob": "b9a81d19cb9f7b94dc277107197b9a3258117c2b",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/config.example.json",
+   "status": "A",
+   "blob": "9e0cdb8db6096917188926660bdcdf622b202402",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/config.v3.example.json",
+   "status": "A",
+   "blob": "f0778f94737faf2eaba5ca5dd7147a685b12792d",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/coverage-store.mjs",
+   "status": "A",
+   "blob": "09a4da8073f046cdad513e786e6f90e16f040ae3",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/coverage.mjs",
+   "status": "A",
+   "blob": "434366ecd5282a64803750cf079547e887f5fc37",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/journal.mjs",
+   "status": "A",
+   "blob": "4c46336b012ffc8b7b8cc1d710ea68b3b6346abb",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/l1-runtime.mjs",
+   "status": "A",
+   "blob": "1fe5501589b8ea3326c08a752824aaaadde7fb99",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/libraries.mjs",
+   "status": "A",
+   "blob": "30ec60b2125e355d0240c8a4a0b79017d09e5d20",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/lifecycle.mjs",
+   "status": "A",
+   "blob": "d6de1afe455619afee95dfc0bfbf9800e970558d",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/main.mjs",
+   "status": "A",
+   "blob": "e6a8dbb5d542584d36296111a5ec989589abc854",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/native.mjs",
+   "status": "A",
+   "blob": "8f51e88940be8d18a33abb05ac5d0b8e9376a16b",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/process.mjs",
+   "status": "A",
+   "blob": "b1c4723df9ce044eef94f1fd0f9737a273414b8a",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/proof.mjs",
+   "status": "A",
+   "blob": "548efeb6fbb7a10c8e3bcb772b12039c163f7056",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/provider.mjs",
+   "status": "A",
+   "blob": "8478fae0a2f9351f195c84f99a0ccef653ca2184",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/qualification.json",
+   "status": "A",
+   "blob": "1de289939c3431095325f638c8cb92d94f3e63a9",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/rpc.mjs",
+   "status": "A",
+   "blob": "bef9491d302a34aa7d0d4d6d7194af907a5d9e23",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/vendor/a1-anchor.mjs",
+   "status": "A",
+   "blob": "ff261b164bc9821c975fe2fd7a05116559aecf34",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/vendor/anchor-bootstrap.mjs",
+   "status": "A",
+   "blob": "5473933dbd5c7411192dd99dcb20cd17483369c2",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/vendor/provenance.json",
+   "status": "A",
+   "blob": "a19c8a522ab5e479f70b3063c1fbea42ef4e4662",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/vendor/schedule-input-r2.mjs",
+   "status": "A",
+   "blob": "09f8d7a3c0f317fb65713585f9631cae7133f9b8",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/derived-reader/vendor/schedule_reader.mjs",
+   "status": "A",
+   "blob": "caae47061d473412bc8f1212ee76d3ba7462838c",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/lifecycle-finality-bridge.mjs",
+   "status": "A",
+   "blob": "916f24c0af2ae888641bd565e5bb2ac0bd024184",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "network/op-receipts-root.mjs",
+   "status": "A",
+   "blob": "4f6d7b651c126ec18741f876690f1621f68f2f7f",
+   "role": "paid",
+   "resolution": false
+  },
+  {
+   "path": "network/wg-provider/attested-authority.mjs",
+   "status": "M",
+   "blob": "e5056b562ff82dc880d3d027739966ef03f69265",
+   "role": "paid",
+   "resolution": false
+  },
+  {
+   "path": "network/wg-provider/attested-submission.mjs",
+   "status": "M",
+   "blob": "df1946a9a5820093d79d3472da2ab74a263e34c0",
+   "role": "paid",
+   "resolution": false
+  },
+  {
+   "path": "network/wg-provider/derived-anchor-floor.mjs",
+   "status": "A",
+   "blob": "fdfd162add5c8deebd6425c520ad2d734312717c",
+   "role": "paid",
+   "resolution": false
+  },
+  {
+   "path": "network/wg-provider/derived-runtime.mjs",
+   "status": "A",
+   "blob": "f80f4bfb4387755781dbcee1b087816117005a4c",
+   "role": "paid",
+   "resolution": true
+  },
+  {
+   "path": "network/wg-provider/derived-submission.mjs",
+   "status": "A",
+   "blob": "57aae5d530f291b757adb63cdfaf3fa1a9352d60",
+   "role": "paid",
+   "resolution": false
+  },
+  {
+   "path": "network/wg-provider/install.sh",
+   "status": "M",
+   "blob": "2f729afdce31416d0be7ab33e86eec2322f420a7",
+   "role": "paid",
+   "resolution": false
+  },
+  {
+   "path": "network/wg-provider/main.mjs",
+   "status": "M",
+   "blob": "a81563abf010b3b95b8084bf409cd94e7e99cbe3",
+   "role": "paid",
+   "resolution": true
+  },
+  {
+   "path": "relay/api-relay.js",
+   "status": "M",
+   "blob": "f556dc02bad9a3ed46d9899c114cf00c9957cba3",
+   "role": "writer",
+   "resolution": false
+  },
+  {
+   "path": "relay/deploy.sh",
+   "status": "M",
+   "blob": "98714faaf9290e4089d72949bb74b5dbbacb85c3",
+   "role": "writer",
+   "resolution": false
+  },
+  {
+   "path": "relay/derived-writer-authority.mjs",
+   "status": "A",
+   "blob": "2cc133f9d602ff125fa822899c436c24a5a5a9ee",
+   "role": "writer",
+   "resolution": false
+  },
+  {
+   "path": "scripts/network/build-consumers.mjs",
+   "status": "M",
+   "blob": "1b7434fa903d3f48fb9bc122b3f1c2943194ba95",
+   "role": "paid",
+   "resolution": false
+  },
+  {
+   "path": "test/derived-reader.test.mjs",
+   "status": "A",
+   "blob": "80e1cfe7dbefed9f5db605c63209f8a91dc2fafa",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "test/derived-reader/boundaries.test.mjs",
+   "status": "A",
+   "blob": "e9f66b43598b354d64030771ba1bc8286519840e",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "test/derived-reader/coverage.test.mjs",
+   "status": "A",
+   "blob": "c4e1e35829d0a12a646d14346f1d88aa7628fa21",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "test/derived-reader/helpers.mjs",
+   "status": "A",
+   "blob": "3b86d4ff424295e854761e92eb8018c7f52b8780",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "test/derived-reader/provider.test.mjs",
+   "status": "A",
+   "blob": "14dd6a49ddf05a99e83d980f64ebd4d4057fc2db",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "test/derived-writer-authority-abi.test.mjs",
+   "status": "A",
+   "blob": "d6dedc9eb9983e90c50ea20800226b0f0663e99f",
+   "role": "writer",
+   "resolution": false
+  },
+  {
+   "path": "test/derived-writer-authority-kvm-store.test.mjs",
+   "status": "A",
+   "blob": "442e55069c1a405e119c45f92130f08a53340eea",
+   "role": "writer",
+   "resolution": false
+  },
+  {
+   "path": "test/derived-writer-authority.test.mjs",
+   "status": "A",
+   "blob": "4d8c5ed40b5a424d61e49f09fe168f509d5d0012",
+   "role": "writer",
+   "resolution": false
+  },
+  {
+   "path": "test/lifecycle-finality-bridge.test.mjs",
+   "status": "A",
+   "blob": "b104fa39e48a5dc09b1e024586d45eaa5848a079",
+   "role": "reader",
+   "resolution": false
+  },
+  {
+   "path": "test/paid-derived-adapter.test.mjs",
+   "status": "A",
+   "blob": "1aed946b00d3bf3ee00eaa169584bcf3941f4cfc",
+   "role": "paid",
+   "resolution": true
+  },
+  {
+   "path": "test/paid-derived-packaging.test.mjs",
+   "status": "A",
+   "blob": "e1a76e2f66838e1b069f5286bbed1cdf09a00794",
+   "role": "paid",
+   "resolution": false
+  }
+ ],
+ "patches": {
+  "final-consumer-vs-64156.patch": "239593233dfb9b86db8db93ab9862fba91ce3209baf99215770b5894ca234b98",
+  "integration-resolution.patch": "9a51e4e3f10ae7b17a351cff26b3cd62be38b4d3167a46a36b0ce02a54dda7f7",
+  "finalized-writer-adapter-r2.patch": "eb8049507ecca63a888ab142b0add15de3b13b35b223f37359004eaf342f0398"
+ },
+ "generatedArtifacts": {
+  "relay/network-runtime.bundle.mjs": "rebuilt by node relay/build-network.mjs; must equal the base build byte for byte (job); committed pins name e12c5baf",
+  "metal/guest/platform-api.bundle.mjs(+manifest)": "MEASURED guest bundle; input relay/api-relay.js changes (writer) -> must be regenerated by node scripts/build-platform-api-guest-bundle.mjs and --check must pass; a new image measurement (SNP image qualification pending)",
+  "network/host-services/packages/*": "inputs unchanged -> status equals base",
+  "metal/guest/mcp-server.bundle.mjs": "inputs unchanged -> status equals base",
+  "provider release (build-consumers)": "provider.mjs, derived-runtime.mjs, schedule_reader.mjs (688b7a1f), privacy-agent.mjs, checker.mjs, dns.mjs, build-manifest.json"
+ },
+ "nativeAndMeasuredImageAssets": {
+  "nativeV3": "49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa (/opt/enclave/bin/derivation_harness_lease_v3)",
+  "helios": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0 (/opt/enclave/bin/helios)",
+  "checkpoint": "/opt/enclave/policy/checkpoint.json (pinned weak-subjectivity checkpoint, 7-day expiry)",
+  "glibcRuntime": "optional, PINNED_GLIBC_RUNTIMES",
+  "packageLock": "9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20",
+  "anvil(test only)": "10c1c727\u2026",
+  "forge(test only)": "4f77da08\u2026 (1.7.1)"
+ },
+ "windowsPath": "no file under windows/ or test/windows-* changed; windows/node/network-enroll.mjs closure unchanged (7 modules)",
+ "activation": "none",
+ "scope": "release-candidate SOURCE assembly; does not resolve fresh-state authority or prove feature availability"
+}

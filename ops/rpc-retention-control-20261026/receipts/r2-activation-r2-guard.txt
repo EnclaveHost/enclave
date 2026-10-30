@@ -1,0 +1,20 @@
+test_real_first_batch_then_resume_with_partial_then_complete (test_retention_guard.RealManifest.test_real_first_batch_then_resume_with_partial_then_complete) ... ok
+test_real_manifest_is_pinned_and_selects_the_exact_26 (test_retention_guard.RealManifest.test_real_manifest_is_pinned_and_selects_the_exact_26) ... ok
+test_activation_script_busy_check_and_conservatism (test_retention_guard.Synthetic.test_activation_script_busy_check_and_conservatism) ... ok
+test_admitted_with_the_first_batch_present_and_18_missing (test_retention_guard.Synthetic.test_admitted_with_the_first_batch_present_and_18_missing) ... ok
+test_any_datadir_user_or_running_base_binary_refuses (test_retention_guard.Synthetic.test_any_datadir_user_or_running_base_binary_refuses) ... ok
+test_capacity_refusal_and_policy_drift_refuse (test_retention_guard.Synthetic.test_capacity_refusal_and_policy_drift_refuse) ... ok
+test_first_download_archives_absent_refuses (test_retention_guard.Synthetic.test_first_download_archives_absent_refuses) ... ok
+test_first_download_not_finished_successfully_refuses (test_retention_guard.Synthetic.test_first_download_not_finished_successfully_refuses) ... ok
+test_holder_running_or_enabled_refuses (test_retention_guard.Synthetic.test_holder_running_or_enabled_refuses) ... ok
+test_memory_floor (test_retention_guard.Synthetic.test_memory_floor) ... ok
+test_partial_and_leftovers_reported_never_deleted (test_retention_guard.Synthetic.test_partial_and_leftovers_reported_never_deleted) ... ok
+test_pins_refuse (test_retention_guard.Synthetic.test_pins_refuse) ... ok
+test_post_needs_all_26_and_writes_a_read_only_marker_once (test_retention_guard.Synthetic.test_post_needs_all_26_and_writes_a_read_only_marker_once) ... ok
+test_shipped_pins_equal_their_sources (test_retention_guard.Synthetic.test_shipped_pins_equal_their_sources) ... ok
+test_unit_file_is_the_reviewed_shape (test_retention_guard.Synthetic.test_unit_file_is_the_reviewed_shape) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.246s
+
+OK

@@ -1,0 +1,92 @@
+{
+  "basis": "Existing historical deployed-source verification, compared with this task current live factory and implementation hashes in session-live-20261028.json. No new full compiler reproduction performed in this step.",
+  "historicalReview": {
+    "blockNumber": "52831588",
+    "blockHash": "0x0b2960197b399a529d6e720c99bacc33fd85eb8b31c2fc800c85fe92d5221354",
+    "rpcHosts": [
+      "base-rpc.publicnode.com",
+      "mainnet.base.org",
+      "base.drpc.org"
+    ]
+  },
+  "compiler": {
+    "version": "0.8.35+commit.47b9dedd.Emscripten.clang",
+    "package": "solc@0.8.35",
+    "soljsonSha256": "fa4345d648d9a09c6601ffc978e78e9f5267b54e6d91e8f8c473f44c0c16323b"
+  },
+  "build": {
+    "commit": "4aea7d8986681bb7ccfef27067e7222a8eafbcdf",
+    "sources": {
+      "SessionVault.sol": {
+        "path": "contracts/SessionVault.sol",
+        "gitBlob": "46ac1ed0ebc824ac4e1aa9819c15baa713c63480",
+        "sha256": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c"
+      }
+    },
+    "settings": {
+      "optimizer": {
+        "enabled": true,
+        "runs": 1
+      },
+      "viaIR": true
+    }
+  },
+  "currentSessionSourceSHA256": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c",
+  "contracts": {
+    "legacySessionVaultFactory": {
+      "address": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
+      "kind": "contract",
+      "build": "legacy-sessions-v2",
+      "unit": "SessionVault.sol",
+      "contract": "SessionVaultFactory",
+      "runtimeBytes": 2208,
+      "codeHash": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
+      "metadataIpfs": "122029ea91547e01d48106258036858bf6fda8708d1479eb17115b0a1d8c55d9a625",
+      "immutables": {
+        "SessionVaultFactory.implementation": "0x00000000000000000000000066c76a47209f44612343dbeab98b8ef77ad01f65"
+      },
+      "links": {},
+      "profileName": "legacySessionVaultFactory",
+      "basis": "Full match with 4aea7d89 (2026-10-07), runs 1, viaIR. implementation equals the profile binding and the legacy implementation below."
+    },
+    "legacySessionVaultImplementation": {
+      "address": "0x66c76a47209f44612343dbeab98b8ef77ad01f65",
+      "kind": "contract",
+      "build": "legacy-sessions-v2",
+      "unit": "SessionVault.sol",
+      "contract": "SessionVault",
+      "runtimeBytes": 23664,
+      "codeHash": "0x3dd35d4c4bdf112e2ded90da36a16510bfe938a0c9b8b9ed4414698323efb76e",
+      "metadataIpfs": "1220122628b6c665727481ca1735bf2494e1bb9aac65aa29decd5671d0498fc47c14",
+      "immutables": {
+        "SessionVault.router": "0x000000000000000000000000f17157b42ebbd65e33dd592878a8f1769c69d56a",
+        "SessionVault.usdc": "0x000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "SessionVault.book": "0x000000000000000000000000ab214342d5a490150a4a977063a2f88e21f80907",
+        "SessionVault.maxVault6": "0x000000000000000000000000000000000000000000000000000000000ee6b280",
+        "SessionVault.factory": "0x0000000000000000000000001f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
+        "SessionVault.keyAttestations": "0x000000000000000000000000b49241efe5af6078be6aa84850ae45eed34df61b"
+      },
+      "links": {
+        "SessionVault.sol:SessionVaultLib": "0x5510ae9fed97577d75c69545384af7d8bad05027"
+      },
+      "profileName": "legacySessionVaultImplementation",
+      "basis": "Full match with 4aea7d89, runs 1, viaIR. usdc, book, router, keyAttestations and maxVault6 equal the ledger-15d-base.json sessionVaultV2 factory args; book is the mutable EnclaveAddressBook. Linked SessionVaultLib equals that record."
+    },
+    "legacySessionVaultLib": {
+      "address": "0x5510ae9fed97577d75c69545384af7d8bad05027",
+      "kind": "library",
+      "build": "legacy-sessions-v2",
+      "unit": "SessionVault.sol",
+      "contract": "SessionVaultLib",
+      "runtimeBytes": 10681,
+      "codeHash": "0xe1535a3f96d34230e84afa199f2f2eab3a1c2f412be64d531d34d4a566680bc7",
+      "metadataIpfs": "12202ca7b08e7ea0ffd4ea4d7a92f5c3210eb43ef0533ffe4abc9d36958cdc58670b",
+      "immutables": {
+        "library_deploy_address": "0x0000000000000000000000005510ae9fed97577d75c69545384af7d8bad05027"
+      },
+      "links": {},
+      "profileName": null,
+      "basis": "SessionVaultLib from the same build; library_deploy_address holds its own address, which equals ledger-15d-base.json sessionVaultV2.SessionVaultLib."
+    }
+  }
+}

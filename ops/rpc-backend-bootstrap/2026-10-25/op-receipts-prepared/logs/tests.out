@@ -1,0 +1,224 @@
+[queue] START available=20089MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: empty trie root and upstream base proof.rs vectors (Bedrock, Regolith nonce-strip quirk, Canyon, EIP-2930)
+ok 1 - empty trie root and upstream base proof.rs vectors (Bedrock, Regolith nonce-strip quirk, Canyon, EIP-2930)
+  ---
+  duration_ms: 14.03728
+  type: 'test'
+  ...
+# Subtest: REAL Ethereum mainnet block: 202 receipts reproduce the authenticated header's receiptsRoot
+ok 2 - REAL Ethereum mainnet block: 202 receipts reproduce the authenticated header's receiptsRoot
+  ---
+  duration_ms: 67.477022
+  type: 'test'
+  ...
+# Subtest: REAL Base mainnet: 5 blocks, 1,824 receipts (types 0x0/0x1/0x2/0x4/0x7e) reproduce receiptsRoot; headers authenticated
+ok 3 - REAL Base mainnet: 5 blocks, 1,824 receipts (types 0x0/0x1/0x2/0x4/0x7e) reproduce receiptsRoot; headers authenticated
+  ---
+  duration_ms: 665.468268
+  type: 'test'
+  ...
+# Subtest: complete-logs integration: bloom plan over 28 real linked headers + verified receipt entries recover the real lease event
+ok 4 - complete-logs integration: bloom plan over 28 real linked headers + verified receipt entries recover the real lease event
+  ---
+  duration_ms: 676.168376
+  type: 'test'
+  ...
+# Subtest: refuses: drop last receipt -> gas_total
+ok 5 - refuses: drop last receipt -> gas_total
+  ---
+  duration_ms: 37.130626
+  type: 'test'
+  ...
+# Subtest: refuses: drop middle receipt -> order
+ok 6 - refuses: drop middle receipt -> order
+  ---
+  duration_ms: 3.684789
+  type: 'test'
+  ...
+# Subtest: refuses: swap two receipts -> order
+ok 7 - refuses: swap two receipts -> order
+  ---
+  duration_ms: 4.092287
+  type: 'test'
+  ...
+# Subtest: refuses: flip a status -> receipts_root_mismatch
+ok 8 - refuses: flip a status -> receipts_root_mismatch
+  ---
+  duration_ms: 78.060841
+  type: 'test'
+  ...
+# Subtest: refuses: change a cumulativeGasUsed -> receipts_root_mismatch
+ok 9 - refuses: change a cumulativeGasUsed -> receipts_root_mismatch
+  ---
+  duration_ms: 78.947316
+  type: 'test'
+  ...
+# Subtest: refuses: tamper log data (bloom kept) -> receipts_root_mismatch
+ok 10 - refuses: tamper log data (bloom kept) -> receipts_root_mismatch
+  ---
+  duration_ms: 73.793625
+  type: 'test'
+  ...
+# Subtest: refuses: tamper log topic, RPC bloom absent -> bloom_mismatch,receipts_root_mismatch
+ok 11 - refuses: tamper log topic, RPC bloom absent -> bloom_mismatch,receipts_root_mismatch
+  ---
+  duration_ms: 79.809051
+  type: 'test'
+  ...
+# Subtest: refuses: RPC logsBloom lies -> bloom_mismatch
+ok 12 - refuses: RPC logsBloom lies -> bloom_mismatch
+  ---
+  duration_ms: 3.991767
+  type: 'test'
+  ...
+# Subtest: refuses: deposit without depositNonce -> deposit_fields
+ok 13 - refuses: deposit without depositNonce -> deposit_fields
+  ---
+  duration_ms: 3.024972
+  type: 'test'
+  ...
+# Subtest: refuses: deposit without version (post-Canyon) -> deposit_fields
+ok 14 - refuses: deposit without version (post-Canyon) -> deposit_fields
+  ---
+  duration_ms: 2.607385
+  type: 'test'
+  ...
+# Subtest: refuses: deposit version 2 -> deposit_fields
+ok 15 - refuses: deposit version 2 -> deposit_fields
+  ---
+  duration_ms: 3.014133
+  type: 'test'
+  ...
+# Subtest: refuses: deposit fields on 0x2 -> deposit_fields
+ok 16 - refuses: deposit fields on 0x2 -> deposit_fields
+  ---
+  duration_ms: 3.070212
+  type: 'test'
+  ...
+# Subtest: refuses: blob type 0x3 on Base -> unsupported_type
+ok 17 - refuses: blob type 0x3 on Base -> unsupported_type
+  ---
+  duration_ms: 3.47959
+  type: 'test'
+  ...
+# Subtest: refuses: EIP-8130 0x79 (everest inactive) -> unsupported_type
+ok 18 - refuses: EIP-8130 0x79 (everest inactive) -> unsupported_type
+  ---
+  duration_ms: 5.916076
+  type: 'test'
+  ...
+# Subtest: refuses: unknown type 0x7d -> unsupported_type
+ok 19 - refuses: unknown type 0x7d -> unsupported_type
+  ---
+  duration_ms: 2.349287
+  type: 'test'
+  ...
+# Subtest: refuses: pre-Byzantium root field -> pre_byzantium
+ok 20 - refuses: pre-Byzantium root field -> pre_byzantium
+  ---
+  duration_ms: 2.623045
+  type: 'test'
+  ...
+# Subtest: refuses: removed log -> removed_log
+ok 21 - refuses: removed log -> removed_log
+  ---
+  duration_ms: 2.530916
+  type: 'test'
+  ...
+# Subtest: refuses: logIndex gap -> order
+ok 22 - refuses: logIndex gap -> order
+  ---
+  duration_ms: 2.483426
+  type: 'test'
+  ...
+# Subtest: refuses: non-canonical quantity -> bad_field
+ok 23 - refuses: non-canonical quantity -> bad_field
+  ---
+  duration_ms: 2.402866
+  type: 'test'
+  ...
+# Subtest: refuses: receipt names another block -> wrong_block
+ok 24 - refuses: receipt names another block -> wrong_block
+  ---
+  duration_ms: 2.412656
+  type: 'test'
+  ...
+# Subtest: refuses: header receiptsRoot tampered -> header_hash
+ok 25 - refuses: header receiptsRoot tampered -> header_hash
+  ---
+  duration_ms: 2.425786
+  type: 'test'
+  ...
+# Subtest: refuses: header and hash both replaced (expected hash is authenticated) -> header_hash
+ok 26 - refuses: header and hash both replaced (expected hash is authenticated) -> header_hash
+  ---
+  duration_ms: 2.408316
+  type: 'test'
+  ...
+# Subtest: refuses: wrong expected block hash -> header_hash
+ok 27 - refuses: wrong expected block hash -> header_hash
+  ---
+  duration_ms: 2.389046
+  type: 'test'
+  ...
+# Subtest: refuses: tx binding mismatch -> tx_binding
+ok 28 - refuses: tx binding mismatch -> tx_binding
+  ---
+  duration_ms: 2.494575
+  type: 'test'
+  ...
+# Subtest: refuses: missing receipts list -> bad_input
+ok 29 - refuses: missing receipts list -> bad_input
+  ---
+  duration_ms: 2.404866
+  type: 'test'
+  ...
+# Subtest: Regolith-window deposit rule: nonce required, version forbidden (quirk path selected by timestamp)
+ok 30 - Regolith-window deposit rule: nonce required, version forbidden (quirk path selected by timestamp)
+  ---
+  duration_ms: 2.572375
+  type: 'test'
+  ...
+# Subtest: trie boundary: a node whose RLP is EXACTLY 32 bytes is hashed, not inlined (expected root built with viem's independent toRlp)
+ok 31 - trie boundary: a node whose RLP is EXACTLY 32 bytes is hashed, not inlined (expected root built with viem's independent toRlp)
+  ---
+  duration_ms: 1.071324
+  type: 'test'
+  ...
+# Subtest: export boundary: real receipts verified WITHOUT a verified body cannot become complete-logs entries
+ok 32 - export boundary: real receipts verified WITHOUT a verified body cannot become complete-logs entries
+  ---
+  duration_ms: 694.649427
+  type: 'test'
+  ...
+# Subtest: export boundary: only branded, frozen verifyBlockReceipts results are accepted
+ok 33 - export boundary: only branded, frozen verifyBlockReceipts results are accepted
+  ---
+  duration_ms: 83.501039
+  type: 'test'
+  ...
+# Subtest: numeric safety: header number/timestamp above MAX_SAFE_INTEGER are refused, never rounded
+ok 34 - numeric safety: header number/timestamp above MAX_SAFE_INTEGER are refused, never rounded
+  ---
+  duration_ms: 3.148742
+  type: 'test'
+  ...
+# Subtest: resource bounds: maxReceipts / maxLogs refuse before any per-receipt work
+ok 35 - resource bounds: maxReceipts / maxLogs refuse before any per-receipt work
+  ---
+  duration_ms: 69.31877
+  type: 'test'
+  ...
+1..35
+# tests 35
+# suites 0
+# pass 35
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2877.039129
+[memory-guard] exit=0 peakTreeRssMiB=169 minHostAvailableMiB=19841
+[memory-guard] at peak: node:111 node:58
+[queue] EXIT 0

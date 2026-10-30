@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: login: the owner's own wallet approves the printed grant, a separate payer opens it, the CLI adopts exactly it; account, top-up-link, logout
+ok 1 - login: the owner's own wallet approves the printed grant, a separate payer opens it, the CLI adopts exactly it; account, top-up-link, logout
+  ---
+  duration_ms: 2942.643401
+  type: 'test'
+  ...
+# Subtest: login hand-back: another account only signs the grant; the CLI checks it on chain and its OWN gas key submits
+ok 2 - login hand-back: another account only signs the grant; the CLI checks it on chain and its OWN gas key submits
+  ---
+  duration_ms: 1824.813564
+  type: 'test'
+  ...
+# Subtest: host: init/install/run/check through `enclave host` with the plan's quorum; key FILE and BASE_RPCS; check is never ready
+ok 3 - host: init/install/run/check through `enclave host` with the plan's quorum; key FILE and BASE_RPCS; check is never ready
+  ---
+  duration_ms: 1589.204719
+  type: 'test'
+  ...
+# Subtest: dispatch: custody and signer reach their commands; secrets stays refused, naming the pending owner read; --signer-mode needs --independent
+ok 4 - dispatch: custody and signer reach their commands; secrets stays refused, naming the pending owner read; --signer-mode needs --independent
+  ---
+  duration_ms: 987.92015
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7521.200539

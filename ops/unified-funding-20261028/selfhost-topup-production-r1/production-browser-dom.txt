@@ -1,0 +1,228 @@
+- banner:
+  - link "Skip to main content":
+    - /url: "#main"
+  - link "Enclave home":
+    - /url: ./
+  - navigation "Primary":
+    - link "Overview":
+      - /url: ./
+    - link "Apps":
+      - /url: apps
+    - link "Develop":
+      - /url: develop
+    - link "Host":
+      - /url: host
+    - link "Dashboard":
+      - /url: dashboard
+  - button "0x0b2d…ee61 · $24.00 · 5d 9h":
+    - text: 0x0b2d…ee61
+    - 'generic "Session: $24.00 left, $0.00 spent"': · $24.00 · 5d 9h
+- main:
+  - heading "Your Enclave deployments" [level=1]
+  - region "Dashboard":
+    - generic: Dashboard · signed-in view
+    - heading "Command center for your fleet." [level=2]
+    - paragraph:
+      - text: "Everything your wallet is running, in one place: each deployment's status, spend, endpoints, and an in-browser attestation check. Open a deployment's Output panel to watch what it's doing - its deploy narrative and the app's own logs, straight from the enclave. Launch new apps from the"
+      - link "Apps store":
+        - /url: apps
+      - text: ; the provisioning stream lands here.
+    - complementary "Live enclaves":
+      - heading "Live enclaves" [level=2]
+      - generic: Sort by
+      - combobox "Sort by":
+        - option "Default" [selected]
+        - option "Rating"
+        - option "$ per GB VRAM"
+        - option "$ per GPU TFLOPS"
+        - option "$ per GB RAM"
+        - option "$ per CPU GFLOPS"
+      - generic "tunnel://metal0":
+        - button "metal0":
+          - generic: metal0
+        - button "5 out of 5 stars 5.0 (1)":
+          - img "5 out of 5 stars":
+            - text: ★★★★★
+            - generic: ★★★★★
+          - generic: 5.0 (1)
+        - generic "$6/hr for the whole pool, times the share available now": $1.20/hr
+        - text: for
+        - generic: "12"
+        - button "GB"
+        - text: /
+        - generic: "43"
+        - button "tflops"
+        - text: of
+        - 'generic "Enclave Shield: masked GPU offload protects activations and verifies results. The GPU remains outside the confidential boundary."': gpu
+        - generic "$3/hr for the whole pool, times the share available now": $0.27/hr
+        - text: for
+        - generic: "8.6"
+        - button "GB"
+        - text: /
+        - generic: "49"
+        - button "gflops"
+        - text: of
+        - 'generic "AMD SEV-SNP confidential VM: the relay verified a fresh hardware quote from this box when it attached, so every vCPU it sells runs inside the measured enclave and is covered by its attestation."': tee cpu
+      - generic "tunnel://nucbox-k11-4":
+        - button "nucbox-k11-4":
+          - generic: nucbox-k11-4
+        - button "unrated"
+        - generic "$0.04/hr for the whole pool, times the share available now": $0.04/hr
+        - text: for
+        - generic: "12"
+        - button "GB"
+        - text: /
+        - generic: "8"
+        - button "tflops"
+        - text: of
+        - 'generic "Enclave Shield: masked GPU offload protects activations and verifies results. The GPU remains outside the confidential boundary."': gpu
+        - generic "$0.17/hr for the whole pool, times the share available now": $0.12/hr
+        - text: for
+        - generic: "69"
+        - button "GB"
+        - text: /
+        - generic: "270"
+        - button "gflops"
+        - text: of
+        - 'generic "Enclave Shield: the relay verifies each app’s measured partition and guest-held TLS key. The physical operator and hypervisor remain trusted."': cpu
+      - generic "tunnel://pixel10-pvm-cpu":
+        - button "pixel10-pvm-cpu":
+          - generic: pixel10-pvm-cpu
+        - button "unrated"
+        - generic "$0.01/hr for the whole pool, times the share available now": <$0.01/hr
+        - text: for
+        - generic: "2"
+        - button "GB"
+        - text: /
+        - generic: "0.52"
+        - button "gflops"
+        - text: of
+        - 'generic "pVM CPU: CPU-only inference inside the phone’s protected VM; a tier under construction, not yet available. The relay verified this phone’s protected-VM attestation chain when it attached and admitted its capability report (a CPU-only Wasm runtime: no model, no accelerator). It takes CPU-only deployments: before an app is served or given a certificate, the relay verifies a fresh attestation from the VM binding that app’s code and its TLS key, so TLS ends inside the protected VM."': pvm cpu
+      - button "↻ refresh"
+      - link "contract":
+        - /url: https://basescan.org/address/0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac
+        - text: contract
+      - paragraph:
+        - text: Your hardware belongs on this list. Run an enclave on a box you own, claim paid work from the open queue, and the ledger pays your wallet for every lease you serve.
+        - link "Host an enclave →":
+          - /url: host
+    - group "Filter deployments by status":
+      - button "All 20"
+      - button "Running 3"
+      - button "Queued 7" [pressed]
+      - button "Ended 10"
+      - button "Failed 0"
+    - textbox "Search deployments":
+      - /placeholder: search app, id, status…
+      - text: sia-s3
+    - button "↻ refresh"
+    - link "Deploy app":
+      - /url: apps
+      - text: Deploy app
+      - generic: →
+    - generic: sia-s3:0.1.9
+    - generic: queued
+    - generic "anyone can reach the app endpoint": public
+    - button "copy deployment id": 0xef514ed3…b238 ⧉
+    - generic: 0.00 USDC paid · 0.00 spent
+    - button "Suspend"
+    - button "Cancel"
+    - button "https://ef514ed3.app.enclave.host ⧉"
+    - group "deployment panels":
+      - button "Output"
+      - button "Top up" [expanded]
+      - button "Version"
+      - button "Resources"
+      - button "Config"
+      - button "Models"
+      - button "Protect"
+      - button "Network"
+      - button "Pin"
+      - button "Verify"
+      - button "Secrets"
+      - button "Domains"
+      - button "Transfer"
+    - generic: top up · 0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238
+    - paragraph: "Self-hosted runtime is free: the ledger charges this deployment no runtime right now (rate 0, re-read each time this opens). USDC from your gas grant buys ETH for on-chain transactions. Gas funding does not promise a fixed number of runtime hours."
+    - generic: Maximum for gas (USDC)
+    - textbox "Maximum for gas (USDC)": "0.60"
+    - button "Pay from session"
+    - button "Refresh quote"
+    - generic "quote details" [active]
+    - status:
+      - generic: "Pays at most $0.536802 from \"Gas recovery · nucbox\": gas at most $0.469814 + relay fee $0.066988. The actual debit (real swap cost + fee) is shown after payment and never exceeds that. Usable for 276s."
+    - link "View the EnclaveDeployments contract on Basescan":
+      - /url: https://basescan.org/address/0xf9e71385c5cb49844f2457ba6567de0742f8b89a
+      - text: contract
+- contentinfo "Footer":
+  - link "Enclave home":
+    - /url: ./
+  - paragraph: Compute that cannot see your data. Paid per second, for anything that holds a key.
+  - generic: built + operated by Enclave Host, Inc.
+  - text: "front-end: static, pinned to IPFS ·"
+  - code: enclave.host
+  - navigation "Product":
+    - heading "Product" [level=2]
+    - list:
+      - link "What you get":
+        - /url: ./#why
+      - link "How it works":
+        - /url: ./#how
+      - link "App store":
+        - /url: apps
+      - link "Pricing":
+        - /url: ./#pricing
+      - link "Architecture":
+        - /url: develop#architecture
+      - link "Engineering evidence":
+        - /url: develop#progress
+      - link "About the company":
+        - /url: ./#about
+  - navigation "Developers":
+    - heading "Developers" [level=2]
+    - list:
+      - link "App development guide":
+        - /url: develop#docs
+      - link "API reference":
+        - /url: develop#api
+      - link "OpenAPI spec":
+        - /url: openapi.json
+      - link "Attestation guide":
+        - /url: ./#attest
+      - link "Error codes":
+        - /url: develop#api
+  - navigation "Trust":
+    - heading "Trust" [level=2]
+    - list:
+      - link "The isolation contract":
+        - /url: develop#contract
+      - link "Enclave Shield":
+        - /url: develop#shield
+      - link "Verify an enclave":
+        - /url: ./#attest
+      - link "What is measured":
+        - /url: develop#verify
+      - link "What runs on our servers":
+        - /url: develop#independent
+      - link "Source on GitHub":
+        - /url: https://github.com/EnclaveHost/enclave
+  - navigation "Contact and legal":
+    - heading "Contact" [level=2]
+    - list:
+      - link "Support support@enclave.host":
+        - /url: mailto:support@enclave.host
+        - text: Support
+        - code: support@enclave.host
+      - link "Security disclosures security@enclave.host":
+        - /url: mailto:security@enclave.host
+        - text: Security disclosures
+        - code: security@enclave.host
+      - link "security.txt":
+        - /url: .well-known/security.txt
+      - link "Terms of Service":
+        - /url: terms
+      - link "Privacy Policy":
+        - /url: privacy
+  - generic: © 2026 Enclave Host, Inc. · content-addressed on IPFS · build d8365dd9* · 2026-10-26
+  - generic: designed to outlive any one operator
+- status

@@ -1,0 +1,1 @@
+Root runner correction only: require exact tests/pass/fail/cancelled/skipped/todo and rc, bounded node timeout, sourceHEAD and stage manifest. Original runner could falsely pass totals despite skip/cancel/abnormalexit. Source/testpatch unchanged. Run after r12 stops to avoid concurrent content snapshots. No actual test verdict yet.

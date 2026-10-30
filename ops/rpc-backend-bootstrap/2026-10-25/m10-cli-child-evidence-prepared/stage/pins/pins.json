@@ -1,0 +1,117 @@
+{
+ "format": "m10-cli-child-supplement-pins/v1",
+ "binary": {
+  "path": "/srv/m10-guest-validation/runs/run-1/build/target/debug/deps/base_consensus_cli-d6ae36328af6d7bb",
+  "sha256": "5575a2c2e3735cd6251583259256db305cbefa56c30c1c2047810b9b5d74fa4a",
+  "note": "run 2 reused run-1's CARGO_TARGET_DIR (finality-stage/m10-guest-import-recovery/bundle/runner/guest-env-2.sh:13); the cache is MUTABLE, so the launcher copies + re-hashes it"
+ },
+ "source": {
+  "guestPath": "/srv/m10-guest-validation/runs/run-2/build/tree/crates/consensus/cli/src/node.rs",
+  "sha256": "f73fe422634f548f4338995ba4d87c62aede2ae6eb417d2c4fa11a833ac3fe0a",
+  "reconstructed": "git show 5476069f:crates/consensus/cli/src/node.rs + M7 e9dfb8c6 + fixed M10 d97c31b5 (node.rs hunks) == m10-bootstrap/build/tree copy"
+ },
+ "run2": {
+  "receiptDir": "/srv/m10-guest-validation/receipts",
+  "logsDir": "/srv/m10-guest-validation/runs/run-2/logs",
+  "receipts": {
+   "run-2.out": "6f22c072d664e34043aadc6e634ed53c0289b8c2df2b6239fe988c82437a02b1",
+   "run-2.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+   "run-2.receipt.json": "b4162de1dcf1c09271eea2a770c599eaa70b285bfb1630f1c5792e520af42001"
+  },
+  "logs": {
+   "cli.test.out": "a12d3d540017f3d46941eebb1daca3633bd673863caad5d45a28f6b1e2885534",
+   "control-engine.test.out": "95c2291b54915c5c2d9f4f4982ae1fc458a178c672fce09584407f6047013a3b",
+   "control-node.test.out": "3f36e45167947b5e53c542ab9d3840aaa5281311d4d36ec8ca19834d1ab7ff8a",
+   "engine.test.out": "f4e1a1ba4c441e7e44c3e0b6ab96afc1514b1ba8db2696f51b9481147b9e62db",
+   "node-derivation.test.out": "a2566e39443f83655146ab33291e230969fd1be6a63afc6144031bc5f29b3af0",
+   "node-safedb.test.out": "6fafc45aaecc2056bb1a5af79993e3c354033cf49d5bec9410b3e9d24d76f38a",
+   "node-seq.test.out": "17aceea81f1e3bc8bbead24a93b10100c9ea5e7833c6deb895140c6880df7331",
+   "node.test.out": "0e30b52a0d6f4c2e212203b5485f58d978e0dc08bf168b227a477c2475c8b3c1"
+  },
+  "phaseLines": [
+   "## engine OK",
+   "## node OK",
+   "## node-seq OK",
+   "## node-safedb OK",
+   "## node-derivation OK",
+   "## cli OK",
+   "## control-engine failed exactly as expected",
+   "## control-node failed exactly as expected",
+   "## aggregate rc=0"
+  ],
+  "expectedReceipt": {
+   "systemdRunExit": 0,
+   "aggregateLine": "## aggregate rc=0",
+   "testResultLines": 8,
+   "ignoredTotal": 1,
+   "pass": false
+  }
+ },
+ "cases": {
+  "child": "node::tests::validates_sequencer_key_from_env_child",
+  "ignoreAnnotation": "spawned by validates_sequencer_key_from_env with isolated process env",
+  "nonIgnored": [
+   "bootnode::tests::advertised_address_defaults_to_listen_address",
+   "bootnode::tests::advertised_address_uses_static_overrides",
+   "bootnode::tests::bootstore_can_be_disabled",
+   "bootnode::tests::bootstore_defaults_to_chain_scoped_file",
+   "bootnode::tests::bootstore_uses_custom_path",
+   "bootnode::tests::default_key_path_is_chain_scoped",
+   "bootnode::tests::invalid_bootnode_errors",
+   "bootnode::tests::parses_enr_output_path",
+   "bootnode::tests::parses_raw_key_into_keypair",
+   "bootnode::tests::local_enr_uses_advertised_address_and_valid_chain_metadata",
+   "node::tests::applies_positive_schedule_to_rollup_config",
+   "bootnode::tests::writes_enr_output_file",
+   "node::tests::bootstrap_anchor_flag::parses_and_is_absent_without_the_flag",
+   "node::tests::bootstrap_anchor_flag::refuses_malformed_values_and_has_no_env_binding",
+   "node::tests::bootstrap_anchor_flag::the_embedded_sequencer_args_have_no_bootstrap_anchor_flag",
+   "node::tests::da_batch_inbox_override_is_rejected_in_sequencer_mode",
+   "node::tests::da_batcher_sender_override_is_rejected_in_sequencer_mode",
+   "node::tests::embedded_consensus_applies_da_batch_inbox_override",
+   "node::tests::embedded_consensus_preserves_da_batcher_sender_override",
+   "node::tests::embedded_execution_overrides_preserve_upgrade_signal_context",
+   "node::tests::embedded_sequencer_args_force_sequencer_mode_and_preserve_flags",
+   "node::tests::isolated_sequencer_does_not_require_signing_key",
+   "node::tests::isolated_sequencer_rejects_signing_key::case_1_raw_key",
+   "node::tests::isolated_sequencer_rejects_signing_key::case_2_key_path",
+   "node::tests::legacy_sequencer_flags_select_operating_mode::case_1_isolated",
+   "node::tests::isolated_sequencer_rejects_signing_key::case_3_remote_endpoint",
+   "node::tests::legacy_sequencer_flags_select_operating_mode::case_2_shadow",
+   "node::tests::parses_da_batcher_sender_override",
+   "node::tests::parses_upgrade_signal_args",
+   "node::tests::shadow_funding_above_deposit_mint_limit_is_rejected",
+   "node::tests::shadow_funding_is_accepted_in_shadow_sequencer_mode",
+   "node::tests::shadow_funding_is_rejected_outside_shadow_sequencer_mode",
+   "node::tests::shadow_sequencer_does_not_require_signing_key",
+   "node::tests::startup_upgrade_signal_defaults_to_consensus_l1_rpc",
+   "node::tests::startup_upgrade_signal_prefers_override_l1_rpc",
+   "node::tests::validates_sequencer_key::case_1_validator_no_key",
+   "node::tests::validates_sequencer_key::case_2_sequencer_no_key",
+   "node::tests::validates_sequencer_key::case_3_sequencer_raw_key",
+   "node::tests::validates_sequencer_key::case_4_sequencer_key_path",
+   "node::tests::validates_sequencer_key::case_5_sequencer_remote_endpoint",
+   "node::tests::validates_sequencer_key_from_env::case_1_raw_key",
+   "node::tests::validates_sequencer_key_from_env::case_2_key_path",
+   "node::tests::zero_signal_clears_existing_rollup_config",
+   "node::tests::zero_signal_for_unscheduled_rollup_upgrade_is_counted_as_clear",
+   "node::tests::validates_sequencer_key_from_env::case_3_remote_endpoint"
+  ],
+  "totalTestsInBinary": 142,
+  "childEnvCases": [
+   "raw_key",
+   "key_path",
+   "remote_endpoint"
+  ]
+ },
+ "fixtures": {
+  "rawKeySha256": "33deb83fb8bbfb48f50a9755ea41122f4a60eaf0f6f9aed68a0adb24375d67b2",
+  "rawKeyChunks": [
+   "bcc617ea05150ff6",
+   "0490d3c6058630ba",
+   "94ae9f12a02a87ef",
+   "d291349ca0e54e0a"
+  ],
+  "rawKeySourceLine": "node.rs case::raw_key (upstream public test fixture, not a key)"
+ }
+}

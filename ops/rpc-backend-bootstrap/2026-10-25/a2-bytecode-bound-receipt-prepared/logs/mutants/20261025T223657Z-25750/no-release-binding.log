@@ -1,0 +1,24 @@
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "bytecode_receipt: no bound bytecode verification (step bytecodes) for this DB"}
+{"step": "release", "ok": false, "refused": "bytecode_receipt: no bound bytecode verification (step bytecodes) for this DB"}
+test_full_flow_binds_release_to_the_a2_receipt (test_a2a4.Recheck.test_full_flow_binds_release_to_the_a2_receipt) ... FAIL
+
+======================================================================
+FAIL: test_full_flow_binds_release_to_the_a2_receipt (test_a2a4.Recheck.test_full_flow_binds_release_to_the_a2_receipt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.t9DLcapkg4/test/test_a2a4.py", line 461, in test_full_flow_binds_release_to_the_a2_receipt
+    self.rk['l1'].update(number=a2['l1Finalized'] - 1); self.refused('release', 'a1_binding')   # older than A2's block
+                                                        ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.t9DLcapkg4/test/test_a2a4.py", line 130, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : bytecode_receipt: no bound bytecode verification (step bytecodes) for this DB
+
+----------------------------------------------------------------------
+Ran 1 test in 4.103s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}

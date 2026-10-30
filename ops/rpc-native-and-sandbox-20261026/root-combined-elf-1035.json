@@ -1,0 +1,64 @@
+{
+ "derivation_harness_combined": {
+  "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-client-stage/combined-r1/build/deps-43698236e9186750/target/debug/examples/derivation_harness_combined",
+  "sha256": "f1a6bb0e82be37fddf9e2485c50f78b4cd5eb02d43e903152230c91fd22dcfd9",
+  "needed": [
+   "libgcc_s.so.1",
+   "libc.so.6",
+   "ld-linux-x86-64.so.2"
+  ],
+  "glibcVersions": [
+   "GLIBC_2.14",
+   "GLIBC_2.16",
+   "GLIBC_2.18",
+   "GLIBC_2.2.5",
+   "GLIBC_2.25",
+   "GLIBC_2.28",
+   "GLIBC_2.3",
+   "GLIBC_2.3.4",
+   "GLIBC_2.30",
+   "GLIBC_2.32",
+   "GLIBC_2.33",
+   "GLIBC_2.34"
+  ],
+  "interpreter": [
+   "/lib64/ld-linux-x86-64.so.2"
+  ],
+  "ldd": "\tlinux-vdso.so.1 (0x00007fa97a95e000)\n\tlibgcc_s.so.1 => /usr/lib/libgcc_s.so.1 (0x00007fa97a8f9000)\n\tlibc.so.6 => /usr/lib/libc.so.6 (0x00007fa977c00000)\n\t/lib64/ld-linux-x86-64.so.2 => /usr/lib64/ld-linux-x86-64.so.2 (0x00007fa97a960000)\n"
+ },
+ "witness_fetch": {
+  "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-client-stage/combined-r1/build/deps-43698236e9186750/target/debug/examples/witness_fetch",
+  "sha256": "36604b9c2c5bfd4e5633506ba5e97c78a3b81e53a052d913498135c0cae13f0c",
+  "needed": [
+   "libgcc_s.so.1",
+   "libm.so.6",
+   "libc.so.6",
+   "ld-linux-x86-64.so.2"
+  ],
+  "glibcVersions": [
+   "GLIBC_2.14",
+   "GLIBC_2.16",
+   "GLIBC_2.17",
+   "GLIBC_2.18",
+   "GLIBC_2.2.5",
+   "GLIBC_2.25",
+   "GLIBC_2.28",
+   "GLIBC_2.29",
+   "GLIBC_2.3",
+   "GLIBC_2.3.2",
+   "GLIBC_2.3.4",
+   "GLIBC_2.30",
+   "GLIBC_2.32",
+   "GLIBC_2.33",
+   "GLIBC_2.34",
+   "GLIBC_2.38",
+   "GLIBC_2.4",
+   "GLIBC_2.7",
+   "GLIBC_2.9"
+  ],
+  "interpreter": [
+   "/lib64/ld-linux-x86-64.so.2"
+  ],
+  "ldd": "\tlinux-vdso.so.1 (0x00007f647b5c8000)\n\tlibgcc_s.so.1 => /usr/lib/libgcc_s.so.1 (0x00007f647b563000)\n\tlibm.so.6 => /usr/lib/libm.so.6 (0x00007f64778c9000)\n\tlibc.so.6 => /usr/lib/libc.so.6 (0x00007f6477600000)\n\t/lib64/ld-linux-x86-64.so.2 => /usr/lib64/ld-linux-x86-64.so.2 (0x00007f647b5ca000)\n"
+ }
+}

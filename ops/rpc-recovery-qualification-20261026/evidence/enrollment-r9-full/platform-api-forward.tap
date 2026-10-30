@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: setup: three members replicate and elect a primary through their real fronts; the primary runs its relay child
+ok 1 - setup: three members replicate and elect a primary through their real fronts; the primary runs its relay child
+  ---
+  duration_ms: 2551.421624
+  type: 'test'
+  ...
+# Subtest: a standby forwards the original method, path, headers, credentials and body, and streams the response, to the ATTESTED primary only
+ok 2 - a standby forwards the original method, path, headers, credentials and body, and streams the response, to the ATTESTED primary only
+  ---
+  duration_ms: 637.071434
+  type: 'test'
+  ...
+# Subtest: a WRONG-KEY self-signed peer on the primary's address receives the TLS handshake and ZERO request bytes: no credential, no body
+ok 3 - a WRONG-KEY self-signed peer on the primary's address receives the TLS handshake and ZERO request bytes: no credential, no body
+  ---
+  duration_ms: 215.677669
+  type: 'test'
+  ...
+# Subtest: the client goes away: the standby role drops its pinned connection to the primary (mid-request, and mid-handshake with a silent peer)
+ok 4 - the client goes away: the standby role drops its pinned connection to the primary (mid-request, and mid-handshake with a silent peer)
+  ---
+  duration_ms: 2708.419899
+  type: 'test'
+  ...
+# Subtest: upgrades on a standby keep their scope: refused (503), never forwarded
+ok 5 - upgrades on a standby keep their scope: refused (503), never forwarded
+  ---
+  duration_ms: 6.348924
+  type: 'test'
+  ...
+# Subtest: the primary changes: standbys pin the NEW primary's attested key from its sealed heartbeat and forward there
+ok 6 - the primary changes: standbys pin the NEW primary's attested key from its sealed heartbeat and forward there
+  ---
+  duration_ms: 8045.927241
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 14460.432506

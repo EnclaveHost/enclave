@@ -1,0 +1,98 @@
+[queue] START available=18410MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: upstream schedule_id.rs vectors (golden c04583a1..., zero, inclusive, gap, clear-above)
+ok 1 - upstream schedule_id.rs vectors (golden c04583a1..., zero, inclusive, gap, clear-above)
+  ---
+  duration_ms: 6.791097
+  type: 'test'
+  ...
+# Subtest: a hole (contract 0 = unscheduled -> null) is committed as 0 inside the prefix; 0 is never the genesis convention
+ok 2 - a hole (contract 0 = unscheduled -> null) is committed as 0 inside the prefix; 0 is never the genesis convention
+  ---
+  duration_ms: 0.324608
+  type: 'test'
+  ...
+# Subtest: end-to-end anchored read: full schedule, future excluded, horizon from compiled genesis, bound L1 block, branded
+ok 3 - end-to-end anchored read: full schedule, future excluded, horizon from compiled genesis, bound L1 block, branded
+  ---
+  duration_ms: 1.3088
+  type: 'test'
+  ...
+# Subtest: boundary: an entry equal to the horizon is active (inclusive), one second later is not
+ok 4 - boundary: an entry equal to the horizon is active (inclusive), one second later is not
+  ---
+  duration_ms: 0.520996
+  type: 'test'
+  ...
+# Subtest: the schedule block (not the claim) sets the horizon; 0 means the claim; before the claim refuses
+ok 5 - the schedule block (not the claim) sets the horizon; 0 means the claim; before the claim refuses
+  ---
+  duration_ms: 1.469579
+  type: 'test'
+  ...
+# Subtest: Denim in the authenticated schedule switches the horizon to the 200 ms schedule (rollup.rs/schedule.rs)
+ok 6 - Denim in the authenticated schedule switches the horizon to the 200 ms schedule (rollup.rs/schedule.rs)
+  ---
+  duration_ms: 0.130919
+  type: 'test'
+  ...
+# Subtest: unknown extra entries and over-long declared arrays refuse; empty refuses
+ok 7 - unknown extra entries and over-long declared arrays refuse; empty refuses
+  ---
+  duration_ms: 0.327358
+  type: 'test'
+  ...
+# Subtest: malformed ABI refuses: offset, size, trailing word, uint64 padding, case, odd length, uint256 size
+ok 8 - malformed ABI refuses: offset, size, trailing word, uint64 padding, case, odd length, uint256 size
+  ---
+  duration_ms: 0.389917
+  type: 'test'
+  ...
+# Subtest: packed semver minimum (version.rs): nonzero, <= pinned 1.5.1, prerelease below final, build ignored, unknown type refused
+ok 9 - packed semver minimum (version.rs): nonzero, <= pinned 1.5.1, prerelease below final, build ignored, unknown type refused
+  ---
+  duration_ms: 0.432727
+  type: 'test'
+  ...
+# Subtest: a contract minimum above the pinned client refuses the whole read
+ok 10 - a contract minimum above the pinned client refuses the whole read
+  ---
+  duration_ms: 0.531466
+  type: 'test'
+  ...
+# Subtest: anchor above the verified finalized block refuses (not_finalized)
+ok 11 - anchor above the verified finalized block refuses (not_finalized)
+  ---
+  duration_ms: 0.306097
+  type: 'test'
+  ...
+# Subtest: anchor hash mismatch, a hash change during the read, and a finalized regression all refuse
+ok 12 - anchor hash mismatch, a hash change during the read, and a finalized regression all refuse
+  ---
+  duration_ms: 0.432117
+  type: 'test'
+  ...
+# Subtest: forged results (JSON round trip, spread copy, hand-built) are never accepted
+ok 13 - forged results (JSON round trip, spread copy, hand-built) are never accepted
+  ---
+  duration_ms: 0.427066
+  type: 'test'
+  ...
+# Subtest: source pins: 8453, the 0x7480... reader address, exactly 15 entries in registration order
+ok 14 - source pins: 8453, the 0x7480... reader address, exactly 15 entries in registration order
+  ---
+  duration_ms: 0.101199
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 68.539418
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

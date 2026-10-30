@@ -1,0 +1,30 @@
+{
+  "unit": "ActiveState=failed\nSubState=failed\nInvocationID=62430f3a783b435c944fe4d429e67ded\nMainPID=0\nExecMainStatus=1\n",
+  "finished": {
+    "rc": 1,
+    "finishedAt": 1793272269.3877296,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "session": "5bacc919-e7d4-442f-bc73-09bd1923f6f4",
+  "duration_ms": 1333151,
+  "num_turns": 46,
+  "is_error": true,
+  "files": 41,
+  "manifestSha256": "221a4a6265cfb1db48d07dac5f4456d43b6df1692bdb76cc97d7d4165995a304",
+  "firstWrites": 10,
+  "firstWriteManifestSha256": "b311f1a1d98a97ff440ce4c1bdf0bfeb6f881ce76a6b7d388fc6864af9cdfe5b",
+  "currentInvocationTools": {
+    "Read": 23,
+    "Grep": 21,
+    "Write": 13
+  },
+  "outsideCandidateWrites": [],
+  "innerGuard": "[memory-guard] exit=1 peakTreeRssMiB=296 minHostAvailableMiB=33538\n",
+  "outerGuard": "[memory-guard] exit=1 peakTreeRssMiB=363 minHostAvailableMiB=33537\n"
+}

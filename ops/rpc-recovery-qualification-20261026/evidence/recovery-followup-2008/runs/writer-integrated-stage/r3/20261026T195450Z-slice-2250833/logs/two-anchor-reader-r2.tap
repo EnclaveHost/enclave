@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: A1: a native run holds no provider lock: B_f, S and logs are served meanwhile; one native slot; tickets one-shot and kept on refusal; merge revalidates
+ok 1 - A1: a native run holds no provider lock: B_f, S and logs are served meanwhile; one native slot; tickets one-shot and kept on refusal; merge revalidates
+  ---
+  duration_ms: 683.0708
+  type: 'test'
+  ...
+# Subtest: A1: close aborts and awaits an in-flight native run; nothing merges afterwards
+ok 2 - A1: close aborts and awaits an in-flight native run; nothing merges afterwards
+  ---
+  duration_ms: 356.160576
+  type: 'test'
+  ...
+# Subtest: A2 journal: the evidence section is optional (default bytes unchanged), grouped by S, deduplicated, validated and never a floor
+ok 3 - A2 journal: the evidence section is optional (default bytes unchanged), grouped by S, deduplicated, validated and never a floor
+  ---
+  duration_ms: 5.390088
+  type: 'test'
+  ...
+# Subtest: A2 journal: finalized coverage confirms (prunes) or contradicts (durable marker) recorded S; an S passed uncovered is unverifiable; markers survive reopening
+ok 4 - A2 journal: finalized coverage confirms (prunes) or contradicts (durable marker) recorded S; an S passed uncovered is unverifiable; markers survive reopening
+  ---
+  duration_ms: 2.654665
+  type: 'test'
+  ...
+# Subtest: A2 journal: bounds are fail-closed (distinct S, total facts, bytes below the KVM enrollment limit); an oversized saved section fences the journal
+ok 5 - A2 journal: bounds are fail-closed (distinct S, total facts, bytes below the KVM enrollment limit); an oversized saved section fences the journal
+  ---
+  duration_ms: 25.503861
+  type: 'test'
+  ...
+# Subtest: A2 clear: ONLY an admin-signed rotation that binds the exact fenced prior bytes clears the marker (KVM plan + role gate); a stale package refuses
+ok 6 - A2 clear: ONLY an admin-signed rotation that binds the exact fenced prior bytes clears the marker (KVM plan + role gate); a stale package refuses
+  ---
+  duration_ms: 3.918019
+  type: 'test'
+  ...
+# Subtest: A2 provider: finalized results confirm recorded facts or durably disable the tier; the marker survives a provider restart and stops the bridge
+ok 7 - A2 provider: finalized results confirm recorded facts or durably disable the tier; the marker survives a provider restart and stops the bridge
+  ---
+  duration_ms: 467.538953
+  type: 'test'
+  ...
+# Subtest: A2 provider: an S recorded but passed by finalized coverage without being covered (bootstrap beyond it) is unverifiable: disabled
+ok 8 - A2 provider: an S recorded but passed by finalized coverage without being covered (bootstrap beyond it) is unverifiable: disabled
+  ---
+  duration_ms: 299.927838
+  type: 'test'
+  ...
+# Subtest: A2 provider: the provisional tier refuses to exist without durable evidence, and evidence never exists without the policy
+ok 9 - A2 provider: the provisional tier refuses to exist without durable evidence, and evidence never exists without the policy
+  ---
+  duration_ms: 236.237193
+  type: 'test'
+  ...
+# Subtest: S2: the bridge pairs S only with the exact B_f it extends; a finalized advance between the two reads refuses, a fresh snapshot then succeeds
+ok 10 - S2: the bridge pairs S only with the exact B_f it extends; a finalized advance between the two reads refuses, a fresh snapshot then succeeds
+  ---
+  duration_ms: 508.224104
+  type: 'test'
+  ...
+# Subtest: S3: the overlay links to the persisted tail by native-bound output root, not only by number
+ok 11 - S3: the overlay links to the persisted tail by native-bound output root, not only by number
+  ---
+  duration_ms: 352.562358
+  type: 'test'
+  ...
+# Subtest: A3 regression (NOT a fix): coverage after ANY start begins at the authenticated bootstrap; a rotation (new binding, new cache) is no worse than a restart; an ASR bootstrap past a claim makes it unservable
+ok 12 - A3 regression (NOT a fix): coverage after ANY start begins at the authenticated bootstrap; a rotation (new binding, new cache) is no worse than a restart; an ASR bootstrap past a claim makes it unservable
+  ---
+  duration_ms: 496.699216
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3640.835524

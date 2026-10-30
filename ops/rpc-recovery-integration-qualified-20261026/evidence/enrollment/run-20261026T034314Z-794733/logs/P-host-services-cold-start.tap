@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: zero apps: host services only after the platform admits; an admin ban stops them (grants withdrawn), the unban restarts them
+ok 1 - zero apps: host services only after the platform admits; an admin ban stops them (grants withdrawn), the unban restarts them
+  ---
+  duration_ms: 10617.215618
+  type: 'test'
+  ...
+# Subtest: zero apps, unknown chain policy: the production policy with no network holds them (the agent runs); a fresh host never serves on an unread policy
+ok 2 - zero apps, unknown chain policy: the production policy with no network holds them (the agent runs); a fresh host never serves on an unread policy
+  ---
+  duration_ms: 6417.168694
+  type: 'test'
+  ...
+# Subtest: zero apps, the local policy down from the start: held; once it answers and admits, started
+ok 3 - zero apps, the local policy down from the start: held; once it answers and admits, started
+  ---
+  duration_ms: 6447.957136
+  type: 'test'
+  ...
+# Subtest: first app added and last app removed (live reload) never touch host services; a restart with no app starts them again
+ok 4 - first app added and last app removed (live reload) never touch host services; a restart with no app starts them again
+  ---
+  duration_ms: 3851.610162
+  type: 'test'
+  ...
+# Subtest: zero apps: refused before anything binds without a usable host-services block or with the policy off
+ok 5 - zero apps: refused before anything binds without a usable host-services block or with the policy off
+  ---
+  duration_ms: 2452.950459
+  type: 'test'
+  ...
+# Subtest: with an app, an "off" policy keeps the earlier behavior (host services start at once); on, they wait for the admit
+ok 6 - with an app, an "off" policy keeps the earlier behavior (host services start at once); on, they wait for the admit
+  ---
+  duration_ms: 2452.089711
+  type: 'test'
+  ...
+# Subtest: bundled library command lines: without the guard, the runner.mjs a carrier-configured challenge replica loads EXITS the bundle; with it, nothing runs
+ok 7 - bundled library command lines: without the guard, the runner.mjs a carrier-configured challenge replica loads EXITS the bundle; with it, nothing runs
+  ---
+  duration_ms: 798.92545
+  type: 'test'
+  ...
+# Subtest: the shipped bundle runs the app-less daemon: admitted -> host services
+ok 8 - the shipped bundle runs the app-less daemon: admitted -> host services
+  ---
+  duration_ms: 478.962928
+  type: 'test'
+  ...
+# Subtest: enrollment, fresh box: no opt-in -> nothing written (as before); a valid opt-in -> an app-less config for host services; the first app joins it without a restart
+ok 9 - enrollment, fresh box: no opt-in -> nothing written (as before); a valid opt-in -> an app-less config for host services; the first app joins it without a restart
+  ---
+  duration_ms: 9.686228
+  type: 'test'
+  ...
+# Subtest: enrollment, fresh box: a refused host, an invalid block or an unusable opt-in file writes no app-less config
+ok 10 - enrollment, fresh box: a refused host, an invalid block or an unusable opt-in file writes no app-less config
+  ---
+  duration_ms: 9.029883
+  type: 'test'
+  ...
+# Subtest: enrollment, existing box: the opt-in file is the source while configured (a change restarts once); an unusable file keeps the config's blocks
+ok 11 - enrollment, existing box: the opt-in file is the source while configured (a change restarts once); an unusable file keeps the config's blocks
+  ---
+  duration_ms: 2.979345
+  type: 'test'
+  ...
+# Subtest: locked inputs: the governing lockfile per node_modules tree; a version drift, an extraneous package or an outside input is refused
+ok 12 - locked inputs: the governing lockfile per node_modules tree; a version drift, an extraneous package or an outside input is refused
+  ---
+  duration_ms: 2.578478
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 53718.053915

@@ -1,0 +1,84 @@
+[queue] NOT STARTED: small allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] START available=20368MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+== environment audit (this job)
+[env] LD_* variables: 0   /etc/ld.so.preload: absent
+[env] host Linux 7.2.8-arch1-2; glibc glibc 2.44; OpenSSL 3.6.5 29 Sep 2026 (Library: OpenSSL 3.6.5 29 Sep 2026)
+== artifact
+[ok] out-1/base sha256 == 5aa7b2919870950f1dd90249d3900730184e3ce6b5a54048b3dbca2a72ef430c
+[ok] out-1/base size 290309776
+[ok] out-1/SHA256SUMS verifies (base + smoke outputs)
+[ok] out-1/SHA256SUMS names base with 5aa7b2919870950f1dd90249d3900730184e3ce6b5a54048b3dbca2a72ef430c
+== build log and resource guard (attempt 8 = build-1r8)
+[ok] build-1r8.rc == 0
+[ok] root-resume-final.rc == 0
+[ok] log: cargo build rc=0
+[ok] log: [artifact] 5aa7b2919870950f1dd90249d3900730184e3ce6b5a54048b3dbca2a72ef430c (290309776 bytes)
+[ok] log: queue cap 4096 / memory.max 4294967296
+[ok] guard: exit=0 peak 4072 MiB, host min 17541 MiB
+[attempt] build-1r2 rc=98: [queue] NOT STARTED: available=20419MiB required=20736MiB cap=4096MiB
+[attempt] build-1r3 rc=98: [queue] NOT STARTED: available=20337MiB required=20736MiB cap=4096MiB
+[attempt] build-1r4 rc=98: [queue] NOT STARTED: available=20533MiB required=20736MiB cap=4096MiB
+[attempt] build-1r5 rc=98: [queue] NOT STARTED: available=18507MiB required=20736MiB cap=4096MiB
+[attempt] build-1r6 rc=98: [queue] NOT STARTED: yielding to reserved small allocation
+[attempt] build-1r7 rc=98: [queue] NOT STARTED: yielding to reserved small allocation
+== input pins re-derived now
+[ok] build.sh 2ee8b8de
+[ok] jobs/env.sh cd1c6b56
+[ok] resume-4096.sh 0321879a
+[ok] resume-body-4096.sh 09fda204
+[ok] patch e9dfb8c6
+[ok] Cargo.lock f122da76
+[ok] provider 201d9b8c
+[ok] base repo HEAD 5476069f1eb74a56bccb56fdefd4b4bb0e3cda42
+[ok] source tree manifest d8078bdf (recomputed: d8078bdf5dbab667478329f8e31dac7cac4c780404982cf535d93dd109ca6efb)
+[ok] reth checkout HEAD 7134be3b
+== ELF facts (read-only)
+[elf] interpreter /lib64/ld-linux-x86-64.so.2
+[elf] NEEDED: libstdc++.so.6 libc.so.6 ld-linux-x86-64.so.2 libssl.so.3 libcrypto.so.3 libgcc_s.so.1 libm.so.6 
+[elf] RPATH/RUNPATH: 0
+[elf] GNU                  0x00000014	NT_GNU_BUILD_ID (unique build ID bitstring)
+[elf] Build ID: 5e1a4a3293c3961b1ce7ae63bdf890d869384f90
+[elf] occurrences of build path src: 0
+[elf] occurrences of build path cargo-home: 0
+[elf] occurrences of build path target-1: 0
+== closure and target comparison (abi.py 3c5edab1)
+[ok] closure derived
+{
+ "binaryNeedsGlibc": "GLIBC_2.39",
+ "exceedsTargetGlibc": false,
+ "binaryNeedsOpenssl": "OPENSSL_3.0.0",
+ "exceedsTargetOpenssl": false,
+ "binaryNeedsGlibcxx": "GLIBCXX_3.4.30",
+ "needed": [
+  "libstdc++.so.6",
+  "libc.so.6",
+  "ld-linux-x86-64.so.2",
+  "libssl.so.3",
+  "libcrypto.so.3",
+  "libgcc_s.so.1",
+  "libm.so.6"
+ ],
+ "advice": "a private bundle is required if any 'exceeds' is true; otherwise the system libraries MAY suffice, but only a smoke on the target decides"
+}
+[closure] missing [] | interpreter /lib64/ld-linux-x86-64.so.2 f5e11cc62f8f2c24 glibc 2.44+r50+g1848099f063e-1
+[closure] binaryHighest {'CXXABI': 'CXXABI_1.3.15', 'GCC': 'GCC_4.2.0', 'GLIBC': 'GLIBC_2.39', 'GLIBCXX': 'GLIBCXX_3.4.30', 'OPENSSL': 'OPENSSL_3.0.0'}
+[closure] closureHighest {'CXXABI': 'CXXABI_1.3.17', 'GCC': 'GCC_14.0.0', 'GLIBC': 'GLIBC_2.44', 'GLIBCXX': 'GLIBCXX_3.4.36', 'OPENSSL': 'OPENSSL_3.6.0'}
+[closure] ld-linux-x86-64.so.2     f5e11cc62f8f2c24 glibc 2.44+r50+g1848099f063e-1
+[closure] libbrotlicommon.so.1     4f895094b7b6ff9c brotli 1.2.0-1
+[closure] libbrotlidec.so.1        0883fb05fa42aa6a brotli 1.2.0-1
+[closure] libbrotlienc.so.1        8dbc539197d27631 brotli 1.2.0-1
+[closure] libc.so.6                02c8c3d06180beee glibc 2.44+r50+g1848099f063e-1
+[closure] libcrypto.so.3           a75a864dcda6ef9e openssl 3.6.5-1
+[closure] libgcc_s.so.1            e618cb9c90c2eb3a libgcc 16.2.1+r23+gd564253eb6c8-1
+[closure] libm.so.6                965106704753eefe glibc 2.44+r50+g1848099f063e-1
+[closure] libssl.so.3              f6409e9f083faae7 openssl 3.6.5-1
+[closure] libstdc++.so.6           f5fc7380f2ae46fa libstdc++ 16.2.1+r23+gd564253eb6c8-1
+[closure] libz.so.1                6c78c5e58c3bb49a zlib 1:1.3.2-4
+[closure] libzstd.so.1             f023d49e85fb2205 zstd 1.5.7-3
+## verify rc=0
+[memory-guard] exit=0 peakTreeRssMiB=49 minHostAvailableMiB=20221
+[memory-guard] at peak: pacman:25 python3:20 bash:4
+[queue] EXIT 0

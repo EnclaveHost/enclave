@@ -1,0 +1,334 @@
+TAP version 13
+# Subtest: typed data guard accepts exactly the SDK Release and nothing else
+ok 1 - typed data guard accepts exactly the SDK Release and nothing else
+  ---
+  duration_ms: 1.501788
+  type: 'test'
+  ...
+# Subtest: release calldata: exact selector, canonical round trip only
+ok 2 - release calldata: exact selector, canonical round trip only
+  ---
+  duration_ms: 1.459019
+  type: 'test'
+  ...
+# Subtest: promoted commitment is keccak256(abi.encode(string,string))
+ok 3 - promoted commitment is keccak256(abi.encode(string,string))
+  ---
+  duration_ms: 7.569122
+  type: 'test'
+  ...
+# Error: A resource generated asynchronous activity after the test ended. This activity created the error "Error: ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/readonly-reference/inventory-public.json'" which triggered an uncaughtException event, caught by the test runner.
+# Subtest: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/candidate/enclave/test/wallet-release/chain-store.test.mjs
+not ok 1 - /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/candidate/enclave/test/wallet-release/chain-store.test.mjs
+  ---
+  duration_ms: 82.470082
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/candidate/enclave/test/wallet-release/chain-store.test.mjs:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: checking/blocked: Move to wallet present but disabled, status is announced
+ok 5 - checking/blocked: Move to wallet present but disabled, status is announced
+  ---
+  duration_ms: 1.199851
+  type: 'test'
+  ...
+# Subtest: blocker text and codes are escaped
+ok 6 - blocker text and codes are escaped
+  ---
+  duration_ms: 0.277798
+  type: 'test'
+  ...
+# Subtest: eligible -> enabled; review shows full id, vault, fixed destination, preserved balance, signature, no widening
+ok 7 - eligible -> enabled; review shows full id, vault, fixed destination, preserved balance, signature, no widening
+  ---
+  duration_ms: 0.495227
+  type: 'test'
+  ...
+# Subtest: journal states: pending/uncertain offer only a read-only re-check; finalized offers nothing
+ok 8 - journal states: pending/uncertain offer only a read-only re-check; finalized offers nothing
+  ---
+  duration_ms: 0.452157
+  type: 'test'
+  ...
+# Subtest: the actual /sessions page wires the slot into the held card and keeps every other control
+ok 9 - the actual /sessions page wires the slot into the held card and keeps every other control
+  ---
+  duration_ms: 0.630356
+  type: 'test'
+  ...
+# Subtest: positive: inactive funded runtime, no escrow, promoted PROD with qualified policy -> one sign, one POST, verified
+not ok 10 - positive: inactive funded runtime, no escrow, promoted PROD with qualified policy -> one sign, one POST, verified
+  ---
+  duration_ms: 3.403874
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:138:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    [{"code":"identity","text":"Malformed wallet, vault or deployment id."}]
+    + actual - expected
+    
+    + 'blocked'
+    - 'eligible'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'eligible'
+  actual: 'blocked'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:141:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: environment/content/session continuity gate
+not ok 11 - environment/content/session continuity gate
+  ---
+  duration_ms: 3.792811
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:174:1'
+  failureType: 'testCodeFailure'
+  error: 'staging not in [{"code":"identity","text":"Malformed wallet, vault or deployment id."}]'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    blockedWith (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:168:10)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:175:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: escrow OR gate exactly as deployed; lease, activity and reserves
+not ok 12 - escrow OR gate exactly as deployed; lease, activity and reserves
+  ---
+  duration_ms: 1.168391
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:184:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'blocked'
+    - 'eligible'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'eligible'
+  actual: 'blocked'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:187:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: identity, code, chain and freshness drift all block (no fallback)
+not ok 13 - identity, code, chain and freshness drift all block (no fallback)
+  ---
+  duration_ms: 2.61395
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:197:1'
+  failureType: 'testCodeFailure'
+  error: 'factory-code not in [{"code":"identity","text":"Malformed wallet, vault or deployment id."}]'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    blockedWith (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:168:10)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:216:37)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: wallet provider on another chain/account blocks without requesting a connection
+ok 14 - wallet provider on another chain/account blocks without requesting a connection
+  ---
+  duration_ms: 2.839728
+  type: 'test'
+  ...
+# Subtest: account change, unmount, state drift or failed simulation after the signature: nothing sent, durable cancel
+not ok 15 - account change, unmount, state drift or failed simulation after the signature: nothing sent, durable cancel
+  ---
+  duration_ms: 0.980462
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:230:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of null (reading 'state')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:245:33)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: double click and two controllers (two tabs, one journal): one signature, one POST
+not ok 16 - double click and two controllers (two tabs, one journal): one signature, one POST
+  ---
+  duration_ms: 1.043552
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:249:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:260:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: journal failure at each boundary stops at the last durable point
+not ok 17 - journal failure at each boundary stops at the last durable point
+  ---
+  duration_ms: 1.21618
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:264:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    cas:signed
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    at (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:271:62)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:277:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: relay accepted then timed out (hash lost): uncertain, reload finds it by exact nonce, never re-signs
+not ok 18 - relay accepted then timed out (hash lost): uncertain, reload finds it by exact nonce, never re-signs
+  ---
+  duration_ms: 0.717485
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:288:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: Malformed wallet, vault or deployment id.
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:290:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: relay rejected (maybe sent): stays unresolved, no resign or repost
+not ok 19 - relay rejected (maybe sent): stays unresolved, no resign or repost
+  ---
+  duration_ms: 0.944853
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:301:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: Malformed wallet, vault or deployment id.
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:303:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: wrong event / failed receipt / changed poststate / foreign nonce / reorg are refused
+not ok 20 - wrong event / failed receipt / changed poststate / foreign nonce / reorg are refused
+  ---
+  duration_ms: 0.547166
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:311:1'
+  failureType: 'testCodeFailure'
+  error: 'Malformed wallet, vault or deployment id.'
+  code: 'identity'
+  stack: |-
+    file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/candidate/enclave/site/js/core/wallet-release-controller.js:84:118
+    async Object.release (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/candidate/enclave/site/js/core/wallet-release-controller.js:84:20)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:313:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: an interrupted pre-dispatch record resolves only after its deadline passes on-chain
+not ok 21 - an interrupted pre-dispatch record resolves only after its deadline passes on-chain
+  ---
+  duration_ms: 0.847303
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:335:1'
+  failureType: 'testCodeFailure'
+  error: 'Cannot convert undefined to a BigInt'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    BigInt (<anonymous>)
+    Object.recover (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/candidate/enclave/site/js/core/wallet-release-controller.js:183:38)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:342:17)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: EXACT vendored ownerOperation: wrapped signer sees generated typed data before signing, POST after
+not ok 22 - EXACT vendored ownerOperation: wrapped signer sees generated typed data before signing, POST after
+  ---
+  duration_ms: 24.134707
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:348:1'
+  failureType: 'testCodeFailure'
+  error: 'Malformed wallet, vault or deployment id.'
+  code: 'identity'
+  stack: |-
+    file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/candidate/enclave/site/js/core/wallet-release-controller.js:84:118
+    async Object.release (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/candidate/enclave/site/js/core/wallet-release-controller.js:84:20)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:356:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT dispose during durable dispatching commit must prevent relay POST
+not ok 23 - ROOT dispose during durable dispatching commit must prevent relay POST
+  ---
+  duration_ms: 0.822774
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:367:41'
+  failureType: 'testCodeFailure'
+  error: |-
+    one inert signature before revocation
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1/root-boundaries.test.mjs:372:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 9
+# fail 14
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 308.85519

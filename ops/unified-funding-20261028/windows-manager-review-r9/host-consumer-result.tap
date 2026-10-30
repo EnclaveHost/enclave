@@ -1,0 +1,119 @@
+TAP version 13
+# Subtest: ROOT actual Host positive control reaches protected reconciliation with unchanged catalog
+not ok 1 - ROOT actual Host positive control reaches protected reconciliation with unchanged catalog
+  ---
+  duration_ms: 5.592989
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r9/root-host-consumer.test.mjs:62:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r9/root-host-consumer.test.mjs:63:60)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: ROOT actual Host must not veto independent protected reconciliation solely on publisher yank
+not ok 2 - ROOT actual Host must not veto independent protected reconciliation solely on publisher yank
+  ---
+  duration_ms: 1.161399
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r9/root-host-consumer.test.mjs:65:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    publisher metadata must not block the protected consumer before authority/withdrawal reconciliation
+    + actual - expected
+    
+    + []
+    - [
+    -   '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r9/root-host-consumer.test.mjs:67:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT actual Host must reconcile enrolled route while retired book lookup fails
+not ok 3 - ROOT actual Host must reconcile enrolled route while retired book lookup fails
+  ---
+  duration_ms: 0.989271
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r9/root-host-consumer.test.mjs:69:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    old book must not precede independent reconciliation (observed TEST retired book unavailable)
+    + actual - expected
+    
+    + []
+    - [
+    -   '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r9/root-host-consumer.test.mjs:72:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT actual Host must count recovered lifecycle commitments alongside ordinary neighbors
+not ok 4 - ROOT actual Host must count recovered lifecycle commitments alongside ordinary neighbors
+  ---
+  duration_ms: 1.442387
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r9/root-host-consumer.test.mjs:74:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    pending/recovered lifecycle allocation must remain reserved before an instance id is known
+    + actual - expected
+    
+    + 0.2
+    - 0.6000000000000001
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0.6000000000000001
+  actual: 0.2
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r9/root-host-consumer.test.mjs:77:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 0
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 279.110546

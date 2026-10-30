@@ -1,0 +1,79 @@
+{
+ "output": "/tmp/hacr2.iju5QM/adapter-proof/deployment-chain-adapter.mjs",
+ "sha256": "b648a3edf805252e239f548a4816b90b8281999b848d2ecece453cee7b8c226d",
+ "baselineSha256": "07d02fca0fff2b4b59f7680ac0425c65b779aa61e13ae2b7205b7af4ee4443b2",
+ "manifest": [
+  {
+   "name": "import",
+   "baselineLine": 48,
+   "candidateOffset": 5293,
+   "length": 396
+  },
+  {
+   "name": "profile-accept",
+   "baselineLine": 121,
+   "candidateOffset": 13555,
+   "length": 135
+  },
+  {
+   "name": "hr-decl",
+   "baselineLine": 227,
+   "candidateOffset": 22872,
+   "length": 139
+  },
+  {
+   "name": "s3-includes-hr",
+   "baselineLine": 227,
+   "candidateOffset": 23046,
+   "length": 6
+  },
+  {
+   "name": "hr-prepare",
+   "baselineLine": 230,
+   "candidateOffset": 23252,
+   "length": 140
+  },
+  {
+   "name": "hr-verify",
+   "baselineLine": 307,
+   "candidateOffset": 30292,
+   "length": 140
+  },
+  {
+   "name": "hr-adapter-object",
+   "baselineLine": 436,
+   "candidateOffset": 41790,
+   "length": 73
+  },
+  {
+   "name": "hr-read",
+   "baselineLine": 453,
+   "candidateOffset": 43496,
+   "length": 144
+  },
+  {
+   "name": "hr-read-return",
+   "baselineLine": 464,
+   "candidateOffset": 44989,
+   "length": 15
+  },
+  {
+   "name": "hr-state",
+   "baselineLine": 502,
+   "candidateOffset": 48730,
+   "length": 143
+  },
+  {
+   "name": "hr-admitted",
+   "baselineLine": 502,
+   "candidateOffset": 48956,
+   "length": 31
+  },
+  {
+   "name": "hr-snapshot-fields",
+   "baselineLine": 511,
+   "candidateOffset": 49932,
+   "length": 123
+  }
+ ]
+}

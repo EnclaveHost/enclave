@@ -1,0 +1,1 @@
+Separate EXACTONE product line adds ctimeNs to access_meta per-observation stability tuple; retains directory timestamp tolerance across operation phases. Original79=78PASS1rootFAIL for actual defaultACL mutation. Same79 unchanged tests, no broadening.512hard450RSSfloor27648CPU1noswap/sharedqueue/networknamespace40child180outer; only disposable files/owned child.

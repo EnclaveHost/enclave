@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-28T09:40:57.620852+00:00",
+  "guest": "gdc03538eb",
+  "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gdc03538eb-112895.service",
+  "memory": {
+    "memory.current": "63078158336\n",
+    "memory.peak": "63080632320\n",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0\n",
+    "memory.stat": "anon 205406208\nfile 62592323584\nkernel 280428544\nkernel_stack 819200\npagetables 3649536\nsec_pagetables 122515456\npercpu 544\nsock 0\nvmalloc 180224\nshmem 282095616\nzswap 0\nzswapped 0\nzswap_incomp 0\nfile_mapped 282476544\nfile_dirty 1388544\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 79503360\nactive_anon 407998464\ninactive_file 32055296\nactive_file 0\nunevictable 62278156288\nslab_reclaimable 144101560\nslab_unreclaimable 7000880\nslab 151102440\nhugetlb 0\nworkingset_refault_anon 0\nworkingset_refault_file 3\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgsteal_kswapd 3631\npgsteal_direct 5\npgsteal_khugepaged 8\npgsteal_proactive 0\npgscan_kswapd 3633\npgscan_direct 5\npgscan_khugepaged 8\npgscan_proactive 0\npgrefill 2842\npgpromote_success 0\npgscan 3646\npgsteal 3644\npswpin 0\npswpout 0\npgfault 141606\npgmajfault 59\npgactivate 2\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 1\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0\nnuma_pages_migrated 0\nnuma_pte_updates 0\nnuma_hint_faults 0\n"
+  }
+}

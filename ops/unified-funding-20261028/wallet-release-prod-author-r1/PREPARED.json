@@ -1,0 +1,49 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "seedEntries": 125,
+  "readonlyInputPins": 294,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "mutationPolicy": "Candidate subtree only; terminal Write/Edit result audit and successful-mutation replay; missing/mismatched/outside outcomes never called clean",
+  "turnLimit": 30,
+  "turnMetric": "CLI max-agentic/API-turns; success result num_turns is separate user-message counter; preserve both",
+  "childTimeoutSec": 900,
+  "outerTimeoutSec": 1200,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "hashes": {
+    "TASK.txt": "d090e56b6448d963c5244c35677029eeb4b91deaef80e37092c958be1727ea30",
+    "run.py": "1fd164fa4780719e79ed397a6f33c92eadb8a06c4d0db1f6babb11d55ce70fe1",
+    "collect-terminal.py": "72c8572a7412d4be5b515fa63fc2bbcea9fa381466eabdd5e57eda66dc89c9c6",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8",
+    "input-pins.json": "a45a12ecceb9b79c3419428f1db2397443af1e7177d1df4c84e7142763b4edc7",
+    "seed-pins.json": "9da97c839bef359b839102cba1442b71e52a4e7c286fd982aaf9445ff2dd136e",
+    "production-source-manifest.json": "9c0d85c3fdec616b65728264d235a10ca529910584b8ad666d305353267437ec",
+    "seed-provenance.json": "c55e18da60c72fdba53d66031bcc34ebc269c20863031a3aac3541f4f74a4340",
+    "reference-provenance.json": "9f4e65fa5dc7102f4df8078c7b9ce7e08f13cdf9e148e39d3ba8904f74596187",
+    "launch-command.txt": "eedd90d5151e89a5d242e5d43eb8cf64c25c022081f9fff1fdeefde33a53511d",
+    "REVIEW-STATUS.txt": "373e1e351369a3358bd66312d1d3c3729a0047c105a28cb0862cb1a1663060e2",
+    "account-requirements.json": "36086b787966ec3827a84a082f8c9b2f5f6776b33ae528127c8405f1ccd2423f",
+    "preparation-closure.json": "4c5f829798e9dc55d5ba22673b22f3a96f7b67abafb7f4a9bba816a929e83828"
+  },
+  "originalSeedEntries": 125,
+  "addedPinnedDependencies": 0,
+  "priority": "ROOT_REVIEW_PENDING_NO_LAUNCH",
+  "cpuIndex": 1,
+  "cpuAffinity": "taskset -c1 and AllowedCPUs=1; runner requires exact{1}"
+}

@@ -1,0 +1,1 @@
+Extend1356 qualified image packaging tests with real existing chain-verifier inputs matching8250/9ca7/4fe0 and pinnedglibc; require all25tests withzero skips. Composed source5052bd58 unchanged. Root1356 had23passed2explicitinputskips; this closes thoseaffectedoverlay paths.

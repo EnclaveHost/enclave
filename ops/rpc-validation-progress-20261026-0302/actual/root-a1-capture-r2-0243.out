@@ -1,0 +1,12 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] START available=22220MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r2/logs/root-capture-tests-20261026T024629Z-651375
+## capture rc=0
+[memory-guard] exit=0 peakTreeRssMiB=165 minHostAvailableMiB=22056
+[memory-guard] at peak: python3:145 python3.14:12 bash:4 bash:2 timeout:2
+[queue] EXIT 0

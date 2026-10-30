@@ -1,0 +1,3 @@
+a215add4a20f61bab07296cee9bf98651b0a74d45e4ef467244cdd8cbabf3e40  SOURCE-PINS.txt
+402757f095e1c3f6b733bdd834a29292ade3150688973e0f9d5b7933828b3d53  jobs/root-scripted-adapter-fix.sh
+c0acd7b329a9899c5ecc53c14a183cdf589aa006b6b0b7ae4b9c955cd259f6b6  patches/windows-lease-scripted-fixture-exports.patch

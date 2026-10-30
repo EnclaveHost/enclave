@@ -1,0 +1,84 @@
+{
+  "unit": "enclave-native-admission-closure-r1-20261029-author.service",
+  "ActiveState": "active",
+  "InvocationID": "b12c9fa6f7354559910659fee488ffbd",
+  "MainPID": "1939531",
+  "mainPid": 1939531,
+  "mainPidStartTicks": "161700930",
+  "runnerPid": 1939554,
+  "runnerPidStartTicks": "161700942",
+  "claudePid": 1939563,
+  "claudePidStartTicks": "161701021",
+  "invocationId": "b12c9fa6f7354559910659fee488ffbd",
+  "processes": [
+    {
+      "pid": 1939531,
+      "start": "161700930",
+      "ppid": 1899,
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    },
+    {
+      "pid": 1939554,
+      "start": "161700942",
+      "ppid": 1939540,
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 1939563,
+      "start": "161701021",
+      "ppid": 1939554,
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/native-admission-closure-r1-20261029/author",
+      "affinity": [
+        1
+      ]
+    }
+  ],
+  "verifiedAt": 1793311896.8538609,
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "sourceOnly": true,
+  "remoteOrFinancialActions": false
+}

@@ -1,0 +1,12 @@
+45de1d3fe57ec9189daecedf2c8ae7ab71f8497ff8ea90d6527b31cc982555e0  ./README.md
+69f83fc4f737c358c4c6ae54530810bf8896dc50d8d00c67eaf773ef7fa68cea  ./integration/r6-integration-boot-files.patch
+f602920b8a9a1a1d5b3e64017832fffe883086b0ca64cc8d706fdbc3fd8c00e3  ./integration/r6-producer-bound-binary.patch
+a7625636cb74e7d17661fa8df1af8a6a3d8c18f6733ef5bcc2b078e685ef2724  ./integration/r6-tool-test-expectations.patch
+3c1bc6434c8a2f02f6748147a4c4d284a150ac3b1348ff62b6755db4fefbf2b6  ./jobs/root-forward-sync-tests.sh
+ff4462f7fb06ccbc48fef4da6c7a0167a36a7656c048ff72918567efd681d816  ./r6-followup/producer/base_launch.py
+d8461a8a8cc4543d65687f34c1f904394de5835e953fa601667736a80fc6d77f  ./r6-followup/tests/test_finality_integration.py
+16eadb7827821e29d5864180eb3bb67c68f35c3a200d48267a08e928615e7d46  ./r6-followup/tests/test_finality_state.py
+b506413e4d321abad2101b7c6aaa598f50bf67bb3da1343f23f1504fe6c4bf3f  ./src/forward_sync.py
+d913d40e4c778c5b98f4331d96323fd04cef61f3f4a1c3f3790aed1bbc2a2395  ./tests/test_forward_sync.py
+72191f7878501d2e5721378e9416a9730014d4219a2ffc1537e078cff36180f4  ./units/enclave-base-forward-sync-verify.service
+c1b5dcf4f1115b4bdc6084592e3e34f653efb7968618d288bc528da3f21e22b9  ./units/enclave-base-forward-sync.service

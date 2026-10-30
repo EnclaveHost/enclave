@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: the OLD Helios cc962e2b is refused and the NEW 8250f08a accepted; the 77d6cc859 control does the opposite
+ok 1 - the OLD Helios cc962e2b is refused and the NEW 8250f08a accepted; the 77d6cc859 control does the opposite
+  ---
+  duration_ms: 2.896678
+  type: 'test'
+  ...
+# Subtest: only the Helios table changed: one accepted Helios, listener/helper tables, labels and formats identical
+ok 2 - only the Helios table changed: one accepted Helios, listener/helper tables, labels and formats identical
+  ---
+  duration_ms: 0.666888
+  type: 'test'
+  ...
+# Subtest: no safe/finalized (or any other) behaviour upgrade: rpc-runtime.mjs differs by exactly the one pin line; all other network/ code is byte-identical
+ok 3 - no safe/finalized (or any other) behaviour upgrade: rpc-runtime.mjs differs by exactly the one pin line; all other network/ code is byte-identical
+  ---
+  duration_ms: 20.105851
+  type: 'test'
+  ...
+# Subtest: image record: only binaries.helios.sha256 and provenance.helios changed; the pin equals the runtime table
+ok 4 - image record: only binaries.helios.sha256 and provenance.helios changed; the pin equals the runtime table
+  ---
+  duration_ms: 0.501868
+  type: 'test'
+  ...
+# Subtest: closure.json: exactly the four reviewed Helios fields changed
+ok 5 - closure.json: exactly the four reviewed Helios fields changed
+  ---
+  duration_ms: 2.53365
+  type: 'test'
+  ...
+# Subtest: chain-verifier inputs: new helios + the six audited files byte-identical to the frozen old dir and to the image pins
+ok 6 - chain-verifier inputs: new helios + the six audited files byte-identical to the frozen old dir and to the image pins
+  ---
+  duration_ms: 377.655557
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 559.0344

@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: driver witness URL: own private/loopback literal only; every public, named or malformed form refused
+ok 1 - driver witness URL: own private/loopback literal only; every public, named or malformed form refused
+  ---
+  duration_ms: 19.041298
+  type: 'test'
+  ...
+# Subtest: both approvals must name the same producer: signed policy url == HOST_DATA-bound witnessUrl, else no transport or driver
+ok 2 - both approvals must name the same producer: signed policy url == HOST_DATA-bound witnessUrl, else no transport or driver
+  ---
+  duration_ms: 1.949157
+  type: 'test'
+  ...
+# Subtest: HOST_DATA canonicaliser: optional witnessUrl, exact previous bytes when absent; loopback/public/named/malformed refused
+ok 3 - HOST_DATA canonicaliser: optional witnessUrl, exact previous bytes when absent; loopback/public/named/malformed refused
+  ---
+  duration_ms: 2.274973
+  type: 'test'
+  ...
+# Subtest: measured role compose: writes ONLY the bound witnessUrl; a template carrying one is tamper; an invalid bound one refuses
+ok 4 - measured role compose: writes ONLY the bound witnessUrl; a template carrying one is tamper; an invalid bound one refuses
+  ---
+  duration_ms: 2.044606
+  type: 'test'
+  ...
+# Subtest: REAL transport to a producer on the private host-link address 10.0.2.2 (namespaced): exact request, bounded answer; bad answers refused
+ok 5 - REAL transport to a producer on the private host-link address 10.0.2.2 (namespaced): exact request, bounded answer; bad answers refused
+  ---
+  duration_ms: 1537.067201
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1804.634627

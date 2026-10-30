@@ -1,0 +1,45 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "seedEntries": 219,
+  "readonlyInputPins": 5213,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "mutationPolicy": "Candidate subtree only; terminal Write/Edit result audit and successful-mutation replay; missing/mismatched/outside outcomes never called clean",
+  "turnLimit": 55,
+  "turnMetric": "CLI max-agentic/API-turns; success result num_turns is separate user-message counter; preserve both",
+  "childTimeoutSec": 1800,
+  "outerTimeoutSec": 2100,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r10-20261029/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "hashes": {
+    "TASK.txt": "b749c745e6afed28b5c45394efa787bed9bc6027c885adb6ff2196ac75f382c6",
+    "REVIEW-STATUS.txt": "e8ab44f62f548a4f8926d542f671ff481e7ef17e93e080da7acb80a38aa57a04",
+    "run.py": "699c754bb7f2d08245db49a39d37e51c3dd7d24371a46ecf4e341b53efca5890",
+    "launch-command.txt": "bcd5a6f94b1a3f26f7e40467eb0a14c87c2996498470d23cf1246f0e0178f51c",
+    "input-pins.json": "2da5069c3c2b561b5743744e41a0b17e7b6a39b52d3556175b76e1ecb1524ecd",
+    "seed-pins.json": "ebf5b6a6fe485ab88fe5b92367d96ddfc9a7f5983ade967a367542bd399477f9",
+    "seed-provenance.json": "de137c8cd745e26c325b15e6f8d74dff5861fe431c11c94b7c017d9ca8468c71",
+    "evidence-index.json": "186689482890110b3e2af249a7a39411add0609c7d951487d815f91cc5da0c9e",
+    "interface-map.json": "702e84b90c22f7319139cb41a060c718d1a87888bcdf91694782fc676c1b2f61",
+    "collect-terminal.py": "c0a16176148b0e3abb0acd6fcb10f3aca56257246298653c53183396ac4504c5",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8",
+    "materialization.json": "6b1acb42aa3160a579180db682c3781355d73db77fe39ff12cf6afb9b281efb6"
+  },
+  "originalSeedEntries": 219,
+  "addedPinnedDependencies": 0
+}

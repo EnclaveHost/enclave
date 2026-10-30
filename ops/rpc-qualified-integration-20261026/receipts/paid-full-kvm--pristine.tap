@@ -1,0 +1,208 @@
+TAP version 13
+# Subtest: owned L1 process + bounded native transport publishes only after exact result binding and durable acceptance
+ok 1 - owned L1 process + bounded native transport publishes only after exact result binding and durable acceptance
+  ---
+  duration_ms: 974.724194
+  type: 'test'
+  ...
+# Subtest: forged root, wrong executed header, and foreign proof tickets cannot grant authority
+ok 2 - forged root, wrong executed header, and foreign proof tickets cannot grant authority
+  ---
+  duration_ms: 360.709925
+  type: 'test'
+  ...
+# Subtest: restart reauthenticates bootstrap and rederives instead of trusting a saved root
+ok 3 - restart reauthenticates bootstrap and rederives instead of trusting a saved root
+  ---
+  duration_ms: 426.157705
+  type: 'test'
+  ...
+# Subtest: an uncertain journal write fences the previous in-memory anchor too
+ok 4 - an uncertain journal write fences the previous in-memory anchor too
+  ---
+  duration_ms: 870.641916
+  type: 'test'
+  ...
+# Subtest: stale derived blocks and a changed finalized L1 header refuse without refreshing timestamps
+ok 5 - stale derived blocks and a changed finalized L1 header refuse without refreshing timestamps
+  ---
+  duration_ms: 535.545812
+  type: 'test'
+  ...
+# Subtest: an untrusted header source cannot escape the requested block/range or replace owner process authority
+ok 6 - an untrusted header source cannot escape the requested block/range or replace owner process authority
+  ---
+  duration_ms: 283.711436
+  type: 'test'
+  ...
+# Subtest: startup refuses unreviewed native binaries, foreign bootstrap policy and checkpoint records
+ok 7 - startup refuses unreviewed native binaries, foreign bootstrap policy and checkpoint records
+  ---
+  duration_ms: 242.877872
+  type: 'test'
+  ...
+# Subtest: full runtime enrollment owns private children, closes cleanly, and binds checkpoint rotation
+ok 8 - full runtime enrollment owns private children, closes cleanly, and binds checkpoint rotation
+  ---
+  duration_ms: 481.576141
+  type: 'test'
+  ...
+# Subtest: native deadline, cancellation, oversized stdout and nonzero exit cannot yield a result
+ok 9 - native deadline, cancellation, oversized stdout and nonzero exit cannot yield a result
+  ---
+  duration_ms: 99.641597
+  type: 'test'
+  ...
+# Subtest: journal has one owner, refuses missing/corrupt state, and binds its runtime configuration
+ok 10 - journal has one owner, refuses missing/corrupt state, and binds its runtime configuration
+  ---
+  duration_ms: 10.953461
+  type: 'test'
+  ...
+# Subtest: checkpoint cannot outlive its reviewed weak-subjectivity window
+ok 11 - checkpoint cannot outlive its reviewed weak-subjectivity window
+  ---
+  duration_ms: 0.922074
+  type: 'test'
+  ...
+# Subtest: local HTTP orchestration enforces exact shape, payload cap and cancellation
+ok 12 - local HTTP orchestration enforces exact shape, payload cap and cancellation
+  ---
+  duration_ms: 64.090489
+  type: 'test'
+  ...
+# Subtest: startup deadline cancels a hung owned L1 response and cleans up its child record
+ok 13 - startup deadline cancels a hung owned L1 response and cleans up its child record
+  ---
+  duration_ms: 620.467603
+  type: 'test'
+  ...
+# Subtest: saved native ownership is reaped before its private executable is removed
+ok 14 - saved native ownership is reaped before its private executable is removed
+  ---
+  duration_ms: 136.301829
+  type: 'test'
+  ...
+# Subtest: explicit loader selection cannot introduce an unreviewed library set
+ok 15 - explicit loader selection cannot introduce an unreviewed library set
+  ---
+  duration_ms: 1.147533
+  type: 'test'
+  ...
+# Subtest: the lifecycle snapshot consumes the local reader capability and pins state reads to its derived hash
+ok 16 - the lifecycle snapshot consumes the local reader capability and pins state reads to its derived hash
+  ---
+  duration_ms: 312.435718
+  type: 'test'
+  ...
+# Subtest: v3 complete coverage includes empty blocks and filters all-address, one-topic logs without dropping coverage
+ok 17 - v3 complete coverage includes empty blocks and filters all-address, one-topic logs without dropping coverage
+  ---
+  duration_ms: 456.903576
+  type: 'test'
+  ...
+# Subtest: logs require exact snapshot identity and covered range; no old bootstrap, unknown filter or cancellation grants
+ok 18 - logs require exact snapshot identity and covered range; no old bootstrap, unknown filter or cancellation grants
+  ---
+  duration_ms: 345.689381
+  type: 'test'
+  ...
+# Subtest: v3 validation refuses incomplete blocks, wrong roots, duplicated logs, wrong filter and downgraded output
+ok 19 - v3 validation refuses incomplete blocks, wrong roots, duplicated logs, wrong filter and downgraded output
+  ---
+  duration_ms: 285.710746
+  type: 'test'
+  ...
+# Subtest: restarted coverage JSON grants nothing; re-derive contiguous segments through the saved floor
+ok 20 - restarted coverage JSON grants nothing; re-derive contiguous segments through the saved floor
+  ---
+  duration_ms: 455.874323
+  type: 'test'
+  ...
+# Subtest: changed saved chunks fence both log reads and the prior in-memory anchor
+ok 21 - changed saved chunks fence both log reads and the prior in-memory anchor
+  ---
+  duration_ms: 315.889367
+  type: 'test'
+  ...
+# Subtest: partial durable publication fences the process and coverage cannot be seeded with plain JSON
+ok 22 - partial durable publication fences the process and coverage cannot be seeded with plain JSON
+  ---
+  duration_ms: 405.006371
+  type: 'test'
+  ...
+# Subtest: coverage manifest write failure refuses publication and fences the previous anchor
+ok 23 - coverage manifest write failure refuses publication and fences the previous anchor
+  ---
+  duration_ms: 336.203131
+  type: 'test'
+  ...
+# Subtest: coverage manifests have exclusive ownership and reject persisted hash-chain corruption
+ok 24 - coverage manifests have exclusive ownership and reject persisted hash-chain corruption
+  ---
+  duration_ms: 300.212376
+  type: 'test'
+  ...
+# Subtest: quota accounts for orphan chunks, refuses overflow and never evicts history
+ok 25 - quota accounts for orphan chunks, refuses overflow and never evicts history
+  ---
+  duration_ms: 247.232257
+  type: 'test'
+  ...
+# Subtest: v3 stdout supports a complete result beyond v2 size without truncating logs or query results
+ok 26 - v3 stdout supports a complete result beyond v2 size without truncating logs or query results
+  ---
+  duration_ms: 362.205679
+  type: 'test'
+  ...
+# Subtest: v3 startup requires the explicit format/pin and interval; v2 cannot silently enable history
+ok 27 - v3 startup requires the explicit format/pin and interval; v2 cannot silently enable history
+  ---
+  duration_ms: 0.282519
+  type: 'test'
+  ...
+# Subtest: full v3 runtime opens private coverage under its ownership and refuses missing history on restart
+ok 28 - full v3 runtime opens private coverage under its ownership and refuses missing history on restart
+  ---
+  duration_ms: 446.080036
+  type: 'test'
+  ...
+# Subtest: a real bridge callback can make both coverage queries without a reentrant reader lock
+ok 29 - a real bridge callback can make both coverage queries without a reentrant reader lock
+  ---
+  duration_ms: 338.20863
+  type: 'test'
+  ...
+# Subtest: bridge pins every state read to the independently authenticated derived hash and closes retained clients
+ok 30 - bridge pins every state read to the independently authenticated derived hash and closes retained clients
+  ---
+  duration_ms: 3.994095
+  type: 'test'
+  ...
+# Subtest: ASR labels, mismatched local roots, and genuinely old anchors cannot be relabeled as current
+ok 31 - ASR labels, mismatched local roots, and genuinely old anchors cannot be relabeled as current
+  ---
+  duration_ms: 1.792239
+  type: 'test'
+  ...
+# Subtest: failed durable anchoring or a hung derivation callback refuses without granting a snapshot
+ok 32 - failed durable anchoring or a hung derivation callback refuses without granting a snapshot
+  ---
+  duration_ms: 20.847029
+  type: 'test'
+  ...
+# Subtest: a restarted bridge rejects a prior derived anchor using the durable journal floor
+ok 33 - a restarted bridge rejects a prior derived anchor using the durable journal floor
+  ---
+  duration_ms: 28.147374
+  type: 'test'
+  ...
+1..33
+# tests 33
+# suites 0
+# pass 33
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9871.749829

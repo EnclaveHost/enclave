@@ -1,0 +1,13 @@
+{
+  "ok": false,
+  "rc": 0,
+  "counts": {
+    "tests": 1,
+    "pass": 1,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "scope": "Selected stale-head case only; other five cases passed in r2. Skips are not passes."
+}

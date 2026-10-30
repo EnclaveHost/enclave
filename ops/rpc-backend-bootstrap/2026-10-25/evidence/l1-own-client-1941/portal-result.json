@@ -1,0 +1,44 @@
+{
+  "startedAt": "2026-10-25T19:39:42.759829+00:00",
+  "kind": "own-L1-Helios-verified-getter-probe",
+  "A1Accepted": false,
+  "productionActivated": false,
+  "portal": "0x49048044d57e1c92a77f79988d21fa8faf74e97e",
+  "getter": "anchorStateRegistry()",
+  "selector": "0x5c0cba33",
+  "note": "Getter is probed, not assumed implemented. All calls use the same light-client cached block hash; no public RPC fallback.",
+  "status": {
+    "verdict": "fresh-finalized",
+    "authority": "helios-ethereum-light-client",
+    "finalizedBasis": "sync-committee supermajority (>=2/3) finality update verified inside pinned Helios",
+    "latestBasis": "optimistic header (sync-committee signed, NOT finalized); Helios refuses latest >60 s old",
+    "wrapperChecks": "chain id, JSON-RPC envelope, finalized<=latest, finalized age; the wrapper adds no proof",
+    "binarySha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+    "checkpoint": {
+      "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094",
+      "slot": 15511008,
+      "declaredAgeSec": 1063,
+      "sources": 5
+    },
+    "finalized": {
+      "number": 26271752,
+      "hash": "0xb3a52f0d6364e8c055e5de56b3397cb5400897a913c9366c1ef12790ba70d563",
+      "timestamp": 1792956119,
+      "ageSec": 1066
+    },
+    "latest": {
+      "number": 26271839,
+      "hash": "0x99747f8605290fb5f1291098ca6f787bcc968b552d396f0a07300a22a6ea97a9",
+      "timestamp": 1792957163
+    }
+  },
+  "block": {
+    "number": "0x190e008",
+    "hash": "0xb3a52f0d6364e8c055e5de56b3397cb5400897a913c9366c1ef12790ba70d563",
+    "stateRoot": "0xd3fdaa93af5aa751f00462d772a243f9d1a1d7a7b8bfa3a51807290575ca23c4",
+    "timestamp": "0x6ade56d7"
+  },
+  "error": "Refused: eth_call: {'code': 1, 'message': 'evm error: \"server returned an error response: error code -32602: distance to target block exceeds maximum proof window\"'}",
+  "processStopped": true,
+  "finishedAt": "2026-10-25T19:39:45.808448+00:00"
+}

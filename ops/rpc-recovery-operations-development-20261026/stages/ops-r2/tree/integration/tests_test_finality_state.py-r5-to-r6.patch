@@ -1,0 +1,125 @@
+--- a/tests/test_finality_state.py
++++ b/tests/test_finality_state.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-"""finality_state.py adversarial tests, r5 (PREPARED; NOT run by Claude: r5/jobs/root-finality-r5-tests.sh, exact 30).
++"""finality_state.py adversarial tests, r6 (PREPARED; NOT run by Claude: r6/jobs/root-finality-r6-tests.sh, exact 34).
+ Real files in a private temp tree (OWNER = this uid), a fake /proc tree, a fake wrapper (lock + journal + shared-ledger name), a
+ STAND-IN for the harness capture path (FakeR: per-capture summaries + the replay rule; the REAL harness, capture module and
+ shared ledger run in test_finality_integration.py), and - for the e2e cases - the REAL pinned JS core over a loopback JSON-RPC
+@@ -66,11 +66,15 @@
+ 
+     def __init__(self, t):
+         self.__file__, self.A1_GATE_PINS, self.t = str(HARNESS), dict(FS.A1_GATE_PINS), t
++        self.SEL = types.SimpleNamespace(__file__=str(HARNESS.parent / 'selection.py')); self.nodes = {sha(pathlib.Path(NODE).read_bytes())}
+         self.caps, self.admitted, self.calls, self.fail, self.A1_ADMISSION_LEDGER = {}, set(), [], None, None
+ 
+     def ledger_records(self, p):
+         return [], set(), b''
+ 
++    def accepted_nodes(self):
++        return set(self.nodes)
++
+     def capture_binding(self, c):
+         k = c['reanchor']['a1Capture']['recheckOut']
+         if self.fail:
+@@ -78,7 +82,7 @@
+         if k not in self.caps:
+             raise self.Refused('a1_capture: no capture output there')
+         return ({'captureId': 'ci', 'captureSha256': sha(b'i:' + k.encode()), 'evidenceSha256': 'e'},
+-                {'captureId': 'cr', 'captureSha256': sha(b'r:' + k.encode()), 'evidenceSha256': 'e', 'finishedAt': 'x'}, b'i', b'r')
++                {'captureId': 'cr', 'captureSha256': sha(b'r:' + k.encode()), 'evidenceSha256': 'e', 'finishedAt': datetime.datetime.now(datetime.timezone.utc).isoformat()}, b'i', b'r')
+ 
+     def a1_node_gate(self, c, inp):
+         return dict(self.caps[c['reanchor']['a1Capture']['recheckOut']])
+@@ -112,6 +116,11 @@
+     def journal_entries(self, jd, owner, lsha, top):
+         return list(self.events)
+ 
++    def journal_append(self, jd, owner, lsha, entries, event, evidence, at, top):
++        assert list(entries) == self.events, 'stale journal view'
++        self.events = self.events + [(sha(json.dumps([len(self.events), event, evidence]).encode()), {'event': event, 'seq': len(self.events) + 1, 'evidence': evidence})]
++        return list(self.events)
++
+ 
+ class Base(unittest.TestCase):
+     def setUp(self):
+@@ -125,7 +134,7 @@
+         self.d = t / 'launch'; self.d.mkdir(); (self.d / 'journal').mkdir()
+         os.close(os.open(self.d / 'journal.lock', os.O_CREAT | os.O_RDWR, 0o600))
+         self.write_launch()
+-        self.fdir = t / 'finality'; self.fdir.mkdir(); self.work = t / 'work'; self.work.mkdir()
++        self.fdir = self.d / 'finality'; self.fdir.mkdir(); self.work = t / 'work'; self.work.mkdir()
+         self.W = FakeW(); self.stub = None; (t / 'etc').mkdir(); self.W.A1_ADMISSION_LEDGER = t / 'etc/ledger.jsonl'; self.R = FakeR(self); self.R.A1_ADMISSION_LEDGER = self.W.A1_ADMISSION_LEDGER
+         self.a1 = self.make_a1('a1')
+         self.make_proc(port=1, start='111')
+@@ -309,7 +318,7 @@
+         self.refused('ancestry:unlinked', self.q, write=True); self.assertEqual(os.listdir(self.fdir), [])   # process changed: not recorded
+         self.make_proc(port=1, start='111')
+         FS.run_core = lambda *a, **k: (_ for _ in ()).throw(FS.Refused('fresh_anchor:output_root', 'y', contradiction=True))
+-        self.refused('fresh_anchor:output_root', self.q, write=True)
++        self.refused('fresh_anchor:output_root', self.q, a1=self.make_a1('c2', n=NP + 1, l1=L1 + 150), write=True)   # r6: a NEW capture (the first was admitted)
+         self.assertEqual(json.loads((self.fdir / '000001.json').read_text())['event'], 'contradicted')
+         self.refused('terminal', self.q, a1=self.make_a1('after', n=NP + 1, l1=L1 + 300), write=True)
+         self.refused('transition', FS.revoke, self.d, self.t / 'chain.json', self.fdir, 'r', W=self.W, now=NOW, top=self.t)
+@@ -325,7 +334,7 @@
+         FS.revoke(self.d, self.t / 'chain.json', self.fdir, 'launch rolled back', W=self.W, now=NOW, top=self.t)
+         self.refused('terminal', self.q, a1=self.make_a1('n2', n=NP + 2, l1=L1 + 400), write=True)
+         s = FS.status(self.d, self.t / 'chain.json', self.fdir, 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)
+-        self.assertEqual((s['state'], s['qualified']), ('revoked', False))
++        self.assertEqual((s['state'], s['qualified']), ('terminal', False))      # r6: anchored in the launch journal
+ 
+     def test_status_stale_after_rearm_and_unbound_process(self):
+         self.fake_core(); FS.FINALITY_PROTOTYPE_REVIEWED = True
+@@ -371,13 +380,14 @@
+             self.W.events = self.W.events + [('c' * 64, {'event': 'rolled-back', 'seq': 3})]
+             return {'verdict': 'post-anchor-finality-qualified', 'original': {}, 'fresh': {'N': NP, 'blockHash': '0x' + '00' * 32}, 'span': 1, 'priorChecked': []}
+         o = FS.run_core; FS.run_core = rearmed; self.addCleanup(setattr, FS, 'run_core', o)
++        self.make_proc(port=1, start='111')                                          # r6: bind the fake /proc to the default url again
+         self.refused('rolled_back', self.q, write=True); self.assertEqual(os.listdir(self.fdir), [])
+ 
+     def test_status_survives_only_the_bootstrapped_event_naming_this_entry(self):
+         self.fake_core(); FS.FINALITY_PROTOTYPE_REVIEWED = True
+         e = self.q(write=True)['entrySha256']; base = list(self.W.events)
+         st = lambda: FS.status(self.d, self.t / 'chain.json', self.fdir, 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)
+-        boot = lambda ref: ('c' * 64, {'event': 'bootstrapped', 'seq': 3, 'evidence': {'finalityEntrySha256': ref}})
++        boot = lambda ref: ('c' * 64, {'event': 'bootstrapped', 'seq': 3, 'evidence': {'finalityEntrySha256': ref, 'finalitySeq': 1}})
+         self.W.events = base + [boot(e)]
+         s = st(); self.assertEqual((s['state'], s['recordedAs'], s['process']['startTime'], s['freshN']), ('qualified', 'c' * 64, '111', NP))
+         self.W.events = base + [boot('0' * 64)]; self.assertEqual(st()['state'], 'stale-launch-changed')          # names another entry
+@@ -402,6 +412,35 @@
+         FS.publish_status(st(), out, top=self.t); self.assertEqual(code(RS.Unavailable), 'finality-not-current')
+         os.chmod(out, 0o666); self.assertEqual(code(RS.Negative), 'finality-status-untrusted')
+ 
++    def test_alternate_or_truncated_finality_journal_never_revives(self):
++        self.fake_core(); FS.FINALITY_PROTOTYPE_REVIEWED = True
++        r = self.q(write=True)
++        self.W.events = self.W.events + [('c' * 64, {'event': 'bootstrapped', 'seq': 3, 'evidence': {'finalityEntrySha256': r['entrySha256'], 'finalitySeq': 1}})]
++        other = self.t / 'other-finality'; other.mkdir()
++        self.refused('finality_dir', FS.qualify, self.d, self.t / 'chain.json', other, self.make_a1('o', n=NP + 1, l1=L1 + 200), 'http://127.0.0.1:1/',
++                     W=self.W, R=self.R, node=NODE, deps_root=DEPS, workdir=self.work, write=True, now=NOW, top=self.t, proc=self.proc)
++        (self.fdir / '000001.json').unlink()                                          # the recorded qualification vanished
++        self.refused('finality_journal_rolled_back', self.q, a1=self.make_a1('o2', n=NP + 2, l1=L1 + 300), write=True)
++
++    def test_revoked_then_truncated_stays_terminal(self):
++        self.fake_core(); FS.FINALITY_PROTOTYPE_REVIEWED = True
++        self.q(write=True); FS.revoke(self.d, self.t / 'chain.json', self.fdir, 'operator', W=self.W, now=NOW, top=self.t)
++        self.assertEqual(self.W.events[-1][1]['event'], 'finality-terminal')
++        (self.fdir / '000002.json').unlink()                                          # the revoked tail deleted / older copy restored
++        self.refused('terminal', self.q, a1=self.make_a1('t3', n=NP + 3, l1=L1 + 400), write=True)
++        st = FS.status(self.d, self.t / 'chain.json', self.fdir, 'http://127.0.0.1:1/', W=self.W, top=self.t, proc=self.proc)
++        self.assertFalse(st['qualified'])
++
++    def test_freshness_is_checked_at_append_after_the_proof(self):
++        self.fake_core(); FS.FINALITY_PROTOTYPE_REVIEWED = True
++        late = lambda: datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=FS.A1_APPEND_MAX_AGE_SEC + 5)
++        o = FS._clock; FS._clock = late; self.addCleanup(setattr, FS, '_clock', o)
++        self.refused('a1_stale_at_append', self.q, write=True); self.assertEqual(os.listdir(self.fdir), [])
++
++    def test_node_must_be_a_reviewed_build(self):
++        self.fake_core(); self.R.nodes = set()
++        self.refused('node_pin', self.q); self.assertEqual(self.R.calls, [])
++
+     def test_wrong_chain_id_from_the_bound_node_refuses(self):
+         self.refused('wrong_chain', self.q, url=self.serve(chain_id='0x1'))
+         self.assertEqual(os.listdir(self.fdir), [])

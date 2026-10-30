@@ -1,0 +1,18 @@
+[queue] START available=18491MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+overlays = r14 + patch; verifier pins = r4/src: {'anchored_origin.py': 'ed1a547d4d8a', 'segments.py': '8764f5cc55cc', 'anchored_acceptance.py': 'cb68413866d0'}
+PASS A-r4-suite testsRun 41 failures 0 errors 0 skipped 0
+PASS B-wrapper-pruned (existing 34 + pruned 15 = 49, baseline blocker, all mutants killed) on the r3 wrapper
+PASS C-sampler-r4 testsRun 93 failures 0 errors 0 skipped 0
+PASS C-sampler-r14 testsRun 93 failures 0 errors 0 skipped 0
+PASS D-ops-readiness-r4 testsRun 27 failures 0 errors 0 skipped 0
+PASS D-ops-readiness-r14 testsRun 27 failures 0 errors 0 skipped 0
+E legacy activation baseline(r14): testsRun 33 notPassed 1; patched(r4): testsRun 33 notPassed 1
+PASS E-legacy-activation-equivalent (NOTE: baseline r14 itself does not pass this source suite: setUpClass (test_coverage_activation.RealManifest))
+PASS F-r15-candidate-reproducible 2553437bcbd3926c7660ed7ccac8563e6d0b6c8c93374b4b2ef3f352bd026057
+PASS historical-origin-r4 A 41 + B 49/34/mutants + C 93x2 + D 27x2 + E equivalent + F candidate reproducible
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r4/logs/run-20261026T114531Z-1611605
+## r4 SHA256SUMS 57d9772024e33507797688210c8d1eb972ae57c0487bfdee0c8e99f6ab4cfe6b
+## historical-origin-r4 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=118 minHostAvailableMiB=17218
+[memory-guard] at peak: node:67 python3:43 bash:4 timeout:2 bash:2
+[queue] EXIT 0

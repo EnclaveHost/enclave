@@ -1,0 +1,42 @@
+test_consumer_dropin_cannot_pull_the_holder (__main__.Enforce.test_consumer_dropin_cannot_pull_the_holder) ... ok
+test_not_ready_stops_only_listed_consumers_and_never_starts (__main__.Enforce.test_not_ready_stops_only_listed_consumers_and_never_starts) ... ok
+test_ready_starts_consumers_never_the_holder (__main__.Enforce.test_ready_starts_consumers_never_the_holder) ... ok
+test_unit_without_the_reviewed_dropin_is_refused_and_nothing_is_touched (__main__.Enforce.test_unit_without_the_reviewed_dropin_is_refused_and_nothing_is_touched) ... ok
+test_vm_hypervisor_and_base_units_are_never_controlled (__main__.Enforce.test_vm_hypervisor_and_base_units_are_never_controlled) ... ok
+test_writable_units_file_is_refused (__main__.Enforce.test_writable_units_file_is_refused) ... ok
+test_changed_status_entry_or_block_refuses (__main__.Gate.test_changed_status_entry_or_block_refuses) ... ok
+test_fresh_old_ready_with_a_different_holder_pid_refuses (__main__.Gate.test_fresh_old_ready_with_a_different_holder_pid_refuses) ... ok
+test_fresh_old_ready_with_dead_holder_pid_refuses (__main__.Gate.test_fresh_old_ready_with_dead_holder_pid_refuses) ... ok
+test_fresh_old_ready_with_reused_pid_refuses (__main__.Gate.test_fresh_old_ready_with_reused_pid_refuses) ... ok
+test_full_cycle_stays_ready_with_live_identity (__main__.Gate.test_full_cycle_stays_ready_with_live_identity) ... ok
+test_not_ready_or_untrusted_report_refuses (__main__.Gate.test_not_ready_or_untrusted_report_refuses) ... ok
+test_r6_helper_flapped_on_the_same_healthy_report (__main__.Gate.test_r6_helper_flapped_on_the_same_healthy_report) ... skipped 'r6 stage not beside this tree'
+test_r7_changed_or_withdrawn_acceptance_is_refused (__main__.Gate.test_r7_changed_or_withdrawn_acceptance_is_refused) ... ok
+test_r7_proven_but_unrecorded_proof_is_never_admitted (__main__.Gate.test_r7_proven_but_unrecorded_proof_is_never_admitted) ... ok
+test_report_beyond_one_cycle_refuses_and_age_alone_never_admits (__main__.Gate.test_report_beyond_one_cycle_refuses_and_age_alone_never_admits) ... ok
+test_report_from_an_older_sampler_without_starttime_refuses (__main__.Gate.test_report_from_an_older_sampler_without_starttime_refuses) ... ok
+test_revoked_status_refuses_even_with_a_fresh_ready (__main__.Gate.test_revoked_status_refuses_even_with_a_fresh_ready) ... ok
+test_status_for_another_process_refuses (__main__.Gate.test_status_for_another_process_refuses) ... ok
+test_status_not_root_owned_or_writable_refuses (__main__.Gate.test_status_not_root_owned_or_writable_refuses) ... ok
+test_stopped_or_failed_holder_refuses (__main__.Gate.test_stopped_or_failed_holder_refuses) ... ok
+test_stopped_status_publisher_refuses (__main__.Gate.test_stopped_status_publisher_refuses) ... ok
+test_missing_invalid_or_untrusted_settings_fail_closed (__main__.Publisher.test_missing_invalid_or_untrusted_settings_fail_closed) ... ok
+test_not_ready_stub_is_refused_by_the_consumer_gate (__main__.Publisher.test_not_ready_stub_is_refused_by_the_consumer_gate) ... ok
+test_unit_uses_only_the_settings_file (__main__.Publisher.test_unit_uses_only_the_settings_file) ... ok
+test_valid_settings_pass_every_required_input_to_the_sampler (__main__.Publisher.test_valid_settings_pass_every_required_input_to_the_sampler) ... ok
+test_finality_gate_info_carries_the_proven_start_time (__main__.SamplerStartTime.test_finality_gate_info_carries_the_proven_start_time) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 0.052s
+
+OK (skipped=1)
+{"ready": false, "why": "x", "units": ["enclave-api-relay.service", "enclave-rpc-gateway.service"]}
+{"ready": true, "why": "x", "units": ["enclave-api-relay.service"]}
+{"published": "NOT-READY", "why": "settings /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r7/logs/root-finality-r7-tests-20261026T061615Z-1022733/tmp/ops-pub-afs6tqng/settings.json: FileNotFoundError"}
+{"published": "NOT-READY", "why": "settings: missing ['coverage-verdict'], unknown []"}
+{"published": "NOT-READY", "why": "settings: missing [], unknown ['continue-on-fail']"}
+{"published": "NOT-READY", "why": "settings: expect-chain-config-sha256 is not a valid sha"}
+{"published": "NOT-READY", "why": "settings: coverage-origin is not a valid path"}
+{"published": "NOT-READY", "why": "settings /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r7/logs/root-finality-r7-tests-20261026T061615Z-1022733/tmp/ops-pub-afs6tqng/settings.json must be a root-owned regular file, not group/other writable"}
+{"published": "NOT-READY", "why": "settings /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r7/logs/root-finality-r7-tests-20261026T061615Z-1022733/tmp/ops-pub-afs6tqng/settings.json: OSError"}
+{"published": "NOT-READY", "why": "settings: missing ['coverage-origin', 'coverage-receipt', 'coverage-verdict', 'expect-chain-config-sha256', 'expect-snapshot-manifest-sha256', 'finality-status'], unknown []"}

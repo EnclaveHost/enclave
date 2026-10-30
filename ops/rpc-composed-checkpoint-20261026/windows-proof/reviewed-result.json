@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "scope": "Selected stale-head case only. Node reports one selected test with zero skips; five other cases reused from r2 actual passes. Not a fresh full-suite run.",
+  "selectedCounts": {
+    "tests": 1,
+    "pass": 1,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "authorityCounts": {
+    "tests": 10,
+    "pass": 10,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "priorFivePasses": "work/rpc-production-final-20261025/logs/root-windows-proof-r2-20261026T050834Z/test.tap",
+  "priorTapSha256": "5a7ed3b915ad182ae0be713e2dd62f6880e8fea3f844e6547b511955ac04f0e0",
+  "testFileSha256": "b78fb7d0a7c24decb0aee758e9588634a85ad8286060273de89a8a8ad75858a6",
+  "driverSha256": "630c55cd77f0f010ea20697d2982831d39e1f3454a9a37b8af41c4f72c11809c",
+  "originalResultNote": "Initial result.json incorrectly expected Node to list filtered-out tests as skips. Retained raw initial result; corrected receipt is based on actual TAP and exit0."
+}

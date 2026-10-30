@@ -1,0 +1,13 @@
+test_duplicate_row_refuses (__main__.Pinned.test_duplicate_row_refuses) ... ok
+test_finish_checkpoint_without_partial_state (__main__.Pinned.test_finish_checkpoint_without_partial_state) ... ok
+test_finish_detail_must_be_a_finish_checkpoint_not_above_finish (__main__.Pinned.test_finish_detail_must_be_a_finish_checkpoint_not_above_finish) ... ok
+test_head_state_reads_the_gated_db_output (__main__.Pinned.test_head_state_reads_the_gated_db_output) ... ok
+test_lagging_finish_partial_state_trie_is_the_state_frontier (__main__.Pinned.test_lagging_finish_partial_state_trie_is_the_state_frontier) ... ok
+test_missing_required_row_refuses (__main__.Pinned.test_missing_required_row_refuses) ... ok
+test_old_synthetic_lowercase_and_unknown_or_malformed_rows_refuse (__main__.Pinned.test_old_synthetic_lowercase_and_unknown_or_malformed_rows_refuse) ... ok
+test_real_rows_give_canonical_keys_and_full_state (__main__.Pinned.test_real_rows_give_canonical_keys_and_full_state) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.001s
+
+OK

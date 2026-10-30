@@ -1,0 +1,4263 @@
+{
+ "descriptor": "view.vmdk",
+ "descriptorSha256": "8bc41249f8c5ea72c47c4e3ad9196e4a4d7f1ae34052b6c08de59c6c700b3d07",
+ "format": "multipart-view-receipt/v2-records",
+ "imageOpts": "driver=vmdk,read-only=on,file.driver=file,file.filename=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/runs/view-20261027T133210Z-3241909/view.vmdk,extents.0.driver=file,extents.1.driver=file,extents.2.driver=file,extents.3.driver=file,extents.4.driver=file,extents.5.driver=file,extents.6.driver=file,extents.7.driver=file,extents.8.driver=file,extents.9.driver=file,extents.10.driver=file,extents.11.driver=file,extents.12.driver=file,extents.13.driver=file,extents.14.driver=file,extents.15.driver=file,extents.16.driver=file,extents.17.driver=file,extents.18.driver=file,extents.19.driver=file,extents.20.driver=file,extents.21.driver=file,extents.22.driver=file,extents.23.driver=file,extents.24.driver=file,extents.25.driver=file,extents.26.driver=file,extents.27.driver=file,extents.28.driver=file,extents.29.driver=file,extents.30.driver=file,extents.31.driver=file,extents.32.driver=file,extents.33.driver=file,extents.34.driver=file,extents.35.driver=file,extents.36.driver=file,extents.37.driver=file,extents.38.driver=file,extents.39.driver=file,extents.40.driver=file,extents.41.driver=file,extents.42.driver=file,extents.43.driver=file,extents.44.driver=file,extents.45.driver=file,extents.46.driver=file,extents.47.driver=file,extents.48.driver=file,extents.49.driver=file,extents.50.driver=file,extents.51.driver=file,extents.52.driver=file,extents.53.driver=file,extents.54.driver=file,extents.55.driver=file,extents.56.driver=file,extents.57.driver=file,extents.58.driver=file,extents.59.driver=file,extents.60.driver=file,extents.61.driver=file,extents.62.driver=file,extents.63.driver=file,extents.64.driver=file,extents.65.driver=file,extents.66.driver=file,extents.67.driver=file,extents.68.driver=file,extents.69.driver=file,extents.70.driver=file,extents.71.driver=file,extents.72.driver=file,extents.73.driver=file,extents.74.driver=file,extents.75.driver=file,extents.76.driver=file,extents.77.driver=file,extents.78.driver=file,extents.79.driver=file,extents.80.driver=file,extents.81.driver=file,extents.82.driver=file,extents.83.driver=file,extents.84.driver=file,extents.85.driver=file,extents.86.driver=file,extents.87.driver=file,extents.88.driver=file,extents.89.driver=file,extents.90.driver=file,extents.91.driver=file,extents.92.driver=file,extents.93.driver=file,extents.94.driver=file,extents.95.driver=file,extents.96.driver=file,extents.97.driver=file,extents.98.driver=file,extents.99.driver=file,extents.100.driver=file,extents.101.driver=file,extents.102.driver=file,extents.103.driver=file,extents.104.driver=file,extents.105.driver=file,extents.106.driver=file,extents.107.driver=file,extents.108.driver=file,extents.109.driver=file,extents.110.driver=file,extents.111.driver=file,extents.112.driver=file,extents.113.driver=file,extents.114.driver=file,extents.115.driver=file,extents.116.driver=file,extents.117.driver=file,extents.118.driver=file,extents.119.driver=file,extents.120.driver=file,extents.121.driver=file,extents.122.driver=file,extents.123.driver=file,extents.124.driver=file,extents.125.driver=file,extents.126.driver=file,extents.127.driver=file,extents.128.driver=file,extents.129.driver=file,extents.130.driver=file,extents.131.driver=file,extents.132.driver=file,extents.133.driver=file,extents.134.driver=file,extents.135.driver=file,extents.136.driver=file,extents.137.driver=file,extents.138.driver=file,extents.139.driver=file,extents.140.driver=file,extents.141.driver=file,extents.142.driver=file,extents.143.driver=file,extents.144.driver=file,extents.145.driver=file,extents.146.driver=file,extents.147.driver=file,extents.148.driver=file,extents.149.driver=file,extents.150.driver=file,extents.151.driver=file,extents.152.driver=file,extents.153.driver=file,extents.154.driver=file,extents.155.driver=file,extents.156.driver=file,extents.157.driver=file,extents.158.driver=file,extents.159.driver=file,extents.160.driver=file,extents.161.driver=file,extents.162.driver=file,extents.163.driver=file,extents.164.driver=file,extents.165.driver=file,extents.166.driver=file,extents.167.driver=file,extents.168.driver=file,extents.169.driver=file,extents.170.driver=file,extents.171.driver=file,extents.172.driver=file,extents.173.driver=file,extents.174.driver=file,extents.175.driver=file,extents.176.driver=file,extents.177.driver=file,extents.178.driver=file,extents.179.driver=file,extents.180.driver=file,extents.181.driver=file,extents.182.driver=file,extents.183.driver=file,extents.184.driver=file,extents.185.driver=file,extents.186.driver=file,extents.187.driver=file,extents.188.driver=file,extents.189.driver=file,extents.190.driver=file,extents.191.driver=file,extents.192.driver=file,extents.193.driver=file,extents.194.driver=file,extents.195.driver=file,extents.196.driver=file,extents.197.driver=file,extents.198.driver=file,extents.199.driver=file,extents.200.driver=file,extents.201.driver=file,extents.202.driver=file,extents.203.driver=file,extents.204.driver=file,extents.205.driver=file,extents.206.driver=file,extents.207.driver=file,extents.208.driver=file,extents.209.driver=file,extents.210.driver=file,extents.211.driver=file,extents.212.driver=file,extents.213.driver=file,extents.214.driver=file,extents.215.driver=file,extents.216.driver=file,extents.217.driver=file,extents.218.driver=file,extents.219.driver=file,extents.220.driver=file,extents.221.driver=file,extents.222.driver=file,extents.223.driver=file,extents.224.driver=file,extents.225.driver=file,extents.226.driver=file,extents.227.driver=file,extents.228.driver=file,extents.229.driver=file,extents.230.driver=file,extents.231.driver=file,extents.232.driver=file,extents.233.driver=file,extents.234.driver=file,extents.235.driver=file,extents.236.driver=file,extents.237.driver=file,extents.238.driver=file,extents.239.driver=file,extents.240.driver=file,extents.241.driver=file,extents.242.driver=file,extents.243.driver=file,extents.244.driver=file,extents.245.driver=file,extents.246.driver=file,extents.247.driver=file,extents.248.driver=file,extents.249.driver=file,extents.250.driver=file,extents.251.driver=file,extents.252.driver=file,extents.253.driver=file,extents.254.driver=file,extents.255.driver=file,extents.256.driver=file,extents.257.driver=file,extents.258.driver=file,extents.259.driver=file,extents.260.driver=file,extents.261.driver=file,extents.262.driver=file,extents.263.driver=file,extents.264.driver=file",
+ "kind": "production",
+ "logicalSize": 1138166333440,
+ "manifestPath": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/base-multipart-production-20261026/manifest.json",
+ "manifestSha256": "f94807f71c93b1ef639c224dfefb3b6c0f3e7b9289def91fc52b0e79864821a9",
+ "meaning": "byte-concatenation VIEW of recovery-multipart r3 parts whose RECORDED state was complete and verified (CONFIRMED sessions for production) at import; bound by inode identity, re-checked by recheck/check-held; NOT immutability, NOT integrity of the reconstructed file; MDBX structure / canonical root / state checks remain separate and required",
+ "parts": [
+  {
+   "destIdentity": {
+    "ctimeNs": 1793059507231077012,
+    "dev": 64768,
+    "ino": 188130034,
+    "mtimeNs": 1793059503769105384,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 0,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0000.bin",
+   "recordSha256": "7f805de1ee5bb9637b2ef81dcea46fe91f8cdc35090b4d3decc211866f650fe1",
+   "sha256": "49d162cd2dfd14add92b1584e47fcdf444d6e275acaa24b9db93aeb97b6ef6b1",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793059922891617080,
+    "dev": 64768,
+    "ino": 188130043,
+    "mtimeNs": 1793059917257664518,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 1,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0001.bin",
+   "recordSha256": "99ff95dcebd37f0906cc55ac63b5245dbc452f15ed34f293bcba064b34047d0d",
+   "sha256": "19660d4a44c39b6bc9b19a5cb23bb4776058ca559295f06e516cb41d1def64c8",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793060008101898328,
+    "dev": 64768,
+    "ino": 188130046,
+    "mtimeNs": 1793060004011932880,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 2,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0002.bin",
+   "recordSha256": "b218d75de9e8193386306e52f5aadb39b73ef8529d53f4f9d6b5def35a8bd46c",
+   "sha256": "1c235b724c243f12dcf423b2b37303ab8ef1767c7602195362cdb40bf5ce879b",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793060092999180076,
+    "dev": 64768,
+    "ino": 188130048,
+    "mtimeNs": 1793060089525209504,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 3,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0003.bin",
+   "recordSha256": "e7a80bd0ecfa757d9231abbdcd1f862bbe0ada169c7cb49c62cf7df41901b0a6",
+   "sha256": "28b6acc4de4a913950297f57c1a8e1f2bf10707f2066bc06fef83bfcd037b2e5",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793060178913451378,
+    "dev": 64768,
+    "ino": 188130053,
+    "mtimeNs": 1793060175603479483,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 4,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0004.bin",
+   "recordSha256": "f5bd7c5e9894993a4f397f718787a639d7f13ec4105b6d56ea8d23cf65574605",
+   "sha256": "a1d046e0f102f103534b704484c0c70fab63ac847adb178afe4a7ac0d6db1191",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793060265404716205,
+    "dev": 64768,
+    "ino": 188130056,
+    "mtimeNs": 1793060261869746280,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 5,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0005.bin",
+   "recordSha256": "14abc259231a191dc0f7f4420a197d8d1963f119dc9d45980ff83abf9a866152",
+   "sha256": "9e7f36e793d22f61cd9f2d37d37bf791a2422724f4bc16ee0bc4ea1dd4c480b4",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793060353148969012,
+    "dev": 64768,
+    "ino": 188130089,
+    "mtimeNs": 1793060349797997570,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 6,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0006.bin",
+   "recordSha256": "0cda48b5f306528c07093479f941ece322b49da8282343e66a276ded56b0e944",
+   "sha256": "c8184fd032496f28b9f35620cbd3bd338d0963951d7b02b00c4083f93b098f3c",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793060440265226016,
+    "dev": 64768,
+    "ino": 188130101,
+    "mtimeNs": 1793060436716256305,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 7,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0007.bin",
+   "recordSha256": "0e36840a91c96367ac748837b61639fc2eb118284afc0d6d2396d5bd852c8b0a",
+   "sha256": "5e6604e2619864e4402b2946782b00f4d40ab49edfe7f3d97f0ee18847f29f2f",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793060527059484805,
+    "dev": 64768,
+    "ino": 188130103,
+    "mtimeNs": 1793060523583514506,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 8,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0008.bin",
+   "recordSha256": "7c22dafe77a4237f6eff31dfbb7b5177a7f5c0ab282eae6b677cc92d457e0dc3",
+   "sha256": "bc52ca77156ce83a6c5e28fa4bc1e19753dd5a0923593626dba767bfcda0e1ef",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793061294534975867,
+    "dev": 64768,
+    "ino": 188130752,
+    "mtimeNs": 1793061291184992660,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 9,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0009.bin",
+   "recordSha256": "c0b6ec394924b6538534dd81bc86e391d9777032aebcb2fbbe38f53fc2a832b7",
+   "sha256": "f78f544bdbb37036474cf06e3e29fee48a435d1e22578c4a9a37964ffe425217",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793061384555505509,
+    "dev": 64768,
+    "ino": 188130907,
+    "mtimeNs": 1793061381094524234,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 10,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0010.bin",
+   "recordSha256": "fb039522a368f19ed0a52cd77427b8445c5f27ad0f340892e5df6ac3c868b17e",
+   "sha256": "761ae73296c4dccdde24285c847b46d3f0c1dcaea730b39c1d8de8e0b5ca6526",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793061483021953750,
+    "dev": 64768,
+    "ino": 188130917,
+    "mtimeNs": 1793061476723990073,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 11,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0011.bin",
+   "recordSha256": "e5d246af624a2b4a9eee64d0f5cbd861a748f5a4d302a18d9931c16b2b1b1495",
+   "sha256": "18eeb5502c1208b62ee99030b97d8bf3e011b760efd943c7ef72ae595d75a176",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793061576977397062,
+    "dev": 64768,
+    "ino": 188130938,
+    "mtimeNs": 1793061573561417758,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 12,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0012.bin",
+   "recordSha256": "80ecdc67a3efaf34521205a61138342047cb64695d5728ef01fd71daa478bc11",
+   "sha256": "b52c06a4b30ba4dea940e4d3ef2bc21dfbfc5013cf676eaa70c3b63cd2bf9768",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793061671433812745,
+    "dev": 64768,
+    "ino": 188130942,
+    "mtimeNs": 1793061668011834296,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 13,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0013.bin",
+   "recordSha256": "65a2e2f86f0448d94c489af31efa72ed4f7f040f053d1200394b63a81a3660d4",
+   "sha256": "d2f1452f1b3155e6d2c43c6c4d951b70028587daf2bb95d5ed7307819c889b22",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793061767191199407,
+    "dev": 64768,
+    "ino": 188130951,
+    "mtimeNs": 1793061763844221159,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 14,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0014.bin",
+   "recordSha256": "a2c450303b3df386fff1dcfc801e0f13fa10b3f18e872359a3b02b34e1b05ff0",
+   "sha256": "614f4bbf7b517f091294c2331779e78e95987343a8f87ff2534051c712fc565f",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793061863111567454,
+    "dev": 64768,
+    "ino": 188130956,
+    "mtimeNs": 1793061859624590699,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 15,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0015.bin",
+   "recordSha256": "12e4c7aadda1451edee80190c7f5673fa406b9de511c9ee716a9119aefcd22b6",
+   "sha256": "ce9f8a8b2396c275dc1db4c25a6fc25061d7d62dd4334d49e0edf27775556377",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793061959266919320,
+    "dev": 64768,
+    "ino": 188130965,
+    "mtimeNs": 1793061955903942207,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 16,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0016.bin",
+   "recordSha256": "d557477419497eb64b807c80c61d6e836905db561f4f2fec87a284b775bd56ff",
+   "sha256": "97d4538457564f2110c82fede444d7d4e957b23d8471d4e49cac252c3e73f38e",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793062764806622682,
+    "dev": 64768,
+    "ino": 188130983,
+    "mtimeNs": 1793062759523692729,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 17,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0017.bin",
+   "recordSha256": "efbbb3022aea6d3bdd6f4956ccf344c205ce7b437cedae6293e4746c89e2c0e9",
+   "sha256": "f1b389ae53c4cde7cb01801543c291c47c34da5f890d91d7b444c3c8ceb96225",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793062852319500123,
+    "dev": 64768,
+    "ino": 188130986,
+    "mtimeNs": 1793062848886542892,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 18,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0018.bin",
+   "recordSha256": "0a71ee85b67be52218d3104df4699812596b458fcd70b40ee4c7f27ecc335d08",
+   "sha256": "fc21a6249b947fb62cb4a4d8ed9e0d62d3ced1c40957be36655885b75325ffa8",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793062939539444449,
+    "dev": 64768,
+    "ino": 188130989,
+    "mtimeNs": 1793062935931487002,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 19,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0019.bin",
+   "recordSha256": "5082d94a3f4ea6b4b31f7bd3651c3b935973b334432fd3bb1222b5398ee8c4af",
+   "sha256": "9344cfcc537521315e5025083c249e33d7c9ccd24ea9f86afa2ffc03057858ea",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793063027597432504,
+    "dev": 64768,
+    "ino": 188131004,
+    "mtimeNs": 1793063023990473004,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 20,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0020.bin",
+   "recordSha256": "61c447aaa8be73981522c80e7f2d45fa2a5142ad95a3b5765f71462fdc6110e7",
+   "sha256": "99351b5ec4c32af575ecde0676a05f91fcf2dad2bc5314ebe8fa8c03f9f61449",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793063120045419036,
+    "dev": 64768,
+    "ino": 188131006,
+    "mtimeNs": 1793063116642455551,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 21,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0021.bin",
+   "recordSha256": "b5b444564e1f010b3dccfc7f923e51ddb96b723d4d75acbaf0bd946dcf8d66cc",
+   "sha256": "b68d00e0e4b4f927ace1e9408d8bace9137186be53fa006057010ebb5e0f21ff",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793063210743465568,
+    "dev": 64768,
+    "ino": 188131008,
+    "mtimeNs": 1793063207226501871,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 22,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0022.bin",
+   "recordSha256": "f3530bfaa8f004338c85184564e5622b4cb17dc2385cacc15e1ac9d56cc7f859",
+   "sha256": "e27b75481ab361697db2e300dfd50a1ed05c4300a5caba4d89f61b712458b5d2",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793063303203528347,
+    "dev": 64768,
+    "ino": 188131015,
+    "mtimeNs": 1793063299810562189,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 23,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0023.bin",
+   "recordSha256": "b50ddd44a77c2d8528ed54710d28394759b374575fa056f289441361b0d6553c",
+   "sha256": "efbad02a72d9f9b9258ce74169618a55301de207ddd5fc18d20dccd507122249",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793063394944627420,
+    "dev": 64768,
+    "ino": 188131023,
+    "mtimeNs": 1793063391470661069,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 24,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0024.bin",
+   "recordSha256": "480d408f1f62600e4a4aa989c16ac8f49b4d5fb22cf0c05a20c1458820aae543",
+   "sha256": "d4ce28fd955b07d88d0b1e36d6951f09dac0914c2a3acb44cc66bef6ef0a4a63",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793064158346773767,
+    "dev": 64768,
+    "ino": 188131045,
+    "mtimeNs": 1793064155043802000,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 25,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0025.bin",
+   "recordSha256": "315525bf2fc1bb6a0ae0a2250e1f12a11e3cc9d3b31c8dea315c67bbb8ff6f28",
+   "sha256": "952d7c6aff5f87319bb7742ebd00b4e246cc47e6d09313ca6cd190c099a3a4f9",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793064245282033046,
+    "dev": 64768,
+    "ino": 188131050,
+    "mtimeNs": 1793064241841062282,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 26,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0026.bin",
+   "recordSha256": "4b46ee5d587a5e8f4c89eb20191d8d414f0e02d1b0eb8fae5cf169932b9678a6",
+   "sha256": "ab955278c949d7c005d44e61c8d50dfe4b840db1444c8b5a3610aa0c04a39cfe",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793064331587301760,
+    "dev": 64768,
+    "ino": 188131076,
+    "mtimeNs": 1793064328199330399,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 27,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0027.bin",
+   "recordSha256": "7e7f9acc7e0480e2ac1b731bfbf7a40ba0909f01a1dd5c5fcbe94811283fa2ba",
+   "sha256": "70157f7fb49ea89947a5736b4568bdb0bf0b9766161646cc97c5c7e1d795a57f",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793064422085538612,
+    "dev": 64768,
+    "ino": 188131078,
+    "mtimeNs": 1793064416323587101,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 28,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0028.bin",
+   "recordSha256": "314ae6d0e4f9234cfc39f75ebeebd71e88e12bf0664538a6120d978b761a6b1c",
+   "sha256": "a2cdf3e33dc5d913182d9b62068b5c005a344d1113d5f6e230eed87c39dc9db4",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793064510317797612,
+    "dev": 64768,
+    "ino": 188131087,
+    "mtimeNs": 1793064504692844772,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 29,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0029.bin",
+   "recordSha256": "2285304dda34c3972cabb4eacaa8455b95b24ce2e6a97420d261ac815c6563e2",
+   "sha256": "960cb19b20905ab9b824756dc50da0fab7145aa88e2085cfd44fd536f8bf6ed2",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793064598680058047,
+    "dev": 64768,
+    "ino": 188131093,
+    "mtimeNs": 1793064594770090724,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 30,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0030.bin",
+   "recordSha256": "8796e1cc778396abb77963a5842e6d6668192939b795d901968ce26c244115ee",
+   "sha256": "28fa5b3757972c5ad81d0451aadccbe81bf7765a60624f772ece0e0ac99fa8af",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793064691773281180,
+    "dev": 64768,
+    "ino": 188131098,
+    "mtimeNs": 1793064688285310250,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 31,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0031.bin",
+   "recordSha256": "9ce816a9b0ba637c2b6c15deb5f7f9561eba3c8ea7126c702bf6f92fbe8f1301",
+   "sha256": "00af7debb9b021f557118a4ded8eef6aa7dad34de441ae06a3e1b3bb9cc033f6",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793064788385498546,
+    "dev": 64768,
+    "ino": 188131111,
+    "mtimeNs": 1793064785062525049,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 32,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0032.bin",
+   "recordSha256": "4aa6f7908b99e10c91c1c00e18a8a8de5c1835c17f9cbfa3046bf07e85c6239d",
+   "sha256": "9336d75b43c091773469df49c4ee96a51e8ea60ea0486b259ccffe546083ceb4",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793065611410851328,
+    "dev": 64768,
+    "ino": 188131145,
+    "mtimeNs": 1793065607916879754,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 33,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0033.bin",
+   "recordSha256": "a54454d40b2168a053c7fc333fae1e112b275cadf21fa006166ec96ab86b6aaf",
+   "sha256": "9b02e51e156bc3dd4cccd80f73d01f3101a6ad1392561e7b3a8691b103e58b56",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793065697428151229,
+    "dev": 64768,
+    "ino": 188131151,
+    "mtimeNs": 1793065694096178357,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 34,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0034.bin",
+   "recordSha256": "92f33519d567502f51f3d40780063ac11e5502c214168fdfdfeaf47b5946c72d",
+   "sha256": "042a06d9bdf0a89e8f1e162ff2de22f2d71afb2c81089e57fd523cd53a79e203",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793065787798415174,
+    "dev": 64768,
+    "ino": 188131154,
+    "mtimeNs": 1793065780527474413,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 35,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0035.bin",
+   "recordSha256": "8e9154850587c9d4b40386eae6dd41e1323eb82810d6ac8b83c4417b4f6d243e",
+   "sha256": "c85cfa6af8da7ea28c62168f0199a3b1c547fb3d9842165f2e99b3f306ba893e",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793065875970696585,
+    "dev": 64768,
+    "ino": 188131157,
+    "mtimeNs": 1793065871742731051,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 36,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0036.bin",
+   "recordSha256": "3714de4561243d201f03d55cf28b32dd85507c004235b45b7b947f09f6664d4c",
+   "sha256": "9481841b2b4ae6d6f2f2620de4612a24f19176005c5203fd7133826e37485ec5",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793065963968979052,
+    "dev": 64768,
+    "ino": 188131162,
+    "mtimeNs": 1793065960268009236,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 37,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0037.bin",
+   "recordSha256": "e549072e7f67a6c58fccabf095fc0675d777d8bed5ce962743635727b1fecb21",
+   "sha256": "c2cc30f3b0bab253c9e013add9632f4831d12b61d09e204f336f790f9613c4c0",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793066052046260570,
+    "dev": 64768,
+    "ino": 188131165,
+    "mtimeNs": 1793066047527297440,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 38,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0038.bin",
+   "recordSha256": "2586028101e3040a9966718d120bfdeb64d7ed60f11282febe78e69e896e8059",
+   "sha256": "c5c22c2b17bd60b973896fc7988b0bf68f0974ad64f368b1aa8bff1f4039861c",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793066141113533752,
+    "dev": 64768,
+    "ino": 188131167,
+    "mtimeNs": 1793066137598562440,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 39,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0039.bin",
+   "recordSha256": "372eb30fdacb05d76c73f54fac46490a98579f856c012823fff11c3c7062608d",
+   "sha256": "92f096b96b771b92fc9ac62962a08fd6970a01fd775a871eb4636273a467f541",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793066228925816959,
+    "dev": 64768,
+    "ino": 188131190,
+    "mtimeNs": 1793066225396845769,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 40,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0040.bin",
+   "recordSha256": "70ea06cc37c104b23b1010d1dc8bc4b0bd1b2b58ecb2ae55fe93cf54f80fbecc",
+   "sha256": "76d2ad6d123be07681dfbd2b2f4fa839175c91cdc37b74f894f5e542eec195b3",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793067065098068675,
+    "dev": 64768,
+    "ino": 188131210,
+    "mtimeNs": 1793067061403098044,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 41,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0041.bin",
+   "recordSha256": "90ddaf7a71ba73a67a6c13e084b1b28e6d0b0dd14ddbb00ec29b35763eef527f",
+   "sha256": "b15a94bfbfac81724fa9d047746566d063c0e115581df5b330568d7a1e76937e",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793067155330350020,
+    "dev": 64768,
+    "ino": 188131213,
+    "mtimeNs": 1793067151816378057,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 42,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0042.bin",
+   "recordSha256": "361f1dd81119187c1109e01e2b78dd8db8887308bd478f3e3b3f31e6d7f97601",
+   "sha256": "d17a87dd85af8fc7e0abc151ac1d4725706b8334e4b7c1064b092baaeabc4e80",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793067246322622795,
+    "dev": 64768,
+    "ino": 188131216,
+    "mtimeNs": 1793067242999649392,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 43,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0043.bin",
+   "recordSha256": "08fa6035c6ee34fac90cdbd2a9024ed4b315ace97f0298ae89c7641bfd034f06",
+   "sha256": "a9b84bf1ed7820f6084a60a6da13bf37dffe8e3bc4017d3ede7d3d18b140c43e",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793067337156894720,
+    "dev": 64768,
+    "ino": 188131221,
+    "mtimeNs": 1793067332622931106,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 44,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0044.bin",
+   "recordSha256": "ac38bc8f1d0533fd9bcc217ad6a5ac421fd49ebf8090e91d12896ad80401521f",
+   "sha256": "9ceeadf13262eb5f0d65d18b862949354c32f44843be2d09579ef5f10d14c1b2",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793067427102172029,
+    "dev": 64768,
+    "ino": 188131224,
+    "mtimeNs": 1793067423537200702,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 45,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0045.bin",
+   "recordSha256": "fa0b9b40ef1d4726e7f76a5b437871b2f20b9f378c727170143ea20dc41309d5",
+   "sha256": "bb85101e4c75bdc19c6cc8f851d80b532d1190eb0267ffae0583c6e07cca6c0d",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793067517678442801,
+    "dev": 64768,
+    "ino": 188131226,
+    "mtimeNs": 1793067514190470907,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 46,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0046.bin",
+   "recordSha256": "2b60f34ac794e811486e1714c0023409ef3224f667b7245e6dec83ce1595ecb1",
+   "sha256": "d457076c5b099fdb67bcc4130771d8414fe0f31012be3b85f47281aa3392e0dc",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793067611762684025,
+    "dev": 64768,
+    "ino": 188131229,
+    "mtimeNs": 1793067605072738018,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 47,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0047.bin",
+   "recordSha256": "12658095ff0de5c7c29fb13a0589a59e00b61cc14780be5c3f2dba1e06252246",
+   "sha256": "ff1e4a2a513700fd332c37c8a8b1bb41df980133e6c5feb0f91f41878587fea2",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793067707086914121,
+    "dev": 64768,
+    "ino": 188131236,
+    "mtimeNs": 1793067703619942140,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 48,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0048.bin",
+   "recordSha256": "d2197eb224050eba11b8601bc517b5671b079f89f1e61d4024c9df91b972aade",
+   "sha256": "758f9fc5d9a4898dab19f1872c36e4c2901d5a47534b83afffc9b296be5c0666",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793068473321701881,
+    "dev": 64768,
+    "ino": 188131258,
+    "mtimeNs": 1793068469829730247,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 49,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0049.bin",
+   "recordSha256": "a026c70ac27ad22553d22a689465f51aaa15db9415d83aca2917f3a594be7005",
+   "sha256": "a5f7fc28104ecf16569919d8d2b3b93d4d156b2ca93c25e49c57119348b9eb6f",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793068562553976950,
+    "dev": 64768,
+    "ino": 188131262,
+    "mtimeNs": 1793068556344027406,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 50,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0050.bin",
+   "recordSha256": "de9d5a83baa989e4f276753db120490346f41d4aa42bf00972c4635fdae9b779",
+   "sha256": "75a1877df9af23d0914b8b81f23cf5c27cdb6d88524ce6996e1ec4c21b6531c5",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793068648672277170,
+    "dev": 64768,
+    "ino": 188131266,
+    "mtimeNs": 1793068645315304451,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 51,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0051.bin",
+   "recordSha256": "9ac6ad5706ad7dbb73d30056ce4681eb54a5bb4606a0d8c9b992d34816d0dc59",
+   "sha256": "829bfbc03987a19cacb8438ce3bb35ac7702bd5dff2acef4c1a8a5159d725765",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793068741865519764,
+    "dev": 64768,
+    "ino": 188131268,
+    "mtimeNs": 1793068738272548967,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 52,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0052.bin",
+   "recordSha256": "41a33a92f461ef19cdd8cd8da95464cf53edf12837d9222c0f34fd485c267eb2",
+   "sha256": "b1247215d7f34f5fb7a3e489d0bdc34a3fe810fe12e5718f3085c2e5c3e3d947",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793068835928723935,
+    "dev": 64768,
+    "ino": 188131271,
+    "mtimeNs": 1793068832431761428,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 53,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0053.bin",
+   "recordSha256": "47d077b1ff7a6074152009d56db945621f2454670af79b71e6f71be59ebb95b4",
+   "sha256": "d9894f545bf0a1d3bc2f30f51e56c7c9df47d329818920157550cfc7d0128c91",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793068930335731237,
+    "dev": 64768,
+    "ino": 188131277,
+    "mtimeNs": 1793068926587769974,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 54,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0054.bin",
+   "recordSha256": "26cddd68d12d85f73f70ba4deb6db1a8900957f4dcd2ff615178155b24341810",
+   "sha256": "2709fe7a9081fe47d36398d8407a2b298ea0c91557228b0114d39cfc1233f398",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793069025319765985,
+    "dev": 64768,
+    "ino": 188131279,
+    "mtimeNs": 1793069021859800624,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 55,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0055.bin",
+   "recordSha256": "e3fe2e41d4988758b37ba4d1134397a93b54e7c06d43c03690fbeef1255da143",
+   "sha256": "7a6e71733423b59b404be522065fb113ef204fe1554c6793e3489fc278e2aac7",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793069124847784436,
+    "dev": 64768,
+    "ino": 188131284,
+    "mtimeNs": 1793069118316848017,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 56,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0056.bin",
+   "recordSha256": "9b598509a00bf2139f05dc26b077032743aa6b6294603d62350e0742e7f0ba44",
+   "sha256": "0734f0f85c5061f334e308f3b8a3a1d025fc29344ffe2c342f20df608a343192",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793070076894199874,
+    "dev": 64768,
+    "ino": 188131310,
+    "mtimeNs": 1793070073385230157,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 57,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0057.bin",
+   "recordSha256": "19c92ae19b7aa5ce15d1f44c50b80557cedc005fa8a5508a05dbaba884a67a13",
+   "sha256": "4be994a03605a8c20478195ec7898cce7f393ee540e41525713b8ad341cdc72b",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793070167059423327,
+    "dev": 64768,
+    "ino": 188131315,
+    "mtimeNs": 1793070160541479367,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 58,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0058.bin",
+   "recordSha256": "c182d651366f41e768b50b2b9eb804bbdc670e8beda067c6886c983717156b91",
+   "sha256": "86e572d5316ba239261b54ef71415787dfbabfc9e42bb883f722aa1677629dc9",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793070255729662291,
+    "dev": 64768,
+    "ino": 188131321,
+    "mtimeNs": 1793070250927703446,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 59,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0059.bin",
+   "recordSha256": "4b9072a6613b621317e03b996afd11ea03d6b87e64cbab1e2636844f86dbbeba",
+   "sha256": "5041a3ba355aa3479965ed4d702432cb11c4ee9de8f7a42bc4529ade90375f04",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793070343578910467,
+    "dev": 64768,
+    "ino": 188131325,
+    "mtimeNs": 1793070340171939589,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 60,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0060.bin",
+   "recordSha256": "e1ad6f5d6341f6c7ec79e2d560477528cea9cf326283c9462a1a088c31704fb0",
+   "sha256": "fd8856d0c94dfd76137caf48e54f327f5f5e0dd760054226668a3d879ca56a79",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793070431508159775,
+    "dev": 64768,
+    "ino": 188131330,
+    "mtimeNs": 1793070427998189711,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 61,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0061.bin",
+   "recordSha256": "7adf0128e55dac059f5df667c5d050078775ee3f0ac0659fbc935f51b23c61d1",
+   "sha256": "c74ca439cdf8139f79ae72b27c5923f8bdc4d90099e56e3bf34318f4e4e7021a",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793070519420410760,
+    "dev": 64768,
+    "ino": 188131334,
+    "mtimeNs": 1793070515969440136,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 62,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0062.bin",
+   "recordSha256": "2e56edc5cf4d8f7c988f8a403a203b3c51d7c8bf0215f3c28488138a7cfe5289",
+   "sha256": "9afbd456d226570d93f9b98eb678de879fd0397e62b9dff1acdbf024c09f1e60",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793070607873658434,
+    "dev": 64768,
+    "ino": 188131337,
+    "mtimeNs": 1793070604417687807,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 63,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0063.bin",
+   "recordSha256": "6cb5a011d66d6c1adfb5c1c65f6a78f12e3dba8861352333361e440002843472",
+   "sha256": "d6228140d6c9e7690638f595d21934ba76c522ce0cb01bbd25f7935691119525",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793070699242882457,
+    "dev": 64768,
+    "ino": 188131339,
+    "mtimeNs": 1793070692489939773,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 64,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0064.bin",
+   "recordSha256": "f5d18f2383ba0c03355db8bb5274ca5602341aa46206d2c1b50b7c753aef0080",
+   "sha256": "61a455955217a1e665d4e9ff49e274490d24f56ad270b11f49b6346708915297",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793071492038769747,
+    "dev": 64768,
+    "ino": 188131364,
+    "mtimeNs": 1793071488527797370,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 65,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0065.bin",
+   "recordSha256": "3b826f80c0aaa4024530e196aa641d2c7497399ee93b545e00c07cafeb2f578f",
+   "sha256": "5bf3bd2ed722895320e0503e305d96a8fa0d86a41bd7d9b045fd26909d3cc217",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793071578335087972,
+    "dev": 64768,
+    "ino": 188131368,
+    "mtimeNs": 1793071574806115953,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 66,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0066.bin",
+   "recordSha256": "5153ddb0f4f58e39c6aa2f440fbb40e6cb00d552ab1ab6775c79cca4b64f3fbe",
+   "sha256": "a4878cf83ab16d420d0d72e9c33782c0876ebe89674fa9fcab381588c9ca9cce",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793071665025398206,
+    "dev": 64768,
+    "ino": 188131373,
+    "mtimeNs": 1793071661317427798,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 67,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0067.bin",
+   "recordSha256": "7a21ad31702f7d8ba17c089dbd898276a4520237bdb4572eebe4e99863d8a243",
+   "sha256": "b4ef06672bb661c6e85ea8e4f776cfa5fb5e0c6226cbc51994cbc7277f93fb9c",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793071752724696212,
+    "dev": 64768,
+    "ino": 188131377,
+    "mtimeNs": 1793071748826727494,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 68,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0068.bin",
+   "recordSha256": "5ce7dcb9cc4f5acb3bf3851d5fda192985a2e8fbe764ebc212cca32e4d91ca6a",
+   "sha256": "615d5d2257cbdef99adfeb6290f02e1d891f426154fe29d768b74ec55b9e3971",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793071839639996979,
+    "dev": 64768,
+    "ino": 188131380,
+    "mtimeNs": 1793071836353023480,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 69,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0069.bin",
+   "recordSha256": "0c99e13d320b1619e7dc3a4dcd55c79be3fc6e2f9a568e4fe4337a0343898969",
+   "sha256": "94144ac24778207bf74e0da46a6baa1b1ee3f32e80f30a1310eb9d736bb6755d",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793071933815236026,
+    "dev": 64768,
+    "ino": 188131383,
+    "mtimeNs": 1793071925785301029,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 70,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0070.bin",
+   "recordSha256": "39fcc6631dbbc212bb8ec5190d34baa06126741ac0876da3712bcbf9098e066e",
+   "sha256": "69b3203ea7db7d44c21ce3cb180a79045ce5783c52469537ab64b78245a7f135",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793072021959521182,
+    "dev": 64768,
+    "ino": 188131388,
+    "mtimeNs": 1793072018459549609,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 71,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0071.bin",
+   "recordSha256": "69e88800565cb1206d285ae8418b49cdd1c9ed7049a7121a032ecf59bf1a9b56",
+   "sha256": "f0550c582f936c02866edfaa675095c36926ccc5e620b46acba82b5e26443dca",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793072112019788608,
+    "dev": 64768,
+    "ino": 188131396,
+    "mtimeNs": 1793072108566816731,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 72,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0072.bin",
+   "recordSha256": "0ff9e95a9ac61f7293af9714d7f14a9dbee09bd6b0a5134d398823738ea16fba",
+   "sha256": "53976193af873455060a9e176104f94a01b504c483bfbead10aec7e4fc9390ae",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793072912640221056,
+    "dev": 64768,
+    "ino": 188131419,
+    "mtimeNs": 1793072909199249402,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 73,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0073.bin",
+   "recordSha256": "ff578650c251d3e6114f8fd6f95ec4adcdcfd38726119713e8752bcce0794dab",
+   "sha256": "a6fa907b27d8bed710a8372d001a69a30bee56f68ac82280d079f59d63b5a464",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793073001710338091,
+    "dev": 64768,
+    "ino": 188131421,
+    "mtimeNs": 1793072995298402057,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 74,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0074.bin",
+   "recordSha256": "59bb0cc1849f1b43ac4bbf67745979416358da755fc5fe56230c6e9255d7ac35",
+   "sha256": "f3b67b60f2b241040e3d997c846ca2a09ac6ef8e826ab462ed2313c7f65e004c",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793073092846440414,
+    "dev": 64768,
+    "ino": 188131423,
+    "mtimeNs": 1793073086107506098,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 75,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0075.bin",
+   "recordSha256": "646e5b520cf839a32bff01d70cf9fea2f645a85b047593fead5f75a4e9378497",
+   "sha256": "3f7020b91553a16a5051ba71c55bb26de0f8dfbba48ec49d80b9e11c7b8a8169",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793073179165607805,
+    "dev": 64768,
+    "ino": 188131425,
+    "mtimeNs": 1793073175874639268,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 76,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0076.bin",
+   "recordSha256": "3575b15e43890553d017b77be3b025b8bb09e9a90d3b18ee383b708b62486361",
+   "sha256": "45f060545682d018e2ff298130a51e00d6e652ae589f665d33b6fffed8232ead",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793073267063774783,
+    "dev": 64768,
+    "ino": 188131427,
+    "mtimeNs": 1793073263554807782,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 77,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0077.bin",
+   "recordSha256": "f9057466e521744fb6d82de46ca2b83f165fda8d96204e2e7dfbb997512a7623",
+   "sha256": "5b063e155cbd780f2e805a9ac62f4014b032a5fdd9d85cf854e0b69934f8ed13",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793073353371969106,
+    "dev": 64768,
+    "ino": 188131429,
+    "mtimeNs": 1793073349877001520,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 78,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0078.bin",
+   "recordSha256": "2e5683c41d0833490d8bfde66037d3036497e2f03a807f0c6e230552f88d903f",
+   "sha256": "4d9a564ed6cd36d3d276f601ec3773361cc64c2e103937556be9b10992adf127",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793073439881171853,
+    "dev": 64768,
+    "ino": 188131431,
+    "mtimeNs": 1793073436534202527,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 79,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0079.bin",
+   "recordSha256": "d750f6f2ca7710630b6812f4a2f073db0011dacc026c0bd10ad1ac4c7425c65e",
+   "sha256": "daa44c4a7fda28caecd8c014fc945a342b51303e1b15fbce64c8aa7c6b4743e8",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793073527361374501,
+    "dev": 64768,
+    "ino": 188131433,
+    "mtimeNs": 1793073523898405914,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 80,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0080.bin",
+   "recordSha256": "da756ed7c0e3014ebd8aefdd811710b76fef11ad07f61cb3c412ee5ea4ad8805",
+   "sha256": "b5015c96bc5be13d37e419b088f7c0d50824b659dc9674fffe642cd9330db0a2",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793074272975789031,
+    "dev": 64768,
+    "ino": 188131445,
+    "mtimeNs": 1793074269528818971,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 81,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0081.bin",
+   "recordSha256": "b277544bb25255c2913b66d115687b5dad8111a62c41d5ce85ece04fc0a535ca",
+   "sha256": "b79500b2be2b6fcd613b929b50f259c430239b7894b1824d899ac8de6482cfc0",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793074361748018859,
+    "dev": 64768,
+    "ino": 188131447,
+    "mtimeNs": 1793074355757070785,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 82,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0082.bin",
+   "recordSha256": "b398590e1e5adbfc255578b97f3623f3533a570f7ae0a5bcb898fc0cfc143886",
+   "sha256": "b74d22edbebd9ff6e3eaf504a31eb566173ef1d6be4ea1b84724a80c3f7d4408",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793074459761170261,
+    "dev": 64768,
+    "ino": 188131449,
+    "mtimeNs": 1793074456394199385,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 83,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0083.bin",
+   "recordSha256": "526e219a96f90571ba978270a8e22c2c6fca45f54371d5bed3732131ee529e28",
+   "sha256": "53b0d4e51415e9fb75beadeeba816ca37c15d9ac25eb3b5231e20f44803d1ca5",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793074561531290744,
+    "dev": 64768,
+    "ino": 188131451,
+    "mtimeNs": 1793074558023321037,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 84,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0084.bin",
+   "recordSha256": "201810b740e2153d075a7cc9866a773f9d99fb60d94c129ef0ed548ee4bb287c",
+   "sha256": "ad52a52038181a19ab800cf63637214eb9035dfc04dc2a3e937024c43b79d647",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793074663457411227,
+    "dev": 64768,
+    "ino": 188131454,
+    "mtimeNs": 1793074660000441038,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 85,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0085.bin",
+   "recordSha256": "87bf52e2eb22c6d475f7c9156d2ecfba45825ae2dbaa2e4f2fe8bfac9a562209",
+   "sha256": "b723dffe6dcafd562be15e0c69de5f83beb6cd2f03b1b9457c70545a191e7b2d",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793074767074518252,
+    "dev": 64768,
+    "ino": 188131465,
+    "mtimeNs": 1793074763535548734,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 86,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0086.bin",
+   "recordSha256": "bc2492b3711950b8d470a1f02976930d3049f10ea7f61396b738d9e25a0bb31e",
+   "sha256": "808d90d79e20a8b3509ba0a75fe32d9045c1074b01fa6cbb630d3a693c8bb7a6",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793074870908624343,
+    "dev": 64768,
+    "ino": 188131471,
+    "mtimeNs": 1793074867440654186,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 87,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0087.bin",
+   "recordSha256": "cee9e339edd8f5029ddf62855008657a3851b666a8c8862b4c9cadd9cb43d029",
+   "sha256": "20ce17107e8bfae0290ff3e342bf291574a5e315e85986ec052c969e210fb8b9",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793074973877776980,
+    "dev": 64768,
+    "ino": 188131473,
+    "mtimeNs": 1793074970565779761,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 88,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0088.bin",
+   "recordSha256": "dc918e83c056ec316df2bd414c802e6d1242657c46e61f70d24003154fe20423",
+   "sha256": "afb9d48c82c1d45eff0267d9581b7b3e33601c7ca7ba8c6e65d2cf0fef1493d0",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793075812449136056,
+    "dev": 64768,
+    "ino": 188131492,
+    "mtimeNs": 1793075808875158833,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 89,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0089.bin",
+   "recordSha256": "f918a98e242446fbb07cdbfb30f2b1091af757095e9b487a77d5ffb3115eaa52",
+   "sha256": "259a8799bf0e01e618ae4890037c7ad8641881df8d2477458d6a1af61b02c9cd",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793075899940568661,
+    "dev": 64768,
+    "ino": 188131502,
+    "mtimeNs": 1793075896486591398,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 90,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0090.bin",
+   "recordSha256": "6086567610ce967da5f774fc04f77e0e7226b33ae8dec817eea8b1ec76903a1f",
+   "sha256": "7c97915ee4ae4ce2f9ee2e3b5d0e1acd891357c6bd393a99e1d9bb89ff85228d",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793075987816981868,
+    "dev": 64768,
+    "ino": 188131508,
+    "mtimeNs": 1793075984469004501,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 91,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0091.bin",
+   "recordSha256": "6dfcc6767540971567c31e885940da1818268cc3c6ae98e5ecd739de426521cc",
+   "sha256": "d7519ae7c33fcea945bf750c83cd9ab60dcdeed79c63f5ee139084c900b62438",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793076074528388860,
+    "dev": 64768,
+    "ino": 188131510,
+    "mtimeNs": 1793076071052412870,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 92,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0092.bin",
+   "recordSha256": "cb8c1af294d71d9c0a485254749b9fee2dba914b3ebd8a17a263e321d1f6cd49",
+   "sha256": "ca3648ae8a9bc7dbb68e1461be759e7355dc9a21b691a08cc963e22cab539b4c",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793076166990743650,
+    "dev": 64768,
+    "ino": 188131513,
+    "mtimeNs": 1793076163663767071,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 93,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0093.bin",
+   "recordSha256": "d8905cd4037fdda87191a3b983155b53e59d5314f39d9afc8ba2c4a97ff76b0b",
+   "sha256": "112cdb928da72acedc9a9ef1e20b3468f287884c0d8326ad37566b6400eddae7",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793076265313045381,
+    "dev": 64768,
+    "ino": 188131519,
+    "mtimeNs": 1793076261980069233,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 94,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0094.bin",
+   "recordSha256": "3518021236de9bfe0fc669a468bdbc7422f78ca8fd142e5a4833fe5da7f66622",
+   "sha256": "2c1bcedd815105246e30dcc5f591863464cd4bd70410afae1fea415985d1e9f6",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793076367399309414,
+    "dev": 64768,
+    "ino": 188131522,
+    "mtimeNs": 1793076360379360337,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 95,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0095.bin",
+   "recordSha256": "f25f249eaedb33b35f04018dffb6e6af13a18df9ace3a737cff409ccaa715221",
+   "sha256": "f50afbac76569017874d9fe9936d243b5fb041dc60abf4b33abd57c06e08e406",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793076466853583583,
+    "dev": 64768,
+    "ino": 188131542,
+    "mtimeNs": 1793076463412608823,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 96,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0096.bin",
+   "recordSha256": "f2952290fcae2cd7e2d477682050914d8d2fdea74bd4944164824f60503685dc",
+   "sha256": "4bde716fe04960c3e46130bee132c7d1871989a72dd4aabebfdc4b895514cbd1",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793077249864683469,
+    "dev": 64768,
+    "ino": 188131605,
+    "mtimeNs": 1793077246267723739,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 97,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0097.bin",
+   "recordSha256": "b9f49bb0903f0de80b6fd90be817c1edcd8aa39d5de0ca9ee8a5abeb91a8411d",
+   "sha256": "13a587acba09ad3b8aab2e88df93d10456434401cf5c3a10e0426f9a715c3b6d",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793077339824698948,
+    "dev": 64768,
+    "ino": 188131607,
+    "mtimeNs": 1793077336336736356,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 98,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0098.bin",
+   "recordSha256": "1e5d513746f75319c1824c1a4f3c811f0f1c679d24400eebed48182d3f49fa0c",
+   "sha256": "c17080fdd75e5f3c7d09f14f4ca2bc7ff6512d64bd65ad41d1ff7e0a0f5cd518",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793077428174769727,
+    "dev": 64768,
+    "ino": 188131609,
+    "mtimeNs": 1793077424712805512,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 99,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0099.bin",
+   "recordSha256": "05549e6513bade6fb3b45d9262077e03a6b2407fbfaf67f9650596b222319d92",
+   "sha256": "f91ce01c263e30ecfd86731485bf592ec7961711886cdd68ae6941987f281ebd",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793077518529851835,
+    "dev": 64768,
+    "ino": 188131611,
+    "mtimeNs": 1793077515039886747,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 100,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0100.bin",
+   "recordSha256": "7060e384a952da1da5fb4f87fc6c61535bd5583485a14314665fa93a3f9f9835",
+   "sha256": "d97c6302a5e2eff40c6dbdf20a2003a20fab37bbd1d271d6ec1abe01b0e11500",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793077607341976454,
+    "dev": 64768,
+    "ino": 188131613,
+    "mtimeNs": 1793077603899009949,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 101,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0101.bin",
+   "recordSha256": "536a2861da9011edb09e93ca7b6fd0984e1188ddb1b41a8ac881ef5549bddbf9",
+   "sha256": "da99967a7b458428c91f2804c99a26f1fee4c955e6013b924f3f356d7762e2cb",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793077699613090592,
+    "dev": 64768,
+    "ino": 188131615,
+    "mtimeNs": 1793077693138152056,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 102,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0102.bin",
+   "recordSha256": "413bfc544a5576ca55eab69f57b8185d7181e93e941fcbf7da1d70a0e94b3de5",
+   "sha256": "172911b09eeece4edc3222ee349fa88f7c89ab450406d8f03f7beae194ec5ec9",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793077789953242802,
+    "dev": 64768,
+    "ino": 188131617,
+    "mtimeNs": 1793077786315276610,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 103,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0103.bin",
+   "recordSha256": "5bb45a2b6d3cf84d07b92bd10417350403058f1b676cf900e32b1b97e51af898",
+   "sha256": "0fd90ed237c36482bb0f7e1fbe404d63c410d20f73017632aed0e4ff371e4a43",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793077894350283070,
+    "dev": 64768,
+    "ino": 188131619,
+    "mtimeNs": 1793077890942314102,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 104,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0104.bin",
+   "recordSha256": "33e239be96082d7f076fb13c5dc359305202345adad095b4d0325c8dd3c18aa3",
+   "sha256": "5f412da0511152d9bf90d0d98dc7090e48fc9a204a692696bdb7040a6aad5990",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793078654509663854,
+    "dev": 64768,
+    "ino": 188131631,
+    "mtimeNs": 1793078651242691511,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 105,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0105.bin",
+   "recordSha256": "06749394de173071dde4e391b1c6f4f43d8a14670d7440970066db4fd75c5865",
+   "sha256": "ee5531dc65cc35b64129fb9b9e37e8ebdb1560c2593e4800ed2e2fd077dee56c",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793078741276930675,
+    "dev": 64768,
+    "ino": 188131633,
+    "mtimeNs": 1793078737804959966,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 106,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0106.bin",
+   "recordSha256": "15e96287670d9c45e7596b54a1a61071a00bae324c48b06d8fbab84dc6bff5e8",
+   "sha256": "3324cb0767ac948a41b6b49324b4be09c49a353c6ee0158e8b4807302c5d3d8c",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793078826753210678,
+    "dev": 64768,
+    "ino": 188131635,
+    "mtimeNs": 1793078823314239607,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 107,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0107.bin",
+   "recordSha256": "47ac758fa67348e433f78050d38e9a25e53a383fdd36d26951e0f9bdb3d18074",
+   "sha256": "35ca9cd0d9b25decc2a59b3e6b0f3ffc366237fd1f8082e086a992737fe70f3b",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793078913345483224,
+    "dev": 64768,
+    "ino": 188131637,
+    "mtimeNs": 1793078910005511250,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 108,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0108.bin",
+   "recordSha256": "5f8ccefff751f2b428d3d6c4ea83eeb7ee61f8828e7826818f934a37ba8ac505",
+   "sha256": "8471dce7a3a5ab57767e1f4e83fbf1737bc3e6262378fbe35eda6bfcc06b3aa3",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793079000309754307,
+    "dev": 64768,
+    "ino": 188131639,
+    "mtimeNs": 1793078996767783966,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 109,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0109.bin",
+   "recordSha256": "7cc3a43535d2daeb4ed0128874cda950c04718ad0aa65b4068bba1117d70b571",
+   "sha256": "c6fde05ba2627e8a768bd4f18940efcf658f34c88cbd4fe602727cca0ba75a9f",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793079087556984099,
+    "dev": 64768,
+    "ino": 188131641,
+    "mtimeNs": 1793079084117018901,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 110,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0110.bin",
+   "recordSha256": "2bffed7a112f0bb3a3a89a51c813f7b68e2184766e355e28ec99394d47e858d2",
+   "sha256": "af458af1431437b6c3300d0ecfa3fd7d24dbb3ea165141db93d5d70ff0cf1d0c",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793079176623095362,
+    "dev": 64768,
+    "ino": 188131643,
+    "mtimeNs": 1793079172279138187,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 111,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0111.bin",
+   "recordSha256": "b87c89044185e7d8e0c6d335613ddc96977f2102588c48b0143df7f8bbf1ec5c",
+   "sha256": "1c426d1e8b3ba44b9591d5430d7f76654b2de587612fcf9e2b072acd7347c5d2",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793079264529238989,
+    "dev": 64768,
+    "ino": 188131645,
+    "mtimeNs": 1793079261145271615,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 112,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0112.bin",
+   "recordSha256": "04afb410a9658379b00e09d8c8d18b69518420e8f058ce385d4cdd6c5435d35b",
+   "sha256": "10159ee3c37b9e932dfa8b9cac08f063b0b97c7dac6b1b212cac8b7ae86c9b88",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793080009975459906,
+    "dev": 64768,
+    "ino": 188131657,
+    "mtimeNs": 1793080006631489193,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 113,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0113.bin",
+   "recordSha256": "0e967d79d61a58f0dca7702c2e269937af87b34e9ffaafea7635fe1420e993f4",
+   "sha256": "b87c4a947c4d7a8ed7e6b1d8b01a2e7d06816f33c3dad6228b92abde3a378a16",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793080098432687201,
+    "dev": 64768,
+    "ino": 188131659,
+    "mtimeNs": 1793080095118716084,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 114,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0114.bin",
+   "recordSha256": "eb1ee4b4eb1ac04e05de3f8ba99babb8fe857de66e5d065281d019bfe620152f",
+   "sha256": "705425849b4deed88357ecc8d2e75ce52826741c2e67c7b8ea0e2fc04214d125",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793080189937891490,
+    "dev": 64768,
+    "ino": 188131661,
+    "mtimeNs": 1793080186475921536,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 115,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0115.bin",
+   "recordSha256": "18954ef0064dd357c38093861e4090d7fbc010725e478cd2328d960f910b524d",
+   "sha256": "3356eeba715160790b179b9ee378bd1fb169dad52879f055ccce3e247cd13cf3",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793080281936094601,
+    "dev": 64768,
+    "ino": 188131682,
+    "mtimeNs": 1793080278626123225,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 116,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0116.bin",
+   "recordSha256": "6d01f8694dfd46cfdede7ac92620efbde7d3ecbd658ab22936112b50f99e4556",
+   "sha256": "7e94395513fecae0230290ea8c1ac311e2fb5880c45b91d4d8334e83d4a363cf",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793080374258297524,
+    "dev": 64768,
+    "ino": 188131687,
+    "mtimeNs": 1793080370812327234,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 117,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0117.bin",
+   "recordSha256": "b6d66b984bb86117b0ceef810e7d4a49448ac7dbc67465f892cd793c962218c0",
+   "sha256": "11f7d4cc0ea1c21a160da7b9ba4e398e3c7ee853f0c43117db738f7e5abfb99e",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793080470765466650,
+    "dev": 64768,
+    "ino": 188131689,
+    "mtimeNs": 1793080464460520868,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 118,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0118.bin",
+   "recordSha256": "1d32bf30d80fec4e6d353393de2281e1cce2d9577904d742025942032915e223",
+   "sha256": "a8abd4cf3e8bc820f0ea97af257eb6a377adfd559a705f81c90304cbfe41e538",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793080563464670431,
+    "dev": 64768,
+    "ino": 188131691,
+    "mtimeNs": 1793080559343705793,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 119,
+   "path": "/home/steven/.local/share/enclave-recovery/base-20261026/parts-root/part-0119.bin",
+   "recordSha256": "1863ccf51c913b51f557a09624729677e6aececd4aa9abf84fd4a7e85d804b7f",
+   "sha256": "b21f9869709753f317c0ff552d8990d9af1fb3f3a276a6790845f17daa38abbe",
+   "size": 4294967296,
+   "target": "root"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793080671473744618,
+    "dev": 64769,
+    "ino": 148011406,
+    "mtimeNs": 1793080668160772988,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 120,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0120.bin",
+   "recordSha256": "e604a2649bf5a23e90b738323625b71924ab20fd19c9566241ba0d90a804cb8b",
+   "sha256": "959a6aefd075a9f2a2c64a9a3b8b7a9b8d34d44fdd572ad37908351bfb6f10e2",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793081468151270261,
+    "dev": 64769,
+    "ino": 148011411,
+    "mtimeNs": 1793081464847289040,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 121,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0121.bin",
+   "recordSha256": "3cef6cd5d46510de0cee599d19818a4171fb20c24e6ba882f925146fc2f58701",
+   "sha256": "c0e286ba0e73117819ad80fa5864a0e78ad36a01c5dda005c704b6ccae439df4",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793081554610764215,
+    "dev": 64769,
+    "ino": 148011413,
+    "mtimeNs": 1793081551297784098,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 122,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0122.bin",
+   "recordSha256": "5e9b4ea366b6e717cfe7b5342e364d920df7292439ca6de51cc84766f1490c1a",
+   "sha256": "d998d15711aaf14b5dfb600ca3d9a7d25da116f98c00783e4b9e74e65dcd504e",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793081641932227556,
+    "dev": 64769,
+    "ino": 148011415,
+    "mtimeNs": 1793081638670248016,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 123,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0123.bin",
+   "recordSha256": "ea8d38ea911831626175b38da48277cbf624ea9efae9545b770065f402a73e8a",
+   "sha256": "10b954549e9074c3ee4bbcef0702baa7cc93c8511d594a2f25bb677bfff71f29",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793081746673555554,
+    "dev": 64769,
+    "ino": 148011417,
+    "mtimeNs": 1793081743408576912,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 124,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0124.bin",
+   "recordSha256": "d161415186b349c7c85989cc3f0360e8914ffd245b71155a8b998e47dd05a1bf",
+   "sha256": "3196590826b2b1d2d90bb545a5732ea42317a7664b1420a8a38efb95b06a7000",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793081856401824356,
+    "dev": 64769,
+    "ino": 148011419,
+    "mtimeNs": 1793081853134846475,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 125,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0125.bin",
+   "recordSha256": "a445bad75e4d098a41041e05a16c8a6c971f7610968e4b64604fddb7cb4dda96",
+   "sha256": "fdd618808a9a6d1a021c38689ec4c80f1a910307a6f3800eb20ed93491bee0a8",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793081966429068541,
+    "dev": 64769,
+    "ino": 148011421,
+    "mtimeNs": 1793081963098091711,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 126,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0126.bin",
+   "recordSha256": "d23bb9670d99a71630d517465c4fe251b6a58aa1a7e738b197f4ec8f45c60ee9",
+   "sha256": "0ca86753aa53cc491044d7afe7d08a3b1459c67ad9785ac7e2e22b3a796d72df",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793082076078297140,
+    "dev": 64769,
+    "ino": 148011423,
+    "mtimeNs": 1793082072779320578,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 127,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0127.bin",
+   "recordSha256": "e14153ee00446ffcacbf4c03abcbbc327b3aad34eacf9f4c907d7d3f6316a99d",
+   "sha256": "fcd94a67913f509c41749ab66e0ca0f0b829bc7c573331f54930cd24f5ac9cdb",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793082187433498762,
+    "dev": 64769,
+    "ino": 148011425,
+    "mtimeNs": 1793082184178522284,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 128,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0128.bin",
+   "recordSha256": "e49992e6d68414cf304d10fc258b4afae4d1aaf416428f98786a4cdbd957057a",
+   "sha256": "11baa92d7b5b4628135bd62bb7ff6fa4012c3e3aa3c8b5403915d573a5ead249",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793083055851996725,
+    "dev": 64769,
+    "ino": 148011437,
+    "mtimeNs": 1793083052553021915,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 129,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0129.bin",
+   "recordSha256": "3121734defe23959b0e823be1038f30e63eac2683fbf3ed866dd25267b53744f",
+   "sha256": "a0357b0255212f7ec0864cc93f745474a9cd603fc616a550e698e61297d142b4",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793083141446342504,
+    "dev": 64769,
+    "ino": 148011439,
+    "mtimeNs": 1793083138176367519,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 130,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0130.bin",
+   "recordSha256": "f3506875059f0be28b0c2da87f111164737cb18d7c55589a9bb199c52d06613b",
+   "sha256": "ebca74cb978a46990b613836602463c248e4556703ddd375d8c2f1370ee5ca0a",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793083237215310687,
+    "dev": 64769,
+    "ino": 148011441,
+    "mtimeNs": 1793083233967347674,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 131,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0131.bin",
+   "recordSha256": "94b930e63a7a55aa42682e7286d5fb6d2ab7069b7a072e5540a4a536b0d23634",
+   "sha256": "516c587a9f322a2d25294167305dae7869ac60a056a0cb20f69c7a2a9ccf5db2",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793083337919194548,
+    "dev": 64769,
+    "ino": 148011443,
+    "mtimeNs": 1793083334654229863,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 132,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0132.bin",
+   "recordSha256": "33e4afd96188e98906c8092823f99c76214755076540395807066f8bc1493676",
+   "sha256": "38a051f0a1e5995d96afd6e0227a1d04e0fef7a9c504365eb197c98f7ac01ac5",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793083438686129853,
+    "dev": 64769,
+    "ino": 148011445,
+    "mtimeNs": 1793083435401163840,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 133,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0133.bin",
+   "recordSha256": "3d1dd0b39566ecef0054e7e411672fb2f1f2e3cfe97a5571124fc4166d94554c",
+   "sha256": "ab35a0443072d3856cc0c02029c7438df60541cce3b6e496f62b71d66cb28e60",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793083540519097379,
+    "dev": 64769,
+    "ino": 148011447,
+    "mtimeNs": 1793083537242130007,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 134,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0134.bin",
+   "recordSha256": "f091374ff331c80b6e68a4b7b44b2cf057aada3ba3e05caf46f9122415b05bc1",
+   "sha256": "44f2295aea96347156980d6dd2401ce853162025445a4d492fe573850959197f",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793083641258111295,
+    "dev": 64769,
+    "ino": 148011449,
+    "mtimeNs": 1793083637991142790,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 135,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0135.bin",
+   "recordSha256": "8cf8c3fb17e613b5f885ba9c21258bb360c84aa82eaf0e515da0b30a1b5f2828",
+   "sha256": "9cb8fcd02c9d799cf9813644973126ee817176b9c7e2714498e17290ec3cae2c",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793083743289141906,
+    "dev": 64769,
+    "ino": 148011451,
+    "mtimeNs": 1793083740031172459,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 136,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0136.bin",
+   "recordSha256": "86d5b0f872de86a8dc782d8bd3b2ecc9c36348635c6ba1c249361924b2d8c045",
+   "sha256": "d303d7c0268ebed9921125edc3c3c49ea05d49da9f6c380dde17338af2dd9ad8",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793084571794871064,
+    "dev": 64769,
+    "ino": 148011463,
+    "mtimeNs": 1793084568501898804,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 137,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0137.bin",
+   "recordSha256": "275430c83bf08b4508fe26d37e166ab6292a1066cc81445a1324b556f3de215a",
+   "sha256": "15ef29941938c5799b388d67298274d009ef648e609ddf61264290d29221e3f8",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793084659063137615,
+    "dev": 64769,
+    "ino": 148011465,
+    "mtimeNs": 1793084655777165176,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 138,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0138.bin",
+   "recordSha256": "a061c11ab849fd4af8537836429bcff4d9df96f55ffcd907587f5f075f8e740c",
+   "sha256": "3ffbccbf63058a68bd98e247868682cba29ffd49947e4624123f637a752ed4c9",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793084745302415719,
+    "dev": 64769,
+    "ino": 148011467,
+    "mtimeNs": 1793084742036443011,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 139,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0139.bin",
+   "recordSha256": "7e8e38ebadcd88236ae9fb62586fd787fb86acc2d72b503df1746d868d361f6a",
+   "sha256": "160b39fcf73aa80d94da5942d17c262f7ab7e5f60aeaee85f02d86a4f0f6f486",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793084830798702448,
+    "dev": 64769,
+    "ino": 148011469,
+    "mtimeNs": 1793084827544729555,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 140,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0140.bin",
+   "recordSha256": "24a863153477e8b1e136c878e19e0c36e114417790bbf4ae3653497d18e1d269",
+   "sha256": "7233602c6cccdf8f5129d0ca3f70ba702fbeb6e9cab63e4e26c87559906f0620",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793084918096976231,
+    "dev": 64769,
+    "ino": 148011471,
+    "mtimeNs": 1793084914820003458,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 141,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0141.bin",
+   "recordSha256": "fc6165bf47fd6ce044ee48081dc77c828acfd3d04146853dc10d98cd030b0171",
+   "sha256": "092d657577721f61cb6db3cf917de326df70f82f3a18ae527d2c2b66a74119d6",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793085009106221036,
+    "dev": 64769,
+    "ino": 148011473,
+    "mtimeNs": 1793085005835248149,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 142,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0142.bin",
+   "recordSha256": "97d729c22fc5386f744c7db14311edaf4f1e4a4daab25428618c6830931a61f3",
+   "sha256": "0d736f4060d5400092a73ebdecae342c8acc3efb156dc0b272364799378fd9f6",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793085100362465418,
+    "dev": 64769,
+    "ino": 148011475,
+    "mtimeNs": 1793085097088492502,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 143,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0143.bin",
+   "recordSha256": "4212e29e95d2288c25bcb7a6ec62315de92e8785a276a8eb75041c56c021861a",
+   "sha256": "e8c825936fe5dd6dc133f8d49da40298479e857852d2c6de31f5f71ba95e2bc4",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793085192197706382,
+    "dev": 64769,
+    "ino": 148011477,
+    "mtimeNs": 1793085188929733371,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 144,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0144.bin",
+   "recordSha256": "3c102566c5178da51376a95dcede26370f92022161d34a5b2dd834eaddf53548",
+   "sha256": "9869d723599068a4fee6509629ec9c00b7326c9120597104da08194fdb94bf5c",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793085947904751462,
+    "dev": 64769,
+    "ino": 148011489,
+    "mtimeNs": 1793085944603780387,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 145,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0145.bin",
+   "recordSha256": "b6152622fcdda979ea6f2d67f83501f0c3c8d5dddf5f024af14cb2231c710763",
+   "sha256": "e79446e5cb4f8e05c5a014d0ecb67bfd7646f4de75536e5774580741ddb449f2",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793086033165006988,
+    "dev": 64769,
+    "ino": 148011491,
+    "mtimeNs": 1793086029900035409,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 146,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0146.bin",
+   "recordSha256": "b2ff729abec95e8c43a335d295a1d92582e363f5480e4125d8587084b6405edb",
+   "sha256": "47bd88b06314d89f15052d6e025a59eb795b958c3158feda8dc195801248decf",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793086119026261829,
+    "dev": 64769,
+    "ino": 148011493,
+    "mtimeNs": 1793086115743290246,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 147,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0147.bin",
+   "recordSha256": "7a56088db5db039b076c8ebeb5bca777343eb91e49d7af9164d58e2270a9b566",
+   "sha256": "eef1bfe03d95e15ff44bc5feaed416458ce440ee523b0b029572e59785e5e2fe",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793086205375516340,
+    "dev": 64769,
+    "ino": 148011495,
+    "mtimeNs": 1793086202096544585,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 148,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0148.bin",
+   "recordSha256": "b3f597f66d7b509c95f04306b9cc2a50ba132c8819056b8937a572f8da1be234",
+   "sha256": "0fad4abfb6d53e7457ed11da541c35c3f5f435e29ea546921753727126af5a33",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793086292244769700,
+    "dev": 64769,
+    "ino": 148011497,
+    "mtimeNs": 1793086288949797965,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 149,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0149.bin",
+   "recordSha256": "1137ca7cc44f2ffcb673c796cd0d28a6f723a76dd325f5fd3f701540f4841f37",
+   "sha256": "d6374e8bdb7217c6c4481908c31337ea103faf9aed25379e94f5f2bf991152fb",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793086378713029313,
+    "dev": 64769,
+    "ino": 148011499,
+    "mtimeNs": 1793086375442057275,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 150,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0150.bin",
+   "recordSha256": "2cdc28d6f11a83c8b4a965c2d4f35d877df02ca1ae64e87591c17d29634085f7",
+   "sha256": "8cb12a69c685cf79ff2a6ebaa5386f9abe226cf32f8373b71de9d4151aa8a62c",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793086467055275319,
+    "dev": 64769,
+    "ino": 148011501,
+    "mtimeNs": 1793086463756303435,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 151,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0151.bin",
+   "recordSha256": "0a25869d15c35a6778c08102aa1729de44384de9d375f6af9d606fffb8e01915",
+   "sha256": "d906fd56b0c2177d1d714f8786708d5843a2869b177a71752d810ed995f284c6",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793086570233397306,
+    "dev": 64769,
+    "ino": 148011503,
+    "mtimeNs": 1793086566972425018,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 152,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0152.bin",
+   "recordSha256": "b38ef861a502471dc757983a6835c07906b2257bc150191beded058b3c92e42a",
+   "sha256": "f5a2f85107b18857c3d350c7f9b74148ea0faa01aa85d173c6816990f2a26093",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793087325697272214,
+    "dev": 64769,
+    "ino": 148011515,
+    "mtimeNs": 1793087322372288363,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 153,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0153.bin",
+   "recordSha256": "2bc6ce6538e664d86e1a877a17e0f0d9ef32cd7f547a835ef0677de2020c4c15",
+   "sha256": "087058508a6a8eeca08649a1b69e83ffd213a6c7d2061f2d35f4b42490111e95",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793087410843837167,
+    "dev": 64769,
+    "ino": 148011517,
+    "mtimeNs": 1793087407499854992,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 154,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0154.bin",
+   "recordSha256": "5d35056388b3981e244ccdd61568c84015be512a98af9882840ad7e8ca3ae9e9",
+   "sha256": "76be124f4649ae6559506e9d8aeca358d16f3cd86e51b678d51eea18083ed6b2",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793087495796366176,
+    "dev": 64769,
+    "ino": 148011519,
+    "mtimeNs": 1793087492480385180,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 155,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0155.bin",
+   "recordSha256": "5b45c460f7884834b045645daab94a484ec3ee4ca0088e055ab996b6f8aac877",
+   "sha256": "5dac2ce57b903ab2d569c0a47ec0554dbe78c73ebff2e7873708aafa110ada3f",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793087582508853241,
+    "dev": 64769,
+    "ino": 148011521,
+    "mtimeNs": 1793087579223873203,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 156,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0156.bin",
+   "recordSha256": "f3eb69636be92df34896d9b454b87204198d315b611df4c04ddc15aaa401785f",
+   "sha256": "1d0ad39c7871ca32f5eb638725b369e740460f92e1055de16c65338ff3b50eaa",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793087667354324722,
+    "dev": 64769,
+    "ino": 148011523,
+    "mtimeNs": 1793087664041345801,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 157,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0157.bin",
+   "recordSha256": "62e5cac1df324effab0f8a72f7c26f326f27f0929764ac8c0f160c0ad608f695",
+   "sha256": "d0caddc4074157a57365064860749195c4d5ab9d4cc2ad161b3a5494f5a59855",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793087753428765794,
+    "dev": 64769,
+    "ino": 148011525,
+    "mtimeNs": 1793087750136787548,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 158,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0158.bin",
+   "recordSha256": "8633db82816ed91599c3afa8de23046a235f858058b34da360205ca4f909feed",
+   "sha256": "a460ce376541e238ddcbff3b97b9ad1ae9ffbaa05674c65945c5b46381206a65",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793087839329188669,
+    "dev": 64769,
+    "ino": 148011527,
+    "mtimeNs": 1793087836046211043,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 159,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0159.bin",
+   "recordSha256": "5cac248b3bf057523b1386d61291857dd9a1b8e88ab5cf0f95f46b58e3b588b3",
+   "sha256": "9009810298e32f45ae1281d9edc3a962329454886945c0c56a59f6f0f360a329",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793087924605599586,
+    "dev": 64769,
+    "ino": 148011529,
+    "mtimeNs": 1793087921295622720,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 160,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0160.bin",
+   "recordSha256": "753d578d7791ae9923891ba0f597265d313c210b9e16a695f97cf15c79ddd910",
+   "sha256": "07e8b215eefb9bee14ffd2d73cc99fafaeeca34af7c8ef138d7aad4752b42821",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793088662289109962,
+    "dev": 64769,
+    "ino": 148011541,
+    "mtimeNs": 1793088658946135772,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 161,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0161.bin",
+   "recordSha256": "fef397e3b5de4605ff5373890c148ac2656a2af12d55cf20dee4c2d82ea46f3b",
+   "sha256": "7523f46d3d63d9f7d8b5d795aa01c49a54a819a4b503921c3492209697d3cb62",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793088752906408533,
+    "dev": 64769,
+    "ino": 148011543,
+    "mtimeNs": 1793088749640433869,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 162,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0162.bin",
+   "recordSha256": "01c45e54ac0f145c8df28a0824f45d6808539df0e8217ca759dfcdd06fbf45d4",
+   "sha256": "86c5f6fcb27b14c41ab791dc78330d9ae2776159161a040aec087232a9de0585",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793088853221628507,
+    "dev": 64769,
+    "ino": 148011545,
+    "mtimeNs": 1793088849916654258,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 163,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0163.bin",
+   "recordSha256": "0e69662b769204bc7e58034701f60e835759850089973994414a235d75c2f04e",
+   "sha256": "0982b985de3c910ccb01944d468ee3df6c043a1bfce5d4afe3f9a9d17abda5e7",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793088954263839727,
+    "dev": 64769,
+    "ino": 148011547,
+    "mtimeNs": 1793088951021865077,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 164,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0164.bin",
+   "recordSha256": "9b0c2702e7326da6d979bf29917da688f5a6c4dbf30ebcf8ac02b458cc31b994",
+   "sha256": "8b56a2ba94d313d98ff2f8ba060843cbdb939c7841f6ab297b67c7cf6f53396d",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793089056386039921,
+    "dev": 64769,
+    "ino": 148011549,
+    "mtimeNs": 1793089053097065715,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 165,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0165.bin",
+   "recordSha256": "d799daf7bb0799a4ff0e10d1ea48f099390310e73e66a4793494349e847c965c",
+   "sha256": "44c1b0bc098fd5824182caa06a026e7df2a982c69b9622a42a109b75f381f308",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793089157419246538,
+    "dev": 64769,
+    "ino": 148011551,
+    "mtimeNs": 1793089154160272158,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 166,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0166.bin",
+   "recordSha256": "2869e3baa4dda8b864f532ebc21a67914974b65f36d1809f2438093ea1dd3de7",
+   "sha256": "f2884041fc1aed5d001d0b430bb60abe2c62a3678cf357368712054133c09845",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793089258994447168,
+    "dev": 64769,
+    "ino": 148011553,
+    "mtimeNs": 1793089255697473138,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 167,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0167.bin",
+   "recordSha256": "254f92035a879f0d95293db0d8484a359e65f0b067dda259137109292d91252e",
+   "sha256": "ac9d9c79bb842b7f2ebbe11450512f5d86bd1ebdd0a6db684c9426a969f7c348",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793089361661768613,
+    "dev": 64769,
+    "ino": 148011555,
+    "mtimeNs": 1793089358346787176,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 168,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0168.bin",
+   "recordSha256": "af51c06a91b05add1f8f717a57d1fe866bd9c01a8053f1ef4a6f6d086ae08914",
+   "sha256": "ba2903ff4c69325fd37c2be0d35b61fd15f2d99ac7dd3e37dc73b6b80449fd7d",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793090211945157467,
+    "dev": 64769,
+    "ino": 148011567,
+    "mtimeNs": 1793090208635181216,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 169,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0169.bin",
+   "recordSha256": "e80cabc6ad3a1002da1b05a5eadade3b37648d28d0924a4c8f076d8c8924f4bd",
+   "sha256": "1f5e4167727814f0a4c7396b1672a42e295bf8727439d77ad5e642eabbbd9ead",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793090298691532407,
+    "dev": 64769,
+    "ino": 148011569,
+    "mtimeNs": 1793090295360556498,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 170,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0170.bin",
+   "recordSha256": "0a840e9211612fd94bccd0147226aaa14788fe5aca7b84a1131a028460305010",
+   "sha256": "1573d9b66a25c2bbbd64a84bd8f037efad56c6c1a28aef850b8bdc9911cce0a7",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793090383338918056,
+    "dev": 64769,
+    "ino": 148011571,
+    "mtimeNs": 1793090380056941949,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 171,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0171.bin",
+   "recordSha256": "ca64f92285877f1d5313ffc8438963c0e5136c2604b40e0cde4e8d77cc096bd3",
+   "sha256": "8b31da9685b960ab230d5422ca042d9d0a1636a9c994d9b36181f55d24733485",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793090469169291353,
+    "dev": 64769,
+    "ino": 148011573,
+    "mtimeNs": 1793090465543317897,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 172,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0172.bin",
+   "recordSha256": "8b5e55a8c3b30b808f9128dcde05819ba357efdf1e14ff577993e0919a65e4da",
+   "sha256": "925df45cd9262bec940d933ed35d473c98053575987210a6b98fc633ef4910bf",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793090555099660705,
+    "dev": 64769,
+    "ino": 148011575,
+    "mtimeNs": 1793090551797684991,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 173,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0173.bin",
+   "recordSha256": "931c5469886f0397e6f8269a4d19a2e3f6b18e026d70db7e920859a47274d186",
+   "sha256": "bddb00758be86f361e08e690f77c24a6c6a9bc4dd3de6f2e3e0c5f76aeef02fa",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793090641440024309,
+    "dev": 64769,
+    "ino": 148011577,
+    "mtimeNs": 1793090638161048522,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 174,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0174.bin",
+   "recordSha256": "31842bbc75fc9e2937022e76f48dfc1ed4ac42e90fbad4f2e2fba6bf068f9263",
+   "sha256": "aa0df5657f00c2e44423fcd8357644b738b5094a9adb708dcbad84bc3472e067",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793090728816377918,
+    "dev": 64769,
+    "ino": 148011579,
+    "mtimeNs": 1793090725505402451,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 175,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0175.bin",
+   "recordSha256": "c943b873fa35b9330ca40fad6a1b447859ea24f24a74e07bbd4e6dbcd0834ba6",
+   "sha256": "f9da1fbc536c1d0d9cdb34154156d168615a964adc1bd4a5c36de60a2008579e",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793090815768732676,
+    "dev": 64769,
+    "ino": 148011581,
+    "mtimeNs": 1793090812463757233,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 176,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0176.bin",
+   "recordSha256": "ee1524ec646eec2f71963984e7cd5ff249006ddf388b48f3683c9544463ec844",
+   "sha256": "827acdcbe0be102ec836d9f548038fac818ff9f3b37527e515535348c3ff1037",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793091561310392787,
+    "dev": 64769,
+    "ino": 148011593,
+    "mtimeNs": 1793091557994414477,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 177,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0177.bin",
+   "recordSha256": "c64987bd19c378f38c6fb2a56cfc0830645391da5c45eddc200740e700fba737",
+   "sha256": "815b0e003a78e7ef4ae4b919bd6b367bf5087b6dc1fd0d210529887aaa5701c1",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793091646971826510,
+    "dev": 64769,
+    "ino": 148011595,
+    "mtimeNs": 1793091642944853374,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 178,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0178.bin",
+   "recordSha256": "83c0aa84066ab61e3afdd9e2ea28dccfbb10b554c09975d5993073a0410ab828",
+   "sha256": "36bfb6a2e7bdb2d5abf5d16437fd1686316560ffd480ef9b55a463be9e9ffa5b",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793091732562250469,
+    "dev": 64769,
+    "ino": 148011597,
+    "mtimeNs": 1793091729210273201,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 179,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0179.bin",
+   "recordSha256": "5e7931456fcb78d04cd2437fcea59fa113212a62bc7afa8b5ecbfbd07caf799d",
+   "sha256": "06481621dbe28de577ab4c51e03ddd36edc8f33c14d58c7aeccfb1b7b1b64f60",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793091820410650248,
+    "dev": 64769,
+    "ino": 148011599,
+    "mtimeNs": 1793091817085673114,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 180,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0180.bin",
+   "recordSha256": "1d03d962bb301fdb243cbf5fd1566cd748a41eba9142deb47acbd6189d9e43e2",
+   "sha256": "a63144dd92434fa0cc016ececf6e9fe7c08e3545d97e9f1272a0718c624bf3a9",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793091907467047861,
+    "dev": 64769,
+    "ino": 148011601,
+    "mtimeNs": 1793091904125071110,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 181,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0181.bin",
+   "recordSha256": "694282547c42f6bc913c6eb02e40bdb766aadbf3adb22b183f274432abfa1ddf",
+   "sha256": "339b93b63c6f5f75c780397b98d07750c7c6badb97e61ad431b81f3ef1bb006c",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793091994483439395,
+    "dev": 64769,
+    "ino": 148011603,
+    "mtimeNs": 1793091991166462693,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 182,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0182.bin",
+   "recordSha256": "5a2e7e963571300ed03e3f3025bbaace87f77f3ceed9fda75c7941862f672e69",
+   "sha256": "78ec69557d22206b3ab7da0b8d3b18848fc16e4c055cd2fbc4e6d078e7737a4c",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793092092668746440,
+    "dev": 64769,
+    "ino": 148011605,
+    "mtimeNs": 1793092089358769898,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 183,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0183.bin",
+   "recordSha256": "c4b19fbc099765ba1c619e94599fbb358184e1a596f5321e22ee3e94e0154d5e",
+   "sha256": "3655e7e7b9c2fff7b2a0dd96230fbfc3137d1b6ded8a7c10fc867a4025c18c9d",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793092198489993313,
+    "dev": 64769,
+    "ino": 148011607,
+    "mtimeNs": 1793092195184016928,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 184,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0184.bin",
+   "recordSha256": "879dfd65c87fdb0d020c87259010a672fe254ea810c0ec6ce9d6236920c66920",
+   "sha256": "29db1dec0c364f3395b6bd4e29a049429bf8ad616cc0ac76c81c55d858668c72",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793092972003376604,
+    "dev": 64769,
+    "ino": 148011619,
+    "mtimeNs": 1793092968678400985,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 185,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0185.bin",
+   "recordSha256": "33df9985a62180675df8b9c6d82554b34a0079e08c39aa6ad25aa030961e2bf0",
+   "sha256": "7352fbb5d303b10e37658b3d076deb6988fd6d497c5beeb02989983646d9e441",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793093057600748571,
+    "dev": 64769,
+    "ino": 148011621,
+    "mtimeNs": 1793093054280772943,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 186,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0186.bin",
+   "recordSha256": "2fcd78e114c6ce4984ab01e77c08dd7b045d3f4f172e1686a0f0d7e07f78cb1f",
+   "sha256": "c11ea63fe3ba546ac728682dc7efc55c1365cffc290b52120e1155463def6489",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793093143652116554,
+    "dev": 64769,
+    "ino": 148011623,
+    "mtimeNs": 1793093140281141324,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 187,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0187.bin",
+   "recordSha256": "1e41012bfd9ff29d7a2bd35cf7391e9454ec84d0c9314f3f12737f4adbedf081",
+   "sha256": "f4cec22594e9897f7660e25134497e2b88223526bf220564c74da85274c55689",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793093230539477835,
+    "dev": 64769,
+    "ino": 148011625,
+    "mtimeNs": 1793093227226502198,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 188,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0188.bin",
+   "recordSha256": "24adf9d64a1fc643b9560bd7e0aa53bd44543287541873022dde1739565e85e8",
+   "sha256": "3dd1a46c234b265be58eb0b3a7db91f0134e510600d8380c99821e8a255d636b",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793093317180840449,
+    "dev": 64769,
+    "ino": 148011627,
+    "mtimeNs": 1793093313865864843,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 189,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0189.bin",
+   "recordSha256": "c4a6594951dbaa23ba32b7af60cad712d519606d8d372b3943b8c2aaae29a852",
+   "sha256": "d820f87bd930c7db7930e1e63cfd4f0ad962b35f046e443b5e820df0049d60b3",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793093404291180832,
+    "dev": 64769,
+    "ino": 148011629,
+    "mtimeNs": 1793093401017223316,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 190,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0190.bin",
+   "recordSha256": "aa7d98cd18b1c5aa366968737805e80a067136fe5ccb3458685fa7640cf7b19e",
+   "sha256": "3a02411bce2b8ad56947b887438607d39bd4657fc8366697b65f7d1a14c145af",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793093490717428194,
+    "dev": 64769,
+    "ino": 148011631,
+    "mtimeNs": 1793093487413492228,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 191,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0191.bin",
+   "recordSha256": "939c669e7598cc63ab5aa8d2d740b51e5c05889a7642d5c7533f6b6466f8e341",
+   "sha256": "636233bfd1d459c75a9d3b347ae2058efdc704fbafded97f760d78a50a637243",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793093577275825696,
+    "dev": 64769,
+    "ino": 148011633,
+    "mtimeNs": 1793093573982884156,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 192,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0192.bin",
+   "recordSha256": "54216b9aee562c23d2f0fa394dca789ab56cf548dd213db2a3728eb7a378b8ff",
+   "sha256": "659895905b57d193da16f748f6003b99f15c7d08d547471e9b370775a5e5668a",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793094323311710916,
+    "dev": 64769,
+    "ino": 148011645,
+    "mtimeNs": 1793094320000747279,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 193,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0193.bin",
+   "recordSha256": "3178a2aed9d779f49db2b70feca1f6b8895e22825243366a82a743299f3c2a9e",
+   "sha256": "9ba0c25857301b2ca91523fc697743826abaed29db2724a78f6d42e37eb445f8",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793094423624628755,
+    "dev": 64769,
+    "ino": 148011647,
+    "mtimeNs": 1793094420291664142,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 194,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0194.bin",
+   "recordSha256": "d14bb91227a2e5af1abb262828f590d12b21847126ebc5caac49d0e1a394cff7",
+   "sha256": "fc9e36de17ed81448c1ae468f46e04a4d58bc73976f401024b5e3eaf028c0d84",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793094524816570712,
+    "dev": 64769,
+    "ino": 148011649,
+    "mtimeNs": 1793094521452605409,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 195,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0195.bin",
+   "recordSha256": "4a3a73683f65dc919e41f13e8be262b1f1968076cda26044664c8fa7676a856f",
+   "sha256": "d3c53d2fd9dc9da4f21912f38e1dccb5f3b0779057657eca74662b6ce1510976",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793094625565544832,
+    "dev": 64769,
+    "ino": 148011651,
+    "mtimeNs": 1793094622260578103,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 196,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0196.bin",
+   "recordSha256": "3565fcd42e944afce0789e32aa3e5442df6c122b8a68ba2ed018b4123bff3d45",
+   "sha256": "099abe95ca6d90e59974a02d781e7f164c589b3c0f89d21557c3882fa616f2c9",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793094725735547216,
+    "dev": 64769,
+    "ino": 148011653,
+    "mtimeNs": 1793094722460579522,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 197,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0197.bin",
+   "recordSha256": "51fec0b12d39a43440fed948a257040d45921b5f30bfa37dd0c29ded6a33aad9",
+   "sha256": "0d3591b4857c1a933193e1b664a0c43ba0587644610eb475db409e36e4f92fb0",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793094826153565523,
+    "dev": 64769,
+    "ino": 148011655,
+    "mtimeNs": 1793094822870597362,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 198,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0198.bin",
+   "recordSha256": "7a167ce17395d1441ba10102f7e27f25275451580086050aa46d189516808929",
+   "sha256": "18d63ce4975d809026a61fef6b5a7f35c2ae9436acc455c1115e74e4087631c0",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793094926553599140,
+    "dev": 64769,
+    "ino": 148011657,
+    "mtimeNs": 1793094923300630243,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 199,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0199.bin",
+   "recordSha256": "1bf14e6bd9595b89d6143e449237e34e0fe916c0a21b490630a07ef37e93a074",
+   "sha256": "ec99dcf329cd9017532148fd32f4764a85d1cff7c1ce05d055b8ebba2694a19b",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793095027497640053,
+    "dev": 64769,
+    "ino": 148011659,
+    "mtimeNs": 1793095024234670882,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 200,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0200.bin",
+   "recordSha256": "79539d35d4ecf8a98f8c38fe9cd33defa3888bd480c390ea5563516b092e8dd2",
+   "sha256": "ef27135b0a4a69b9c45d24f85109c73e5a15f858d4e66e201e85486e131e763c",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793095878257913034,
+    "dev": 64769,
+    "ino": 148011671,
+    "mtimeNs": 1793095874994926089,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 201,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0201.bin",
+   "recordSha256": "5548b616c52897946bc1d580b0a05f6eb62c14413d31b62cb10a38002724cf9e",
+   "sha256": "bad60cc1e63da9b256c0311fdb8845a3086ba4953fa3e722bfd6caa4cde7c769",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793095964444540935,
+    "dev": 64769,
+    "ino": 148011673,
+    "mtimeNs": 1793095961152556061,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 202,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0202.bin",
+   "recordSha256": "208372fe1ca95c81dd1d01592350fc7c3bc6cfd5cc1f5fcb26c5aca664a9cb6c",
+   "sha256": "bf8b059b13a3bcf21e4a0599c3484e91dd4eb47df15ec4da3c968bc5be4b088c",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793096051360118153,
+    "dev": 64769,
+    "ino": 148011675,
+    "mtimeNs": 1793096047475137962,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 203,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0203.bin",
+   "recordSha256": "6acc0695d6fb03eb8a586261563e307a1c8f9f114d165efc116fb16581679bae",
+   "sha256": "9de54924555d368fac1c4d05ca8c4e1caaf94599b2cd9ef925d550c46aebe05b",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793096152433576271,
+    "dev": 64769,
+    "ino": 148011677,
+    "mtimeNs": 1793096149133594719,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 204,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0204.bin",
+   "recordSha256": "a0f24ce3804904856fe3300700c0d2243c9c7399fc769fa5af8b4227b595efa0",
+   "sha256": "f69efb8bf527763f65fe816b1c0ccbb4b4e92dbb5a2830753338ea8f0637c059",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793096262739934099,
+    "dev": 64769,
+    "ino": 148011679,
+    "mtimeNs": 1793096259409954162,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 205,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0205.bin",
+   "recordSha256": "c965a786de9031a0a4d8bd4d25b971b06474e847f7529eff40fa3c491a625bb7",
+   "sha256": "9b3c454bdde573426ff8e775931aff7728748adde3119ef4d51420983b765710",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793096373252247617,
+    "dev": 64769,
+    "ino": 148011681,
+    "mtimeNs": 1793096369979268485,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 206,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0206.bin",
+   "recordSha256": "5e25e9160e8338df329f8ebbbcf914e2247bde1c0dbe9aeb9c4c4c7137abfcbf",
+   "sha256": "5cf3d06b5a9da695a65536003bdf22de34ba1fb5dda69c65de38e4bd64eb9f92",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793096482896532144,
+    "dev": 64769,
+    "ino": 148011683,
+    "mtimeNs": 1793096479586554177,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 207,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0207.bin",
+   "recordSha256": "6fe13aa55f44b75dedfcb20b5c59b3a1be40ab1d0c8a515adf24bfd644493e13",
+   "sha256": "459ca230bfead0e6637ea3bc82546722ab663f9d150639c229d5577d38f41c76",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793096592131791864,
+    "dev": 64769,
+    "ino": 148011685,
+    "mtimeNs": 1793096588817814672,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 208,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0208.bin",
+   "recordSha256": "5f870857fddce48afdda8befd3194c87ff367fa7df23b8d22459d322fb1f39ad",
+   "sha256": "f8654a45b826134d21695ceb5e1c596b29e197501fefea67b79608add1468143",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793097447516486085,
+    "dev": 64769,
+    "ino": 148011697,
+    "mtimeNs": 1793097444175511654,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 209,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0209.bin",
+   "recordSha256": "201b4c5f00a198df984c1fcd984919281698c7f153abfbc634d8dd4e198e66f6",
+   "sha256": "fb7225ca2ba44bc3a3d163a521f79d97284b4174f168527e6868fe7f01ef91d0",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793097533891785748,
+    "dev": 64769,
+    "ino": 148011699,
+    "mtimeNs": 1793097530633814323,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 210,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0210.bin",
+   "recordSha256": "fad3308e45b8e2924a313b9b0f7f21e59bdc6b89a33a17e5fca034c23aa7bcb3",
+   "sha256": "7af892d1fb452813434b50f0a4f81f2c75ca182dc05a3fbbab0749c10b3af2ff",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793097620523031561,
+    "dev": 64769,
+    "ino": 148012462,
+    "mtimeNs": 1793097617239059963,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 211,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0211.bin",
+   "recordSha256": "937cdee9cc083b4b43fe6a520938d27086ac35ce82cfe898016124055dc819f0",
+   "sha256": "6fa48ae7dd67533e5ac3a45d8ba70795705802069957fedfd037860221d3e283",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793097705623300151,
+    "dev": 64769,
+    "ino": 148012699,
+    "mtimeNs": 1793097702328328314,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 212,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0212.bin",
+   "recordSha256": "6aec5a80baa689e7527e6a3078c110020b73c3b04b70080ef7d6ccc0d570f117",
+   "sha256": "9676cc9f823819e74aee1d67d6e38b99da8f4afb7e6d7ff640e484146d58be2a",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793097791459570435,
+    "dev": 64769,
+    "ino": 148012703,
+    "mtimeNs": 1793097788184598144,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 213,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0213.bin",
+   "recordSha256": "5f2d29178f880cff51552746ef85c6cc7d370a3adf09f809d980ae4ab6a9cd83",
+   "sha256": "f50d4be01fee4a513e7ce3237d78b440563175d971cd0529e034d8390dc1afe3",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793097882221806232,
+    "dev": 64769,
+    "ino": 148012925,
+    "mtimeNs": 1793097878971833479,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 214,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0214.bin",
+   "recordSha256": "8193de259f435d39ad1f844437a4770f04e2b67c9d68335eab7e1a4f1f2637cd",
+   "sha256": "f3ba474974329a121639e564c53fa472bd4c81cc148ab40cccb58140c9eae8b0",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793097985703942654,
+    "dev": 64769,
+    "ino": 148012928,
+    "mtimeNs": 1793097982407970047,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 215,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0215.bin",
+   "recordSha256": "ebebe9eeb23ebb3b49a38816ba8fd650a774199e21bb257e740189b4e6af14ae",
+   "sha256": "f12ae033d0ce2130f6b925d2ff51df6a98ed44da940d4d175a8235e3aabbe382",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793098089338084602,
+    "dev": 64769,
+    "ino": 148012930,
+    "mtimeNs": 1793098086047111759,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 216,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0216.bin",
+   "recordSha256": "4ff802d886b2cb4f6136acef1ca2ec9fb795883163e23e2704259a7ea896477f",
+   "sha256": "df590f2d5c0ec942d14008a1eee1f8141227032fadedd979d2195e1399ea43e5",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793098877735681386,
+    "dev": 64769,
+    "ino": 148012944,
+    "mtimeNs": 1793098874484707536,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 217,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0217.bin",
+   "recordSha256": "0bedf811526d7915204685735a33e4a2f8a7953eaec858d50ed05b94d6594b59",
+   "sha256": "b006788556963e4861502d697de3785bd159bc3bc3d0137d321be3870e32ab2b",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793098965170978469,
+    "dev": 64769,
+    "ino": 148012946,
+    "mtimeNs": 1793098961860005073,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 218,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0218.bin",
+   "recordSha256": "2516262fd07cc9fecbde16c21e4f131527ff9dadd4c4f89c2181f3504be2969d",
+   "sha256": "d6f2a43c81df01206b0225ed957fe95d05bd0a54e4b5f2834ce2c3e95dd991cd",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793099051398285962,
+    "dev": 64769,
+    "ino": 148012948,
+    "mtimeNs": 1793099048090312518,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 219,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0219.bin",
+   "recordSha256": "4d3fff0107092cdd7b7dceea395e7551a726f4f360c3bd48a15bb9e76189eb70",
+   "sha256": "5973aad7618b4003a33e2c6338d79188ef4b66475ce15f0d126d2745deda4a07",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793099137968591290,
+    "dev": 64769,
+    "ino": 148012950,
+    "mtimeNs": 1793099134675617705,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 220,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0220.bin",
+   "recordSha256": "3dac698239cdc48ad24dd28fe5bc2dca0db271b8329e8efdb5e3b34b54f371cd",
+   "sha256": "e85cff5b58c446de89da843016e6f22840578195085040b577ffd2285ab09f50",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793099224765895297,
+    "dev": 64769,
+    "ino": 148012952,
+    "mtimeNs": 1793099221485921589,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 221,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0221.bin",
+   "recordSha256": "ef180a2bb9a73ffecf38bca08dd4d0322ae21ee2349228fb113a45737b1945e8",
+   "sha256": "0f7e44499ebfb648b577a99e11f54a672e934a4b02dad5c735df5d5ef214136c",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793099312893189071,
+    "dev": 64769,
+    "ino": 148012954,
+    "mtimeNs": 1793099309575215653,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 222,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0222.bin",
+   "recordSha256": "67ff25a89fdc8dec18584691bccc228747dc26f5fc0fc97e2459a0d86416878a",
+   "sha256": "d3be10c46c9ccfd02c80a4283ed94327c8cc05fa18b55eb9825810c9103cbd0d",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793099400146490210,
+    "dev": 64769,
+    "ino": 148012956,
+    "mtimeNs": 1793099396806516956,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 223,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0223.bin",
+   "recordSha256": "6258aae66fd7acd303ef301c86caa3d714a40741ddefa2f01960ace1b9607dd0",
+   "sha256": "5c09be9c1b03479384fd3955ca790fc588ef807190dfd7641fe7d53fab5cc54d",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793099487609789972,
+    "dev": 64769,
+    "ino": 148012958,
+    "mtimeNs": 1793099484315816339,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 224,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0224.bin",
+   "recordSha256": "dab0d93cedd235626806ff95cb0734424fddd474f2b38fba1166c043a48dadaf",
+   "sha256": "ba884f145323f7fc4ab272a31fe07be19b2bec6c28b4450c79caf8254f43c29c",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793100237926352485,
+    "dev": 64769,
+    "ino": 148013326,
+    "mtimeNs": 1793100234610377442,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 225,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0225.bin",
+   "recordSha256": "3ab7ecde319cd5d56a5ea5b490e05c9fc0c858b19b3824020103b0bb8a22fee4",
+   "sha256": "2b9a5e33ce7bb497b869aafcd2d19633144fecb59c0373fbfa9e9be9fb7c22d5",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793100333693629002,
+    "dev": 64769,
+    "ino": 148013328,
+    "mtimeNs": 1793100330381654105,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 226,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0226.bin",
+   "recordSha256": "7839cee348f4bc5bb95684d3bd30cc4e8cd961793b4274d690f18d532c0dd715",
+   "sha256": "863a405947cd400c686713780543bec5314e1bfaea496e5652cd03d60b5f84ad",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793100432428878256,
+    "dev": 64769,
+    "ino": 148013330,
+    "mtimeNs": 1793100429137903349,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 227,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0227.bin",
+   "recordSha256": "9ebb272957ecc6d50b17eef40e67dfeea6ef8b0ae528188dd925004c28f7b237",
+   "sha256": "ad8a85c055b305853d72bf400daf94980093f45f63b3645d735d2b58f9343631",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793100530111131518,
+    "dev": 64769,
+    "ino": 148013332,
+    "mtimeNs": 1793100526816156763,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 228,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0228.bin",
+   "recordSha256": "9b86ea4e223fe3742529b15600faec36ebbb8e347e6b5f0ff5fd6fe498a228fd",
+   "sha256": "7b7dd817f18b6bcaa3c27d1cff764286709e6135b7b50bbc40dcce99039bacc1",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793100626760389443,
+    "dev": 64769,
+    "ino": 148013334,
+    "mtimeNs": 1793100623448414919,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 229,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0229.bin",
+   "recordSha256": "66a6222fcbbd8358d3ab81559331d592bd8ff8241bbdb49c1a5edf3d6ce45662",
+   "sha256": "2a2869df58f6d58a186ee7a0eb96943c763c9ffe9218cea2ea8d54c9c45668a2",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793100722572651166,
+    "dev": 64769,
+    "ino": 148013336,
+    "mtimeNs": 1793100719184677312,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 230,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0230.bin",
+   "recordSha256": "d119837baebb8c939950ce4476a8ee96005b6b15afca88d7681f3f3c7641234e",
+   "sha256": "8030b48aecbab753ab5820565d204de2df4bf104e21328f8f2f86ce272d22646",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793100822329880194,
+    "dev": 64769,
+    "ino": 148013339,
+    "mtimeNs": 1793100818998905971,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 231,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0231.bin",
+   "recordSha256": "83566dbc826e5ed04b2572d9f838d96255880d309979dee5667984f8877191a0",
+   "sha256": "473144ece6b0513eac7dfe3fa010e98eab4a8e77757780179ab7c5843a2cb043",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793100919637126290,
+    "dev": 64769,
+    "ino": 148013341,
+    "mtimeNs": 1793100916324151985,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 232,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0232.bin",
+   "recordSha256": "384b2ab89774c767e38fd5afcac2e7420ce4f9378dbbe96ddd96c26f7a0de005",
+   "sha256": "d6d1885b695c8f1de5eba9075f19228fbaa002498b2e1196819bbfb2e94a7395",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793101730704642683,
+    "dev": 64769,
+    "ino": 148013353,
+    "mtimeNs": 1793101727449671585,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 233,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0233.bin",
+   "recordSha256": "c1e165b9f7ce05bb34ad87825743dd09ab533f5236a949563b94d97864b85c8c",
+   "sha256": "df2505cc240857a522908260c1a8c87f87726af2f1de1271a9b47b6da786993d",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793101816140890346,
+    "dev": 64769,
+    "ino": 148013355,
+    "mtimeNs": 1793101812851919097,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 234,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0234.bin",
+   "recordSha256": "dd5fd4c9804cf9558741514b5b81884be8966ad603e4f16f5253559b907d1720",
+   "sha256": "fefb11e2a484dd44de0773af89e07baa68709c8d69c16ceaea1325188c902083",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793101909679079002,
+    "dev": 64769,
+    "ino": 148013357,
+    "mtimeNs": 1793101905973110929,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 235,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0235.bin",
+   "recordSha256": "fae6e511614c39bac2d79b4318c6f45ac6e9311a541ae89d7b30d06bff733073",
+   "sha256": "66135d9f70051d1a9626804c77a000556290696adfb3800727d9ed39ef633d6d",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793102022051118409,
+    "dev": 64769,
+    "ino": 148013359,
+    "mtimeNs": 1793102018803145985,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 236,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0236.bin",
+   "recordSha256": "d1d8122e964183c5baf2d6b5098ff8e432e0c79b69e85ddd28c9f4f1f4dcb8c1",
+   "sha256": "08c13addda9dd280261d1c52f44cd2b43b67714116ca36fd9c31617599e5a649",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793102134817167038,
+    "dev": 64769,
+    "ino": 148013361,
+    "mtimeNs": 1793102131566194313,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 237,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0237.bin",
+   "recordSha256": "676042e3ecc742cb7cc09604316ff7563b7cb13880b42c4db2d1d4bb869078dd",
+   "sha256": "521e47d253f58a2225678d053e9ca837125d7ceba10918484905dc8914a9e365",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793102248073221716,
+    "dev": 64769,
+    "ino": 148013363,
+    "mtimeNs": 1793102244801248903,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 238,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0238.bin",
+   "recordSha256": "a801112cd02225e5ebc9f242e7a7a2c7d375c3ad38fc984564af20679df47b5c",
+   "sha256": "945c21c0b39ab737a3fd17ffd5a3b80df13bd91af35c962e20da215f7aa4475a",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793102361243285284,
+    "dev": 64769,
+    "ino": 148013365,
+    "mtimeNs": 1793102357962312333,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 239,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0239.bin",
+   "recordSha256": "50ba5d5a2a1c4268a527cb0256e185c5534a345cbf6d91c38fc677a2b03f2420",
+   "sha256": "3960ad57609a4e98de61f41d3f7e2ec3d7feb1eabbdc125dc80e8a74dc65eb67",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793102474012358684,
+    "dev": 64769,
+    "ino": 148013367,
+    "mtimeNs": 1793102470718385670,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 240,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0240.bin",
+   "recordSha256": "3fa74bfe3e0aab35c2f0a5a4e3c88978e4f6300026923f978ffb43fe0801ce0e",
+   "sha256": "47e72d80a935c851fd872bf4987454eda40c9bfc6c25cbbefe2a6b3d1588dfd7",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793103367456138023,
+    "dev": 64769,
+    "ino": 148013379,
+    "mtimeNs": 1793103364124164745,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 241,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0241.bin",
+   "recordSha256": "77341f6bd0fb81561951d6a84811b68a9c18bef749efd538377728b9394bb7ef",
+   "sha256": "82b7877c3263fb6b459e8c415554c540591774d5f8cd2b180f0e6677a5afda28",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793103453038451942,
+    "dev": 64769,
+    "ino": 148013381,
+    "mtimeNs": 1793103449682478837,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 242,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0242.bin",
+   "recordSha256": "55ffdb51192b848e0bd042b69dc54107fab656b51ff997ea9a0319075fd01ec5",
+   "sha256": "e43d83cc0e420beeb29dcd083d733630ba5fd9b4d6a0c298b8729e0d70ed3e4c",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793103538428767840,
+    "dev": 64769,
+    "ino": 148013383,
+    "mtimeNs": 1793103535100794495,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 243,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0243.bin",
+   "recordSha256": "7337b3ae62cf5641ef5fe9b1d61e90ebaeb963b20ccb551e9da70ea556150c82",
+   "sha256": "264cec97f3a50b4805cf630357b563235d9707deb5e6af889375bd6ab02d8590",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793103624511078572,
+    "dev": 64769,
+    "ino": 148013385,
+    "mtimeNs": 1793103621160105397,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 244,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0244.bin",
+   "recordSha256": "872c9bbbd856a8f810ac68bd12721e82437ddbff83cec5637b724d057a12d598",
+   "sha256": "15da0eac8fd8e2a4c4b9bf6ccb5e4b7668e2a44a4d16edf1ff9d92b0d139ee56",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793103710654288755,
+    "dev": 64769,
+    "ino": 148013387,
+    "mtimeNs": 1793103707372319694,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 245,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0245.bin",
+   "recordSha256": "22ae24d11edcd7c798d4d35d0ee5101759c8a39d6e5902af18e9f481ce6ad50f",
+   "sha256": "9f5adc59e39cebf14be9cc8953c1a26a5cd04fc553b10c29595330f5fc4594e4",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793103808137381162,
+    "dev": 64769,
+    "ino": 148013389,
+    "mtimeNs": 1793103804898410986,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 246,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0246.bin",
+   "recordSha256": "577fd7439d3e3086b71436e8944eafe5fa560208824aaf2b335fedfd5e46d6e1",
+   "sha256": "899a5578d1fb4949f914094a00c872fdb684c67b32b1ae598e0aa47ba4231aab",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793103908752464733,
+    "dev": 64769,
+    "ino": 148013391,
+    "mtimeNs": 1793103905475494295,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 247,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0247.bin",
+   "recordSha256": "899cb6891d0718108060c4efb6028281237d944fb0565faa0459add000121305",
+   "sha256": "25878b3118e2ba63351b1552cf575a29f0140fd440e15448a33fcfa07a48b8cb",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793104010373556379,
+    "dev": 64769,
+    "ino": 148013393,
+    "mtimeNs": 1793104007130585133,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 248,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0248.bin",
+   "recordSha256": "7b6a3c1484272d3ddebd2af027f622f13cde95539ad72a74d9a63f69e1f5501a",
+   "sha256": "30e0376e3a2fa639792eaad95c1ff4fb8553aa2ae951dd1be2caaf6abee0da35",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793104793324884359,
+    "dev": 64769,
+    "ino": 148013405,
+    "mtimeNs": 1793104789979912171,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 249,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0249.bin",
+   "recordSha256": "f5677c980a67fe266d8a897ed24e888d537e206b03ab2536bd6014d597776372",
+   "sha256": "3e0ce38b3f83d2d8c98ce7b8a27de82021dc99017443daa83e552f0f3f7d03a9",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793104879251170982,
+    "dev": 64769,
+    "ino": 148013407,
+    "mtimeNs": 1793104875939198442,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 250,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0250.bin",
+   "recordSha256": "97f6b7d7c850756634c0bdec40bf7a5cc55a6b97f7cad1c016b6efd387dd63f1",
+   "sha256": "11e9221ebb0e3c734eaf89b58622e4df1f2452ca529112b7b72aaaae98e44482",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793104965953453045,
+    "dev": 64769,
+    "ino": 148013409,
+    "mtimeNs": 1793104962641480439,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 251,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0251.bin",
+   "recordSha256": "931166cfcf783d37220a4ee58322fe8005baa7d9ff0c7f46ad2e247529d98db2",
+   "sha256": "0ed9c41d15dbae16d051c46f1720d47c81757f858d9aa17fded43320d7ff6016",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793105052619737001,
+    "dev": 64769,
+    "ino": 148013411,
+    "mtimeNs": 1793105049302764379,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 252,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0252.bin",
+   "recordSha256": "75db0af41054bebcb6b7e5f2aa0eb60aa20077d38fe9e71bda0ff2d37a3d85d8",
+   "sha256": "20908ae038314795a6237ea35fce12102b8ffc3e868a2137b3143f05be2aa9d7",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793105138793026364,
+    "dev": 64769,
+    "ino": 148013413,
+    "mtimeNs": 1793105135467053770,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 253,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0253.bin",
+   "recordSha256": "0332b106805c98b85212a43a237be1bf702acb65a7fec40dc5ac19ed5e5b634f",
+   "sha256": "a60b31f01be66f7c470349bda30d1ca960ba1722438361b70b556ac4d73c0824",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793105225789310081,
+    "dev": 64769,
+    "ino": 148013415,
+    "mtimeNs": 1793105222484337274,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 254,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0254.bin",
+   "recordSha256": "246829c02d3dc9e78595a3a66aae99e5790b5d5f51235fe85c0e614262101407",
+   "sha256": "dd23481a5860ca8223e7d75388ca7b988502bfa20e18069f6e82df4d2a1d258e",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793105311992601282,
+    "dev": 64769,
+    "ino": 148013417,
+    "mtimeNs": 1793105308700628334,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 255,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0255.bin",
+   "recordSha256": "82a8949deb3ba55b5925a7dec1b4075e9d04e1ab9ae363bea593182c13866a9f",
+   "sha256": "9c4b8c87ca703d4dde7ad4db0ba49257145caf31a5b47e3971ffb0bd929c86de",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793105400587873648,
+    "dev": 64769,
+    "ino": 148013419,
+    "mtimeNs": 1793105397248901058,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 256,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0256.bin",
+   "recordSha256": "1c0f7a6a24f6cfb2d7af25785465427f84c3bdbac44789f5965f7f25ed9139e9",
+   "sha256": "c3f1d243678336c9fb9766a745b3a5a366b98822b02bdff55d7350803b78210b",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793106153671554035,
+    "dev": 64769,
+    "ino": 148013431,
+    "mtimeNs": 1793106150343576948,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 257,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0257.bin",
+   "recordSha256": "79b4d79764f4b641237986bf069b65c86f233d7a5cecb8dc9125b53588dbeba9",
+   "sha256": "6187a1f7a5f9ce75139ff4bb86e2ec344a893325ccd55f1025980f5c0f2d5aae",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793106240317951183,
+    "dev": 64769,
+    "ino": 148013433,
+    "mtimeNs": 1793106237044974164,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 258,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0258.bin",
+   "recordSha256": "e471288be9aefaba8740c935d1dfa8e942618641827c7f56fe8d7608895b8209",
+   "sha256": "e2303a6318ad68c5617a8f6245871494a7a8bc2aaba811435895ed489a1c10a7",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793106327513333575,
+    "dev": 64769,
+    "ino": 148013435,
+    "mtimeNs": 1793106324166357462,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 259,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0259.bin",
+   "recordSha256": "e4da5b2227fcc098e97f57a4c6cae7a94d7255091817def9123c4abdf803baa9",
+   "sha256": "096142b61473c8e76acb1c5cefbbf26fa897400b95cc30804fb18009220fae07",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793106414408708883,
+    "dev": 64769,
+    "ino": 148013437,
+    "mtimeNs": 1793106411092732872,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 260,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0260.bin",
+   "recordSha256": "f4dc1b6de744e476d7bcbee9bbd49e6d4b342bdf72f927d3a2b6aee5420b8314",
+   "sha256": "ab19be83d78d93faa738eac81e247d6e1cbe89e3fa5ee7a828e3dbf89bb31ca6",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793106501650073903,
+    "dev": 64769,
+    "ino": 148013439,
+    "mtimeNs": 1793106498360097976,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 261,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0261.bin",
+   "recordSha256": "5a43027dd44beaf2f405460fdf9d0a854b86c4900182c068a73d5ef7adaaae8b",
+   "sha256": "d2cf4a51efe1e13b238983b1481ec778b4cd9d2745e831252fe43f1daa61ea12",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793106588642434172,
+    "dev": 64769,
+    "ino": 148013441,
+    "mtimeNs": 1793106585336458591,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 262,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0262.bin",
+   "recordSha256": "b4ffc71a3302fe353822adae5bc6631b45ce45a1f472079f9fd1aacdbc27e61c",
+   "sha256": "593a035353f85b26811f9dc03e0360554905f7d10aee666806e5b8375cadd299",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793106676838779947,
+    "dev": 64769,
+    "ino": 148013443,
+    "mtimeNs": 1793106673519804658,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 263,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0263.bin",
+   "recordSha256": "c5cb45813ab1b1965361a0ed578d969649ff8664de9486df4a7a43b358cd5785",
+   "sha256": "0cc7acee274514e63a802e0bbf15f1886c69e2664c529d2965768525e24d49cf",
+   "size": 4294967296,
+   "target": "vm"
+  },
+  {
+   "destIdentity": {
+    "ctimeNs": 1793106700302605057,
+    "dev": 64769,
+    "ino": 148013445,
+    "mtimeNs": 1793106697529625743,
+    "nlink": 1,
+    "size": 4294967296
+   },
+   "index": 264,
+   "path": "/vm/enclave-volumes/tr004-base-recovery-20261026/parts-vm/part-0264.bin",
+   "recordSha256": "3649f6fd0cccc7d19409880e5ab6802a3f3818a28a3a5fe306bbdb90d17ee6b6",
+   "sha256": "fdcbef30c1b55613e3e3be17ca61c4badb6147ef88834f204fa83fac71d38696",
+   "size": 4294967296,
+   "target": "vm"
+  }
+ ],
+ "partsChmodded": false,
+ "r3MultipartSha256": "3159890b5bddcb763f578fa87b833931d695f4181dd447395bb40c2dff1c4381",
+ "sectors": 2222981120,
+ "statusAtImport": {
+  "copyComplete": true,
+  "parts": 265,
+  "partsCommitted": 265,
+  "partsVerifiedRecorded": 265,
+  "verificationCompleteRecorded": true
+ }
+}

@@ -1,0 +1,47 @@
+[queue] START available=23185MiB required=18688MiB cap=1792MiB floor=16384MiB concurrentSmall=256MiB
+## node v22.23.3
+## [A] regenerate the management vendor manifest (scripts/build-management-vendor.mjs, unmodified) in a fresh clone
+wrote site/vendor/management.js (70230 bytes, sha256 05209546a4b0b680…)
+## manifest regen: 6 sources, js 05209546a4b0b680 unchanged=True, failures 0
+## regenerated manifest sha256 e6d81012495f6e01cebafab432d64eed7b5dbef7bfc2c0f545e43e5e6bb98863 (separate baseline fix: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r3/logs/root-r3-20261026T002009Z/baseline-management-manifest.patch)
+## [B] trees: baseline (REV + manifest fix) and patched (+ the unchanged r2 browser overlay)
+## tree pre: 8483 tracked (9 symlinks) verified by content/target; overlaid 1, added 0, links 1, generated 0; execBitMismatch 0; failures 0
+## tree pre: 8483 tracked (9 symlinks) verified by content/target; overlaid 6, added 4, links 1, generated 0; execBitMismatch 0; failures 0
+## [C] suites
+PASS	patched	test/browser-read-authority.test.mjs	rc=0	pass=12	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/config-dev-overrides.test.mjs	rc=0	pass=5	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/site-built-in-profile.test.mjs	rc=0	pass=4	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/site-independent-bundle.test.mjs	rc=0	pass=2	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/site-independent-profile.test.mjs	rc=0	pass=7	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/site-independent-identity.test.mjs	rc=0	pass=8	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/site-independent-management-unit.test.mjs	rc=0	pass=28	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/admin-console.test.mjs	rc=0	pass=43	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/admin-metrics.test.mjs	rc=0	pass=15	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/api-base-binding.test.mjs	rc=0	pass=11	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/catalog-version.test.mjs	rc=0	pass=1	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/featured.test.mjs	rc=0	pass=4	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/pay.test.mjs	rc=0	pass=3	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/reviews.test.mjs	rc=0	pass=10	fail=0	skipped=0	todo=0	cancelled=0
+PASS	baseline	test/publish-cid-verify.test.mjs	rc=0	pass=7	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/config-dev-overrides.test.mjs	rc=0	pass=5	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/site-built-in-profile.test.mjs	rc=0	pass=4	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/site-independent-bundle.test.mjs	rc=0	pass=2	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/site-independent-profile.test.mjs	rc=0	pass=7	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/site-independent-identity.test.mjs	rc=0	pass=8	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/site-independent-management-unit.test.mjs	rc=0	pass=28	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/admin-console.test.mjs	rc=0	pass=43	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/admin-metrics.test.mjs	rc=0	pass=15	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/api-base-binding.test.mjs	rc=0	pass=11	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/catalog-version.test.mjs	rc=0	pass=1	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/featured.test.mjs	rc=0	pass=4	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/pay.test.mjs	rc=0	pass=3	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/reviews.test.mjs	rc=0	pass=10	fail=0	skipped=0	todo=0	cancelled=0
+PASS	patched	test/publish-cid-verify.test.mjs	rc=0	pass=7	fail=0	skipped=0	todo=0	cancelled=0
+INCOMPLETE	both	test/site-independent-live-reads.test.mjs	not run here: a live read-only suite (ENCLAVE_LIVE_READS=1 + public Base RPC, already user-authorized); deferred until the own backend is ready
+## tree post: 8483 tracked (9 symlinks) verified by content/target; overlaid 1, added 0, links 1, generated 0; execBitMismatch 0; failures 0
+## tree post: 8483 tracked (9 symlinks) verified by content/target; overlaid 6, added 4, links 1, generated 0; execBitMismatch 0; failures 0
+## logs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r3/logs/root-r3-20261026T002009Z
+## aggregate rc=0 (offline suites; live-reads INCOMPLETE, not counted)
+[memory-guard] exit=0 peakTreeRssMiB=954 minHostAvailableMiB=22079
+[memory-guard] at peak: git:904 git:35 git-upload-pack:6 git:5 bash:4
+[queue] EXIT 0

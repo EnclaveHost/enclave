@@ -1,0 +1,21 @@
+{
+ "rev": "bf77da364373a9c7d881489af5b760207a03997c",
+ "overlaid": {
+  "site/js/core/config.js": "c2bab32646510b1eead95ef4c803f6235deb882699064dc00140e1b4c68ff8e4",
+  "site/js/core/chain.js": "154f295bad8864218380a205ef30c9abd69be664c79aed8d4cfcbb6ad270c979",
+  "site/js/core/wallet.js": "750ada801ef81beabe24c9cb4d04d05d3326d4f9d27ed1c0ad1609c244ee239b",
+  "scripts/build-site.mjs": "7b3aa6e06103bb9ebe1c9c45e7cbad48d86c3bf4bffeab3f403f0d2a1ee561c2",
+  "site/js/core/sessions.js": "9af5232a326151895bac4ab0b55e8f5e2d63d70adf4525b5acc5c62ca7a2a066"
+ },
+ "added": {
+  "site/js/core/read-authority.js": "a4584bccd74449be103253b58a7d257a18050c884acfb7941ca4926576787a76",
+  "scripts/site-read-authority.mjs": "38f704deabd5874162e33426e5fb45e0d3611f31404961087bbeba6b56a3b9c6",
+  "test/browser-read-authority.test.mjs": "910231e967444afd898af719b3dac0e97d4572dbd7ececf4e59c643ec00056c2",
+  "docs/network/browser-read-authority.md": "f4739ee71750b4886204435d1b9524d9991e1fc43d4dc572f99ed34622fb1f22"
+ },
+ "symlinks": {
+  "node_modules": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules"
+ },
+ "generatedAfterBuild": [],
+ "gitClone": true
+}

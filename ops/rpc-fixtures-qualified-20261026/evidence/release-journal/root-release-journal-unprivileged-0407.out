@@ -1,0 +1,6 @@
+[queue] START available=23025MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+
+[memory-guard] STOPPING own job: process tree RSS 524 MiB > 512 MiB
+[memory-guard] exit=SIGTERM peakTreeRssMiB=524 minHostAvailableMiB=22598 STOPPED: process tree RSS 524 MiB > 512 MiB
+[memory-guard] at peak: solc-0.8.35:301 node:82 node:58 forge:53 anvil:24 bash:4 timeout:2
+[queue] EXIT 99

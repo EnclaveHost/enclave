@@ -1,0 +1,15 @@
+28377b2b84646b5f657a81ffccf8fdfb6ae725d03a408e4d922d630d355de9c1  ./README.md
+42acd9b79bdb1a8cd621346925ce144eee59661641f2e978255b62d55b614cf1  ./diagnostics/download_diag.py
+882d24e6195be68c6c5ea987fa18317fa46b22fc515706b2346a0d4da330a613  ./diagnostics/download_diag2.py
+4f7c2983c2aa9437df78457574ca45471daf9b41071737e49ee6203547c87c99  ./diagnostics/test_download_diag.py
+71fd1ed7aacd287fb0932b7ecadfdf0bb90bdbe3ef8b9f42adf67345407bb02c  ./diagnostics/test_download_diag2.py
+4611d732715eaadfe25ce46c2b25b7ff94a632d6548ea0e277858528a80d9077  ./manifest-summary.json
+adbfd633bdc7f972c160ebaff4c999681401ffb27c3999b5840ae87163be1b74  ./root-evidence/read-only-1914.ANNOTATION.md
+93d81c2977a29472408275e2697314a111bb237b6e2ae474d784b3526a88efa3  ./root-evidence/read-only-1914.json
+8c8dd21f5eebbc8ebf58368b246776a3384d8b5a89330c20b537b8c897a6018c  ./test-evidence/binary-strings.guard
+0613a8fb56b76970cea8c658e35c891c06dc4c4dc1e92a8c3ae269b531bb3425  ./test-evidence/binary-strings.out
+93ff7811a209e2a8479230bbb9b6bc19f7f311d3af383ec350c1db2a7e7d5494  ./test-evidence/binary-strings.rc
+f294ebd5061724a78b366660e36f9b84aafdbd893bf16df346be6b95eba653ce  ./test-evidence/binary-strings.sh
+78e75f4fb74a38b810af4afc2ab4eefb8effe4d8a9d13e3f9bf320011bf4603c  ./test-evidence/diag-tests-all.guard
+930c0ec2342f9069b3f1209cab41e32b255712481efb41112b7ca545f9ea855d  ./test-evidence/diag-tests-all.out
+93ff7811a209e2a8479230bbb9b6bc19f7f311d3af383ec350c1db2a7e7d5494  ./test-evidence/diag-tests-all.rc

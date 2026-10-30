@@ -1,0 +1,124 @@
+{
+ "run": "run-20261026T094140Z-a47c9475",
+ "status": "verified",
+ "why": "the original game b9a90847 -> 0x343b3a99/52866960 rechecked and verified on the composed bytes (no admission, no production write)",
+ "moduleSha256": "8da369de00c176364aadac5af57842f2a2d02f3abee20f63fe4361b7a1b0793e",
+ "expected": {
+  "initialSha256": "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c",
+  "game": "0x343b3a99527af07d2cfb2652747b9e37715e21ac",
+  "N": "52866960",
+  "outputRoot": "0xa996c517b0e797b56426059d57c93ac8352b21b61e04b2fc66866dd61d056700"
+ },
+ "sources": {
+  "keys": [
+   "depsRoot",
+   "elUrl",
+   "format",
+   "initialDir",
+   "l1Authority",
+   "l1Config",
+   "node",
+   "portalResult",
+   "recheckDir"
+  ],
+  "supply": "replace-after-from_settings",
+  "initialReceipt": "/var/lib/enclave-rpc/canary-20261026T094140Z-a47c9475/opt/bootstrap/a1-initial-evidence.json",
+  "elUrl": "http://127.0.0.1:18645"
+ },
+ "evidence": {
+  "verdict": "A1-original-game-recheck-passed",
+  "code": null,
+  "message": null,
+  "game": "0x343b3a99527af07d2cfb2652747b9e37715e21ac",
+  "N": "52866960",
+  "outputRoot": "0xa996c517b0e797b56426059d57c93ac8352b21b61e04b2fc66866dd61d056700",
+  "at": "2026-10-26T09:44:34.417Z",
+  "l1": {
+   "number": 26275956,
+   "hash": "0xc93d4e6ae1b7df07827a2d1b1b61ecfa36e43e934efbff6331071055a5f5c46b",
+   "stateRoot": "0x6cf8f3e46d5cec23f1f1899cc18b7d4c51ae36e793342c384cdacc07df1e423b",
+   "timestamp": 1793006795,
+   "ageSec": 996
+  }
+ },
+ "checks": {
+  "mode": true,
+  "initialBound": true,
+  "original": true,
+  "elUrl": true,
+  "elUrlBound": true,
+  "forwardProgress": true
+ },
+ "gate": {
+  "game": "0x343b3a99527af07d2cfb2652747b9e37715e21ac",
+  "N": "52866960",
+  "outputRoot": "0xa996c517b0e797b56426059d57c93ac8352b21b61e04b2fc66866dd61d056700",
+  "asr": "0x909f6cf47ed12f010a796527f562bfc26c7f4e72",
+  "at": "2026-10-26T09:44:34.417Z",
+  "l1": {
+   "number": 26275956,
+   "hash": "0xc93d4e6ae1b7df07827a2d1b1b61ecfa36e43e934efbff6331071055a5f5c46b",
+   "timestamp": 1793006795,
+   "ageSec": 996
+  },
+  "initialSha256": "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c"
+ },
+ "capture": {
+  "ok": true,
+  "sec": 170.7,
+  "kwargs": {
+   "helios_timeout": 900,
+   "a1_timeout": 240
+  },
+  "refused": null
+ },
+ "forwardProgress": {
+  "ok": true,
+  "heliosFinalized": {
+   "number": 26275956,
+   "hash": "0xc93d4e6ae1b7df07827a2d1b1b61ecfa36e43e934efbff6331071055a5f5c46b",
+   "timestamp": 1793006795,
+   "ageSec": 996
+  }
+ },
+ "l1": {
+  "checkpoint": {
+   "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094",
+   "slot": 15511008,
+   "recordedAt": "2026-10-25T19:38:24.779941+00:00"
+  },
+  "agreeingSources": [
+   [
+    "own-lighthouse",
+    "127.0.0.1"
+   ],
+   [
+    "checkpoint-sync-provider",
+    "mainnet.checkpoint.sigp.io"
+   ],
+   [
+    "checkpoint-sync-provider",
+    "sync-mainnet.beaconcha.in"
+   ],
+   [
+    "checkpoint-sync-provider",
+    "beaconstate.ethstaker.cc"
+   ],
+   [
+    "checkpoint-sync-provider",
+    "beaconstate-mainnet.chainsafe.io"
+   ]
+  ],
+  "clCheckpointBlockSlot": 15511008,
+  "clFinalizedSlot": 15515231,
+  "checkpointPayload": {
+   "number": 26271752,
+   "hash": "0xb3a52f0d6364e8c055e5de56b3397cb5400897a913c9366c1ef12790ba70d563"
+  },
+  "elFinalized": {
+   "number": 26275956,
+   "hash": "0xc93d4e6ae1b7df07827a2d1b1b61ecfa36e43e934efbff6331071055a5f5c46b"
+  }
+ },
+ "pidsUnchanged": true
+}

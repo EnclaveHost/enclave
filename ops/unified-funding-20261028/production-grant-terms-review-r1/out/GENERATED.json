@@ -1,0 +1,50 @@
+{
+  "schema": "production-grant-terms-r1-fixture-generated/v1",
+  "candidate": "gas-recovery-6usdc-r1",
+  "testOnly": true,
+  "inputs": {
+    "client-execution-site-r2/out/server.mjs": "0eb52c4fcd4852385b4e4de9647cd75aceae8e7a2a6e999a9213f08e3a0d8b15",
+    "client-execution-site-r2/shell/main.mjs": "06420aab7a213d93b49a76cfe83c5bc81c54763ea1d0d003a2aeba7bcb3a925f",
+    "client-execution-site-r2/build/build-harness.mjs": "a53bff1cf08cde010a61f810de3be0a5ca4acd5496ceb22362b6fe2fde6b13a0",
+    "client-execution-site-r2/page/index.html": "fa1109672e22c047d877d280f31d793947f9462a53df7344a692ff9e039bfb5c",
+    "client-execution-site-r2/shell/harness-state.js": "d59a7e1df17ac741c7cde126462cb031e1637b93c5cc48b3c33d8ea1e8d4cf1e",
+    "client-execution-site-r2/shell/facade/api.js": "a704f02e696c307e931d4ab85a3173f8d32e51d1db6be171731d8de1a9c73365",
+    "client-execution-site-r2/shell/facade/wallet.js": "be3b53264988e611f93084fc14c9ce3e63ac54383abd5dc5fa29725199712ff1",
+    "client-execution-site-r2/shell/facade/empty.js": "5dceb4c0198f225d3fe68e3558dd569e7645bddb165ef6656b2be14277d4e3fc",
+    "client-execution-site-r2/shell/facade/config.js": "7e66372bada181a5a2402925c5ea6d718638ae23b3d81f04e73d9debca0d4636",
+    "client-execution-site-r2/shell/facade/sessions.js": "6740608869692f092cbad180c3566f480a80d27f86e7c9a38675fb6564415a77",
+    "client-execution-site-r2/shell/facade/vendor-funding.js": "836f3a710a1a602f59351def81bc3c9e18e99bad21337f5a5b3c7f0e57ce6090"
+  },
+  "outputs": {
+    "build/build-harness.mjs": "523bb19cb46db6571286814dfff1b914c90b34f2e0f69c671f9d7a6ef04861f7",
+    "out/server.mjs": "94f15845fb4988b6de0a8bc5afa004432f679e9e1ac405dda67b0879091ce950",
+    "page/index.html": "18338b36a1e27bc0e8ba5ded645675efa2e806413f25850249942c483b6cdcf7",
+    "shell/facade/api.js": "a704f02e696c307e931d4ab85a3173f8d32e51d1db6be171731d8de1a9c73365",
+    "shell/facade/config.js": "568ff01f77955a634def8d6425a3c5cb5df734ccd896094e5f8c048e52b694f6",
+    "shell/facade/empty.js": "5dceb4c0198f225d3fe68e3558dd569e7645bddb165ef6656b2be14277d4e3fc",
+    "shell/facade/sessions.js": "6740608869692f092cbad180c3566f480a80d27f86e7c9a38675fb6564415a77",
+    "shell/facade/vendor-funding.js": "836f3a710a1a602f59351def81bc3c9e18e99bad21337f5a5b3c7f0e57ce6090",
+    "shell/facade/wallet.js": "be3b53264988e611f93084fc14c9ce3e63ac54383abd5dc5fa29725199712ff1",
+    "shell/harness-state.js": "d59a7e1df17ac741c7cde126462cb031e1637b93c5cc48b3c33d8ea1e8d4cf1e",
+    "shell/main.mjs": "4b1ff89fd881feaec7717b3c492c9d9e9fa1aa16c4244e72aeb448eb84157218"
+  },
+  "testEconomics": {
+    "ethOut": "200000000000000",
+    "price6": "2400000000",
+    "maxUsdcIn6": "484800",
+    "fee6": "25000",
+    "totalMaximum6": "509800"
+  },
+  "edits": {
+    "server": 5,
+    "shell": 11,
+    "config": 1,
+    "build": 1,
+    "page": 3
+  },
+  "rootMustStill": [
+    "build candidate/site/vendor/funding.js from candidate/sdk/funding/browser-entry.mjs",
+    "fill generated/BUILD-PINS.json and run build/build-harness.mjs",
+    "fill generated/HARNESS-INPUTS.json"
+  ]
+}

@@ -1,0 +1,4 @@
+FWD listening 127.0.0.1:39915 -> vsock 209898:443 mitm=false
+FWD conn 1 relay
+FWD conn 2 relay
+FWD conn 3 relay

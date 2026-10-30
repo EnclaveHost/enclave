@@ -1,0 +1,7 @@
+[queue] START available=18671MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+PASS wbc-offline Ran 10
+## wbc-offline SHA256SUMS 4e2396dbf61d746fe613a4b6bd195451b9dd096fc83fdf38713e8bc6ef143465
+## wbc-offline rc=0
+[memory-guard] exit=0 peakTreeRssMiB=48 minHostAvailableMiB=18604
+[memory-guard] at peak: python3:24 python3:12 bash:4 bash:4 bash:2 timeout:2
+[queue] EXIT 0

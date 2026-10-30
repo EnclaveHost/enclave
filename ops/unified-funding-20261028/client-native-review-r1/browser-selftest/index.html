@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>client-native-r1 IndexedDB self-test (TEST ONLY)</title>
+</head>
+<body>
+<h1>client-native-r1 IndexedDB / CryptoKey / CAS self-test</h1>
+<p>TEST ONLY. Uses fresh randomly named test databases; never the site's real stores. No wallet, no network.</p>
+<p>
+  <button id="run" type="button">Run</button>
+  <button id="resume" type="button">Resume (after reload)</button>
+  <button id="cleanup" type="button">Delete owned test databases</button>
+</p>
+<div id="status" data-result="LOADING">LOADING</div>
+<pre id="log"></pre>
+<script type="module" src="/dist/selftest.js"></script>
+</body>
+</html>

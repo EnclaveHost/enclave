@@ -1,0 +1,6 @@
+[queue] START available=22327MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+To https://github.com/EnclaveHost/enclave.git
+   77d6cc859..c61dbe5fd  HEAD -> fix/rpc-attested-verifier-20261025
+[memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=22362
+[memory-guard] at peak: git-remote-http:15 git:9 git:6 git:4
+[queue] EXIT 0

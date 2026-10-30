@@ -1,0 +1,93 @@
+{
+ "mode": "package",
+ "runtimeBundle": {
+  "identicalToBase": true,
+  "sha256": "e12c5bafb8b17abb891fb26fe1cdc054159d7bd2de5486d2c1a2480430671ed6",
+  "matchesCommittedPin": true
+ },
+ "runtimeInputsInTree": {
+  "pristine": {
+   "inputs": 2477,
+   "outside": [],
+   "nOutside": 0
+  },
+  "final": {
+   "inputs": 2477,
+   "outside": [],
+   "nOutside": 0
+  }
+ },
+ "harness": {
+  "stage": "consumer-package-inputs-stage",
+  "derivedFrom": "final-consumer-composition-stage/jobs/root-final-consumer.sh 3692b655",
+  "nodeModules": "real dependency directories bind-mounted read-only (private mount namespace); no symlink"
+ },
+ "reviewRequired": [
+  "release/host-packages (regenerated; see logs/host-packages-regenerated.diff)",
+  "release/metal-guest/platform-api.bundle.mjs + manifest (regenerated measured-image input)"
+ ],
+ "committedGeneratedArtifacts": {
+  "host-packages-check": {
+   "pristine": 1,
+   "final": 1
+  },
+  "mcp-bundle-check": {
+   "pristine": 0,
+   "final": 0
+  },
+  "platform-api-check": {
+   "pristine": 0,
+   "final": 1
+  }
+ },
+ "hostPackages": {
+  "pristine": 1,
+  "finalCommitted": 1,
+  "regeneratedCheckRc": 0
+ },
+ "platformApiGuestBundle": {
+  "committedStaleOnConsumer": true,
+  "regeneratedCheckRc": 0,
+  "regeneratedSha256": "4771fefdaa9b58457c3f9fc702999989e06ab2bbcee329f81dbc168235aa45d3",
+  "regeneratedManifestSha256": "fe5e7b384bf494373db6f1c6b7ceb89bf799eaa21ee0ae25c8df154b7552c0e0"
+ },
+ "packagedProvider": {
+  "alone/quorum": true,
+  "alone/derived-v3": true,
+  "rel/derived-v3": true,
+  "rel/quorum": true
+ },
+ "writerStartup": {
+  "ok": 5,
+  "fail": 0
+ },
+ "writerApiComposition": {
+  "rc": 0,
+  "checks": 6
+ },
+ "relayCheck": 0,
+ "relayDeployClosure": {
+  "pristine": {
+   "rc": 0,
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "final": {
+   "rc": 0,
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "same": true,
+  "finalClean": true
+ },
+ "ok": false,
+ "scope": "release-candidate SOURCE assembly; NOT fresh-state authority, NOT feature availability, NOT production"
+}

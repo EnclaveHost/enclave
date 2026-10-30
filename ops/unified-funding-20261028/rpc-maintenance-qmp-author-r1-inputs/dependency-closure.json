@@ -1,0 +1,14 @@
+{
+  "sourceRuntime": "Python standard library only in original maint_boot.py/guest_mask.py; optional focused helper must preserve that. No imports/execution performed.",
+  "originalTests": {
+    "count": 13,
+    "preserved": true,
+    "externalMetadataDependencies": [
+      "DEFAULT_CFG.launcher pinned source",
+      "DEFAULT_CFG.manifest pinned metadata"
+    ],
+    "qualification": "Original tests read external pinned source/manifest during setup; not claimed hermetic. Root must supply a reviewed fixture harness/runtime closure before executing. No image/database dependency is authorized."
+  },
+  "newTests": "Authored fake socket/monotonic clock and small temporary local AF_UNIX fixtures only, no execution in source author.",
+  "collector": "Unchanged strict collector needs actual terminal invocation and actual main/runner/Claude PIDs. If transient PID uncaptured use separate manual failure audit; never fabricate."
+}

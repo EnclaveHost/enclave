@@ -1,0 +1,275 @@
+--- a/wasm/ggml-shielded/shielded-tee.c
++++ b/wasm/ggml-shielded/shielded-tee.c
+@@ -14,6 +14,7 @@
+ #include "shielded-pad-manifest.h"
+ #include "shielded-mint-balance.h"
+ #include "shielded-spill.h"
++#include "shielded-pack24.h"
+ #include "shielded-spill-cpu.h"
+ 
+ #include <errno.h>
+@@ -379,6 +380,14 @@
+     uint8_t  *ready;            /* per slot: written by a refill, not yet counted */
+     int32_t  *r_store;          /* depth x K, each in [0,M) */
+     int32_t  *u_store;          /* depth x u_len, balanced */
++    /* SHIELDED_POOL_PACK24: the same ring, three bytes a value
++     * (shielded-pack24.h), INSTEAD of r_store/u_store, never alongside. A
++     * refill packs from its private staging into slots it has reserved and
++     * only then marks them ready; the request path unpacks the slots it took
++     * into the link's own scratch (pr/pu) before anything reads them, and
++     * poisons each slot once it is unpacked. Unwritten slots are poison too. */
++    uint8_t  *r_p24, *u_p24;
++    size_t    r_p24_bytes, u_p24_bytes;   /* allocated, for the wipe on free */
+     uint64_t pads_used, pads_missed;
+     double on_path_ms;          /* request-thread counters; refill threads do not write them */
+     uint64_t cursor;            /* dealt pads: the next shipment index this group imports */
+@@ -441,6 +450,13 @@
+     const int32_t **rp; const int32_t **up; int *slots; size_t p_cap;   /* per-row pad pointers, m of each */
+     int32_t *r;       size_t r_cap;      /* pads generated ON the path, pool dry */
+     int32_t *u;       size_t u_cap;
++    /* SHIELDED_POOL_PACK24 only: the rows taken from the packed ring, unpacked.
++     * Separate from r/u so the dry-pool path, which may grow r/u, can never
++     * move a taken row out from under its rp/up pointer. Grown by ensure_wiped
++     * (never realloc'd: the old block is wiped), wiped at close. */
++    bool     pack24;
++    int32_t *pr;      size_t pr_cap;
++    int32_t *pu;      size_t pu_cap;
+     int8_t  *planes;  size_t planes_cap;
+     uint8_t *gplanes; size_t gplanes_cap;
+     int32_t *acc;     size_t acc_cap;
+@@ -682,6 +698,16 @@
+     l->target_ms    = env_int("SHIELDED_REFILL_TARGET_MS", 6, 1, 10000);
+     l->warm_ms      = env_int("SHIELDED_WARM_MS", 5000, 0, 600000);
+     l->pad_wait_us  = env_int("SHIELDED_PAD_WAIT_US", 0, 0, 50000);
++    /* SHIELDED_POOL_PACK24=1 keeps the ring three bytes a value (shielded-pack24.h).
++     * Exactly "1" turns it on; unset, empty or "0" is the int32 ring; anything
++     * else is the int32 ring and says so, rather than guessing. Read here only:
++     * no registration, wire or host setting reaches it. */
++    {
++        const char *p24 = getenv("SHIELDED_POOL_PACK24");
++        l->pack24 = p24 && !strcmp(p24, "1");
++        if (p24 && *p24 && strcmp(p24, "0") && strcmp(p24, "1"))
++            fprintf(stderr, "[shielded] SHIELDED_POOL_PACK24=%.16s is not 0 or 1; keeping the int32 pad ring\n", p24);
++    }
+     /* Dealt mode: all four are required together, or the link refuses to open
+      * rather than silently minting its own pads. */
+     const char *pad_dir = getenv("SHIELDED_PAD_SOURCE");
+@@ -783,6 +809,11 @@
+     for (size_t g = 0; g < l->n_groups; g++) {
+         free(l->groups[g].r_store); free(l->groups[g].u_store); free(l->groups[g].ready);
+         l->groups[g].r_store = NULL; l->groups[g].u_store = NULL; l->groups[g].ready = NULL;
++        sh_p24_wipe(l->groups[g].r_p24, l->groups[g].r_p24_bytes);
++        sh_p24_wipe(l->groups[g].u_p24, l->groups[g].u_p24_bytes);
++        free(l->groups[g].r_p24); free(l->groups[g].u_p24);
++        l->groups[g].r_p24 = NULL; l->groups[g].u_p24 = NULL;
++        l->groups[g].r_p24_bytes = l->groups[g].u_p24_bytes = 0;
+         l->groups[g].count = l->groups[g].head = l->groups[g].generating = l->groups[g].held = 0;
+     }
+ }
+@@ -813,6 +844,8 @@
+     free(l->nodes); free(l->groups);
+     free(l->rp); free(l->up); free(l->slots);
+     free(l->r); free(l->u); free(l->planes); free(l->gplanes); free(l->acc); free(l->hdr);
++    sh_p24_wipe(l->pr, l->pr_cap); sh_p24_wipe(l->pu, l->pu_cap);
++    free(l->pr); free(l->pu);
+     free(l->fv_rhs);
+     sh_pipe_close(l->pipe);
+     sh_bank_close(l->padbank);
+@@ -1492,6 +1525,29 @@
+             }
+         }
+         SH_SP_END(sp, "pad_freivalds", gi, g->u_len);
++    }
++    return SH_OK;
++}
++
++/* SHIELDED_POOL_PACK24: b staged rows into ring slots first.. (mod depth),
++ * which this thread reserved and nobody reads until they are marked ready. A
++ * value out of range is a producer bug, not a pad: nothing of the batch is
++ * kept (every slot is poisoned again) and the link retires. */
++static int p24_store(sh_link *l, sh_group *g, int first, int b, const int32_t *r, const int32_t *u) {
++    const size_t K = (size_t)g->K, U = (size_t)g->u_len;
++    for (int i = 0; i < b; i++) {
++        const size_t slot = (size_t)((first + i) % g->depth);
++        if (sh_p24_pack_r(r + (size_t)i * K, K, g->r_p24 + slot * K * SH_P24_BYTES) &&
++            sh_p24_pack_u(u + (size_t)i * U, U, g->u_p24 + slot * U * SH_P24_BYTES)) continue;
++        for (int j = 0; j < b; j++) {
++            const size_t sj = (size_t)((first + j) % g->depth);
++            sh_p24_poison_r(g->r_p24 + sj * K * SH_P24_BYTES, K);
++            sh_p24_poison_u(g->u_p24 + sj * U * SH_P24_BYTES, U);
++        }
++        snprintf(l->err, sizeof l->err, "pad ring: a generated pad is outside the field range (group %s); link retired",
++                 l->nodes[g->nodes[0]].name);
++        __atomic_store_n(&l->pad_integrity_failed, true, __ATOMIC_RELEASE);
++        return SH_ERR_VERIFY;
+     }
+     return SH_OK;
+ }
+@@ -1731,7 +1787,8 @@
+         pthread_mutex_unlock(&l->pool_mu);
+         if (receipt) dealt_receipt(l);
+ 
+-        const bool direct = first + b <= g->depth;
++        /* A packed ring is never written in place: every batch is staged, then packed. */
++        const bool direct = !l->pack24 && first + b <= g->depth;
+         int32_t *r_out = direct ? g->r_store + (size_t)first * g->K     : r;
+         int32_t *u_out = direct ? g->u_store + (size_t)first * g->u_len : u;
+         int rc;
+@@ -1750,7 +1807,9 @@
+         } else {
+             rc = generate(l, g, b, r_out, u_out, &s);
+         }
+-        if (rc == SH_OK && !direct) {
++        if (rc == SH_OK && l->pack24) {
++            rc = p24_store(l, g, first, b, r, u);
++        } else if (rc == SH_OK && !direct) {
+             for (int i = 0; i < b; i++) {
+                 const int slot = (first + i) % g->depth;
+                 memcpy(g->r_store + (size_t)slot * g->K,     r + (size_t)i * g->K,     (size_t)g->K * sizeof(int32_t));
+@@ -2124,10 +2183,43 @@
+             if (want < g->max_m) want = g->max_m;     /* never narrower than the widest exchange */
+             g->depth = l->pool_depth > 0 ? l->pool_depth : want;
+         }
++        if (l->pack24) {
++            size_t rb = 0, ub = 0;
++            if (g->depth <= 0 || g->K <= 0 || g->u_len <= 0 ||
++                !sh_p24_mul3((size_t)g->depth, (size_t)g->K, SH_P24_BYTES, &rb) ||
++                !sh_p24_mul3((size_t)g->depth, (size_t)g->u_len, SH_P24_BYTES, &ub)) {
++                snprintf(l->err, sizeof l->err, "pad ring: %d x (%lld + %lld) values do not fit an allocation",
++                         g->depth, (long long)g->K, (long long)g->u_len);
++                return SH_ERR_RANGE;
++            }
++            /* Poisoned from the start: a slot nobody packed cannot be unpacked. */
++            if ((g->r_p24 = (uint8_t *)malloc(rb)) != NULL) { g->r_p24_bytes = rb; memset(g->r_p24, SH_P24_R_POISON, rb); }
++            if ((g->u_p24 = (uint8_t *)malloc(ub)) != NULL) { g->u_p24_bytes = ub; memset(g->u_p24, SH_P24_U_POISON, ub); }
++            g->ready = (uint8_t *)calloc((size_t)g->depth, 1);
++            if (!g->r_p24 || !g->u_p24 || !g->ready) return SH_ERR_NOMEM;
++            continue;
++        }
+         g->r_store = (int32_t *)malloc((size_t)g->depth * g->K * sizeof(int32_t));
+         g->u_store = (int32_t *)malloc((size_t)g->depth * g->u_len * sizeof(int32_t));
+         g->ready   = (uint8_t *)calloc((size_t)g->depth, 1);
+         if (!g->r_store || !g->u_store || !g->ready) return SH_ERR_NOMEM;
++    }
++    if (l->pack24) {
++        /* ALLOCATION figures, not measurements: the ring as packed against what
++         * the int32 ring would have taken, and the request-path scratch the
++         * packed ring adds on top (grown on demand, at most the widest group's
++         * max_m rows of r and u). The refill threads' staging exists either way. */
++        double packed = 0, wide = 0, sr = 0, su = 0;   /* pr and pu grow independently */
++        for (size_t i = 0; i < l->n_groups; i++) {
++            const sh_group *g = &l->groups[i];
++            packed += (double)g->r_p24_bytes + (double)g->u_p24_bytes;
++            wide   += (double)g->depth * (double)(g->K + g->u_len) * 4.0;
++            if ((double)g->max_m * (double)g->K * 4.0 > sr)     sr = (double)g->max_m * (double)g->K * 4.0;
++            if ((double)g->max_m * (double)g->u_len * 4.0 > su) su = (double)g->max_m * (double)g->u_len * 4.0;
++        }
++        fprintf(stderr, "[shielded] pad ring packed24: %.1f MiB over %zu groups (int32 ring: %.1f MiB); "
++                        "request-path unpack scratch up to %.1f MiB more\n",
++                packed / 1048576.0, l->n_groups, wide / 1048576.0, (sr + su) / 1048576.0);
+     }
+     l->n_threads = derive_threads(l);
+     spill_start(l);
+@@ -2251,6 +2343,26 @@
+     pthread_cond_signal(&l->need_refill);
+     pthread_mutex_unlock(&l->pool_mu);
+ }
++
++#ifdef SHIELDED_PACK24_TESTHOOKS
++/* Test builds only (pack24-link-selftest): -1 when the ring is not packed;
++ * otherwise overwrite the first r value of every READY slot of `group` with a
++ * pattern outside the field and return how many slots that was. Ready slots
++ * are written by no refill thread, and pool_mu orders this against take_pads. */
++int sh_link_p24_corrupt_ready(sh_link *l, int group) {
++    if (!l || !l->pack24 || group < 0 || (size_t)group >= l->n_groups) return -1;
++    pthread_mutex_lock(&l->pool_mu);
++    sh_group *g = &l->groups[group];
++    int n = 0;
++    if (g->r_p24)
++        for (int i = 0; i < g->count; i++, n++) {
++            uint8_t *rs = g->r_p24 + (size_t)((g->head + i) % g->depth) * (size_t)g->K * SH_P24_BYTES;
++            sh_p24_put(rs, SH_P24_R_LIMIT);              /* r == M: one past the field */
++        }
++    pthread_mutex_unlock(&l->pool_mu);
++    return n;
++}
++#endif
+ 
+ /* --- start: connect, upload public weights, install the vetted graph ------ */
+ static int json_append(char **buf, size_t *len, size_t *cap, const char *fmt, ...) {
+@@ -2683,6 +2795,20 @@
+     return SH_OK;
+ }
+ 
++/* ensure() for buffers that hold pad values: the contents are scratch, so
++ * growth is a fresh block and the old one is wiped, never realloc'd away
++ * with the values still in it. want = count x size, overflow-checked. */
++static int ensure_wiped(void **p, size_t *cap, size_t count, size_t size) {
++    size_t want;
++    if (!sh_p24_mul(count, size, &want)) return SH_ERR_NOMEM;
++    if (*cap >= want) return SH_OK;
++    void *n = malloc(want);
++    if (!n) return SH_ERR_NOMEM;
++    sh_p24_wipe(*p, *cap); free(*p);
++    *p = n; *cap = want;
++    return SH_OK;
++}
++
+ typedef struct {
+     sh_link *link;
+     const int *nodes;
+@@ -2849,6 +2975,15 @@
+         if (!rp || !up || !slots) return SH_ERR_NOMEM;
+         l->p_cap = (size_t)m;
+     }
++    /* Before take_pads, like the buffers above: running out of memory here
++     * takes no pad. */
++    if (l->pack24 && l->threads_running) {
++        size_t n;
++        if (!sh_p24_mul((size_t)m, (size_t)K, &n) ||
++            (rc = ensure_wiped((void **)&l->pr, &l->pr_cap, n, sizeof(int32_t))) != SH_OK) return SH_ERR_NOMEM;
++        if (!sh_p24_mul((size_t)m, (size_t)g->u_len, &n) ||
++            (rc = ensure_wiped((void **)&l->pu, &l->pu_cap, n, sizeof(int32_t))) != SH_OK) return SH_ERR_NOMEM;
++    }
+ 
+     /* ONE pad per plaintext row -- rule 2 -- from the pool, or made here if the
+      * pool is dry. Shared-x nodes see the same pad by construction: they are
+@@ -2865,9 +3000,35 @@
+     /* A background rejection must reach the backend as an integrity error,
+      * even if a different group still had ready pads. Taken pads stay burned. */
+     if (sh_integrity_failed(l)) { rc = SH_ERR_VERIFY; goto fail; }
+-    for (int i = 0; i < took; i++) {
+-        l->rp[i] = g->r_store + (size_t)l->slots[i] * K;
+-        l->up[i] = g->u_store + (size_t)l->slots[i] * g->u_len;
++    if (l->pack24) {
++        /* Unpack every taken row before any of them is used, and poison each
++         * slot as it is read: a consumed pad is not left readable behind its
++         * pointer. A pattern outside the field is ring corruption -- nothing
++         * decoded is kept, the taken pads stay burned, the link retires. */
++        const size_t U = (size_t)g->u_len;
++        for (int i = 0; i < took; i++) {
++            uint8_t *rs = g->r_p24 + (size_t)l->slots[i] * (size_t)K * SH_P24_BYTES;
++            uint8_t *us = g->u_p24 + (size_t)l->slots[i] * U * SH_P24_BYTES;
++            int32_t *rr = l->pr + (size_t)i * (size_t)K, *uu = l->pu + (size_t)i * U;
++            const bool ok = sh_p24_unpack_r(rs, (size_t)K, rr) && sh_p24_unpack_u(us, U, uu);
++            sh_p24_poison_r(rs, (size_t)K);
++            sh_p24_poison_u(us, U);
++            if (!ok) {
++                sh_p24_wipe(l->pr, (size_t)took * (size_t)K * sizeof(int32_t));
++                sh_p24_wipe(l->pu, (size_t)took * U * sizeof(int32_t));
++                snprintf(l->err, sizeof l->err, "pad ring: slot %d of group %s holds a value outside the field; link retired",
++                         l->slots[i], l->nodes[g->nodes[0]].name);
++                __atomic_store_n(&l->pad_integrity_failed, true, __ATOMIC_RELEASE);
++                rc = SH_ERR_VERIFY; goto fail;
++            }
++            l->rp[i] = rr;
++            l->up[i] = uu;
++        }
++    } else {
++        for (int i = 0; i < took; i++) {
++            l->rp[i] = g->r_store + (size_t)l->slots[i] * K;
++            l->up[i] = g->u_store + (size_t)l->slots[i] * g->u_len;
++        }
+     }
+     if (took < m && l->dealt) {
+         /* A dealt engine has no key to mint with; the bank is behind. */

@@ -1,0 +1,20 @@
+{
+  "AUTHOR-REPORT.md": "1f9c265de01a475ba1c9928f65c94bc59062091eab151bf2d24699901da6cf29",
+  "test/guard.test.mjs": "a6ab1b76edb45d5eedb003ef8e0a29a3e0922f3c9da784c01721c75c2b9d2215",
+  "test/exec-fixtures.mjs": "ec619e0642e016e7a5abfe7ccce281b954c8cf08ca512432f2dd43336255e187",
+  "test/root-regression.fixed.test.mjs": "1cc127c21121cb08f0b0e79ac6d1c81f2270b4be08ba25685b21f49bd8811e0d",
+  "test/expiry.test.mjs": "3302d40e562118204fb89104d1f63ab37fc6b86e29989ffe8de91e8f71e4502b",
+  "test/execution.test.mjs": "b47ebc54aa894a0580473961cf1c4b5ca83e4620451537c1015af080cfc0e423",
+  "site-patch/funding.js.diff": "678b7241618869fc9b9da815fb9e45a3e06248b9b0b6e59073b42c6ccfb80a2f",
+  "root-review/reservation-regressions.test.mjs": "be0770109022b71e96111376a2abb5f8d8b9ddda6b83d1d7819d639bb10fb655",
+  "sdk/funding/v2-store.mjs": "82738dbcf7d58cd9299aae2778f449a1526c205ad0962efd0dcc575bff5fd66b",
+  "sdk/funding/migration.mjs": "6354b8c95b010a4154faee4bca1e577a1674360179fbbbf1fadb0fa0761c5949",
+  "sdk/funding/util.mjs": "b4e2287c61c77fb9537aea3729a714f338af3f8935c37fa96f99186f1e73c1f1",
+  "sdk/funding/gas-execution.mjs": "e3e0c4f1ddbb24f0f510c105643c3942baa3272924e1276e03ff3769c7f1298e",
+  "sdk/funding/browser-entry.mjs": "c53c64148c1ec6f968fd06a58a3fce62813db91d8994d8f1d9e3f69a9d401e72",
+  "sdk/funding/funding-client.mjs": "340689a8f6ef5efcbaea9ce95c138dce7360a63be8fdbc4a46b317d2a9b81379",
+  "sdk/funding/funding-codec.mjs": "1f0c3f1de6abf2fa0a97923452801519d5ae6e52946156ba9bce25a18395b57b",
+  "sdk/funding/chain-proof.mjs": "75d22b7ec4cbc917950a281f843bd31513cc85ced800ae9db7c1dd73cca175df",
+  "node_modules/viem/index.mjs": "9fe17c8e15e35466f937ab6c95acb0ce579818eb902aa0ea51f9cc4283dd1679",
+  "node_modules/viem/package.json": "91802af08268de957562fd772f8a293c24f7fc91454ecae932802b0dc7201451"
+}

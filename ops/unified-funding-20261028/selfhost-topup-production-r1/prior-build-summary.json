@@ -1,0 +1,10 @@
+{
+  "sourcePins": {
+    "reviewed/deployments.js": "4bb55a43c2ef5b01ee03a024800fa88fc499423649d3e78824fd3c0b96409c46",
+    "reviewed/selfhost-gas-topup.js": "187c98c16587251a036e2cb7fe44d18623952b24770cf9e9758b9cd2fac59ab1"
+  },
+  "inputs": 113,
+  "outputs": 98,
+  "renewalEstimatorIncluded": false,
+  "deployed": false
+}

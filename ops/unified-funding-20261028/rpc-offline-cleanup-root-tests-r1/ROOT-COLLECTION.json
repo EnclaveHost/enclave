@@ -1,0 +1,10 @@
+{
+  "invocation": "7a0e54dcc72a4a30be30dbaaff35168d",
+  "unit": "enclave-rpc-offline-cleanup-root-tests-r1-20261030.service",
+  "status": "ActiveState=failed\nMainPID=0\nExecMainStatus=1\n",
+  "pinCount": 7,
+  "drift": [],
+  "tempPath": "/tmp/rpc-writer-tests-easm3f1j",
+  "tempExists": false,
+  "syntheticFixturesPreserved": false
+}

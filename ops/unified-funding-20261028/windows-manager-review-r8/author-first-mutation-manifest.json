@@ -1,0 +1,14 @@
+{
+  "RELEASE-CLOSURE-R8.json": "e8c97908eedb3eef84796b67db90694af6dd1edf48aac0a03a11c3a30d62f653",
+  "REPORT-WINDOWS-PERMIT-R7.md": "28a0f91fabe0c8007056b7aff8861adcabda271fb76106e3ac499313cf1346aa",
+  "REPORT-WINDOWS-PERMIT-R8.md": "bfb480332ba3d4c80a7cd2da4e4f00117739f3f268fc56cd4534009e04745582",
+  "control/windows/node/agent.mjs": "dbd8324a2648d6c5e86c7aa8a41bfe7e5c94aa8607bc49e189cdf3a1afeaad37",
+  "control/windows/node/protected-authority-factory.mjs": "27df2438fedda32729ae6cd05d2c21f7eb8b236aee96cfabc6fc147419aa91e9",
+  "control/windows/node/protected-isolation.mjs": "028d6549b0be9642243cb614d22c74e65614fb30b8ba1db5fa5aa309786d2451",
+  "control/windows/node/protected-supervisor.mjs": "af701b27a08964a4be46a676e29204738c73c8f80611eb580a7eaf4630f43072",
+  "package-lock.json": "34f98dfa4fd8720ace4951d49538e2f200ecdda4bf34f37406407e699ef79b1d",
+  "test/windows-permit/r7-composite.test.mjs": "176db4b4c83b36525f61b68fc5bb966ab5adf602e92fd91141605e336eb10330",
+  "test/windows-permit/r8-authority-factory.test.mjs": "a7be41b760cc48299f5e97bad18c6533fd28ab498149bbea5486fb7047625f2f",
+  "test/windows-permit/r8-permit-owner-loss.test.mjs": "f4b8494aaee4e2fb70c87f27fec3acd74a6f4fb231da1cc74b0247f3d5f633f5",
+  "test/windows-permit/r8-unknown-owner-loss.test.mjs": "e36b049bb24bdcd098854df20adffad729cbe799a9e7f6d5d45fed0646a6d4c5"
+}

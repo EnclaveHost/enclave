@@ -1,0 +1,76 @@
+{
+  "status": "Independent source review ONLY; no candidate edits, execution, tests or builds",
+  "manifestSha256": "b8b4632af629e74f32f97f32fab5033373406b86b9c0e8b2832f1484b34023c6",
+  "findings": [
+    {
+      "priority": 1,
+      "title": "Unknown stage horizon does not bound already accepted handler",
+      "sites": [
+        "control/windows/node/protected-isolation.mjs:172",
+        "control/windows/vbslike/manager/permit-enforcement.mjs:203",
+        "control/windows/vbslike/manager/control.mjs:129"
+      ],
+      "reason": "Authenticated handler can wait in serial queue or authority.read before intent and deadline exist. No server completion deadline bounds that await. Empty inventory after client stagingMs+replayWindowMs does not prove delayed accepted handler cannot subsequently stage. resolveUnknown drops obligation anyway. Request/operation identity and durable pending/terminal ownership are required; elapsed time is insufficient.",
+      "verification": "Source trace only; root should test blocked authority past horizon, inventory empty, Stop, then release handler."
+    },
+    {
+      "priority": 1,
+      "title": "Inventory completeness ignores unmapped live domain when historical rows exist",
+      "sites": [
+        "control/windows/vbslike/manager/protected-manager.mjs:91"
+      ],
+      "reason": "Unattributed-domain guard includes !rows.length. A removed/refused historical row disables guard, omitting another pp domain with this deployment name and no mapping, while complete:true is returned. Client filters terminal rows and may conclude absence.",
+      "verification": "Root fixture: historical terminal row plus new unmapped live pp domain same name."
+    },
+    {
+      "priority": 1,
+      "title": "Origin mismatch permits enrolled deployment to fall through legacy path",
+      "sites": [
+        "control/windows/node/protected-supervisor.mjs:126",
+        "control/windows/node/isolation-lifecycle.mjs:73"
+      ],
+      "reason": "protectedSupervisorFor returns null before checking enrollment whenever selected client origin differs from policy.manager. Enrolled deployment reconciled through composite8097 vs direct8095, or changed manager config, then takes legacy lifecycle. Must enforce enrollment by deployment before origin routing and hold mismatch."
+    },
+    {
+      "priority": 1,
+      "title": "Unsigned DELETE still stops protected instances",
+      "sites": [
+        "control/windows/vbslike/manager/protected-manager.mjs:175",
+        "control/windows/vbslike/manager/protected-manager.mjs:49"
+      ],
+      "reason": "createProtectedServer rejects unsigned /protected and /control only; unsigned DELETE /vms/pp... reaches legacy request handler which invokes protected manager removal/withdrawal. More restrictive state does not establish owner authority and allows local caller to stop protected workloads. Use authenticated protected DELETE; preserve legacy unsigned deletes only for legacy IDs."
+    },
+    {
+      "priority": 2,
+      "title": "Unknown permit reconciliation cannot return v2 host authority",
+      "sites": [
+        "control/windows/node/protected-isolation.mjs:126",
+        "control/windows/vbslike/manager/permit-enforcement.mjs:409"
+      ],
+      "reason": "On lost permit response, strict MAC view reconciliation returns hostAuthority:null and deletes unknownPermits. Runtime requires exact grant.hostAuthority; manager view exposes no hostAuthority, so successful v2 response loss inevitably fails boundary check and fences/removes instead of recovering. Keep unknown until MAC receipt contains exact bound authority, never invent qualification."
+    },
+    {
+      "priority": 2,
+      "title": "Supervisor initialization can create multiple in-memory owners",
+      "sites": [
+        "control/windows/node/protected-supervisor.mjs:127",
+        "control/windows/node/protected-supervisor.mjs:54"
+      ],
+      "reason": "supervisors.has checked before awaited dynamic import/control creation; no in-flight initialization promise or second check. Concurrent initial calls can construct distinct supervisors and overwrite cache, splitting unknown-stage and instance ownership. #runtime similarly has no in-flight singleton. Source concurrency risk; root should verify actual calling concurrency before treating as production reproduction."
+    }
+  ],
+  "positiveSourceObservations": [
+    "Stage/permit omit reconcile callback; GuestdControl unsigned401 no longer automatically resends those non-idempotent calls.",
+    "servingMatches now checks state, serving, exact identity/epochs and future bounded deadline; held/expired digest-only success removed.",
+    "Signed envelope cloned from collector and hash bound to gate entry; generation/host-authority/deadline checked, consumed once. No evidence of fabricated signature or signed instance binding.",
+    "ProtectedManager.remove catches journal fault before invoking withdraw; no early thrown journal read prevents withdrawal.",
+    "main composes independent windowsBackend removal; native role wraps both legacy spawn and spawnProtectedInternal with existing predicate.",
+    "windowsBackend survey includes any matching manager Notes marker via OR filter; cannot assert native VMs omitted merely from prefix argument."
+  ],
+  "reportGaps": [
+    "No genuine authority opener/collector in production entry; protected enrollment remains held.",
+    "No composite inventory forwarding/e2e; no new workload adapters; no release closure; pending older clock/renew/cleanup fixes.",
+    "Host presteps still use legacy manager client and no protected capability verdict."
+  ],
+  "execution": "All reproduction suggestions unexecuted; coordinator owns tests and deployment."
+}

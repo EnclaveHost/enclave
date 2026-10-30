@@ -1,0 +1,8 @@
+{
+  "scope": "Partial live-author snapshot; not final delivery or qualification",
+  "sha256": {
+    "src/tools/generate-lifecycle-schema3-adapter-candidate.mjs": "0e8ed11caf453e00813c3af2fbf34f1ac5d242ed9407d70e77614b1dae80df07",
+    "src/tools/insertion-patch.mjs": "53eeef0d475dc9abf2948d5cad4f4e1a067d68a1b1e424e07c40cab90afc372b",
+    "src/network/lifecycle-schema3-profile.mjs": "e10f460866be7c30f71e0bc482929818b3003065f46ef5d53feb73d2f8134083"
+  }
+}

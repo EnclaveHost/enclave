@@ -1,0 +1,8 @@
+{
+  "inodeAllocatedBytes": 1134426460160,
+  "mappedDataBytes": 1134426345472,
+  "metadataBlocks": 28,
+  "differenceBeyond28MetadataBlocks": 0,
+  "sparseTailBytes": 3739987968,
+  "checksumVerified": false
+}

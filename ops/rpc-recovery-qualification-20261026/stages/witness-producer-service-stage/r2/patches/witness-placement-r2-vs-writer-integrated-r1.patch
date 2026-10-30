@@ -1,0 +1,318 @@
+diff --git a/metal/guest/measured-control.mjs b/metal/guest/measured-control.mjs
+index a80558f..8977a41 100644
+--- a/metal/guest/measured-control.mjs
++++ b/metal/guest/measured-control.mjs
+@@ -397,9 +397,9 @@ export const DERIVED_READER_ROLE_ENV = Object.freeze(['ENCLAVE_WRITER_AUTHORITY_
+   'ENCLAVE_DERIVED_STATE', 'ENCLAVE_DERIVED_COMMIT_BOOT', 'ENCLAVE_DERIVED_INTENDED']);
+ export const DERIVED_READER_ENDPOINTS_FORMAT = 'enclave-derived-reader-endpoints/v1';
+ const DERIVED_READER_ENDPOINTS = ['l1ConsensusUrl', 'l1ExecutionUrl', 'baseUrl'];
+-function derivedReaderEndpoints(raw, { verifierBound }) {
++export function derivedReaderEndpoints(raw, { verifierBound }) {
+   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) bad('platformApi.derivedReader must be an object');
+-  only(raw, ['format', ...DERIVED_READER_ENDPOINTS], 'platformApi.derivedReader');
++  only(raw, ['format', ...DERIVED_READER_ENDPOINTS, 'witnessUrl'], 'platformApi.derivedReader');
+   if (raw.format !== DERIVED_READER_ENDPOINTS_FORMAT) bad(`platformApi.derivedReader.format must be ${DERIVED_READER_ENDPOINTS_FORMAT}`);
+   if (!verifierBound) bad('platformApi.derivedReader needs ENCLAVE_CHAIN_AUTHORITY=verifier (the derived writer authority is only bound with the local verifier)');
+   const out = { format: raw.format };
+@@ -410,8 +410,21 @@ function derivedReaderEndpoints(raw, { verifierBound }) {
+       bad(`platformApi.derivedReader.${k} must be the http(s) origin of a private (not loopback) IPv4 address literal, without credentials, path, query or fragment`);
+     out[k] = raw[k];
+   }
++  // witness-placement r2 (OPTIONAL; absent = the exact previous bytes): the RPC VM's witness producer forward, a full URL
++  // http://<private, not loopback, IPv4 literal>:<port>/<path>; untrusted bytes the native verifies, never authority
++  if (raw.witnessUrl !== undefined) {
++    if (!witnessForwardUrl(raw.witnessUrl, ownBackendLiteral))
++      bad('platformApi.derivedReader.witnessUrl must be http://<private (not loopback) IPv4 literal>:<port>/<path> without credentials, query or fragment');
++    out.witnessUrl = raw.witnessUrl;
++  }
+   return out;
+ }
++/** the bound witness producer URL rule, shared by measured-control and the platform-api role */
++export function witnessForwardUrl(raw, isOwnLiteral) {
++  let u = null; try { u = new URL(raw); } catch { return false; }
++  return typeof raw === 'string' && isOwnLiteral(raw) && u.protocol === 'http:' && !!u.port && u.hostname !== '[::1]' && !u.hostname.startsWith('127.')
++    && u.pathname !== '/' && raw === u.href;
++}
+ function directPlatformApi(raw, { controlPort }) {
+   only(raw && typeof raw === 'object' && !Array.isArray(raw) ? (({ derivedReader, ...fields }) => fields)(raw) : raw, PA_FIELDS, 'platformApi');
+   const apiPort = intIn(raw.apiPort, 1024, 65535, 'platformApi.apiPort'), peerPort = intIn(raw.peerPort, 1024, 65535, 'platformApi.peerPort');
+diff --git a/metal/guest/platform-api-role.mjs b/metal/guest/platform-api-role.mjs
+index 1f98aed..edebac1 100644
+--- a/metal/guest/platform-api-role.mjs
++++ b/metal/guest/platform-api-role.mjs
+@@ -109,18 +109,25 @@ export function composeDerivedReader({ cfg, root, image = DERIVED_READER_IMAGE }
+     let u = null; try { checkOwnBackend(ep[k]); u = new URL(ep[k]); } catch {}
+     if (!u || u.hostname === "[::1]" || u.hostname.startsWith("127.") || ep[k] !== u.origin) throw derivedRefusal("derived_reader_endpoint", `the bound derivedReader.${k} is not a private IPv4 origin`);
+   }
++  // witness-placement r2: the optional bound witness producer forward (measured-control.mjs witnessForwardUrl rule)
++  if (ep.witnessUrl !== undefined) {
++    let u = null; try { checkOwnBackend(ep.witnessUrl); u = new URL(ep.witnessUrl); } catch {}
++    if (!u || u.protocol !== "http:" || !u.port || u.hostname === "[::1]" || u.hostname.startsWith("127.") || u.pathname === "/" || ep.witnessUrl !== u.href)
++      throw derivedRefusal("derived_reader_endpoint", "the bound derivedReader.witnessUrl is not http://<private IPv4 literal>:<port>/<path>");
++  }
+   let pins, template;
+   try { pins = JSON.parse(fs.readFileSync(image, "utf8")); } catch (e) { throw derivedRefusal("derived_reader_absent", `no derived reader in this image (${image}: ${e.code || e.message})`); }
+   if (!pins || pins.format !== "enclave-derived-reader-image/v1" || !pins.config || !pins.private || !pins.roleEnv) throw derivedRefusal("derived_reader_tamper", `${image} is not an enclave-derived-reader-image/v1 record`);
+   try { template = fs.readFileSync(pins.config.path); } catch (e) { throw derivedRefusal("derived_reader_absent", `the reader template is missing (${e.code || e.message})`); }
+   if (createHash("sha256").update(template).digest("hex") !== pins.config.sha256) throw derivedRefusal("derived_reader_tamper", "the reader template is not the one the image record pins");
+   const t = JSON.parse(template);
+-  if (!t.l1 || t.l1.consensusUrl !== null || t.l1.executionUrl !== null || t.baseUrl !== null || t.initializeState !== false
++  if (!t.l1 || Object.hasOwn(t, "witnessUrl") || t.l1.consensusUrl !== null || t.l1.executionUrl !== null || t.baseUrl !== null || t.initializeState !== false
+       || pins.private.stateDir !== path.join(GUEST_PLATFORM_API_DIR, "derived-reader-v3") || t.stateDir !== pins.private.stateDir)
+     throw derivedRefusal("derived_reader_tamper", "the reader template is not endpoint-free, never-initializing, with the record's state directory");
+   const env = { ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived", ENCLAVE_DERIVED_READER_CONFIG: file, ENCLAVE_DERIVED_ANCHOR_JOURNAL: path.join(stateDir, "anchor-journal.json") };
+   if (root === GUEST_PLATFORM_API_DIR && canonicalJson(env) !== canonicalJson(pins.roleEnv)) throw derivedRefusal("derived_reader_tamper", "the role's reader paths are not the image record's roleEnv");
+-  const composed = { ...t, stateDir, l1: { ...t.l1, consensusUrl: ep.l1ConsensusUrl, executionUrl: ep.l1ExecutionUrl }, baseUrl: ep.baseUrl };
++  const composed = { ...t, stateDir, l1: { ...t.l1, consensusUrl: ep.l1ConsensusUrl, executionUrl: ep.l1ExecutionUrl }, baseUrl: ep.baseUrl,
++    ...(ep.witnessUrl !== undefined ? { witnessUrl: ep.witnessUrl } : {}) };
+   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+   fs.writeFileSync(file, JSON.stringify(composed, null, 2) + "\n", { mode: 0o600 });
+   return env;
+diff --git a/relay/derived-reader-driver-wiring.mjs b/relay/derived-reader-driver-wiring.mjs
+index 684d61d..f5b6083 100644
+--- a/relay/derived-reader-driver-wiring.mjs
++++ b/relay/derived-reader-driver-wiring.mjs
+@@ -12,6 +12,7 @@
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import { createDerivedReaderDriver, driverConfig } from './derived-reader-driver.mjs';
++import { checkOwnBackend } from '../network/chain-authority.mjs';
+ 
+ export const DRIVER_POLICY_FORMAT = 'enclave-derived-reader-driver-policy/v1';
+ export const WITNESS_REQUEST_FORMAT = 'enclave-derived-witness-request/v1';
+@@ -34,13 +35,21 @@ export function driverPolicy(p) {
+   return Object.freeze({ format: p.format, schedule, witness: Object.freeze({ ...p.witness }), targets: Object.freeze({ ...p.targets }),
+     rollupConfigTemplateFile: p.rollupConfigTemplateFile });
+ }
+-/** Only an in-guest producer on loopback: no public or host endpoint is ever a witness source (it is untrusted either way). */
++/** witness-placement r2: the producer runs in the separate RPC VM, so its URL is the operator's OWN backend - a private IPv4
++ *  literal (the HOST_DATA-bound host-link forward, e.g. http://10.0.2.2:28747/witness) or a loopback literal - checked by the
++ *  existing network/chain-authority.mjs checkOwnBackend; never a name or public address. The bytes are untrusted either way. */
+ function witnessUrl(url) {
+   let u; try { u = new URL(url); } catch { throw new Error('the driver witness URL is not a URL'); }
+-  if (u.protocol !== 'http:' || !LOOPBACK.has(u.hostname) || !u.port || u.username || u.password || u.search || u.hash)
+-    throw new Error('the driver witness producer must be a loopback http://127.0.0.1:<port>/<path> endpoint (in-guest, owned)');
++  let own = null; try { own = checkOwnBackend(url); } catch {}
++  if (!own || u.protocol !== 'http:' || !u.port || u.username || u.password || u.search || u.hash || u.pathname === '/' || url !== u.href)
++    throw new Error('the driver witness producer must be http://<private or loopback IPv4 literal>:<port>/<path> (the operator\'s own backend; no name, public address, credentials or query)');
+   return u;
+ }
++/** both approvals must name the same producer: the admin-signed driver policy AND the HOST_DATA-bound derivedReader.witnessUrl */
++export function bindWitnessUrl(p, boundWitnessUrl) {
++  if (typeof boundWitnessUrl !== 'string' || p.witness.url !== boundWitnessUrl)
++    throw new Error('the signed driver witness URL is not the HOST_DATA-bound derivedReader.witnessUrl (no producer without both approvals)');
++}
+ 
+ /**
+  * createWitnessTransport({ url, timeoutMs, maxBytes }, { fetchImpl })
+@@ -95,10 +104,10 @@ export function journalEvidence(journal, journalPath, { statImpl = fs.statSync }
+ }
+ 
+ /**
+- * startReaderDriver({ policy, reader, journal, journalPath, baseRequest, readFile, now, log, createDriver, createTransport })
++ * startReaderDriver({ policy, boundWitnessUrl, reader, journal, journalPath, baseRequest, readFile, now, log, createDriver, createTransport })
+  * Validates everything BEFORE anything runs; returns the started driver (stop() before closing the reader).
+  */
+-export async function startReaderDriver({ policy, reader, journal, journalPath, baseRequest, readFile, now = Date.now, log = () => {},
++export async function startReaderDriver({ policy, boundWitnessUrl, reader, journal, journalPath, baseRequest, readFile, now = Date.now, log = () => {},
+                                           createDriver = createDerivedReaderDriver, createTransport = createWitnessTransport } = {}) {
+   const p = driverPolicy(policy);
+   if (typeof baseRequest !== 'function') throw new Error('the driver needs the own Base node transport for its hints');
+@@ -108,6 +117,7 @@ export async function startReaderDriver({ policy, reader, journal, journalPath,
+   let template; try { template = JSON.parse(bytes.toString('utf8')); } catch { throw new Error('the rollup config template is not JSON'); }
+   if (!template || typeof template !== 'object' || Array.isArray(template) || template.l2_chain_id !== 8453)
+     throw new Error('the rollup config template is not a Base (8453) rollup config object');
++  bindWitnessUrl(p, boundWitnessUrl);                        // before any transport or driver exists
+   const driver = createDriver({ provider: reader, targets: ownNodeTargets(baseRequest), witness: createTransport(p.witness),
+     evidence: journalEvidence(journal, journalPath), cold: null, clock: { now }, rollupConfigTemplate: template, config: p.schedule });
+   driver.start();
+diff --git a/relay/derived-writer-authority.mjs b/relay/derived-writer-authority.mjs
+index a536e83..98ecec6 100644
+--- a/relay/derived-writer-authority.mjs
++++ b/relay/derived-writer-authority.mjs
+@@ -454,7 +454,8 @@ export async function derivedWriterAuthorityFromEnv(env, { relayChain, loadRunti
+   const runtime = await loadRuntime();
+   if (typeof runtime?.startDerivedLifecycleReader !== "function" || typeof runtime?.openLifecycleJournal !== "function")
+     throw new Error("this build's network runtime has no derived reader (KVM R2/R3 not composed): the writer authority cannot be derived");
+-  const config = JSON.parse(await readFile(cfgPath, "utf8"));
++  // witness-placement r2: the role-composed, HOST_DATA-bound producer URL; stripped so the provider's config bytes are unchanged
++  const { witnessUrl: boundWitnessUrl, ...config } = JSON.parse(await readFile(cfgPath, "utf8"));
+   // The platform-api role's enrolled durable state (ENCLAVE_DERIVED_STATE, role-set only): every journal write is committed by
+   // the role to its replica majority over the private IPC channel BEFORE anything is published. A runtime without that API
+   // never receives it: the writer authority stays unproven and the relay keeps serving (no crash, no unreplicated journal).
+@@ -529,7 +530,7 @@ export async function derivedWriterAuthorityFromEnv(env, { relayChain, loadRunti
+   let driver = null;
+   if (wantDriver) {
+     try {
+-      driver = await runtime.startReaderDriver({ policy: state.cfg.driver, reader: service.reader, journal: state.journal, journalPath,
++      driver = await runtime.startReaderDriver({ policy: state.cfg.driver, boundWitnessUrl, reader: service.reader, journal: state.journal, journalPath,
+         // the own Base node (role-bound baseUrl): untrusted transport for hints only; never authority
+         baseRequest: runtime.boundedRpc(state.cfg.baseUrl, { timeoutMs: state.cfg.driver?.targets?.timeoutMs ?? 5000, maxBytes: 1 << 20 }),
+         readFile: (p) => readFile(p), ...(now ? { now } : {}), log });
+diff --git a/test/derived-reader-driver-integration.test.mjs b/test/derived-reader-driver-integration.test.mjs
+index 5518b87..716b09c 100644
+--- a/test/derived-reader-driver-integration.test.mjs
++++ b/test/derived-reader-driver-integration.test.mjs
+@@ -35,7 +35,7 @@ const body = async q => { const a = []; for await (const c of q) a.push(c); retu
+ 
+ test('policy: exact signed section; the witness producer only on loopback; the template a canonical absolute file', () => {
+   assert.equal(driverPolicy(policy('http://127.0.0.1:9000/witness')).witness.url, 'http://127.0.0.1:9000/witness');
+-  for (const url of ['https://127.0.0.1:9000/w', 'http://10.0.2.2:9000/w', 'http://example.com:80/w', 'http://127.0.0.1/w', 'http://127.0.0.1:9000/w?x=1', 'http://u:p@127.0.0.1:9000/w', 'ftp://127.0.0.1:9/w'])
++  for (const url of ['https://127.0.0.1:9000/w', 'http://example.com:80/w', 'http://127.0.0.1/w', 'http://127.0.0.1:9000/w?x=1', 'http://u:p@127.0.0.1:9000/w', 'ftp://127.0.0.1:9/w'])
+     assert.throws(() => driverPolicy(policy(url)), /loopback|not a URL/, url);
+   assert.throws(() => driverPolicy({ ...policy('http://127.0.0.1:9/w'), extra: 1 }), /exact keys/);
+   assert.throws(() => driverPolicy(policy('http://127.0.0.1:9/w', { schedule: { ...SCHEDULE, stateRefreshSec: 120 } })), /invalid driver config bounds/);
+@@ -87,7 +87,7 @@ async function wired(t, { gated = false, producer = 'ok' } = {}) {
+   });
+   f.template = path.join(f.directory, 'base-rollup-template.json'); fs.writeFileSync(f.template, JSON.stringify(TEMPLATE));
+   f.hints = { finalized: 101, safe: 103 };
+-  f.start = (manual = true) => startReaderDriver({ policy: policy(url, { rollupConfigTemplateFile: f.template }), reader: f.reader, journal: f.lifecycle,
++  f.start = (manual = true) => startReaderDriver({ policy: policy(url, { rollupConfigTemplateFile: f.template }), boundWitnessUrl: url, reader: f.reader, journal: f.lifecycle,
+     journalPath: f.lifecycleFile, baseRequest: async (_m, [tag]) => ({ number: `0x${f.hints[tag].toString(16)}` }), readFile: p => fs.promises.readFile(p),
+     now: () => f.now, createDriver: manual ? o => ({ ...createDerivedReaderDriver(o), start() {} }) : createDerivedReaderDriver });
+   return f;
+diff --git a/test/fixtures/witness-placement-policy.json b/test/fixtures/witness-placement-policy.json
+new file mode 100644
+index 0000000..37bd6ea
+--- /dev/null
++++ b/test/fixtures/witness-placement-policy.json
+@@ -0,0 +1,35 @@
++{
++ "format": "enclave-derived-reader-driver-policy/v1",
++ "schedule": {
++  "finalizedDeadlineSec": 1800,
++  "finalMarginSec": 60,
++  "finalIntervalSec": 1,
++  "minFinalStep": 1,
++  "stateRefreshSec": 60,
++  "minStateIntervalSec": 1,
++  "budgetSec": {
++   "final": 60,
++   "provisional": 30
++  },
++  "minRange": 1,
++  "maxRange": {
++   "final": 1800,
++   "provisional": 100
++  },
++  "retry": {
++   "baseMs": 10,
++   "maxMs": 100,
++   "maxConsecutive": 3
++  },
++  "idleMs": 20
++ },
++ "witness": {
++  "url": "http://10.0.2.2:28747/witness",
++  "timeoutMs": 5000,
++  "maxBytes": 67108864
++ },
++ "targets": {
++  "timeoutMs": 1000
++ },
++ "rollupConfigTemplateFile": "/opt/enclave/policy/base-rollup-template.json"
++}
+diff --git a/test/witness-placement.test.mjs b/test/witness-placement.test.mjs
+new file mode 100644
+index 0000000..82ffbbc
+--- /dev/null
++++ b/test/witness-placement.test.mjs
+@@ -0,0 +1,98 @@
++// witness-placement r2 (PREPARED by Claude; NOT run): the witness producer lives in the separate RPC VM. Its URL must be the
++// operator's own backend (private IPv4 literal of the HOST_DATA-bound forward, or loopback), bound by BOTH the admin-signed driver
++// policy and the measured role's HOST_DATA composition. The transport test needs 10.0.2.2 on the namespace's lo (jobs/tests.sh).
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import { once } from 'node:events';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { createHash } from 'node:crypto';
++import { driverPolicy, createWitnessTransport, startReaderDriver, bindWitnessUrl, DRIVER_POLICY_FORMAT, WITNESS_REQUEST_FORMAT } from '../relay/derived-reader-driver-wiring.mjs';
++import { derivedReaderEndpoints, witnessForwardUrl, ownBackendLiteral, DERIVED_READER_ENDPOINTS_FORMAT } from '../metal/guest/measured-control.mjs';
++import { composeDerivedReader } from '../metal/guest/platform-api-role.mjs';
++
++const SCHEDULE = JSON.parse(process.env.WP_SCHEDULE || 'null');
++const FWD = 'http://10.0.2.2:28747/witness';
++const EP = { format: DERIVED_READER_ENDPOINTS_FORMAT, l1ConsensusUrl: 'http://10.0.2.2:25052', l1ExecutionUrl: 'http://10.0.2.2:28645', baseUrl: 'http://10.0.2.2:28545' };
++const PUBLICISH = ['http://8.8.8.8:8545/witness', 'http://example.com:80/witness', 'https://10.0.2.2:28747/witness', 'http://10.0.2.2/witness',
++  'http://u:p@10.0.2.2:28747/witness', 'http://10.0.2.2:28747/witness?x=1', 'http://10.0.2.2:28747/witness#f', 'http://0.0.0.0:28747/witness',
++  'http://169.254.1.1:28747/witness', 'http://100.64.0.1:28747/witness', 'http://172.32.0.1:28747/witness', 'http://10.0.2.2:28747/', 'ftp://10.0.2.2:28747/witness'];
++
++function policyWith(url, base) { return { ...base, witness: { ...base.witness, url } }; }
++
++test('driver witness URL: own private/loopback literal only; every public, named or malformed form refused', async () => {
++  const { readFileSync } = fs;
++  const base = JSON.parse(readFileSync(new URL('./fixtures/witness-placement-policy.json', import.meta.url), 'utf8'));
++  for (const ok of [FWD, 'http://127.0.0.1:9000/witness', 'http://192.168.1.5:9/w', 'http://172.16.0.1:9/w'])
++    assert.equal(driverPolicy(policyWith(ok, base)).witness.url, ok);
++  for (const bad of PUBLICISH) assert.throws(() => driverPolicy(policyWith(bad, base)), /own backend|not a URL/, bad);
++});
++
++test('both approvals must name the same producer: signed policy url == HOST_DATA-bound witnessUrl, else no transport or driver', async () => {
++  const base = JSON.parse(fs.readFileSync(new URL('./fixtures/witness-placement-policy.json', import.meta.url), 'utf8'));
++  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'wp-')); const tpl = path.join(d, 't.json'); fs.writeFileSync(tpl, JSON.stringify({ l2_chain_id: 8453 }));
++  const p = { ...policyWith(FWD, base), rollupConfigTemplateFile: tpl };
++  for (const bound of [undefined, null, 'http://10.0.2.2:28748/witness', 'http://10.0.2.3:28747/witness', 'http://10.0.2.2:28747/other', FWD + '/']) {
++    let made = 0;
++    await assert.rejects(startReaderDriver({ policy: p, boundWitnessUrl: bound, reader: {}, journal: {}, journalPath: '/x', baseRequest: async () => null,
++      readFile: async (f) => fs.readFileSync(f), createDriver: () => { made++; return { start() {} }; }, createTransport: () => { made++; return async () => null; } }),
++      /HOST_DATA-bound derivedReader.witnessUrl/, String(bound));
++    assert.equal(made, 0, 'nothing is constructed without both approvals');
++  }
++  let made = null;
++  await startReaderDriver({ policy: p, boundWitnessUrl: FWD, reader: {}, journal: { readProvisional: () => null }, journalPath: '/x', baseRequest: async () => null,
++    readFile: async (f) => fs.readFileSync(f), createDriver: (o) => { made = o; return { start() {} }; }, createTransport: (w) => async () => w });
++  assert.ok(made && typeof made.witness === 'function');
++  assert.throws(() => bindWitnessUrl(driverPolicy(p), 'http://127.0.0.1:28747/witness'), /HOST_DATA-bound/);
++});
++
++test('HOST_DATA canonicaliser: optional witnessUrl, exact previous bytes when absent; loopback/public/named/malformed refused', () => {
++  assert.deepEqual(derivedReaderEndpoints(EP, { verifierBound: true }), EP);                       // absent = the previous output
++  assert.deepEqual(derivedReaderEndpoints({ ...EP, witnessUrl: FWD }, { verifierBound: true }), { ...EP, witnessUrl: FWD });
++  for (const bad of [...PUBLICISH, 'http://127.0.0.1:28747/witness', 'http://[::1]:28747/witness', 'http://localhost:28747/witness', 28747, null])
++    assert.throws(() => derivedReaderEndpoints({ ...EP, witnessUrl: bad }, { verifierBound: true }), /witnessUrl/, String(bad));
++  assert.throws(() => derivedReaderEndpoints({ ...EP, witness: FWD }, { verifierBound: true }));
++  assert.equal(witnessForwardUrl(FWD, ownBackendLiteral), true);
++});
++
++test('measured role compose: writes ONLY the bound witnessUrl; a template carrying one is tamper; an invalid bound one refuses', () => {
++  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'wpr-'));
++  const tpl = { l1: { consensusUrl: null, executionUrl: null }, baseUrl: null, initializeState: false, stateDir: '/run/measured-control/platform-api/derived-reader-v3' };
++  const write = (t) => { const f = path.join(d, 'tpl.json'); fs.writeFileSync(f, JSON.stringify(t));
++    const img = path.join(d, 'img.json'); fs.writeFileSync(img, JSON.stringify({ format: 'enclave-derived-reader-image/v1', config: { path: f, sha256: createHash('sha256').update(fs.readFileSync(f)).digest('hex') },
++      private: { stateDir: tpl.stateDir }, roleEnv: {} })); return img; };
++  const root = path.join(d, 'root'); fs.mkdirSync(root);
++  const img = write(tpl);
++  composeDerivedReader({ cfg: { platformApi: { derivedReader: { ...EP, witnessUrl: FWD } } }, root, image: img });
++  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'derived-reader', 'derived-reader-v3.json'), 'utf8')).witnessUrl, FWD);
++  composeDerivedReader({ cfg: { platformApi: { derivedReader: EP } }, root, image: img });
++  assert.ok(!('witnessUrl' in JSON.parse(fs.readFileSync(path.join(root, 'derived-reader', 'derived-reader-v3.json'), 'utf8'))));
++  assert.throws(() => composeDerivedReader({ cfg: { platformApi: { derivedReader: EP } }, root, image: write({ ...tpl, witnessUrl: FWD }) }), (e) => e.code === 'derived_reader_tamper');
++  for (const bad of ['http://127.0.0.1:28747/witness', 'http://8.8.8.8:1/w', 'http://10.0.2.2:28747/'])
++    assert.throws(() => composeDerivedReader({ cfg: { platformApi: { derivedReader: { ...EP, witnessUrl: bad } } }, root, image: img }), (e) => e.code === 'derived_reader_endpoint', bad);
++});
++
++test('REAL transport to a producer on the private host-link address 10.0.2.2 (namespaced): exact request, bounded answer; bad answers refused', async () => {
++  const seen = []; let mode = 'ok';
++  const s = http.createServer(async (req, res) => {
++    let b = ''; for await (const c of req) b += c; seen.push({ method: req.method, url: req.url, ct: req.headers['content-type'], body: JSON.parse(b) });
++    if (mode === 'redirect') { res.writeHead(302, { location: 'http://8.8.8.8/' }); return res.end(); }
++    if (mode === 'json') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{}'); }
++    if (mode === 'big') { res.writeHead(200, { 'content-type': 'application/octet-stream' }); return res.end(Buffer.alloc(2048)); }
++    if (mode === 'slow') return;                                                           // never answers
++    res.writeHead(200, { 'content-type': 'application/octet-stream' }); res.end(Buffer.from('witness-bytes'));
++  });
++  s.listen(0, '10.0.2.2'); await once(s, 'listening');
++  try {
++    const url = `http://10.0.2.2:${s.address().port}/witness`;
++    const w = createWitnessTransport({ url, timeoutMs: 1500, maxBytes: 1024 });
++    const req = { track: 'final', ticket: 'SECRET-TICKET', trusted: { chainId: 8453 }, agreedL2BlockNumber: 1, maximumWitnessBytes: 4096 };
++    assert.equal(Buffer.from(await w(req)).toString(), 'witness-bytes');
++    assert.deepEqual(Object.keys(seen[0].body), ['format', 'track', 'trusted', 'agreedL2BlockNumber', 'maximumWitnessBytes']);
++    assert.equal(seen[0].body.format, WITNESS_REQUEST_FORMAT); assert.equal(seen[0].body.maximumWitnessBytes, 1024);      // min(ticket, policy)
++    assert.ok(!JSON.stringify(seen[0]).includes('SECRET-TICKET'));                                                     // the ticket never leaves
++    for (const m of ['redirect', 'json', 'big', 'slow']) { mode = m; await assert.rejects(w(req), undefined, m); }
++  } finally { s.closeAllConnections?.(); s.close(); }
++});

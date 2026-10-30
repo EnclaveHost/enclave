@@ -1,0 +1,17 @@
+{
+  "PREPARED.json": "cea281d7607ed614a18699ca8882d650099c3b5013e4f91b61b1877cedf2891d",
+  "REVIEW-STATUS.txt": "e2f32162ad83b04eb570cbaecbb3ae25f4e8ff80553ddf6fddcd4beca836a6e6",
+  "STATUS.md": "619addca745a014bf6a546a85b240d45bd1ca3a1014d900bd4b6c3b4754566f0",
+  "TASK.txt": "162dc8449f7fd213d4426115da201c2040028855b7e0f9ffd0a7a7cefac172ad",
+  "collect-terminal.py": "79d1d0c829f7d5da1360d4bbdc3f9564eaa31e5fcb63d67ea95f8bc018adcb1b",
+  "dependency-map.json": "92a1983971fecba7c192f07328fab951df447d34ccfa07cfdcd90669d7165522",
+  "input-pins.json": "0f0ed15dc7e9945f73673b489ab95a13d520d9538d01ba88b07f82dbe10ab7fd",
+  "launch-command.txt": "6d2f0d5a72eed3571f8c37a83af64cf2ddf9aad53f7d3012f489c326e81b8674",
+  "preparation-audit.json": "e91273d031544557149231b8f99b0d8b013adae4ce4ccc7852dd653c5c9fc8c4",
+  "qualification-admission-plan.json": "7538040f2a3e6af511984b17f95684c4e1450034276c5d65647f50beaa990c95",
+  "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+  "run.py": "c6c2f031cd1fa33082870fc1b9700920090e11f207b9dd4d8b5d843e7f71767e",
+  "seed-pins.json": "28a94534fa697b8e972dbe5881f727df1af111a21b6c6cd7c7f5c1a16d603e12",
+  "seed-provenance.json": "5572151981aa0fc0058c4f8dfb04740bc35ed1b4aacdb3e182be0e7e1d462105",
+  "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8"
+}

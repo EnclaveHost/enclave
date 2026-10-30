@@ -1,0 +1,14 @@
+{
+  "invocation": "5666ac2d681844969b590310dfd42a3f",
+  "unitResult": "failed exit143",
+  "scope": "run-p2500946-i44388163.scope",
+  "scopeResult": "oom-kill",
+  "scopePeakMiB": 256,
+  "preflightResultAbsent": true,
+  "guardLogsAbsent": true,
+  "authorLaunched": false,
+  "noSuccessInferredFromUnloadedSystemctl": true,
+  "sourceIssue": "Original preflight hashes237375560-byte Claude executable with Path.read_bytes in256MiB allocation plus guards/interpreter. Separate streaming hash removes this whole-file allocation; original preserved.",
+  "newPreflightSha256": "59105bfca47fc3837043f68ddaf845146143eba8033a55fd5180b80a0863b97a",
+  "same256MiBCap": true
+}

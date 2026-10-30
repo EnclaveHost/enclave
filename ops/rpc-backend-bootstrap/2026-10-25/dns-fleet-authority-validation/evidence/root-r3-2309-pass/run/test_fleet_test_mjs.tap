@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: fleetConfig: ENCLAVES + legacy ENCLAVE_URL fold together, deduped, slashes stripped
+ok 1 - fleetConfig: ENCLAVES + legacy ENCLAVE_URL fold together, deduped, slashes stripped
+  ---
+  duration_ms: 1.33429
+  type: 'test'
+  ...
+# Subtest: fleetConfig: ENCLAVE_URL alone still works (legacy env files)
+ok 2 - fleetConfig: ENCLAVE_URL alone still works (legacy env files)
+  ---
+  duration_ms: 0.135659
+  type: 'test'
+  ...
+# Subtest: fleetConfig: neither source -> empty (daemons treat as fatal)
+ok 3 - fleetConfig: neither source -> empty (daemons treat as fatal)
+  ---
+  duration_ms: 0.09573
+  type: 'test'
+  ...
+# Subtest: createFleet: static mode serves the list immediately, start() is a no-op
+ok 4 - createFleet: static mode serves the list immediately, start() is a no-op
+  ---
+  duration_ms: 0.356207
+  type: 'test'
+  ...
+# Subtest: fetchJson: json on 2xx, null on non-2xx and on refused
+ok 5 - fetchJson: json on 2xx, null on non-2xx and on refused
+  ---
+  duration_ms: 24.851945
+  type: 'test'
+  ...
+# Subtest: U7 fleet: the eligibility feed answers only while fresh; ineligible, stale and unconfigured are all 'no'
+ok 6 - U7 fleet: the eligibility feed answers only while fresh; ineligible, stale and unconfigured are all 'no'
+  ---
+  duration_ms: 4110.413393
+  type: 'test'
+  ...
+# Subtest: U7 fleet: a held session is closed once its host stops being eligible, or its verdict ages out, and at once if it already is not
+ok 7 - U7 fleet: a held session is closed once its host stops being eligible, or its verdict ages out, and at once if it already is not
+  ---
+  duration_ms: 6505.782523
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10795.277958

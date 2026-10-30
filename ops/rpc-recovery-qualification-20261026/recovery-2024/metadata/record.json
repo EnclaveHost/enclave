@@ -1,0 +1,32 @@
+{
+  "readOnly": true,
+  "source": "/home/steven/Documents/Codex/2026-10-26/my/work/tr004-readonly/enclave-rpc-production/base-origin.qcow2",
+  "view": "/home/steven/Documents/Codex/2026-10-26/my/work/tr004/base-view/nbd",
+  "started": 1793045777.8366194,
+  "commands": {
+    "superblock": {
+      "rc": 0,
+      "command": "logdump -S"
+    },
+    "journal-inode": {
+      "rc": 0,
+      "command": "stat <8>"
+    },
+    "db-inode": {
+      "rc": 0,
+      "command": "stat <1949710>"
+    },
+    "db-blocks": {
+      "rc": 0,
+      "command": "blocks <1949710>"
+    },
+    "dump": {
+      "rc": 0,
+      "command": "dump <8> /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/base-journal-copy-1626/journal-8.bin"
+    }
+  },
+  "journalSha256": "d95d81fcaf1fdecb305f5645bc5bf2d6093d0a7fc40affbfc769894798cbc073",
+  "journalBytes": 1073741824,
+  "sourceUnchanged": true,
+  "finished": 1793045844.8206294
+}

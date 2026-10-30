@@ -1,0 +1,25 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] START available=22997MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "ok": true,
+ "rc": 0,
+ "tests": 9,
+ "pass": 9,
+ "fail": 0,
+ "skipped": 0,
+ "todo": 0,
+ "cancelled": 0,
+ "nativeGateRan": true
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-native-readiness-stage/runs/20261026T040414Z-826141
+## native-readiness rc=0
+[memory-guard] exit=0 peakTreeRssMiB=290 minHostAvailableMiB=22692
+[memory-guard] at peak: esbuild:217 node:67 bash:4 timeout:2
+[queue] EXIT 0

@@ -1,0 +1,21 @@
+{
+ "badMarkers": [],
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "expectedTests": 6,
+ "format": "composite-production-gate-test-receipt/r7",
+ "gateSha256": "33419b834d896601a4cfa7d82e18282c51327ce94ecb20aec8ee7fa8ee7152eb",
+ "pass": true,
+ "ran": [
+  "6"
+ ],
+ "rc": 0,
+ "scope": "gate rejection/acceptance logic only; no production run, no acceptance",
+ "stageSums": "ec006ff6e7b0095c03c108a4d82d8ca1bdbf7515d6858a3b1886fb51c7198396",
+ "testsSha256": "2b463412a442a3e969d7684ebb75183309b0cd913616402ec5e661ac5e15d87b"
+}

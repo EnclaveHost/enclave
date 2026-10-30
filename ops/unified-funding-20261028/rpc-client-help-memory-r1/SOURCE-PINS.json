@@ -1,0 +1,26 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/build/cargo-home/git/checkouts/reth-babcd6134566c621/7134be3/crates/node/core/src/node_config.rs",
+    "sha256": "4a63582671ec805439d185927debea619e02aeb293f0d738716c120e6aca6a7d"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/build/cargo-home/git/checkouts/reth-babcd6134566c621/7134be3/crates/node/core/src/args/engine.rs",
+    "sha256": "f6135c3e068df2cab97c6bbec643bbb9db2f56161df111fd110969c961064064"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/build/cargo-home/git/checkouts/reth-babcd6134566c621/7134be3/crates/node/core/src/args/rpc_state_cache.rs",
+    "sha256": "b9ebfd6a9d0fc0d5f11cea05ee4361351d3f20cfd340c243d5a3694f73642148"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/build/cargo-home/git/checkouts/reth-babcd6134566c621/7134be3/crates/rpc/rpc-server-types/src/constants.rs",
+    "sha256": "603b451ff0acd351f03c3ef738a122e79f5c97f50d8ae6942775c2e1c395540b"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/build/cargo-home/git/checkouts/reth-babcd6134566c621/7134be3/crates/config/src/config.rs",
+    "sha256": "a5e55aabb3d513c40965e6b82aac18aa7b00d56d2b96769ee139fd2e0944bcfc"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/build/cargo-home/git/checkouts/reth-babcd6134566c621/7134be3/crates/engine/tree/src/tree/payload_processor/mod.rs",
+    "sha256": "95ef1e1d8cdcc5280275e23d7f8dbe068ffb9e96e79276078d0024bc1f8211db"
+  }
+]

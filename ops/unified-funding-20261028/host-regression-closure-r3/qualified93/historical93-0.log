@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: the generator input is the pinned baseline
+ok 1 - the generator input is the pinned baseline
+  ---
+  duration_ms: 1.113392
+  type: 'test'
+  ...
+# Subtest: insertions only: removing them restores every baseline byte; each guard sits before its legacy effect
+ok 2 - insertions only: removing them restores every baseline byte; each guard sits before its legacy effect
+  ---
+  duration_ms: 11.02402
+  type: 'test'
+  ...
+# Subtest: refuses a changed baseline hash
+ok 3 - refuses a changed baseline hash
+  ---
+  duration_ms: 1.766207
+  type: 'test'
+  ...
+# Subtest: refuses missing, duplicate and overlapping anchors, duplicate edit names and double application
+ok 4 - refuses missing, duplicate and overlapping anchors, duplicate edit names and double application
+  ---
+  duration_ms: 10.714002
+  type: 'test'
+  ...
+# Subtest: writes a separate candidate: never into the baseline directory, never over an existing file
+ok 5 - writes a separate candidate: never into the baseline directory, never over an existing file
+  ---
+  duration_ms: 20.232783
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 79.531453

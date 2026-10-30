@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: guest relay child: the bound own backend is forwarded; the derived BASE_RPC default is not; provider names are refused BY NAME, never deleted
+ok 1 - guest relay child: the bound own backend is forwarded; the derived BASE_RPC default is not; provider names are refused BY NAME, never deleted
+  ---
+  duration_ms: 3.268662
+  type: 'test'
+  ...
+# Subtest: guest relay child start: the bound backend only with the bound verifier and only as checkOwnBackend accepts it; refused by name, child not started
+ok 2 - guest relay child start: the bound backend only with the bound verifier and only as checkOwnBackend accepts it; refused by name, child not started
+  ---
+  duration_ms: 0.715736
+  type: 'test'
+  ...
+# Subtest: measured config binds the relay child backend only with the verifier, as a private/loopback literal, and refuses provider names beside it
+ok 3 - measured config binds the relay child backend only with the verifier, as a private/loopback literal, and refuses provider names beside it
+  ---
+  duration_ms: 4.831182
+  type: 'test'
+  ...
+# Subtest: custody route on the verifier: every vault field at ONE numbered block of its head, its age checked; 200 only on a proven answer; stale/outage 503
+ok 4 - custody route on the verifier: every vault field at ONE numbered block of its head, its age checked; 200 only on a proven answer; stale/outage 503
+  ---
+  duration_ms: 2716.260351
+  type: 'test'
+  ...
+# Subtest: custody route, legacy: CUSTODY_RPCS (two must agree) exactly as before; the verifier is never asked
+ok 5 - custody route, legacy: CUSTODY_RPCS (two must agree) exactly as before; the verifier is never asked
+  ---
+  duration_ms: 764.814673
+  type: 'test'
+  ...
+# Subtest: sessions on the verifier: the relayer starts from proven reads; the factory comes from the admin book; isVault through the verifier; nothing public
+ok 6 - sessions on the verifier: the relayer starts from proven reads; the factory comes from the admin book; isVault through the verifier; nothing public
+  ---
+  duration_ms: 1325.247483
+  type: 'test'
+  ...
+# Subtest: sessions on the verifier, outage: the relayer reports why and every chain-backed answer fails; no public default is tried
+ok 7 - sessions on the verifier, outage: the relayer reports why and every chain-backed answer fails; no public default is tried
+  ---
+  duration_ms: 776.882641
+  type: 'test'
+  ...
+# Subtest: sponsor on the verifier: proven nonce, override-only delegation (never vacuous), estimate under it; a type-4 handleOps sent ONLY to the bound backend
+ok 8 - sponsor on the verifier: proven nonce, override-only delegation (never vacuous), estimate under it; a type-4 handleOps sent ONLY to the bound backend
+  ---
+  duration_ms: 117.093719
+  type: 'test'
+  ...
+# Subtest: sponsor on the verifier refuses honestly and sends nothing: wrong authorization nonce, a verifier that ignores the override (vacuous), a reverting op, a codeless EntryPoint or delegate
+ok 9 - sponsor on the verifier refuses honestly and sends nothing: wrong authorization nonce, a verifier that ignores the override (vacuous), a reverting op, a codeless EntryPoint or delegate
+  ---
+  duration_ms: 96.597288
+  type: 'test'
+  ...
+# Subtest: MCP: with the relay authority handed in, its reads are that client's and the public list is never contacted; without it, the list as before
+ok 10 - MCP: with the relay authority handed in, its reads are that client's and the public list is never contacted; without it, the list as before
+  ---
+  duration_ms: 4897.811829
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11385.595919

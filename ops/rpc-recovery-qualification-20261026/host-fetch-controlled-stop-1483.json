@@ -1,0 +1,8 @@
+{
+ "reason": "brief controlled stop for uncontended bounded speed comparison",
+ "before": 30198988800,
+ "committed": 30198988800,
+ "archiveSize": 30198988800,
+ "at": "2026-10-26T17:04:51Z",
+ "pidGone": true
+}

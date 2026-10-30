@@ -1,0 +1,9 @@
+[queue] START available=18568MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+## native-config-check test-rc=0 lock-after=f122da76b80d5df44c9dc0c6fc4efc335abe295280fa49325f367ddcfc7b6a8f exact2=1
+test tests::bridge_schedule_keys_are_the_upstream_serde_keys_in_contract_order ... ok
+test tests::compiled_mainnet_config_hash_is_the_source_pin ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+PASS native-config-check 2/2 lock f122da76b80d5df44c9dc0c6fc4efc335abe295280fa49325f367ddcfc7b6a8f
+[memory-guard] exit=0 peakTreeRssMiB=400 minHostAvailableMiB=18310
+[memory-guard] at peak: cargo:220 rustc:174 bash:4 timeout:2
+[queue] EXIT 0

@@ -1,0 +1,307 @@
+{"overall": "INCOMPLETE", "acceptance": false, "failing": [], "incomplete": ["base-el-labels", "base-execution-synced", "base-finalized-advancing", "base-finalized-fresh", "base-heads-consistent", "base-identity", "base-safe-advancing", "base-safe-fresh", "base-unsafe-fresh", "historical-coverage", "l1-identity"], "out": "/tmp/rpc-l1-window-1934.json"}
+{
+ "acceptance": false,
+ "activationAuthorized": false,
+ "bounds": {
+  "interval": 120.0,
+  "maxBody": 4194304,
+  "maxDuration": 1000.0,
+  "maxRequests": 320,
+  "minWindow": 600.0,
+  "samples": 7,
+  "timeout": 5.0
+ },
+ "coverage": {
+  "note": "no validated coverage receipt binding",
+  "status": "incomplete"
+ },
+ "coverageVerifiedWritten": false,
+ "endpoints": {
+  "base": "http://127.0.0.1:18545",
+  "beacon": "http://127.0.0.1:15052",
+  "el": "http://127.0.0.1:18645",
+  "rollup": "http://127.0.0.1:19545"
+ },
+ "finishedAt": 1792957492.271,
+ "format": "enclave-rpc-readiness-sample/v1",
+ "gates": {
+  "base-el-labels": {
+   "code": "not-evaluated",
+   "count": 7,
+   "detail": "syncStatus unavailable in this sample",
+   "samples": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "status": "incomplete"
+  },
+  "base-execution-synced": {
+   "code": "endpoint-unreachable",
+   "count": 7,
+   "detail": "base: URLError",
+   "samples": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "status": "incomplete"
+  },
+  "base-finalized-advancing": {
+   "code": "insufficient-samples",
+   "count": 1,
+   "detail": "0 usable samples for base-finalized",
+   "samples": [
+    null
+   ],
+   "status": "incomplete"
+  },
+  "base-finalized-fresh": {
+   "code": "not-evaluated",
+   "count": 7,
+   "detail": "syncStatus unavailable in this sample",
+   "samples": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "status": "incomplete"
+  },
+  "base-heads-consistent": {
+   "code": "endpoint-unreachable",
+   "count": 7,
+   "detail": "rollup: URLError",
+   "samples": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "status": "incomplete"
+  },
+  "base-identity": {
+   "code": "endpoint-unreachable",
+   "count": 1,
+   "detail": "base: URLError",
+   "samples": [
+    0
+   ],
+   "status": "incomplete"
+  },
+  "base-safe-advancing": {
+   "code": "insufficient-samples",
+   "count": 1,
+   "detail": "0 usable samples for base-safe",
+   "samples": [
+    null
+   ],
+   "status": "incomplete"
+  },
+  "base-safe-fresh": {
+   "code": "not-evaluated",
+   "count": 7,
+   "detail": "syncStatus unavailable in this sample",
+   "samples": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "status": "incomplete"
+  },
+  "base-unsafe-fresh": {
+   "code": "not-evaluated",
+   "count": 7,
+   "detail": "syncStatus unavailable in this sample",
+   "samples": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "status": "incomplete"
+  },
+  "historical-coverage": {
+   "code": "coverage-receipt-absent",
+   "count": 1,
+   "detail": "historical coverage UNCHECKED: root must attach an independently reviewed COVERED receipt",
+   "samples": [
+    null
+   ],
+   "status": "incomplete"
+  },
+  "l1-consensus-nonoptimistic": {
+   "status": "pass"
+  },
+  "l1-custody": {
+   "info": {
+    "custodyGroupCount": 64
+   },
+   "status": "pass"
+  },
+  "l1-execution-synced": {
+   "status": "pass"
+  },
+  "l1-finalized-paired": {
+   "info": {
+    "age": 989.3
+   },
+   "status": "pass"
+  },
+  "l1-head-advancing": {
+   "info": {
+    "from": 26271806,
+    "to": 26271865,
+    "windowSeconds": 720.0
+   },
+   "status": "pass"
+  },
+  "l1-head-paired-fresh": {
+   "info": {
+    "clHeadAge": 5.3,
+    "elHeadAge": 5.3
+   },
+   "status": "pass"
+  },
+  "l1-identity": {
+   "code": "rpc-error",
+   "count": 1,
+   "detail": "el eth_getBlockByNumber: JSON-RPC error",
+   "samples": [
+    0
+   ],
+   "status": "incomplete"
+  },
+  "sampling-complete": {
+   "info": {
+    "samples": 7
+   },
+   "status": "pass"
+  }
+ },
+ "http": {
+  "bytes": 700682,
+  "requests": 76
+ },
+ "notes": [
+  "Sampler evidence only. Root review is required; this never authorizes activation.",
+  "One operator / one site; Base sequencer dependence and forced inclusion remain out of scope."
+ ],
+ "overall": "INCOMPLETE",
+ "samples": [
+  {
+   "index": 0,
+   "l1Finalized": {
+    "hash": "0x7f9a1ffededd1399298c29ac17bafbbc7813b5f8a335353db1e96475bfbac596",
+    "number": 26271720
+   },
+   "l1Head": {
+    "clHeadNumber": 26271806,
+    "hash": "0x0d9b4d31eebcdac7b59de1d59616f402796652f0cdde64e65f598c804e0bff1e",
+    "number": 26271806
+   },
+   "unixTime": 1792956772.263
+  },
+  {
+   "index": 1,
+   "l1Finalized": {
+    "hash": "0xb3a52f0d6364e8c055e5de56b3397cb5400897a913c9366c1ef12790ba70d563",
+    "number": 26271752
+   },
+   "l1Head": {
+    "clHeadNumber": 26271816,
+    "hash": "0xdbbc052a4bb7bf6ca5f3993fc888bb14a6a82f0851faa8104b274bf56f099185",
+    "number": 26271816
+   },
+   "unixTime": 1792956892.263
+  },
+  {
+   "index": 2,
+   "l1Finalized": {
+    "hash": "0xb3a52f0d6364e8c055e5de56b3397cb5400897a913c9366c1ef12790ba70d563",
+    "number": 26271752
+   },
+   "l1Head": {
+    "clHeadNumber": 26271826,
+    "hash": "0x8588f2d088d8e84812bb97fafde711fb6221e7a004a2e8b97d4ba136df6bc5ac",
+    "number": 26271826
+   },
+   "unixTime": 1792957012.263
+  },
+  {
+   "index": 3,
+   "l1Finalized": {
+    "hash": "0xb3a52f0d6364e8c055e5de56b3397cb5400897a913c9366c1ef12790ba70d563",
+    "number": 26271752
+   },
+   "l1Head": {
+    "clHeadNumber": 26271836,
+    "hash": "0xc320883cfd330ad6829aa4c6cc3d7c7c0694a6c615b8591ae16210a81955a9f2",
+    "number": 26271836
+   },
+   "unixTime": 1792957132.263
+  },
+  {
+   "index": 4,
+   "l1Finalized": {
+    "hash": "0xb3a52f0d6364e8c055e5de56b3397cb5400897a913c9366c1ef12790ba70d563",
+    "number": 26271752
+   },
+   "l1Head": {
+    "clHeadNumber": 26271846,
+    "hash": "0x9e6778775ba89a82423a3f9dc97c64212743bbe90152e5d39b3bed883546c885",
+    "number": 26271846
+   },
+   "unixTime": 1792957252.264
+  },
+  {
+   "index": 5,
+   "l1Finalized": {
+    "hash": "0x765348ce9559e0a37221a4e4f965e4df8dd92080f70d77c0629cfedc0716e2d9",
+    "number": 26271784
+   },
+   "l1Head": {
+    "clHeadNumber": 26271855,
+    "hash": "0x335f91e134242f6532014d90687145c8a4419b953520e07c7e47eb567404867c",
+    "number": 26271855
+   },
+   "unixTime": 1792957372.264
+  },
+  {
+   "index": 6,
+   "l1Finalized": {
+    "hash": "0x765348ce9559e0a37221a4e4f965e4df8dd92080f70d77c0629cfedc0716e2d9",
+    "number": 26271784
+   },
+   "l1Head": {
+    "clHeadNumber": 26271865,
+    "hash": "0x7fc760300f15d28e732ee80539e5650e9ca774bf9a23c6542e7da8616f3cf8b5",
+    "number": 26271865
+   },
+   "unixTime": 1792957492.264
+  }
+ ],
+ "startedAt": 1792956772.25,
+ "unsafeLatestAloneIsNeverReadiness": true
+}

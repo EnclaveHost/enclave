@@ -1,0 +1,170 @@
+diff --git a/network/derived-reader/backward-history.mjs b/network/derived-reader/backward-history.mjs
+index 6e8b416ea4e8018fb86854b200ee3bc6de309fb6..08ea76fd0555a055291113dec10fc142da1c0e83 100644
+--- a/network/derived-reader/backward-history.mjs
++++ b/network/derived-reader/backward-history.mjs
+@@ -56,6 +56,22 @@ export const HISTORY_RPC_CAPS = Object.freeze({ eth_getBlockByNumber: 4 << 20, e
+  * say. Transient parse cost is a small multiple of that (body chunks + one concat + the JSON string and object).
+  */
+ export const HISTORY_RPC_BUDGET = Object.freeze({ maxCalls: 32, maxBytes: 128 << 20 });
++/**
++ * r5 (root 1606): RETAINED bytes, as opposed to r4's in-flight bytes. limitRpc frees a call's charge when its response resolves, so
++ * a batch must not keep full responses until it settles: every header is reduced at arrival to its hashed fields (+ the proven
++ * claimed hash), each <= MAX_RETAINED_HEADER_BYTES and one chunk's together <= chunkHeaderBytes (1024 x 8 KiB); per-index raw
++ * transactions of one block together <= blockRawHexBytes of hex text (= the debug_getRawTransactions whole-block response cap).
++ * An overflow FAILS (resource_bound): nothing ever waits for a release, so no worker can deadlock on its own batch, and r4's
++ * allOrAbort aborts the batch and awaits every call before rejecting (no straggler, no progress commit). JSON/text bytes only;
++ * no total-memory claim (JS object expansion is unmeasured).
++ */
++export const MAX_RETAINED_HEADER_BYTES = 8 << 10;
++export const RETAIN_LIMITS = Object.freeze({ chunkHeaderBytes: 1024 * MAX_RETAINED_HEADER_BYTES, blockRawHexBytes: 32 << 20 });
++/** a fail-on-overflow accountant (never waits) */
++function retention(cap, what) {
++  let used = 0;
++  return n => { used += n; if (used > cap) fail('resource_bound', `${what} would retain more than ${cap} bytes`); };
++}
+ /** r4: the method-selecting history transport: make(maxBytes) must return a boundedRpc-shaped request with THAT factory cap */
+ export function historyTransport(make) {
+   const by = Object.fromEntries(Object.entries(HISTORY_RPC_CAPS).map(([m, cap]) => [m, make(cap)]));
+@@ -224,7 +240,7 @@ async function bounded(items, limit, signal, task) {
+  * -> frozen { format, anchor, floor, ledgers, logs (ascending; native coverage log shape), stats }
+  */
+ export async function scanBackwardLeaseHistory({ request: transport, anchor, ledgers, floor, keccak, signal, chunk = 256, maxScanBlocks, maxLogs,
+-  cache = null, rawTransactions = 'debug', receiptConcurrency = 1, preflight = false, progress = null, chain = BASE_MAINNET, rpcBudget = HISTORY_RPC_BUDGET }) {
++  cache = null, rawTransactions = 'debug', receiptConcurrency = 1, preflight = false, progress = null, chain = BASE_MAINNET, rpcBudget = HISTORY_RPC_BUDGET, retainLimits = RETAIN_LIMITS }) {
+   if (typeof transport !== 'function' || typeof keccak !== 'function') fail('bad_input', 'request and keccak are required');
+   const request = limitRpc(transport, rpcBudget);                // r4 (M1): every call of this scan shares one budget
+   if (!anchor || !uint(anchor.number) || !HASH.test(lc(anchor.hash))) fail('no_anchor', 'an authenticated anchor {number, hash} is required');
+@@ -232,6 +248,9 @@ export async function scanBackwardLeaseHistory({ request: transport, anchor, led
+   if (!uint(floor) || !Number.isInteger(chunk) || chunk < 1 || chunk > 1024 || !Number.isInteger(maxScanBlocks) || !Number.isInteger(maxLogs) ||
+       !Number.isInteger(receiptConcurrency) || receiptConcurrency < 1 || receiptConcurrency > MAX_RECEIPT_CONCURRENCY) fail('bad_input', 'invalid bounds');
+   if (!RAW_TRANSACTION_METHODS.includes(rawTransactions)) fail('bad_input', 'rawTransactions must be debug or per-index');
++  if (!retainLimits || !Number.isSafeInteger(retainLimits.chunkHeaderBytes) || retainLimits.chunkHeaderBytes < 1 || retainLimits.chunkHeaderBytes > RETAIN_LIMITS.chunkHeaderBytes ||
++      !Number.isSafeInteger(retainLimits.blockRawHexBytes) || retainLimits.blockRawHexBytes < 1 || retainLimits.blockRawHexBytes > RETAIN_LIMITS.blockRawHexBytes)
++    fail('bad_input', 'invalid retained-bytes limits');
+   if (progress !== null && (typeof progress !== 'object' || Object.isFrozen(progress))) fail('bad_input', 'progress must be a mutable object');
+   const top = anchor.number, N = lc(anchor.hash);
+   if (floor > top) return freeze([], newStats());
+@@ -243,7 +262,24 @@ export async function scanBackwardLeaseHistory({ request: transport, anchor, led
+   const stats = p.stats;
+   if (preflight) await preflightNode();
+   const chunkLo = n => floor + Math.floor((n - floor) / chunk) * chunk;           // absolute boundaries: independent of N
+-  const fetchRange = (lo, hi) => allOrAbort(signal, Array.from({ length: hi - lo + 1 }, (_, i) => sig => request('eth_getBlockByNumber', [hex(lo + i), false], { signal: sig })));
++  // r5: each header is checked and reduced INSIDE its own call's continuation; only lean headers are held until the chunk settles
++  const retainHeader = (h, n, charge) => {
++    if (!h || typeof h !== 'object' || Array.isArray(h)) fail('missing', `header ${n} is missing`);
++    let hash;
++    try { hash = headerHash(h, keccak, { requireIsthmus: true }); } catch (e) { fail('malformed', `header ${n}: ${String(e?.message || e).slice(0, 160)}`); }
++    if (h.hash !== undefined && lc(h.hash) !== hash) fail('hash_claim', `header ${n}'s claimed hash is not keccak(RLP(header))`);
++    if (Number(BigInt(h.number)) !== n) fail('discontinuity', `header at ${n} names block ${h.number}`);
++    const lean = h.hash !== undefined ? { ...leanHeader(h), hash } : leanHeader(h);   // the claim, now proven equal, for verifyRange
++    const size = Buffer.byteLength(JSON.stringify(lean));
++    if (size > MAX_RETAINED_HEADER_BYTES) fail('resource_bound', `header ${n} would retain ${size} bytes (> ${MAX_RETAINED_HEADER_BYTES})`);
++    charge(size);
++    return lean;
++  };
++  const fetchRange = (lo, hi) => {
++    const charge = retention(retainLimits.chunkHeaderBytes, `header chunk ${lo}..${hi}`);
++    return allOrAbort(signal, Array.from({ length: hi - lo + 1 }, (_, i) => sig =>
++      request('eth_getBlockByNumber', [hex(lo + i), false], { signal: sig }).then(h => retainHeader(h, lo + i, charge))));
++  };
+   // verify one ascending range [lo, hi] DOWNWARD against the authenticated expectation; -> the per-block verified (lean) headers
+   const verifyRange = (headers, lo, hi, expectHash) => {
+     if (!Array.isArray(headers) || headers.length !== hi - lo + 1) fail('truncated', `header chunk ${lo}..${hi} is incomplete`);
+@@ -307,7 +343,11 @@ export async function scanBackwardLeaseHistory({ request: transport, anchor, led
+     if (!Array.isArray(receipts)) fail('missing', `no receipt list for block ${n}`);
+     let raws;
+     if (rawTransactions === 'debug') raws = await request('debug_getRawTransactions', [blockHash], { signal: sig });
+-    else raws = await allOrAbort(sig, receipts.map((_, i) => s => request('eth_getRawTransactionByBlockHashAndIndex', [blockHash, hex(i)], { signal: s })));
++    else {                                                          // r5: each raw checked and charged at arrival (block aggregate)
++      const charge = retention(retainLimits.blockRawHexBytes, `raw transactions of block ${n}`);
++      raws = await allOrAbort(sig, receipts.map((_, i) => s => request('eth_getRawTransactionByBlockHashAndIndex', [blockHash, hex(i)], { signal: s })
++        .then(r => { if (typeof r !== 'string' || !RAW.test(lc(r))) fail('missing', `raw transaction ${i} of block ${n} is missing or malformed`); charge(r.length); return r; })));
++    }
+     if (!Array.isArray(raws) || raws.some(r => typeof r !== 'string' || !RAW.test(lc(r)))) fail('missing', `raw transactions of block ${n} are missing or malformed`);
+     sig.throwIfAborted();
+     const txs = raws.map(r => bytesOf(lc(r)));
+diff --git a/test/derived-reader/backward-history.test.mjs b/test/derived-reader/backward-history.test.mjs
+index da9061c4263716fa6bd9fed3dc7c71c41b49e20b..a4809ea14eac7aecd5fedfcf92b762f4de6fc097 100644
+--- a/test/derived-reader/backward-history.test.mjs
++++ b/test/derived-reader/backward-history.test.mjs
+@@ -16,7 +16,8 @@ import { consensusReceiptsRoot, logsBloom, orderedTrieRoot } from '../../network
+ import { keccak } from '../../network/derived-reader/proof.mjs';
+ import { LEASE_TOPICS } from '../../network/derived-reader/coverage.mjs';
+ import { scanBackwardLeaseHistory, mayHoldLeaseLog, bloomMayContain, fileHeaderCache, backwardHistoryPolicy, BACKWARD_HISTORY_POLICY_FORMAT,
+-  DEFAULT_CACHE_MAX_BYTES, MAX_CACHE_FILE_BYTES, HISTORY_RPC_CAPS, HISTORY_RPC_BUDGET, historyTransport, limitRpc } from '../../network/derived-reader/backward-history.mjs';
++  DEFAULT_CACHE_MAX_BYTES, MAX_CACHE_FILE_BYTES, HISTORY_RPC_CAPS, HISTORY_RPC_BUDGET, historyTransport, limitRpc,
++  RETAIN_LIMITS, MAX_RETAINED_HEADER_BYTES } from '../../network/derived-reader/backward-history.mjs';
+ import { boundedRpc } from '../../network/derived-reader/rpc.mjs';
+ import http from 'node:http';
+ import { createDerivedProvider, derivedReaderBinding, startDerivedReader } from '../../network/derived-reader/provider.mjs';
+@@ -472,3 +473,70 @@ test('r4 M1: the ACTUAL boundedRpc transport, one per method: an oversized heade
+   const limited = limitRpc(rpc, { maxCalls: 4 }); await limited('eth_getBlockReceipts', [`0x${'aa'.repeat(32)}`]);
+   assert.deepEqual([limited.usage().calls, limited.usage().bytes, limited.usage().peakBytes], [0, 0, HISTORY_RPC_CAPS.eth_getBlockReceipts]);
+ });
++
++// ---- r5 (root 1606): RETAINED bytes, not only in-flight bytes ------------------------------------------------------------
++/** a node whose every call is counted while in flight (the scan's limiter frees its budget on resolution; this counts the node) */
++function counted(own, ms = 10) {
++  const st = { inFlight: 0, max: 0, started: 0, aborted: 0 };
++  const request = (m, p, o) => new Promise((resolve, reject) => {
++    st.started++; st.inFlight++; st.max = Math.max(st.max, st.inFlight);
++    let open = true;
++    const end = () => { if (!open) return false; open = false; st.inFlight--; o?.signal?.removeEventListener('abort', onAbort); return true; };
++    const onAbort = () => { if (end()) { clearTimeout(t); st.aborted++; reject(o.signal.reason); } };
++    const t = setTimeout(() => { if (end()) own.request(m, p, o).then(resolve, reject); }, ms);
++    o?.signal?.addEventListener('abort', onAbort, { once: true });
++  });
++  return { request, st };
++}
++const quiet = ms => new Promise(r => setTimeout(r, ms));
++/** a refused scan left nothing behind: nothing in flight at the rejection, nothing started afterwards, nothing committed */
++async function noStragglers(p, own, progress, code, top) {
++  await refuses(p, code);
++  assert.equal(own.st.inFlight, 0, 'every call of the refused batch settled before the rejection');
++  const started = own.st.started; await quiet(120);
++  assert.equal(own.st.started, started, 'no call started after the rejection'); assert.equal(own.st.inFlight, 0);
++  assert.equal(progress.nextHi, top, 'no progress was committed'); assert.equal(progress.collected.length, 0);
++}
++
++test('r5: production retained-byte caps are fixed constants; MANY header replies each within their 4 MiB cap retain only lean bytes (baggage dropped at arrival)', async () => {
++  assert.deepEqual(RETAIN_LIMITS, { chunkHeaderBytes: 1024 * MAX_RETAINED_HEADER_BYTES, blockRawHexBytes: HISTORY_RPC_CAPS.debug_getRawTransactions });
++  assert.equal(MAX_RETAINED_HEADER_BYTES, 8192);
++  const c = buildChain({ from: 1000, to: 1063 });
++  // every reply carries ~14 KB of non-hashed baggage (64 replies: ~0.9 MB in total, each far below the 4 MiB transport cap)
++  const baggage = (h) => ({ ...h, transactions: Array.from({ length: 200 }, (_, i) => `0x${(i + 1).toString(16).padStart(64, 'c')}`), size: '0x1', uncles: [] });
++  const fat = counted(node(c, { header: h => baggage(h) }));
++  // a chunk budget far below the baggage total but above 64 lean headers: it holds only because baggage is never retained
++  const r = await scan(c, fat, { chunk: 64, retainLimits: { chunkHeaderBytes: 160 << 10, blockRawHexBytes: RETAIN_LIMITS.blockRawHexBytes } });
++  assert.equal(r.stats.headers, 64); assert.deepEqual(r.logs, []);
++  assert.ok(64 * Buffer.byteLength(JSON.stringify(baggage(c.headers.get(1000)))) > (160 << 10), 'the replies together exceed the retained budget');
++  // the lean bytes themselves are bounded too: the same 64 lean headers under a 20 KiB chunk budget refuse, with no straggler
++  const progress = {}, slow = counted(node(c), 30);
++  await noStragglers(scan(c, slow, { chunk: 64, progress, rpcBudget: { maxCalls: 8, maxBytes: HISTORY_RPC_BUDGET.maxBytes },
++    retainLimits: { chunkHeaderBytes: 20 << 10, blockRawHexBytes: RETAIN_LIMITS.blockRawHexBytes } }), slow, progress, 'resource_bound', 1063);
++  assert.ok(slow.st.started < 64, `the queued header calls of the refused chunk never started (${slow.st.started} started)`);
++  await refuses(scan(c, node(c), { retainLimits: { chunkHeaderBytes: 0, blockRawHexBytes: 1 } }), 'bad_input');
++  await refuses(scan(c, node(c), { retainLimits: { chunkHeaderBytes: RETAIN_LIMITS.chunkHeaderBytes + 1, blockRawHexBytes: 1 } }), 'bad_input');
++});
++
++test('r5: ONE header whose HASHED fields exceed the per-header retained cap is refused at arrival: the chunk aborts and settles, nothing committed', async () => {
++  const c = buildChain({ from: 1000, to: 1063 }), progress = {};
++  // an extraData of 8 KiB is a hashed field (no claimed hash, so only size can refuse it before the parent link would)
++  const own = counted(node(c, { header: (h, n) => n === 1003 ? (({ hash, ...x }) => ({ ...x, extraData: `0x${'ab'.repeat(8192)}` }))(h) : undefined }), 30);
++  await noStragglers(scan(c, own, { chunk: 64, progress, rpcBudget: { maxCalls: 8, maxBytes: HISTORY_RPC_BUDGET.maxBytes } }), own, progress, 'resource_bound', 1063);
++  assert.ok(own.st.started < 64 && own.st.aborted >= 1, `in-flight siblings were aborted and the queued calls never started (${own.st.started} started, ${own.st.aborted} aborted)`);
++  // the claim / number checks still run on the FULL reply before anything is dropped
++  await refuses(scan(c, node(c, { header: (h, n) => n === 1005 ? { ...h, receiptsRoot: hash('other') } : undefined }), { chunk: 64 }), 'hash_claim');
++  await refuses(scan(c, node(c, { header: (h, n) => n === 1005 ? structuredClone(c.headers.get(1006)) : undefined }), { chunk: 64 }), 'discontinuity');
++});
++
++test('r5: per-index raw transactions of one block are bounded IN AGGREGATE (each within 1 MiB is not enough): refusal aborts and settles; the full transactions root still decides', async () => {
++  const c = history(), at = (limit) => ({ chunk: 13, rawTransactions: 'per-index', receiptConcurrency: 2, retainLimits: { chunkHeaderBytes: RETAIN_LIMITS.chunkHeaderBytes, blockRawHexBytes: limit } });
++  // 68 hex characters per synthetic raw transaction: blocks 1000/1011 have 2 (136), blocks 1003/1007 have 3 (204)
++  assert.deepEqual((await scan(c, node(c), at(204))).logs, c.expected, 'a block exactly at its aggregate cap is accepted, complete and ordered');
++  const progress = {}, own = counted(node(c), 20);
++  await noStragglers(scan(c, own, { ...at(150), progress }), own, progress, 'resource_bound', 1012);
++  // completeness is still the transactions root, never the count the node chose to answer
++  const short = { ...node(c) }, h1007 = c.headers.get(1007).hash;
++  short.request = (m, p, o) => (m === 'eth_getBlockReceipts' && p[0] === h1007) ? node(c).request(m, p, o).then(r => r.slice(0, 2)) : node(c).request(m, p, o);
++  await refuses(scan(c, short, at(204)), 'root_mismatch');
++});

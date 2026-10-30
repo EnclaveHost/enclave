@@ -1,0 +1,42 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] START available=22198MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+[ok] offline (no IPv4 route)
+[ok] r2 stage == SHA256SUMS
+[ok] base commit present
+[ok] base files == BASE-b6ac5d657.sha256
+[ok] candidate files == CANDIDATE.sha256
+[ok] base clone clean
+[ok] node_modules linked (package-lock identical)
+v22.23.3
+[ok] candidate syntax
+  candidate-mcp-independent-verifier.tap: node rc 0, {'tests': 9, 'pass': 9, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  candidate-mcp-independent-unit.tap: node rc 0, {'tests': 10, 'pass': 10, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  candidate-mcp-independent.tap: node rc 0, {'tests': 13, 'pass': 0, 'fail': 0, 'cancelled': 0, 'skipped': 13, 'todo': 0}
+  INCOMPLETE: expected exactly 13 passing, 0 skipped/todo/cancelled
+  candidate-cli-combined-independent.tap: node rc 0, {'tests': 4, 'pass': 0, 'fail': 0, 'cancelled': 0, 'skipped': 4, 'todo': 0}
+  INCOMPLETE: expected exactly 4 passing, 0 skipped/todo/cancelled
+  candidate-chain-authority.tap: node rc 0, {'tests': 10, 'pass': 10, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  base-mcp-independent-unit.tap: node rc 0, {'tests': 10, 'pass': 10, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  base-mcp-independent.tap: node rc 0, {'tests': 13, 'pass': 0, 'fail': 0, 'cancelled': 0, 'skipped': 13, 'todo': 0}
+  INCOMPLETE: expected exactly 13 passing, 0 skipped/todo/cancelled
+  base-cli-combined-independent.tap: node rc 0, {'tests': 4, 'pass': 0, 'fail': 0, 'cancelled': 0, 'skipped': 4, 'todo': 0}
+  INCOMPLETE: expected exactly 4 passing, 0 skipped/todo/cancelled
+RESULT: INCOMPLETE (never a pass)
+[memory-guard] exit=30 peakTreeRssMiB=921 minHostAvailableMiB=20967
+[memory-guard] at peak: git:870 git:35 git-upload-pack:6 git:5 bash:4
+[queue] EXIT 30

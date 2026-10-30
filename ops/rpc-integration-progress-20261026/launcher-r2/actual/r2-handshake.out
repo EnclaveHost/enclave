@@ -1,0 +1,284 @@
+test_drop_order_ids_and_irreversibility (__main__.DropPrivileges.test_drop_order_ids_and_irreversibility) ... ok
+test_incomplete_or_reversible_drop_refuses (__main__.DropPrivileges.test_incomplete_or_reversible_drop_refuses) ... ok
+test_service_identity_is_never_root (__main__.DropPrivileges.test_service_identity_is_never_root) ... ok
+test_crash_after_consume_refuses_until_rearm_with_the_unchanged_db (__main__.Handshake.test_crash_after_consume_refuses_until_rearm_with_the_unchanged_db) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_crash_before_consume_keeps_the_launch_pending (__main__.Handshake.test_crash_before_consume_keeps_the_launch_pending) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_expired_start_refuses_without_consuming (__main__.Handshake.test_expired_start_refuses_without_consuming) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_launch_pin_is_the_immutable_record_only (__main__.Handshake.test_launch_pin_is_the_immutable_record_only) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_lock_and_journal_tamper_refuse (__main__.Handshake.test_lock_and_journal_tamper_refuse) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_one_shot_consumes_durably_before_exec_and_restarts_refuse (__main__.Handshake.test_one_shot_consumes_durably_before_exec_and_restarts_refuse) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_rearm_needs_a_consumed_start_and_arm_needs_the_db_at_n (__main__.Handshake.test_rearm_needs_a_consumed_start_and_arm_needs_the_db_at_n) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_rearm_refuses_unless_the_stopped_db_is_unchanged_at_n (__main__.Handshake.test_rearm_refuses_unless_the_stopped_db_is_unchanged_at_n) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_release_mode_needs_the_root_handshake_and_legacy_is_unchanged (__main__.Handshake.test_release_mode_needs_the_root_handshake_and_legacy_is_unchanged) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_rollback_is_terminal (__main__.Handshake.test_rollback_is_terminal) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_source_holds_refuse_before_consuming_and_no_finality_is_accepted (__main__.Handshake.test_source_holds_refuse_before_consuming_and_no_finality_is_accepted) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+test_two_concurrent_starts_launch_exactly_once (__main__.Handshake.test_two_concurrent_starts_launch_exactly_once) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ERROR
+
+======================================================================
+ERROR: test_crash_after_consume_refuses_until_rearm_with_the_unchanged_db (__main__.Handshake.test_crash_after_consume_refuses_until_rearm_with_the_unchanged_db)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 179, in test_crash_after_consume_refuses_until_rearm_with_the_unchanged_db
+    self.launched()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 48, in launched
+    r = P.produce(self.d / 'cfg.json', self.out, A=A, coverage=self.cov, release_path=self.rel, release_sha=self.rel_sha,
+                  harness_binary_sha=self.cfg['baseBinarySha256'], owner=self.uid, top=self.top)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 147, in produce
+    refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 47, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: a1: the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR
+
+======================================================================
+ERROR: test_crash_before_consume_keeps_the_launch_pending (__main__.Handshake.test_crash_before_consume_keeps_the_launch_pending)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 200, in test_crash_before_consume_keeps_the_launch_pending
+    self.launched()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 48, in launched
+    r = P.produce(self.d / 'cfg.json', self.out, A=A, coverage=self.cov, release_path=self.rel, release_sha=self.rel_sha,
+                  harness_binary_sha=self.cfg['baseBinarySha256'], owner=self.uid, top=self.top)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 147, in produce
+    refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 47, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: a1: the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR
+
+======================================================================
+ERROR: test_expired_start_refuses_without_consuming (__main__.Handshake.test_expired_start_refuses_without_consuming)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 234, in test_expired_start_refuses_without_consuming
+    self.launched(); before = self.journal()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 48, in launched
+    r = P.produce(self.d / 'cfg.json', self.out, A=A, coverage=self.cov, release_path=self.rel, release_sha=self.rel_sha,
+                  harness_binary_sha=self.cfg['baseBinarySha256'], owner=self.uid, top=self.top)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 147, in produce
+    refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 47, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: a1: the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR
+
+======================================================================
+ERROR: test_launch_pin_is_the_immutable_record_only (__main__.Handshake.test_launch_pin_is_the_immutable_record_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 342, in test_launch_pin_is_the_immutable_record_only
+    self.launched()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 48, in launched
+    r = P.produce(self.d / 'cfg.json', self.out, A=A, coverage=self.cov, release_path=self.rel, release_sha=self.rel_sha,
+                  harness_binary_sha=self.cfg['baseBinarySha256'], owner=self.uid, top=self.top)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 147, in produce
+    refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 47, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: a1: the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR
+
+======================================================================
+ERROR: test_lock_and_journal_tamper_refuse (__main__.Handshake.test_lock_and_journal_tamper_refuse)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 325, in test_lock_and_journal_tamper_refuse
+    self.launched(); self.assertEqual(self.start(), 'exec'); lock = self.out / 'journal.lock'; jd = self.out / 'journal'
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 48, in launched
+    r = P.produce(self.d / 'cfg.json', self.out, A=A, coverage=self.cov, release_path=self.rel, release_sha=self.rel_sha,
+                  harness_binary_sha=self.cfg['baseBinarySha256'], owner=self.uid, top=self.top)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 147, in produce
+    refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 47, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: a1: the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR
+
+======================================================================
+ERROR: test_one_shot_consumes_durably_before_exec_and_restarts_refuse (__main__.Handshake.test_one_shot_consumes_durably_before_exec_and_restarts_refuse)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 160, in test_one_shot_consumes_durably_before_exec_and_restarts_refuse
+    self.launched()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 48, in launched
+    r = P.produce(self.d / 'cfg.json', self.out, A=A, coverage=self.cov, release_path=self.rel, release_sha=self.rel_sha,
+                  harness_binary_sha=self.cfg['baseBinarySha256'], owner=self.uid, top=self.top)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 147, in produce
+    refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 47, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: a1: the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR
+
+======================================================================
+ERROR: test_rearm_needs_a_consumed_start_and_arm_needs_the_db_at_n (__main__.Handshake.test_rearm_needs_a_consumed_start_and_arm_needs_the_db_at_n)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 269, in test_rearm_needs_a_consumed_start_and_arm_needs_the_db_at_n
+    self.launched()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 48, in launched
+    r = P.produce(self.d / 'cfg.json', self.out, A=A, coverage=self.cov, release_path=self.rel, release_sha=self.rel_sha,
+                  harness_binary_sha=self.cfg['baseBinarySha256'], owner=self.uid, top=self.top)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 147, in produce
+    refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 47, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: a1: the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR
+
+======================================================================
+ERROR: test_rearm_refuses_unless_the_stopped_db_is_unchanged_at_n (__main__.Handshake.test_rearm_refuses_unless_the_stopped_db_is_unchanged_at_n)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 252, in test_rearm_refuses_unless_the_stopped_db_is_unchanged_at_n
+    self.launched(); self.assertEqual(self.start(), 'exec'); before = self.journal()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 48, in launched
+    r = P.produce(self.d / 'cfg.json', self.out, A=A, coverage=self.cov, release_path=self.rel, release_sha=self.rel_sha,
+                  harness_binary_sha=self.cfg['baseBinarySha256'], owner=self.uid, top=self.top)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 147, in produce
+    refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 47, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: a1: the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR
+
+======================================================================
+ERROR: test_release_mode_needs_the_root_handshake_and_legacy_is_unchanged (__main__.Handshake.test_release_mode_needs_the_root_handshake_and_legacy_is_unchanged)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 308, in test_release_mode_needs_the_root_handshake_and_legacy_is_unchanged
+    self.launched(); before = self.journal()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 48, in launched
+    r = P.produce(self.d / 'cfg.json', self.out, A=A, coverage=self.cov, release_path=self.rel, release_sha=self.rel_sha,
+                  harness_binary_sha=self.cfg['baseBinarySha256'], owner=self.uid, top=self.top)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 147, in produce
+    refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 47, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: a1: the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR
+
+======================================================================
+ERROR: test_rollback_is_terminal (__main__.Handshake.test_rollback_is_terminal)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 286, in test_rollback_is_terminal
+    self.launched(); self.assertEqual(self.rollback()['event'], 'rolled-back')
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 48, in launched
+    r = P.produce(self.d / 'cfg.json', self.out, A=A, coverage=self.cov, release_path=self.rel, release_sha=self.rel_sha,
+                  harness_binary_sha=self.cfg['baseBinarySha256'], owner=self.uid, top=self.top)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 147, in produce
+    refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 47, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: a1: the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR
+
+======================================================================
+ERROR: test_source_holds_refuse_before_consuming_and_no_finality_is_accepted (__main__.Handshake.test_source_holds_refuse_before_consuming_and_no_finality_is_accepted)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 296, in test_source_holds_refuse_before_consuming_and_no_finality_is_accepted
+    self.launched(); before = self.journal()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 48, in launched
+    r = P.produce(self.d / 'cfg.json', self.out, A=A, coverage=self.cov, release_path=self.rel, release_sha=self.rel_sha,
+                  harness_binary_sha=self.cfg['baseBinarySha256'], owner=self.uid, top=self.top)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 147, in produce
+    refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 47, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: a1: the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR
+
+======================================================================
+ERROR: test_two_concurrent_starts_launch_exactly_once (__main__.Handshake.test_two_concurrent_starts_launch_exactly_once)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 213, in test_two_concurrent_starts_launch_exactly_once
+    self.launched()
+    ~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/tests/test_r2_handshake.py", line 48, in launched
+    r = P.produce(self.d / 'cfg.json', self.out, A=A, coverage=self.cov, release_path=self.rel, release_sha=self.rel_sha,
+                  harness_binary_sha=self.cfg['baseBinarySha256'], owner=self.uid, top=self.top)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 147, in produce
+    refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r2/producer/base_launch.py", line 47, in refuse
+    raise Refused(f'{code}: {why}')
+base_launch.Refused: a1: the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR
+
+----------------------------------------------------------------------
+Ran 15 tests in 57.141s
+
+FAILED (errors=12)

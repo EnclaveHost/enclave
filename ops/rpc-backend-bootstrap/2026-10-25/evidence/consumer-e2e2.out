@@ -1,0 +1,4 @@
+[queue] START available=21924MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+[memory-guard] exit=0 peakTreeRssMiB=1184 minHostAvailableMiB=20827
+[memory-guard] at peak: reth-v2.8.0:416 node:126 node:125 node:122 node:119 enclave-base-he:94 helios:65 node:57
+[queue] EXIT 0

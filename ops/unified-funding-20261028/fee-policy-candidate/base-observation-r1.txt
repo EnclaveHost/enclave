@@ -1,0 +1,7 @@
+[queue] START available=30159MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{"agreed":true,"block":"53205422"}
+[memory-guard] exit=0 peakTreeRssMiB=92 minHostAvailableMiB=30019
+[memory-guard] at peak: node:92
+[memory-guard] exit=0 peakTreeRssMiB=153 minHostAvailableMiB=30018
+[memory-guard] at peak: node:92 node:61
+[queue] EXIT 0

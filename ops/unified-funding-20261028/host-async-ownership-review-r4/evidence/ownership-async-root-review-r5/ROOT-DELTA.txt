@@ -1,0 +1,1 @@
+Generator: trailing newline after inserted witness close-abort comment, so original closing brace is not commented out. Harness: preserve original final-await.test location at protocol root for its ./network import. No behavior assertion weakened; all initial loader failures retained r4.

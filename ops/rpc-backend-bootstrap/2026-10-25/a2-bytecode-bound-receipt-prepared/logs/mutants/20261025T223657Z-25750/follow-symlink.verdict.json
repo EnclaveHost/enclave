@@ -1,0 +1,18 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "FreshInitialTrust.test_a1_file_trust": "fail",
+  "Recheck.test_initial_receipt_pin_and_file_trust": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "FreshInitialTrust.test_a1_file_trust",
+  "Recheck.test_initial_receipt_pin_and_file_trust"
+ ],
+ "skipped": 0,
+ "testsRun": 2,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

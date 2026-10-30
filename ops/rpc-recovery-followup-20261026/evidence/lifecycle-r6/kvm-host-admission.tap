@@ -1,0 +1,220 @@
+TAP version 13
+# Subtest: old finalized policy plus fresh denial checks supports fenced failover without waiting for a new finalized block
+ok 1 - old finalized policy plus fresh denial checks supports fenced failover without waiting for a new finalized block
+  ---
+  duration_ms: 185.5562
+  type: 'test'
+  ...
+# Subtest: a partitioned old host cannot obtain a quorum after three witnesses fenced it
+ok 2 - a partitioned old host cannot obtain a quorum after three witnesses fenced it
+  ---
+  duration_ms: 25.862538
+  type: 'test'
+  ...
+# Subtest: a restarted witness refuses another successor for the same parent generation
+ok 3 - a restarted witness refuses another successor for the same parent generation
+  ---
+  duration_ms: 9.108528
+  type: 'test'
+  ...
+# Subtest: quorum certificates cannot mint budget, extend runtime or bypass a revocation
+ok 4 - quorum certificates cannot mint budget, extend runtime or bypass a revocation
+  ---
+  duration_ms: 24.135304
+  type: 'test'
+  ...
+# Subtest: freshly observing an over-age anchor, missing current proof, or changing witnesses cannot authorize service
+ok 5 - freshly observing an over-age anchor, missing current proof, or changing witnesses cannot authorize service
+  ---
+  duration_ms: 16.73514
+  type: 'test'
+  ...
+# Subtest: an authenticated unsafe denial persists through restart and a later unsafe allow cannot restore service
+ok 6 - an authenticated unsafe denial persists through restart and a later unsafe allow cannot restore service
+  ---
+  duration_ms: 1.934413
+  type: 'test'
+  ...
+# Subtest: runner serves a quorum-certified mined transition while retaining its intent until real finality
+ok 7 - runner serves a quorum-certified mined transition while retaining its intent until real finality
+  ---
+  duration_ms: 108.906285
+  type: 'test'
+  ...
+# Subtest: operational host refusal queues its running assignment without globally stopping the app
+ok 8 - operational host refusal queues its running assignment without globally stopping the app
+  ---
+  duration_ms: 1.292198
+  type: 'test'
+  ...
+# Subtest: operational host refusal leaves queued work available without starting or charging it
+ok 9 - operational host refusal leaves queued work available without starting or charging it
+  ---
+  duration_ms: 0.968031
+  type: 'test'
+  ...
+# Subtest: missing or differently scoped host admission cannot be repaired by outer snapshot booleans
+ok 10 - missing or differently scoped host admission cannot be repaired by outer snapshot booleans
+  ---
+  duration_ms: 1.400538
+  type: 'test'
+  ...
+# Subtest: global disable and current denial retain precedence over host admission
+ok 11 - global disable and current denial retain precedence over host admission
+  ---
+  duration_ms: 1.379938
+  type: 'test'
+  ...
+# Subtest: witnesses refuse serving on a globally enabled but ineligible or differently scoped host
+ok 12 - witnesses refuse serving on a globally enabled but ineligible or differently scoped host
+  ---
+  duration_ms: 3.218561
+  type: 'test'
+  ...
+# Subtest: generation witnesses refuse a successor lacking matching anchored host admission
+ok 13 - generation witnesses refuse a successor lacking matching anchored host admission
+  ---
+  duration_ms: 93.376264
+  type: 'test'
+  ...
+# Subtest: HTTP generation collection verifies both signatures and returns contract-ordered approvals
+ok 14 - HTTP generation collection verifies both signatures and returns contract-ordered approvals
+  ---
+  duration_ms: 133.073089
+  type: 'test'
+  ...
+# Subtest: generation signing persists denials and requires finalized restoration before a new successor
+ok 15 - generation signing persists denials and requires finalized restoration before a new successor
+  ---
+  duration_ms: 6.80209
+  type: 'test'
+  ...
+# Subtest: expiry revokes streams and writes even without another reconciliation
+ok 16 - expiry revokes streams and writes even without another reconciliation
+  ---
+  duration_ms: 18.763323
+  type: 'test'
+  ...
+# Subtest: monotonic deadline and clock rollback prevent extending a permit
+ok 17 - monotonic deadline and clock rollback prevent extending a permit
+  ---
+  duration_ms: 9.647463
+  type: 'test'
+  ...
+# Subtest: permanent fence survives gate recreation and rejects the same generation
+ok 18 - permanent fence survives gate recreation and rejects the same generation
+  ---
+  duration_ms: 16.211195
+  type: 'test'
+  ...
+# Subtest: a concurrent revocation wins over asynchronous signature verification
+ok 19 - a concurrent revocation wins over asynchronous signature verification
+  ---
+  duration_ms: 7.221416
+  type: 'test'
+  ...
+# Subtest: kernel journal ownership excludes another writer and releases cleanly
+ok 20 - kernel journal ownership excludes another writer and releases cleanly
+  ---
+  duration_ms: 12.045332
+  type: 'test'
+  ...
+# Subtest: real HTTP witness refuses foreign operators and produces a verifiable permit signature
+ok 21 - real HTTP witness refuses foreign operators and produces a verifiable permit signature
+  ---
+  duration_ms: 48.00188
+  type: 'test'
+  ...
+# Subtest: a witness persists before signing and refuses an equivocal or fenced request after restart
+ok 22 - a witness persists before signing and refuses an equivocal or fenced request after restart
+  ---
+  duration_ms: 8.357005
+  type: 'test'
+  ...
+# Subtest: a real open HTTP stream is destroyed by permit expiry
+ok 23 - a real open HTTP stream is destroyed by permit expiry
+  ---
+  duration_ms: 1639.570156
+  type: 'test'
+  ...
+# Subtest: an unresponsive authority adapter times out without signing or writing a permit
+ok 24 - an unresponsive authority adapter times out without signing or writing a permit
+  ---
+  duration_ms: 20.571126
+  type: 'test'
+  ...
+# Subtest: healthy self-hosting produces no recurring state transaction
+ok 25 - healthy self-hosting produces no recurring state transaction
+  ---
+  duration_ms: 9.761073
+  type: 'test'
+  ...
+# Subtest: a crash records queued once and an ambiguous submission never resubmits another intent
+ok 26 - a crash records queued once and an ambiguous submission never resubmits another intent
+  ---
+  duration_ms: 1.737374
+  type: 'test'
+  ...
+# Subtest: readiness failure, stale authority and unconfirmed retirement never start a replacement
+ok 27 - readiness failure, stale authority and unconfirmed retirement never start a replacement
+  ---
+  duration_ms: 0.923762
+  type: 'test'
+  ...
+# Subtest: queued startup failures back off without writing queued again
+ok 28 - queued startup failures back off without writing queued again
+  ---
+  duration_ms: 0.823943
+  type: 'test'
+  ...
+# Subtest: running is submitted only after readiness and is not served until confirmed
+ok 29 - running is submitted only after readiness and is not served until confirmed
+  ---
+  duration_ms: 1.2205
+  type: 'test'
+  ...
+# Subtest: reserve exhaustion fences before a single stopped transition
+ok 30 - reserve exhaustion fences before a single stopped transition
+  ---
+  duration_ms: 1.395148
+  type: 'test'
+  ...
+# Subtest: host-specific rejection queues its own running assignment but never disables it globally
+ok 31 - host-specific rejection queues its own running assignment but never disables it globally
+  ---
+  duration_ms: 0.967342
+  type: 'test'
+  ...
+# Subtest: a host cannot stop a running assignment belonging to another host
+ok 32 - a host cannot stop a running assignment belonging to another host
+  ---
+  duration_ms: 0.553855
+  type: 'test'
+  ...
+# Subtest: a queued deployment remains available for other eligible hosts
+ok 33 - a queued deployment remains available for other eligible hosts
+  ---
+  duration_ms: 0.708354
+  type: 'test'
+  ...
+# Subtest: a fresh proof of an older assignment cannot roll back the durable generation floor
+ok 34 - a fresh proof of an older assignment cannot roll back the durable generation floor
+  ---
+  duration_ms: 0.776593
+  type: 'test'
+  ...
+# Subtest: a merely mined or unproved receipt cannot clear the durable transition outbox
+ok 35 - a merely mined or unproved receipt cannot clear the durable transition outbox
+  ---
+  duration_ms: 1.08378
+  type: 'test'
+  ...
+1..35
+# tests 35
+# suites 0
+# pass 35
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2876.519257

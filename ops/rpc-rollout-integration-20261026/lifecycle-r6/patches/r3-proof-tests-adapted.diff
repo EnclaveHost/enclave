@@ -1,0 +1,164 @@
+--- r3/test/deployment-chain-adapter-r3.test.mjs	2026-10-26 07:07:04.889586843 -0700
++++ r4/test/deployment-chain-adapter-r4-proof.test.mjs	2026-10-26 07:28:44.059132680 -0700
+@@ -1,144 +1,20 @@
+-// r3: exact receipt/transaction proof-backed resolve/finalize and the fee-payload bound. REAL candidate bytecode
+-// (deploy/lifecycle/artifacts/EnclaveDeploymentLifecycle.json, EnclaveSelfHostingIdentity.json) on a loopback anvil (chain-id 8453, prague).
+-// TEST DOUBLES (labelled): fixtures/LifecyclePlatformDoubles.sol (r2 ABI surfaces only); `testAuthority` (labels an UNCACHED anvil block as
+-// the authority's block - the r3 fixture fix); `anvilReceipts` (the UNTRUSTED location/header/block source; every byte it returns is
+-// checked by the adapter against the authority's block hash). Tamper hooks rewrite that untrusted data only.
++// r4 ADAPTED BASELINE: the ten r3 exact receipt/transaction proof + fee-bound tests, test bodies unchanged except `pub` -> `S.pub`,
++// now on the REAL candidate ledger/controller/identity world of r4 (test/fixtures/r4-world.mjs, self-hosted host: rate 0) with the
++// r4 adapter (complete closure pins, host policy source). Diff vs r3: patches/r3-proof-tests-adapted.diff.
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+-import { spawn } from 'node:child_process';
+-import fs from 'node:fs';
+-import net from 'node:net';
+-import os from 'node:os';
+-import path from 'node:path';
+-import solc from 'solc';
+-import { createPublicClient, createWalletClient, encodeDeployData, encodeEventTopics, encodeFunctionData, getAddress, http, keccak256,
+-  parseEther, toBytes } from 'viem';
+-import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+-import { createLifecycleChainAdapter } from '../network/deployment-chain-adapter.mjs';
+-import { DeploymentLifecycleRunner } from '../network/deployment-lifecycle-runner.mjs';
+-import { openLifecycleJournal } from '../network/deployment-lifecycle-journal.mjs';
++import { encodeEventTopics, keccak256, toBytes } from 'viem';
++import { useAnvil, world, step, runnerFor, rpc, mine, warp, S, LIFECYCLE, MAX_T, MAX_GAS } from './fixtures/r4-world.mjs';
+ 
+-const ROOT = new URL('..', import.meta.url).pathname;
+-const ART = n => JSON.parse(fs.readFileSync(path.join(ROOT, `deploy/lifecycle/artifacts/${n}.json`), 'utf8'));
+-const LIFECYCLE = ART('EnclaveDeploymentLifecycle'), IDENTITY = ART('EnclaveSelfHostingIdentity');
+-const HOST = keccak256(toBytes('host-a')), MEAS = keccak256(toBytes('measurement-1')), ZERO = `0x${'0'.repeat(40)}`;
+-const MAX_T = 10n ** 15n, RESERVE = 10n ** 15n, MAX_GAS = 100n * 10n ** 9n, U64MAX = 2n ** 64n - 1n;
+-let anvil, pub, wallet, K, idn = 0, skewMs = 0;
+-const rpc = (m, p = []) => pub.request({ method: m, params: p });
+-const hex = n => `0x${BigInt(n).toString(16)}`;
+-const mine = () => rpc('evm_mine');
+-const chainNow = () => Date.now() + skewMs;                 // anvil time moves ahead with evm_increaseTime; every clock follows it
+-async function warp(sec) { skewMs += sec * 1000; await rpc('evm_increaseTime', [sec]); await mine(); }
+-const freePort = () => new Promise(r => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
+-
+-test.before(async () => {
+-  const port = await freePort(), url = `http://127.0.0.1:${port}`;
+-  anvil = spawn(process.env.ANVIL || path.join(os.homedir(), '.foundry/bin/anvil'),
+-    ['--port', String(port), '--host', '127.0.0.1', '--chain-id', '8453', '--hardfork', 'prague', '--silent'], { stdio: 'ignore' });
+-  pub = createPublicClient({ cacheTime: 0, transport: http(url, { retryCount: 0 }) }); wallet = createWalletClient({ transport: http(url, { retryCount: 0 }) });
+-  for (let i = 0; ; ++i) { try { if (await pub.getChainId() === 8453) break; } catch { if (i > 100) throw Error('anvil did not start'); } await new Promise(r => setTimeout(r, 100)); }
+-  const out = JSON.parse(solc.compile(JSON.stringify({ language: 'Solidity',
+-    sources: { 'D.sol': { content: fs.readFileSync(new URL('./fixtures/LifecyclePlatformDoubles.sol', import.meta.url), 'utf8') } },
+-    settings: { evmVersion: 'prague', outputSelection: { '*': { '*': ['abi', 'evm.bytecode'] } } } })));
+-  if (out.errors?.some(e => e.severity === 'error')) throw Error(JSON.stringify(out.errors));
+-  K = out.contracts['D.sol'];
+-});
+-test.after(() => anvil?.kill('SIGKILL'));
+-
+-async function account() { const a = privateKeyToAccount(generatePrivateKey()); await rpc('anvil_setBalance', [a.address, '0x8ac7230489e80000']); return a; }
+-async function send(from, args) { const hash = await wallet.sendTransaction({ account: from, chain: null, gas: 5_000_000n, ...args });
+-  const r = await pub.waitForTransactionReceipt({ hash }); if (r.status !== 'success') throw Error('tx reverted'); return r; }
+-const dep = async (from, name, args = []) => (await send(from, { data: encodeDeployData({ abi: K[name].abi, bytecode: `0x${K[name].evm.bytecode.object}`, args }) })).contractAddress;
+-const tx = (from, to, abi, functionName, args = [], value) => send(from, { to, data: encodeFunctionData({ abi, functionName, args }), ...(value ? { value } : {}) });
+-const codeHash = async a => keccak256(await pub.getCode({ address: a }));
+-
+-// TEST DOUBLE of the untrusted history source: WHERE (TransitionPaid log query) + raw headers, raw signed transactions and receipts.
+-function anvilReceipts(hooks) {
+-  const base = {
+-    locate: async ({ id, digest, controller }) => {
+-      const logs = await rpc('eth_getLogs', [{ address: controller, fromBlock: '0x0', toBlock: 'latest',
+-        topics: encodeEventTopics({ abi: LIFECYCLE.abi, eventName: 'TransitionPaid', args: { id, intent: digest } }) }]);
+-      const l = logs.at(-1); return l ? { blockNumber: Number(l.blockNumber), transactionHash: l.transactionHash } : null; },
+-    header: async n => rpc('eth_getBlockByNumber', [hex(n), false]),
+-    block: async n => { const b = await rpc('eth_getBlockByNumber', [hex(n), true]);
+-      return { header: b, transactions: await Promise.all(b.transactions.map(t => rpc('eth_getRawTransactionByHash', [t.hash]))),
+-        receipts: await rpc('eth_getBlockReceipts', [hex(n)]) }; },
+-  };
+-  return { base,
+-    locate: q => (hooks.locate ?? base.locate)(q),
+-    header: async n => (hooks.header ?? (x => x))(structuredClone(await base.header(n)), n),
+-    block: async n => (hooks.block ?? (x => x))(structuredClone(await base.block(n)), n) };
+-}
+-// TEST DOUBLE of createLifecycleFinalitySnapshot's capability: ONE uncached block object (auth.pin or latest), labelled.
+-function testAuthority(auth, kind) {
+-  return { kind, snapshot: async read => {
+-    const header = auth.pin != null ? await pub.getBlock({ blockNumber: auth.pin }) : await pub.getBlock({ blockTag: 'latest' });
+-    return { blockNumber: header.number, blockHash: header.hash, timestamp: Number(header.timestamp) * 1000, observedAt: Date.now(),
+-      value: await read(pub, header.number, header), evidence: { tier: auth.tier, proofVerified: auth.proof } }; } };
+-}
+-
+-async function world() {
+-  const [admin, human, operator, relay, ...ws] = await Promise.all([account(), account(), account(), account(), account(), account(), account()]);
+-  const witnesses = ws.sort((a, b) => (BigInt(a.address) < BigInt(b.address) ? -1 : 1));
+-  const registry = await dep(admin, 'TestRegistry'), catalog = await dep(admin, 'TestCatalog'), book = await dep(admin, 'TestAddressBook', [admin.address]);
+-  const ledger = await dep(admin, 'TestLedger', [admin.address, registry]), oracle = await dep(admin, 'TestL1Oracle'), factory = await dep(admin, 'TestVaultFactory');
+-  await tx(admin, factory, K.TestVaultFactory.abi, 'make', [human.address]);
+-  const vault = getAddress(await pub.readContract({ address: factory, abi: K.TestVaultFactory.abi, functionName: 'vaultFor', args: [human.address] }));
+-  const identity = (await send(admin, { data: encodeDeployData({ abi: IDENTITY.abi, bytecode: IDENTITY.bytecode, args: [[{ factory, codeHash: await codeHash(factory) }]] }) })).contractAddress;
+-  const lifecycle = (await send(admin, { data: encodeDeployData({ abi: LIFECYCLE.abi, bytecode: LIFECYCLE.bytecode, args: [ledger, oracle] }) })).contractAddress;
+-  await tx(admin, ledger, K.TestLedger.abi, 'setLifecycle', [lifecycle, identity]);
+-  const deps = {};
+-  for (const [k, c] of [['connectivity', 'TestConnectivity'], ['proofOfTime', 'TestProofOfTime'], ['verificationFees', 'TestVerificationFees'],
+-    ['pinnedSessionAuthority', 'TestPinnedSessionAuthority'], ['secretVaultV2', 'TestSecretVaultV2']]) deps[k] = await dep(admin, c, [ledger]);
+-  const enclave = e => ({ endpoint: 'https://h', repo: 'r', measurement: MEAS, operator: operator.address, registeredAt: 1n, lastSeen: 1n, active: true,
+-    cpuPricePerSec6: 1n, gpuPricePerSec6: 0n, proofKey: operator.address, payoutWallet: operator.address, ...e });
+-  await tx(admin, registry, K.TestRegistry.abi, 'set', [HOST, enclave({})]);
+-  const appId = keccak256(toBytes('app')), app = a => ({ appId, publisher: admin.address, slug: 's', name: 'n', description: 'd', versionCount: 1, createdAt: 1n, updatedAt: 1n, active: true, ...a });
+-  const ver = v => ({ cid: 'c', version: '1', vramMb: 0, gpuGflops: 0, memMb: 1, cpuGflops: 1, createdAt: 1n, verified: true, yanked: false, ports: '', approval: 1, config: '', ...v });
+-  await tx(admin, catalog, K.TestCatalog.abi, 'set', [app({}), ver({})]);
+-  const id = keccak256(toBytes(`r3-deployment-${++idn}`));
+-  const deployment = d => ({ id, owner: vault, appRef: `catalog://${appId}/0`, ports: '', configCid: '', gpuMilli: 0, cpuMilli: 1, appPort: 8080, isPublic: false,
+-    active: true, createdAt: 1n, rate: 0n, balance6: 0n, spent6: 0n, runner: `0x${'0'.repeat(64)}`, runnerOperator: ZERO, leaseUntil: U64MAX, ...d });
+-  await tx(admin, ledger, K.TestLedger.abi, 'setDeployment', [deployment({})]);
+-  await tx(admin, ledger, K.TestLedger.abi, 'setOperator', [id, HOST, operator.address]);
+-  const contracts = { lifecycle, ledger, identity, registry, l1Oracle: oracle, catalog, addressBook: book, ...deps };
+-  for (const [k, a] of Object.entries(contracts)) if (k !== 'addressBook') await tx(admin, book, K.TestAddressBook.abi, 'put', [keccak256(toBytes(k)), a]);
+-  const configureTx = await tx(human, lifecycle, LIFECYCLE.abi, 'configure', [id, witnesses.map(w => w.address), 3, MAX_T, RESERVE, MAX_GAS]);
+-  await tx(human, lifecycle, LIFECYCLE.abi, 'deposit', [id], parseEther('1'));
+-  const w = { admin, human, operator, relay, witnesses, id, contracts, configureTx, sent: [], mined: [], hooks: {},
+-    auth: { pin: null, tier: 'l1-finalized-derived', proof: true } };
+-  w.receipts = anvilReceipts(w.hooks);
+-  w.pins = { chainId: 8453, host: HOST, payee: relay.address, maxChargeWei: MAX_T.toString(), maxGasPriceWei: MAX_GAS.toString(), allowedMeasurements: [MEAS],
+-    contracts: Object.fromEntries(await Promise.all(Object.entries(contracts).map(async ([k, a]) => [k, { address: a, codeHash: await codeHash(a) }]))),
+-    addressBook: Object.fromEntries(Object.entries(contracts).filter(([k]) => k !== 'addressBook').map(([k, a]) => [keccak256(toBytes(k)), a])),
+-    identityFactories: [{ factory, codeHash: await codeHash(factory) }],
+-    admins: { ledgerOwner: admin.address, ledgerPendingOwner: ZERO, addressBookOwner: admin.address } };
+-  w.adapter = (over = {}) => createLifecycleChainAdapter({ pins: over.pins || w.pins, authority: testAuthority(w.auth, over.kind || 'derived'),
+-    receipts: w.receipts, now: chainNow, maxAncestry: over.maxAncestry,
+-    actorSigner: async ({ target, typedData }) => { const a = target === 'running' ? operator : human; return { address: a.address, signature: await a.signTypedData(typedData) }; },
+-    approvals: async ({ typedData }) => Promise.all(witnesses.map(x => x.signTypedData(typedData))),
+-    relay: { address: relay.address, send: async t => { w.sent.push(t);
+-      w.mined.push(await send(relay, { to: t.to, data: t.data, maxFeePerGas: t.maxFeePerGasWei, maxPriorityFeePerGas: 1n }));
+-      if (w.loseResponse) throw Error('response lost'); } } });
+-  return w;
+-}
+-async function step(w, target, reason) { const a = w.adapter(), intent = await a.prepare(w.id, await a.read(w.id), target, reason); await a.submit(w.id, intent); return intent; }
++useAnvil();
+ const queue = w => step(w, 'queued', 'enroll');
+ const unverified = (r, re) => { assert.equal(r.outcome, 'unknown'); assert.equal(r.verified, false); assert.equal(r.proof, null); assert.match(r.proofError, re); };
+-function runnerFor(w, t) {
+-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r3-runner-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+-  const journal = openLifecycleJournal(path.join(dir, 'j.json')), calls = [];
+-  const runtime = { fence: async () => calls.push('fence'), stop: async () => { calls.push('stop'); return true; },
+-    health: async () => ({ ready: true, ended: false, instance: 'i' }), serve: async () => calls.push('serve'),
+-    ensureStaged: async () => { calls.push('stage'); return { ready: true, ended: false, instance: 's' }; } };
+-  return { runner: new DeploymentLifecycleRunner({ chain: w.adapter(), runtime, journal, now: chainNow, random: () => 0 }), journal, calls };
+-}
+ 
+ test('confirmed only with the exact transaction + receipt proven at ancestry of the authority block (queued and running)', async () => {
+   const w = await world(); const q = await queue(w); await mine(); await mine();
+-  const a = w.adapter(), r = await a.resolve(w.id, q), head = await pub.getBlock({ blockTag: 'latest' }), m = w.mined[0];
++  const a = w.adapter(), r = await a.resolve(w.id, q), head = await S.pub.getBlock({ blockTag: 'latest' }), m = w.mined[0];
+   assert.deepEqual([r.verified, r.proofVerified, r.outcome, r.digest], [true, true, 'confirmed', q.digest]);
+-  const blk = await pub.getBlock({ blockNumber: m.blockNumber });
++  const blk = await S.pub.getBlock({ blockNumber: m.blockNumber });
+   assert.deepEqual([r.proof.transactionHash, r.proof.blockNumber, r.proof.blockHash, r.proof.transactionIndex, r.proof.receiptsRoot, r.proof.transactionsRoot],
+     [m.transactionHash, Number(m.blockNumber), blk.hash, m.transactionIndex, blk.receiptsRoot, blk.transactionsRoot]);
+   assert.deepEqual(r.proof.anchor, { number: Number(head.number), hash: head.hash });                  // m < B: headers linked m..B
+@@ -152,7 +28,7 @@
+   const w = await world(); const q = await queue(w); await mine(); await mine();
+   w.hooks.locate = async () => null;
+   let r = await w.adapter().resolve(w.id, q); assert.deepEqual([r.outcome, r.proof], ['unknown', null]); assert.match(r.reason, /no location hint/);
+-  const head = await pub.getBlock({ blockTag: 'latest' });
++  const head = await S.pub.getBlock({ blockTag: 'latest' });
+   w.hooks.locate = async () => ({ blockNumber: Number(head.number) + 5, transactionHash: w.mined[0].transactionHash });
+   r = await w.adapter().resolve(w.id, q); assert.equal(r.outcome, 'unknown'); assert.match(r.reason, /above the authenticated block/);
+   delete w.hooks.locate;

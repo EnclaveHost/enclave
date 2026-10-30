@@ -1,0 +1,16 @@
+{
+ "format": "m10-cli-child-supplement-launcher/v1",
+ "attempt": 1,
+ "unitExit": 0,
+ "unit": "Result=success ExecMainCode=0 ExecMainStatus=0 MemoryPeak=[not set] ",
+ "start": "2026-10-25T23:39:08Z",
+ "end": "2026-10-25T23:39:08Z",
+ "pinsSha256": "4e7c14f1969c5f5af3e648a82033c1f7cfee718c20f3cb1d4d49ff3d90151750",
+ "binaryPath": "/srv/m10-guest-validation/runs/run-1/build/target/debug/deps/base_consensus_cli-d6ae36328af6d7bb",
+ "binarySha256Before": "5575a2c2e3735cd6251583259256db305cbefa56c30c1c2047810b9b5d74fa4a",
+ "binarySha256After": "5575a2c2e3735cd6251583259256db305cbefa56c30c1c2047810b9b5d74fa4a",
+ "executedCopySha256": "5575a2c2e3735cd6251583259256db305cbefa56c30c1c2047810b9b5d74fa4a",
+ "executedCopySha256After": "5575a2c2e3735cd6251583259256db305cbefa56c30c1c2047810b9b5d74fa4a",
+ "sourceSha256": "f73fe422634f548f4338995ba4d87c62aede2ae6eb417d2c4fa11a833ac3fe0a",
+ "supplementOut": "/srv/m10-guest-validation/supplement/cli-child-1/work/out"
+}

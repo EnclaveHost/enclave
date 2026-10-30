@@ -1,0 +1,14 @@
+{
+  "scope": "synthetic normalized-event model only",
+  "tests": 15,
+  "exitCode": 0,
+  "unittestElapsedSeconds": 0.001,
+  "queueCapMiB": 256,
+  "innerRssCapMiB": 220,
+  "innerHostFloorMiB": 27648,
+  "observedAdmissionAvailableMiB": 92817,
+  "queueLargeReservationMiB": 4096,
+  "memorySampling": "Job ended before periodic RSS sampling; guard0/n-a is not evidence of zero memory use.",
+  "remoteFixtureExecuted": false,
+  "productionAcceptance": false
+}

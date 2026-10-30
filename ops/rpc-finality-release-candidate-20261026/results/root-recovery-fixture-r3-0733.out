@@ -1,0 +1,6 @@
+[queue] START available=17738MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+PASS reanchor-bounds Ran 1 (expected 1)
+## r10-recovery-fixture-fix-r3 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=111 minHostAvailableMiB=17641
+[memory-guard] at peak: node:65 python3:39 bash:4 timeout:2 bash:2
+[queue] EXIT 0

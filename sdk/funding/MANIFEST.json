@@ -1,0 +1,47 @@
+{
+  "schema": "client-execution-recovery-r1-funding-core/v1",
+  "source": {
+    "util.mjs": {
+      "from": "client-site-repair-r2/candidate/sdk/funding/util.mjs",
+      "sha256": "38b678a68ecf7fd897fb1ae905d27471a17d10f8061fa29d81f5870549e12e66"
+    },
+    "v2-store.mjs": {
+      "from": "client-site-repair-r2/candidate/sdk/funding/v2-store.mjs",
+      "sha256": "b00d0742ee3d2b211b4cf811c48c8e7004dbf7e8a4cf30517db5ec199181733c"
+    },
+    "chain-proof.mjs": {
+      "from": "client-site-repair-r2/candidate/sdk/funding/chain-proof.mjs",
+      "sha256": "ca799d8f86db1dd3a7113703cba5fd929e770f02f5c63fa3f5589b05f5e074b3"
+    },
+    "funding-client.mjs": {
+      "from": "client-site-repair-r2/candidate/sdk/funding/funding-client.mjs",
+      "sha256": "8d79be4d818556545c98a85025bc3d6bac2e508b2a06ef32ff22a3860f2c0ce0"
+    },
+    "migration.mjs": {
+      "from": "client-site-repair-r2/candidate/sdk/funding/migration.mjs",
+      "sha256": "b168fcc1038c9c5c19c685cd9b336fa7ecbd3fb89d91d8cec92bdbea8d4dccf4"
+    },
+    "funding-codec.mjs": {
+      "from": "client-site-repair-r2/candidate/sdk/funding/funding-codec.mjs",
+      "sha256": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7"
+    },
+    "gas-execution.mjs": {
+      "from": "client-execution-recovery-r1/lib/gas-execution.mjs",
+      "sha256": "218085b1b1962b9b50e8ecb4b99a1115e56a950f1841f07035450d9b33d1c573"
+    },
+    "browser-entry.mjs": {
+      "from": "client-execution-recovery-r1/integration/prepare.py ENTRY",
+      "sha256": "9820589c2aab82d3ae22f2ba73011970d0754557f12da7871859f3d368bbf879"
+    }
+  },
+  "files": {
+    "browser-entry.mjs": "c53c64148c1ec6f968fd06a58a3fce62813db91d8994d8f1d9e3f69a9d401e72",
+    "chain-proof.mjs": "ca799d8f86db1dd3a7113703cba5fd929e770f02f5c63fa3f5589b05f5e074b3",
+    "funding-client.mjs": "8d79be4d818556545c98a85025bc3d6bac2e508b2a06ef32ff22a3860f2c0ce0",
+    "funding-codec.mjs": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7",
+    "gas-execution.mjs": "e3e0c4f1ddbb24f0f510c105643c3942baa3272924e1276e03ff3769c7f1298e",
+    "migration.mjs": "b168fcc1038c9c5c19c685cd9b336fa7ecbd3fb89d91d8cec92bdbea8d4dccf4",
+    "util.mjs": "38b678a68ecf7fd897fb1ae905d27471a17d10f8061fa29d81f5870549e12e66",
+    "v2-store.mjs": "b00d0742ee3d2b211b4cf811c48c8e7004dbf7e8a4cf30517db5ec199181733c"
+  }
+}

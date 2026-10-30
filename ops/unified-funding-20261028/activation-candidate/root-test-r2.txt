@@ -1,0 +1,125 @@
+[queue] START available=30464MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+[sessions] funding activation: owner controls off (SESSIONS_FUNDING_OWNER_CONTROLS is not set); intake off (SESSIONS_FUNDING_INTAKE is not set)
+[sessions] funding: intake off (funding is not configured on this relay (no activation manifest)); owner controls off (successor owner controls are not configured on this relay (no owner-controls manifest))
+TAP version 13
+# Subtest: default OFF: no flag enables nothing (an intake manifest alone stays inert); every /funding/* is 503; original routes answer
+ok 1 - default OFF: no flag enables nothing (an intake manifest alone stays inert); every /funding/* is 503; original routes answer
+  ---
+  duration_ms: 7.896891
+  type: 'test'
+  ...
+# Subtest: owner controls ON, intake OFF (the rollback state): withdraw, revokeAll, terminate, sign-out and views work; intake stays 503
+ok 2 - owner controls ON, intake OFF (the rollback state): withdraw, revokeAll, terminate, sign-out and views work; intake stays 503
+  ---
+  duration_ms: 35.808328
+  type: 'test'
+  ...
+# Subtest: intake ON via the loader: the actual v2 fee policy prices /funding/quote over the host's request; accept is bound to that quote
+ok 3 - intake ON via the loader: the actual v2 fee policy prices /funding/quote over the host's request; accept is bound to that quote
+  ---
+  duration_ms: 24.057381
+  type: 'test'
+  ...
+# Subtest: rollback by restart: intake ON then OFF over the SAME store, journal and queue nonce keeps successor owner controls
+ok 4 - rollback by restart: intake ON then OFF over the SAME store, journal and queue nonce keeps successor owner controls
+  ---
+  duration_ms: 20.402613
+  type: 'test'
+  ...
+# Subtest: expired intake manifest: intake answers manifest_stale; owner terminate is still sent
+ok 5 - expired intake manifest: intake answers manifest_stale; owner terminate is still sent
+  ---
+  duration_ms: 5.989433
+  type: 'test'
+  ...
+# Subtest: expired fee-policy config: the actual policy refuses config_expired; owner terminate is still sent
+ok 6 - expired fee-policy config: the actual policy refuses config_expired; owner terminate is still sent
+  ---
+  duration_ms: 12.379904
+  type: 'test'
+  ...
+# Subtest: malformed or mismatched new config never throws, never enables intake, and never removes owner controls or original routes
+ok 7 - malformed or mismatched new config never throws, never enables intake, and never removes owner controls or original routes
+  ---
+  duration_ms: 11.578739
+  type: 'test'
+  ...
+# Subtest: owner pins are re-proven per request: provisional addresses without code, or other code, send nothing; the route refuses mismatched intake
+ok 8 - owner pins are re-proven per request: provisional addresses without code, or other code, send nothing; the route refuses mismatched intake
+  ---
+  duration_ms: 3.040931
+  type: 'test'
+  ...
+# Subtest: bounded config reader: only a regular, small, UTF-8 JSON object at a real absolute path is read
+ok 9 - bounded config reader: only a regular, small, UTF-8 JSON object at a real absolute path is read
+  ---
+  duration_ms: 1.461141
+  type: 'test'
+  ...
+[sessions] init: HTTP request failed.
+
+URL: http://127.0.0.1:9/
+Request body: {"method":"eth_getBalance","params":["0x7D337D5D345356423a30510a3d88B522E8eF0caa","latest"]}
+
+Details: fetch failed
+Version: viem@2.53.1 (serving anyway; requests will say why)
+[sessions] funding activation: owner controls on; intake refused (config_json: SESSIONS_FUNDING_FEE_POLICY is not JSON (Expected property name or '}' in JSON at position 2 (line 1 column 3)))
+[sessions] funding: intake off (funding needs a reviewed host quote policy ({ fee, accept }); none is wired, so no price is offered); owner controls on (successor factory 0x000000000000000000000000000000000000F001)
+[sessions] init: HTTP request failed.
+
+URL: http://127.0.0.1:9/
+Request body: {"method":"eth_getBalance","params":["0x7D337D5D345356423a30510a3d88B522E8eF0caa","latest"]}
+
+Details: fetch failed
+Version: viem@2.53.1 (serving anyway; requests will say why)
+[sessions] funding activation: owner controls off (SESSIONS_FUNDING_OWNER_CONTROLS is not set); intake off (SESSIONS_FUNDING_INTAKE is not set)
+[sessions] funding: intake off (the funding activation manifest is refused: manifest is missing schema, chainId, notAfter, maxBlockAgeSec, addresses, codehashes, pools, feeTiers, maxSlippageBps, deadlineSec); owner controls off (successor owner controls are not configured on this relay (no owner-controls manifest))
+# Subtest: actual initSessions: flags unset wire nothing new; a malformed fee config keeps owner controls and the original routes
+ok 10 - actual initSessions: flags unset wire nothing new; a malformed fee config keeps owner controls and the original routes
+  ---
+  duration_ms: 11775.772117
+  type: 'test'
+  ...
+[sessions] init: HTTP request failed.
+
+URL: http://127.0.0.1:9/
+Request body: {"method":"eth_getBalance","params":["0x2E036F17fB02Ff6bADd79F225825f93bEc17aCeE","latest"]}
+
+Details: fetch failed
+Version: viem@2.53.1 (serving anyway; requests will say why)
+# Subtest: root: actual initializer leaves manifest files unread while funding flags are off
+not ok 11 - root: actual initializer leaves manifest files unread while funding flags are off
+  ---
+  duration_ms: 5867.363194
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-r1/test/activation.test.mjs:387:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    funding OFF must not read an unchecked manifest file
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-r1/test/activation.test.mjs:395:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 10
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 17772.609118
+[memory-guard] exit=1 peakTreeRssMiB=92 minHostAvailableMiB=30329
+[memory-guard] at peak: node:92
+[memory-guard] exit=1 peakTreeRssMiB=152 minHostAvailableMiB=30329
+[memory-guard] at peak: node:92 node:60
+[queue] EXIT 1

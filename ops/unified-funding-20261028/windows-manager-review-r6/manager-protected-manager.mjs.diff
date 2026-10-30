@@ -1,0 +1,50 @@
+--- work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r5/candidate/control/windows/vbslike/manager/protected-manager.mjs	2026-10-29 08:05:44.938159694 -0700
++++ work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r6/candidate/control/windows/vbslike/manager/protected-manager.mjs	2026-10-29 08:39:20.153029551 -0700
+@@ -25,6 +25,7 @@
+ import http from "node:http";
+ import { Manager, createServer } from "./server.mjs";
+ import { PROTECTED_ID } from "./permit-journal.mjs";
++import { ATTEST_SCHEMA, attestKey, verifyAttestRequest, responseMac, sha256hex } from "../router/attest.mjs";   // permit r6
+ 
+ const ENFORCEMENT_FIELDS = ["protected", "permit", "permitEnvelope", "attachment", "enforcement", "expiryEnforced", "proofVerified",
+   "stagingDeadline", "stagingMs", "serveUntil", "validUntil", "guard", "launchEpoch"];
+@@ -163,8 +164,24 @@
+ }
+ 
+ /** HTTP: /control/* handshake, MAC'd requests to the protected table, everything else to the INSTALLED handler. */
+-export function createProtectedServer(manager, { control }) {
++export function createProtectedServer(manager, { control, routerKey = null, enforcement = null }) {
+   const legacy = createServer(manager).listeners("request")[0];
++  if (routerKey !== null) attestKey(routerKey);
++  // permit r6: enclave-router-attest/1 (router/attest.mjs). Verify-only for the router's admission, and exact durable
++  // operation outcomes for its reconciliation. Answered ONLY under K_r; it creates, cancels and consumes nothing.
++  const routerAttest = (b) => {
++    const outcomeOf = (op) => (enforcement && /^op[0-9a-f]{32}$/.test(String(op)) ? enforcement.operationOutcome(op) : null);
++    const base = { schema: ATTEST_SCHEMA, nonce: b.nonce, purpose: b.purpose, managerEpoch: manager.epoch };
++    if (b.purpose === "operation") return { ...base, ok: outcomeOf(b.operation) !== null, operation: b.operation, outcome: outcomeOf(b.operation) };
++    if (b.purpose !== "stage" || b.method !== "POST" || b.path !== "/protected/vms" || typeof b.body !== "string") return { ...base, ok: false, error: "unsupported attestation" };
++    const raw = Buffer.from(b.body, "base64"), h = b.headers ?? {};
++    const v = control.attest({ method: "POST", path: "/protected/vms",
++      headers: { "x-guestd-session": h["x-guestd-session"], "x-guestd-seq": h["x-guestd-seq"], "x-guestd-mac": h["x-guestd-mac"] }, body: raw.toString("utf8") });
++    if (!v.ok) return { ...base, ok: false, error: v.error };
++    let req = null; try { req = JSON.parse(raw.toString("utf8")); } catch { /* answered as unbound below */ }
++    return { ...base, ok: true, session: v.session, seq: v.seq, requestSha256: sha256hex(raw), deployment: req?.deployment ?? null,
++      operation: req?.operation ?? null, outcome: outcomeOf(req?.operation) };
++  };
+   return http.createServer(async (req, res) => {
+     const send = (status, body, headers = {}) => {
+       const b = Buffer.from(JSON.stringify(body ?? {}));
+@@ -186,6 +203,13 @@
+         let b; try { b = JSON.parse((await read()).toString("utf8")); } catch (e) { return send(e.status || 400, { error: e.status ? e.message : "body is not JSON" }); }
+         const o = control.session(b); return send(o.status, o.body);
+       }
++      if (url === "/router/attest" && req.method === "POST") {
++        if (!routerKey) return send(503, { error: "router attestation is not configured" });
++        const raw = await read(), b = verifyAttestRequest(routerKey, raw, req.headers);
++        if (!b) return send(401, { error: "router attestation MAC did not verify" });
++        let out; try { out = routerAttest(b); } catch (e) { out = { schema: ATTEST_SCHEMA, nonce: b.nonce, ok: false, error: e.message }; }
++        return send(200, out, { "x-router-response-mac": responseMac(routerKey, b.nonce, 200, Buffer.from(JSON.stringify(out))) });
++      }
+       if (req.headers["x-guestd-session"] !== undefined || req.headers["x-guestd-mac"] !== undefined) {
+         const raw = await read();
+         const o = await control.call({ method: req.method, path: url, headers: req.headers, body: raw.toString("utf8") });

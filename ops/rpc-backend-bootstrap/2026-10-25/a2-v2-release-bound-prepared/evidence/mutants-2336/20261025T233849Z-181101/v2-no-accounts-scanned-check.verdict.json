@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "BytecodeGate.test_missing_malformed_empty_or_unscanned_results_refuse": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "BytecodeGate.test_missing_malformed_empty_or_unscanned_results_refuse"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

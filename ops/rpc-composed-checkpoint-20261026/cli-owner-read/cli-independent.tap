@@ -1,0 +1,114 @@
+TAP version 13
+# Subtest: the registry under test is the deployed schema-4 bytecode, built from the source-verified historical file
+not ok 1 - the registry under test is the deployed schema-4 bytecode, built from the source-verified historical file
+  ---
+  duration_ms: 1128.316396
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-final-candidate-20261026/tree/test/cli-independent.test.mjs:69:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + '771a22d361dde5e19cfc8a1db66b7739e6b447e6185153be9fc8c248be0fd2a9'
+    - 'e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'e81f5d5185eb83c50f7407e1bda9a71733948fca5eb3b2f228d5e8e598791360'
+  actual: '771a22d361dde5e19cfc8a1db66b7739e6b447e6185153be9fc8c248be0fd2a9'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-final-candidate-20261026/tree/test/cli-independent.test.mjs:71:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: trust inputs: explicit, distinct RPC origins and a reviewed profile only with its digest
+ok 2 - trust inputs: explicit, distinct RPC origins and a reviewed profile only with its digest
+  ---
+  duration_ms: 4.782314
+  type: 'test'
+  ...
+# Subtest: a wrong profile digest is refused before any RPC request
+ok 3 - a wrong profile digest is refused before any RPC request
+  ---
+  duration_ms: 246.244186
+  type: 'test'
+  ...
+# Subtest: ls: the wallet's records at one agreed block; an empty answer and a failed read are different
+ok 4 - ls: the wallet's records at one agreed block; an empty answer and a failed read are different
+  ---
+  duration_ms: 1061.200575
+  type: 'test'
+  ...
+# Subtest: quorum: one lying, dead or wrong-chain RPC is outvoted; with too few honest peers the read is refused
+ok 5 - quorum: one lying, dead or wrong-chain RPC is outvoted; with too few honest peers the read is refused
+  ---
+  duration_ms: 2430.200448
+  type: 'test'
+  ...
+# Subtest: hosts and pricing come from the deployed schema-4 registry; schema 5 and relay/capability options are refused
+ok 6 - hosts and pricing come from the deployed schema-4 registry; schema 5 and relay/capability options are refused
+  ---
+  duration_ms: 1935.444272
+  type: 'test'
+  ...
+# Subtest: deploy, fund, rate-cap, stop and resume: preconditions agreed, one signature each, receipts confirmed by quorum
+ok 7 - deploy, fund, rate-cap, stop and resume: preconditions agreed, one signature each, receipts confirmed by quorum
+  ---
+  duration_ms: 7075.858935
+  type: 'test'
+  ...
+# Subtest: status: the record, its lease and the runner's schema-4 registry entry at one block
+ok 8 - status: the record, its lease and the runner's schema-4 registry entry at one block
+  ---
+  duration_ms: 2072.190853
+  type: 'test'
+  ...
+# Subtest: whoami, apps, resize and refund work from the quorum alone
+ok 9 - whoami, apps, resize and refund work from the quorum alone
+  ---
+  duration_ms: 5032.931667
+  type: 'test'
+  ...
+# Subtest: a transaction whose answers are all lost is reported outcome-unknown and never resent
+ok 10 - a transaction whose answers are all lost is reported outcome-unknown and never resent
+  ---
+  duration_ms: 367.446482
+  type: 'test'
+  ...
+# Subtest: a record that changed hands is refused before anything is signed
+ok 11 - a record that changed hands is refused before anything is signed
+  ---
+  duration_ms: 2107.994361
+  type: 'test'
+  ...
+# Subtest: hosted-only commands, session relaying and an external signer are refused in independent mode
+ok 12 - hosted-only commands, session relaying and an external signer are refused in independent mode
+  ---
+  duration_ms: 2307.703332
+  type: 'test'
+  ...
+# Subtest: sessions and owner management: inspect on chain, then status, logs, restart, app token, CPU profile and GPU through the signed host endpoint
+ok 13 - sessions and owner management: inspect on chain, then status, logs, restart, app token, CPU profile and GPU through the signed host endpoint
+  ---
+  duration_ms: 9028.826525
+  type: 'test'
+  ...
+# Subtest: hosted mode is unchanged: hosts needs --independent and the independent flags need it too
+ok 14 - hosted mode is unchanged: hosts needs --independent and the independent flags need it too
+  ---
+  duration_ms: 457.166536
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 13
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 37694.054579

@@ -1,0 +1,27 @@
+# rendered by provision_vm.py (enclave-rpc-backend-vm/v1). prepare never enables or starts this unit.
+[Unit]
+Description=Enclave RPC backend VM (enclave-rpc-production: reth+lighthouse L1, Base holder; local HDD images)
+StartLimitIntervalSec=3600
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I /home/steven/.local/state/enclave-rpc-production/provision_vm.py launch /home/steven/.local/state/enclave-rpc-production/manifest.json ecbe7b65452b592742eb72f622bf9ea0dd52d51c825085e933f32a68d2f5f3ed
+ExecStop=/usr/bin/python3 -I /home/steven/.local/state/enclave-rpc-production/provision_vm.py powerdown /home/steven/.local/state/enclave-rpc-production/manifest.json
+TimeoutStartSec=300
+TimeoutStopSec=2400
+KillMode=mixed
+KillSignal=SIGTERM
+Restart=on-failure
+RestartSec=60
+RuntimeDirectory=enclave-rpc-production
+RuntimeDirectoryMode=0700
+MemoryMax=70866960384
+MemorySwapMax=0
+TasksMax=4096
+LimitNOFILE=65536
+NoNewPrivileges=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target

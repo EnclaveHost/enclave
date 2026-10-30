@@ -1,0 +1,9 @@
+0a5a6c943ab72a7bb2c96146a4d68a942311b69170d0ef546062cf86f685f5c6  ./PROVENANCE.md
+e5df568b3ecc53d73142ac2a36a4b923394ac52808684dcdf4ff90b9ab61dadb  ./inputs/derived-state-ipc-contract-r3.md
+dd252852fe7920a4785447b4bfb3d67a5086a3191eba61685031a6edd0f4b710  ./inputs/image-enrollment-root-note.txt
+24fbcf3c29c857fd4fe6eeb81d41ed47b958bead5a50f6ba05d82521898e3d20  ./inputs/kvm-r3-ROTATE-RECOVER-CONTRACT.md
+14656ef532c9d73539205e873421da8131e5f9c382cf2b6116621d72feae717d  ./inputs/kvm-r3-SHA256SUMS
+5e644464ae30b14f9923ec1dcc7c14b1ff5df04d7644bfe321f3537dc2dd9bdf  ./inputs/kvm-r3-expected-counts.json
+90c579ab62bb9ffe7389e049fc5743b2fe67e55688ae202561517e88c8bf8875  ./jobs/kvm-overlay.py
+288f5ebe20187eb6a9244f0c7c6d2c69db49b7e21b0efbcba30f7685b0fddcb8  ./jobs/root-accepted-image-enrollment-r4.sh
+e304f8ab842fd29eccf34e399ec88756948f55047d9fb639f75ca64c989f25cd  ./patches/accepted-image-enrollment-r4-vs-r3-kvm3.patch

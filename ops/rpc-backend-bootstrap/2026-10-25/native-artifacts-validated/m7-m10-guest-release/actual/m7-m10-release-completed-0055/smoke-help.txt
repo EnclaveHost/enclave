@@ -1,0 +1,162 @@
+Unified Base node binary
+
+Usage: base [OPTIONS] <COMMAND>
+
+Commands:
+  bootnode   Run consensus and execution discovery-only bootnodes
+  rpc        Run the integrated node in RPC mode
+  follow     Run the integrated node in follow mode (execution + consensus follow node)
+  sequencer  Run integrated execution, builder, and consensus services in sequencer mode
+  update     Update the base binary to the latest release
+  reth       Execution-layer maintenance utilities (use this group's own --chain flag)
+  proofs     Manage storage of historical proofs in the fault-proof window (uses its own --chain flag)
+  snapshot   Snapshot manifest generation and download utilities (uses its own --chain flag)
+  help       Print this message or the help of the given subcommand(s)
+
+Options:
+  -c, --chain <base_chain>
+          Chain selection.
+          
+          Uses a distinct clap `id` so nested reth-derived subcommands (e.g. `base reth db`) can register their own globally-propagated `--chain` arg without colliding at value-access time in [`FromArgMatches`].
+          
+          [env: BASE_CHAIN=]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+
+Logging:
+  -v, --verbose...
+          Set logging verbosity: no flag=INFO, -v=ERROR, -vv=WARN, -vvv=INFO, -vvvv=DEBUG, -vvvvv=TRACE
+          
+          [env: BASE_NODE_LOG_VERBOSITY=]
+
+  -q, --logs.stdout.quiet
+          Suppress stdout logging
+
+      --logs.stdout.format <STDOUT_FORMAT>
+          Stdout log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [env: BASE_NODE_LOG_FORMAT=]
+          [default: full]
+
+      --logs.file.directory <FILE_DIRECTORY>
+          Directory for file logging (enables file logging when set)
+          
+          [env: BASE_NODE_LOG_DIR=]
+
+      --logs.file.format <FILE_FORMAT>
+          File log format
+
+          Possible values:
+          - full:    Full format with timestamp, level, target, and spans
+          - json:    JSON format for structured logging
+          - pretty:  Pretty format with colors (for development)
+          - compact: Compact format with minimal metadata
+          - logfmt:  Logfmt format (key=value pairs)
+          
+          [default: json]
+
+      --logs.file.rotation <FILE_ROTATION>
+          File log rotation strategy
+
+          Possible values:
+          - minutely: Rotate every minute (for testing)
+          - hourly:   Rotate every hour
+          - daily:    Rotate every day
+          - never:    Never rotate (default)
+          
+          [default: never]
+
+      --logs-otlp[=<URL>]
+          Enable `Opentelemetry` logs export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/logs` - gRPC: `http://localhost:4317`
+          
+          Example: --logs-otlp=http://collector:4318/v1/logs
+          
+          [env: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=]
+
+      --logs-otlp.filter <FILTER>
+          Set a filter directive for the OTLP logs exporter. This controls the verbosity of logs sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --logs-otlp.filter=info,reth=debug
+          
+          Defaults to INFO if not specified.
+          
+          [default: info]
+
+Tracing:
+      --tracing-otlp[=<URL>]
+          Enable `Opentelemetry` tracing export to an OTLP endpoint.
+          
+          If no value provided, defaults based on protocol: - HTTP: `http://localhost:4318/v1/traces` - gRPC: `http://localhost:4317`
+          
+          Example: --tracing-otlp=http://collector:4318/v1/traces
+          
+          [env: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=]
+
+      --tracing-otlp-protocol <PROTOCOL>
+          OTLP transport protocol to use for exporting traces and logs.
+          
+          - `http`: expects endpoint path to end with `/v1/traces` or `/v1/logs` - `grpc`: expects endpoint without a path
+          
+          Defaults to HTTP if not specified.
+
+          Possible values:
+          - http: HTTP/Protobuf transport, port 4318, requires `/v1/traces` path
+          - grpc: gRPC transport, port 4317
+          
+          [env: OTEL_EXPORTER_OTLP_PROTOCOL=]
+          [default: http]
+
+      --tracing-otlp.filter <FILTER>
+          Set a filter directive for the OTLP tracer. This controls the verbosity of spans and events sent to the OTLP endpoint. It follows the same syntax as the `RUST_LOG` environment variable.
+          
+          Example: --tracing-otlp.filter=info,reth=debug,hyper_util=off
+          
+          Defaults to TRACE if not specified.
+          
+          [default: debug]
+
+      --tracing-otlp.sample-ratio <RATIO>
+          Trace sampling ratio to control the percentage of traces to export.
+          
+          Valid range: 0.0 to 1.0 - 1.0, default: Sample all traces - 0.01: Sample 1% of traces - 0.0: Disable sampling
+          
+          Example: --tracing-otlp.sample-ratio=0.0.
+          
+          [env: OTEL_TRACES_SAMPLER_ARG=]
+
+Metrics:
+      --metrics.enabled
+          Controls whether Prometheus metrics are enabled. Disabled by default
+          
+          [env: BASE_NODE_METRICS_ENABLED=]
+
+      --metrics.interval <metrics_interval>
+          The interval for prometheus metrics collection in seconds
+          
+          [env: BASE_NODE_METRICS_INTERVAL=]
+          [default: 30]
+
+      --metrics.port <metrics_port>
+          The port to serve Prometheus metrics on
+          
+          [env: BASE_NODE_METRICS_PORT=]
+          [default: 9090]
+
+      --metrics.addr <ADDR>
+          The IP address to use for Prometheus metrics
+          
+          [env: BASE_NODE_METRICS_ADDR=]
+          [default: 0.0.0.0]

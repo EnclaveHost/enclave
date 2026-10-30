@@ -1,0 +1,21 @@
+   Compiling helios-core v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-evm-stage/run/evm-mutants-20261026T003119Z/helios/core)
+   Compiling helios-revm-utils v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-evm-stage/run/evm-mutants-20261026T003119Z/helios/revm-utils)
+   Compiling helios-ethereum v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-evm-stage/run/evm-mutants-20261026T003119Z/helios/ethereum)
+   Compiling helios-test-utils v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-evm-stage/run/evm-mutants-20261026T003119Z/helios/tests/test-utils)
+warning: function `envelopes` is never used
+  --> core/tests/support/metadata.rs:23:15
+   |
+23 | pub(crate) fn envelopes(create: bool) -> Vec<TxEnvelope> {
+   |               ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `fixture` is never used
+  --> core/tests/support/metadata.rs:84:15
+   |
+84 | pub(crate) fn fixture(
+   |               ^^^^^^^
+
+warning: `helios-core` (test "node_evm_canonical") generated 2 warnings
+    Finished `test` profile [unoptimized] target(s) in 6.24s
+  Executable tests/node_evm_canonical.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/node_evm_canonical-c6c16f8724b6b7df)

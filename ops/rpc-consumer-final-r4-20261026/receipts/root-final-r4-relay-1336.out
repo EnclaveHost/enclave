@@ -1,0 +1,215 @@
+[queue] START available=22600MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "mode": "relay",
+ "harness": "bind-mounted read-only node_modules (unshare -Urnm)",
+ "sharedRelayRuntime": {
+  "sha256": "e12c5bafb8b17abb891fb26fe1cdc054159d7bd2de5486d2c1a2480430671ed6",
+  "equalsBaseBuild": true,
+  "equalsCommittedPin": true
+ },
+ "platformApiGuestBundle": {
+  "committedStale": true,
+  "checkAfterRegeneration": 0
+ },
+ "relayTests": {
+  "native-relay-chain-authority": {
+   "pristine": {
+    "rc": 0,
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true,
+   "expected": "8",
+   "ok": true
+  },
+  "platform-api-admin-cli": {
+   "pristine": {
+    "rc": 0,
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true,
+   "expected": "-",
+   "ok": true
+  },
+  "platform-api-admin-status": {
+   "pristine": {
+    "rc": 0,
+    "tests": 1,
+    "pass": 1,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 1,
+    "pass": 1,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true,
+   "expected": "-",
+   "ok": true
+  },
+  "platform-api-forward": {
+   "pristine": {
+    "rc": 0,
+    "tests": 6,
+    "pass": 6,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 6,
+    "pass": 6,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true,
+   "expected": "-",
+   "ok": true
+  },
+  "platform-api-handoff-production": {
+   "pristine": {
+    "rc": 0,
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true,
+   "expected": "-",
+   "ok": true
+  },
+  "platform-api-hosted": {
+   "pristine": {
+    "rc": 0,
+    "tests": 6,
+    "pass": 6,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 6,
+    "pass": 6,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true,
+   "expected": "-",
+   "ok": true
+  },
+  "platform-api-native-issuer": {
+   "pristine": {
+    "rc": 0,
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true,
+   "expected": "-",
+   "ok": true
+  },
+  "relay-chain-consumers": {
+   "pristine": {
+    "rc": 0,
+    "tests": 10,
+    "pass": 10,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 10,
+    "pass": 10,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true,
+   "expected": "10",
+   "ok": true
+  }
+ },
+ "ok": true,
+ "scope": "release-candidate tree 929fc19a: packaging/composition/adapter evidence only; NOT fresh-state authority (writer 120 s ceiling vs L1-finalized anchors), NOT feature availability, NOT production"
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/final-consumer-composition-stage/r4/runs/20261026T132943Z-relay-1829407
+## final-consumer-r4 relay rc=0
+[memory-guard] exit=0 peakTreeRssMiB=701 minHostAvailableMiB=21419
+[memory-guard] at peak: node:148 node:147 node:133 node:109 node:96 node:59 bash:4 timeout:2
+[queue] EXIT 0

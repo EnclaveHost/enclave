@@ -1,0 +1,36 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=22272MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+[ok] offline (no IPv4 route)
+[ok] r8 stage; r7/r6/r5 frozen
+[ok] r2 inputs unchanged (pinned)
+[ok] r6 builds + comparator 23/23 + EQUAL receipts unchanged
+[ok] r7 run TAP receipts + root log unchanged
+  candidate-mcp-independent-verifier.tap: node rc 0, {'tests': 9, 'pass': 9, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  candidate-mcp-independent-unit.tap: node rc 0, {'tests': 10, 'pass': 10, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  candidate-mcp-independent.tap: node rc 0, {'tests': 13, 'pass': 13, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  candidate-chain-authority.tap: node rc 0, {'tests': 10, 'pass': 10, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  base-mcp-independent-unit.tap: node rc 0, {'tests': 10, 'pass': 10, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  base-mcp-independent.tap: node rc 0, {'tests': 13, 'pass': 13, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+[ok] reused: 6 rows / 65 tests from root's r7 run
+[ok] r7's 2 failing rows failed exactly on the stale regex P8 replaces
+[ok] dependency lock + noble pinned
+[ok] copies == r6's qualified trees; P8 applied exactly (pre/post pinned); no reused test imports the P8 file
+[ok] pinned forge on PATH, anvil, openssl
+  candidate-cli-combined-independent.tap: node rc 0, {'tests': 4, 'pass': 4, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  base-cli-combined-independent.tap: node rc 0, {'tests': 4, 'pass': 4, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  accounting: 65 reused + 8 executed = 73 = every EXPECTED-TAP test
+  base ignored-entry delta: 0 lines (recorded)
+  cand ignored-entry delta: 0 lines (recorded)
+RESULT: PASS (73/73: 65 reused from r7 + 8 executed with P8; builds/comparator reused from r6)
+[memory-guard] exit=0 peakTreeRssMiB=393 minHostAvailableMiB=21738
+[memory-guard] at peak: node:212 node:93 node:58 anvil:24 bash:4 timeout:2
+[queue] EXIT 0

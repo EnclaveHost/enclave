@@ -1,0 +1,7 @@
+[queue] START available=24683MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{"rc": 0, "refused": null, "stopReason": null, "totals": {"allocatedData": 1134426345472, "zeroNotHole": 0, "hole": 0, "holeZero": 0}, "rangesWithHoleOrZero": 0, "imageUnchanged": true, "cleanupComplete": true}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/qcow-allocation-nbd-stage/r4/runs/real-20261026T213945Z-2383394
+## qcow-alloc-r4-real rc=0 (0 result written; 3 refused; 4 cleanup/identity problem: STOP)
+[memory-guard] exit=0 peakTreeRssMiB=79 minHostAvailableMiB=24500
+[memory-guard] at peak: qemu-nbd:42 python3:31 bash:4 timeout:2
+[queue] EXIT 0

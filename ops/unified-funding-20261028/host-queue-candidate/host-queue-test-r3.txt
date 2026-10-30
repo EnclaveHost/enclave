@@ -1,0 +1,220 @@
+[queue] START available=30612MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: inputs: the pinned original, and relay-owner-r2's reviewed copy is that original plus funding-r2 blocks
+ok 1 - inputs: the pinned original, and relay-owner-r2's reviewed copy is that original plus funding-r2 blocks
+  ---
+  duration_ms: 1.519682
+  type: 'test'
+  ...
+# Subtest: exactly two marked blocks; restoring the ORIGINAL TxQueue class from the pinned source gives relay-owner-r2's copy
+ok 2 - exactly two marked blocks; restoring the ORIGINAL TxQueue class from the pinned source gives relay-owner-r2's copy
+  ---
+  duration_ms: 0.495534
+  type: 'test'
+  ...
+# Subtest: the replacement keeps the host's construction, lane, pending-nonce source and fee cap; adds no key or signer
+ok 3 - the replacement keeps the host's construction, lane, pending-nonce source and fee cap; adds no key or signer
+  ---
+  duration_ms: 1.064458
+  type: 'test'
+  ...
+# Subtest: the funding route and ABI are relay-owner-r2's patched copies byte for byte; imports resolve to the read-only source
+ok 4 - the funding route and ABI are relay-owner-r2's patched copies byte for byte; imports resolve to the read-only source
+  ---
+  duration_ms: 1.78975
+  type: 'test'
+  ...
+# Subtest: the manifest records the pins, the replaced bytes and every output
+ok 5 - the manifest records the pins, the replaced bytes and every output
+  ---
+  duration_ms: 0.365126
+  type: 'test'
+  ...
+# Subtest: root: queue rejects missing log metadata as completion
+ok 6 - root: queue rejects missing log metadata as completion
+  ---
+  duration_ms: 2.705549
+  type: 'test'
+  ...
+# Subtest: root: queue rejects removed log as completion
+ok 7 - root: queue rejects removed log as completion
+  ---
+  duration_ms: 0.507054
+  type: 'test'
+  ...
+# Subtest: root: queue rejects wrong log height as completion
+ok 8 - root: queue rejects wrong log height as completion
+  ---
+  duration_ms: 0.408915
+  type: 'test'
+  ...
+# Subtest: root: pending nonce cannot be reused for a different call when provider pending count lags
+ok 9 - root: pending nonce cannot be reused for a different call when provider pending count lags
+  ---
+  duration_ms: 0.643943
+  type: 'test'
+  ...
+# Subtest: root: a restarted queue respects a journal-owned unresolved nonce
+ok 10 - root: a restarted queue respects a journal-owned unresolved nonce
+  ---
+  duration_ms: 0.375836
+  type: 'test'
+  ...
+# Subtest: root: nonce ownership is durable before broadcast and ambiguous send failure cannot authorize another call
+ok 11 - root: nonce ownership is durable before broadcast and ambiguous send failure cannot authorize another call
+  ---
+  duration_ms: 0.90832
+  type: 'test'
+  ...
+# Subtest: root: canonical reconciliation releases an older journal nonce before next call
+ok 12 - root: canonical reconciliation releases an older journal nonce before next call
+  ---
+  duration_ms: 0.782121
+  type: 'test'
+  ...
+# Subtest: root: journal pressure cannot discard unresolved nonce ownership
+ok 13 - root: journal pressure cannot discard unresolved nonce ownership
+  ---
+  duration_ms: 1.019348
+  type: 'test'
+  ...
+# Subtest: canonical success: one send, the node's re-read receipt, nonce + 1, hash journaled before any receipt read
+ok 14 - canonical success: one send, the node's re-read receipt, nonce + 1, hash journaled before any receipt read
+  ---
+  duration_ms: 2.664729
+  type: 'test'
+  ...
+# Subtest: a canonical REVERTED receipt is returned as reverted (nonce consumed), never as success
+ok 15 - a canonical REVERTED receipt is returned as reverted (nonce consumed), never as success
+  ---
+  duration_ms: 0.274537
+  type: 'test'
+  ...
+# Subtest: a preconfirmation that becomes canonical: no completion meanwhile, no replacement, one send
+ok 16 - a preconfirmation that becomes canonical: no completion meanwhile, no replacement, one send
+  ---
+  duration_ms: 0.660342
+  type: 'test'
+  ...
+# Subtest: indefinitely preconfirmed: bounded, 503 tx_pending with the original hash, nonce unchanged, never replaced
+ok 17 - indefinitely preconfirmed: bounded, 503 tx_pending with the original hash, nonce unchanged, never replaced
+  ---
+  duration_ms: 0.715772
+  type: 'test'
+  ...
+# Subtest: no receipt at all: the original same-nonce replacement, same calldata/gas/nonce, fees +25% each, then tx_pending
+ok 18 - no receipt at all: the original same-nonce replacement, same calldata/gas/nonce, fees +25% each, then tx_pending
+  ---
+  duration_ms: 1.403684
+  type: 'test'
+  ...
+# Subtest: never completes on unknown status: no success, nonce unchanged, one send (unknown_status)
+ok 19 - never completes on unknown status: no success, nonce unchanged, one send (unknown_status)
+  ---
+  duration_ms: 0.550414
+  type: 'test'
+  ...
+# Subtest: never completes on zero block number: no success, nonce unchanged, one send (no_block_number)
+ok 20 - never completes on zero block number: no success, nonce unchanged, one send (no_block_number)
+  ---
+  duration_ms: 0.423116
+  type: 'test'
+  ...
+# Subtest: never completes on header at that height has another hash (reorged out): no success, nonce unchanged, one send (block_not_canonical)
+ok 21 - never completes on header at that height has another hash (reorged out): no success, nonce unchanged, one send (block_not_canonical)
+  ---
+  duration_ms: 0.512004
+  type: 'test'
+  ...
+# Subtest: never completes on re-read disagrees (load-balanced nodes on two forks): no success, nonce unchanged, one send (receipt_mismatch)
+ok 22 - never completes on re-read disagrees (load-balanced nodes on two forks): no success, nonce unchanged, one send (receipt_mismatch)
+  ---
+  duration_ms: 0.700032
+  type: 'test'
+  ...
+# Subtest: never completes on the header does not list the transaction: no success, nonce unchanged, one send (not_in_block)
+ok 23 - never completes on the header does not list the transaction: no success, nonce unchanged, one send (not_in_block)
+  ---
+  duration_ms: 1.034958
+  type: 'test'
+  ...
+# Subtest: never completes on a log from another block: no success, nonce unchanged, one send (log_mismatch)
+ok 24 - never completes on a log from another block: no success, nonce unchanged, one send (log_mismatch)
+  ---
+  duration_ms: 0.582943
+  type: 'test'
+  ...
+# Subtest: never completes on the header is not served: no success, nonce unchanged, one send (block_unavailable)
+ok 25 - never completes on the header is not served: no success, nonce unchanged, one send (block_unavailable)
+  ---
+  duration_ms: 0.543644
+  type: 'test'
+  ...
+# Subtest: a receipt for ANOTHER hash, or from another sender, is never ours: no completion, only our hashes reported
+ok 26 - a receipt for ANOTHER hash, or from another sender, is never ours: no completion, only our hashes reported
+  ---
+  duration_ms: 1.007459
+  type: 'test'
+  ...
+# Subtest: a canonical receipt that then reorgs before it reads back: the later canonical block is what completes
+ok 27 - a canonical receipt that then reorgs before it reads back: the later canonical block is what completes
+  ---
+  duration_ms: 0.713182
+  type: 'test'
+  ...
+# Subtest: nonce too low after a send: watch our own hash only, never send again, complete when it is canonical
+ok 28 - nonce too low after a send: watch our own hash only, never send again, complete when it is canonical
+  ---
+  duration_ms: 0.588773
+  type: 'test'
+  ...
+# Subtest: nonce too low with nothing of ours sent: the original nonce_lost (original error, nonce re-read next time)
+ok 29 - nonce too low with nothing of ours sent: the original nonce_lost (original error, nonce re-read next time)
+  ---
+  duration_ms: 0.691852
+  type: 'test'
+  ...
+# Subtest: another transaction holds the nonce (underpriced, nothing of ours sent): 503 nonce_busy, it is never replaced
+ok 30 - another transaction holds the nonce (underpriced, nothing of ours sent): 503 nonce_busy, it is never replaced
+  ---
+  duration_ms: 0.293327
+  type: 'test'
+  ...
+# Subtest: a failed REPLACEMENT keeps watching what was sent: tx_pending with that hash, not send_failed
+ok 31 - a failed REPLACEMENT keeps watching what was sent: tx_pending with that hash, not send_failed
+  ---
+  duration_ms: 0.535244
+  type: 'test'
+  ...
+# Subtest: a failed FIRST send is the original send_failed (original error rethrown)
+ok 32 - a failed FIRST send is the original send_failed (original error rethrown)
+  ---
+  duration_ms: 0.215537
+  type: 'test'
+  ...
+# Subtest: one serial lane: the next send starts only after a pending one gives up, at the provider's pending nonce
+ok 33 - one serial lane: the next send starts only after a pending one gives up, at the provider's pending nonce
+  ---
+  duration_ms: 0.443325
+  type: 'test'
+  ...
+# Subtest: reconcile: read-only journal recovery of a pending record, never a send
+ok 34 - reconcile: read-only journal recovery of a pending record, never a send
+  ---
+  duration_ms: 0.436875
+  type: 'test'
+  ...
+1..34
+# tests 34
+# suites 0
+# pass 34
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 512.631128
+[memory-guard] exit=0 peakTreeRssMiB=144 minHostAvailableMiB=30520
+[memory-guard] at peak: node:82 node:62
+[memory-guard] exit=0 peakTreeRssMiB=195 minHostAvailableMiB=30520
+[memory-guard] at peak: node:82 node:62 node:52
+[queue] EXIT 0

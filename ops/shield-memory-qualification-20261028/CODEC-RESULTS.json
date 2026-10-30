@@ -1,0 +1,29 @@
+[
+  {
+    "command": [
+      "cc",
+      "-std=c11",
+      "-O1",
+      "-g",
+      "-Wall",
+      "-Wextra",
+      "-fsanitize=address,undefined",
+      "-fno-sanitize-recover=all",
+      "-I.",
+      "pack24-selftest.c",
+      "-o",
+      "pack24-selftest-asan"
+    ],
+    "exitCode": 0,
+    "seconds": 0.565,
+    "log": "codec-0.log"
+  },
+  {
+    "command": [
+      "./pack24-selftest-asan"
+    ],
+    "exitCode": 0,
+    "seconds": 0.214,
+    "log": "codec-1.log"
+  }
+]

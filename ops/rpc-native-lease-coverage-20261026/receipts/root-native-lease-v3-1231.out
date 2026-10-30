@@ -1,0 +1,8 @@
+[queue] START available=18580MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+## lease-v3-native test=101 build=-1 tests-ok=0 (expected 14) Cargo.lock unchanged f122da76
+error[E0277]: can't compare `NonZero<u64>` with `{integer}`
+error: could not compile `base-proof-zk-utils` (example "derivation_harness_lease_v3" test) due to 1 previous error
+ROOT actual build evidence: derivation-lease-coverage-stage/logs/run-20261026T105724Z-1532651
+[memory-guard] exit=1 peakTreeRssMiB=488 minHostAvailableMiB=17694
+[memory-guard] at peak: rustc:246 cargo:219 python3:13 bash:4 bash:4 timeout:2
+[queue] EXIT 1

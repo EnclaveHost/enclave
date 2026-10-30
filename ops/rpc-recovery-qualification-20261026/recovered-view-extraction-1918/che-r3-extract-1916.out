@@ -1,0 +1,10 @@
+[queue] START available=24116MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+OK: match {"fstype": "ext4", "majmin": "253:1", "source": "/dev/mapper/cryptvm", "uuid": "aaae081c-f829-4484-a50f-a9bbb87d31f9"}
+{"busy": [], "completionFingerprint": "1221fa7d0c2e9829a618fd3c535762952323aaf5cec3b43df75e204a41f141bb", "floorBytes": {"root": 42949672960, "vm": 42949672960}, "freeBytes": {"root": 52555943936, "vm": 84901085184}, "refused": [], "remainingBytes": {"root": 0, "vm": 0}, "rootFreeBytes": 52555943936, "rootNeededBytes": 51539607552, "vmFloorBytes": 42949672960, "vmReserveBytes": 0}
+{"outcome": "CLEAN", "rc": 0, "runDir": "/vm/enclave-volumes/tr004-base-recovery-20261026/compact-header-extraction-20261027T133308Z-3243320", "totalBytes": 362900885, "error": null, "session": {"rc": 0, "reasons": []}}
+{"jobReceipt": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/compact-header-extraction-stage/r3/runs/extract-20261027T133307Z-3243269/JOB-RECEIPT.json", "finalRc": 0}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/compact-header-extraction-stage/r3/runs/extract-20261027T133307Z-3243269
+## che-r3-extract rc=0 (NOT a recovery, canonical-state or reset acceptance)
+[memory-guard] exit=0 peakTreeRssMiB=190 minHostAvailableMiB=23893
+[memory-guard] at peak: fuse2fs:71 python3:48 python3:24 python3:23 qemu-nbd:11 nbdfuse:9 bash:4
+[queue] EXIT 0

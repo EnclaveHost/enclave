@@ -1,0 +1,13 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/r2/overlay/src/reproof.py	2026-10-26 01:35:40.481367785 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/.r13-final.partial-1289574/src/reproof.py	2026-10-26 02:04:18.043727564 -0700
+@@ -22,8 +22,8 @@
+ 
+ FORMAT = 'enclave-base-finality-reproof/v1'
+ CONFIG_KEYS = {'format', 'launchDir', 'chainJson', 'rpcUrl', 'statusOut', 'node', 'depsRoot', 'workdir', 'capturesRoot', 'captureSources'}
+-FINALITY_STATE = (pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py'), '218bbfe56caec03e6da0829e442b793b88d4cc148a890a324892f0fafd7c78f4')
+-PRODUCER = (pathlib.Path('/opt/enclave-rpc/base-launch/base_launch.py'), 'f56816bb6547ca346d9c2a1098462bf6a665e026ea83748666b1cedb7e655206')   # production-bootstrap-wiring: produce creates finality/
++FINALITY_STATE = (pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py'), '5e4e38ca5742fbf91d0dda0f782525d0db0216a17de7a3de43a291a1c302e02e')
++PRODUCER = (pathlib.Path('/opt/enclave-rpc/base-launch/base_launch.py'), 'd95b9e18cdaafecd8ee4fe3e10be430bcca6a3b977c7ece97e435256a19d40a9')   # production-bootstrap-wiring: produce creates finality/
+ KEEP, TEMPFAIL, HOLD = 4, 75, 78
+ FAILED_KEEP, HISTORY, IN_PROGRESS = 2, 'attempts.jsonl', '.in-progress'      # r10-ops-followup: bounded failed-attempt retention
+ QUALIFY_BARRIER, PRESERVED = '.qualify-barrier', ('ambiguous', 'qualified-unrecorded')   # r2: never removed by reproof

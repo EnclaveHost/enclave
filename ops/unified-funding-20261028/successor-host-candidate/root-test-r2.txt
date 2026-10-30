@@ -1,0 +1,148 @@
+[queue] START available=30443MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: canonical success: reserved and journaled BEFORE the one broadcast, indexed once; an alternate signature is answered, never sent
+ok 1 - canonical success: reserved and journaled BEFORE the one broadcast, indexed once; an alternate signature is answered, never sent
+  ---
+  duration_ms: 30.241582
+  type: 'test'
+  ...
+# Subtest: an invalid signature reserves nothing and sends nothing
+ok 2 - an invalid signature reserves nothing and sends nothing
+  ---
+  duration_ms: 11.217941
+  type: 'test'
+  ...
+# Subtest: delayed preconfirmation: 202 with the exact hash; a retry after the provider's pending nonce advanced sends nothing; reconciled once
+ok 3 - delayed preconfirmation: 202 with the exact hash; a retry after the provider's pending nonce advanced sends nothing; reconciled once
+  ---
+  duration_ms: 13.281152
+  type: 'test'
+  ...
+# Subtest: replacement hash finalization: every hash is recorded; the replacement that lands finalizes it, asked by the first hash
+ok 4 - replacement hash finalization: every hash is recorded; the replacement that lands finalizes it, asked by the first hash
+  ---
+  duration_ms: 13.326871
+  type: 'test'
+  ...
+# Subtest: simultaneous duplicates and an alternate signature share one submission
+ok 5 - simultaneous duplicates and an alternate signature share one submission
+  ---
+  duration_ms: 30.246781
+  type: 'test'
+  ...
+# Subtest: restart: the durable journal answers the retry; no second broadcast; completes once canonical
+ok 6 - restart: the durable journal answers the retry; no second broadcast; completes once canonical
+  ---
+  duration_ms: 11.727556
+  type: 'test'
+  ...
+# Subtest: no-hash ambiguity stays fenced: 503 intent_unknown, never rebroadcast, also after a restart
+ok 7 - no-hash ambiguity stays fenced: 503 intent_unknown, never rebroadcast, also after a restart
+  ---
+  duration_ms: 9.918661
+  type: 'test'
+  ...
+# Subtest: crash after broadcast before the hash returned: the restarted relay fails closed (fenced), sends nothing
+ok 8 - crash after broadcast before the hash returned: the restarted relay fails closed (fenced), sends nothing
+  ---
+  duration_ms: 12.054653
+  type: 'test'
+  ...
+# Subtest: a pending error from an EARLIER transaction is never attached to this call
+ok 9 - a pending error from an EARLIER transaction is never attached to this call
+  ---
+  duration_ms: 8.849402
+  type: 'test'
+  ...
+# Subtest: canonical revert: exactly that submission is cleared, named by its hash, not a simulation refusal
+ok 10 - canonical revert: exactly that submission is cleared, named by its hash, not a simulation refusal
+  ---
+  duration_ms: 8.687592
+  type: 'test'
+  ...
+# Subtest: journal bound: unresolved intents are kept, a new one is refused before any send; owner controls keep bounded headroom
+ok 11 - journal bound: unresolved intents are kept, a new one is refused before any send; owner controls keep bounded headroom
+  ---
+  duration_ms: 11.955734
+  type: 'test'
+  ...
+# Subtest: owner ops: a forged signature consumes no quota; terminate is not locked behind an unrelated pending intent
+ok 12 - owner ops: a forged signature consumes no quota; terminate is not locked behind an unrelated pending intent
+  ---
+  duration_ms: 31.572549
+  type: 'test'
+  ...
+# Subtest: the HTTP adapter answers a pending successor send with 202 and its own hashes
+ok 13 - the HTTP adapter answers a pending successor send with 202 and its own hashes
+  ---
+  duration_ms: 11.470098
+  type: 'test'
+  ...
+# Subtest: activation: the route stays off without the queue's intent journal; production bootstrap wires no policy
+ok 14 - activation: the route stays off without the queue's intent journal; production bootstrap wires no policy
+  ---
+  duration_ms: 1.17034
+  type: 'test'
+  ...
+# Subtest: root: changed signed deadline at the same session nonce cannot create a second submission
+ok 15 - root: changed signed deadline at the same session nonce cannot create a second submission
+  ---
+  duration_ms: 8.670482
+  type: 'test'
+  ...
+# Subtest: root: no-hash nonce-too-low response stays fenced across retry
+ok 16 - root: no-hash nonce-too-low response stays fenced across retry
+  ---
+  duration_ms: 7.83715
+  type: 'test'
+  ...
+# Subtest: root: funding reservations retain 64 global journal slots for owner controls
+ok 17 - root: funding reservations retain 64 global journal slots for owner controls
+  ---
+  duration_ms: 2.846215
+  type: 'test'
+  ...
+# Subtest: legacy /end canonical: the original answer, one send, no intent on the record
+ok 18 - legacy /end canonical: the original answer, one send, no intent on the record
+  ---
+  duration_ms: 6.72042
+  type: 'test'
+  ...
+# Subtest: legacy /end preconfirmed: 503 tx_pending with the hash (unchanged)
+ok 19 - legacy /end preconfirmed: 503 tx_pending with the hash (unchanged)
+  ---
+  duration_ms: 1.11074
+  type: 'test'
+  ...
+# Subtest: legacy /end canonical REVERT: the original 409 revert naming the tx (unchanged)
+ok 20 - legacy /end canonical REVERT: the original 409 revert naming the tx (unchanged)
+  ---
+  duration_ms: 0.941292
+  type: 'test'
+  ...
+# Subtest: legacy /end wrong-hash receipt: never success; replacements identical (unchanged)
+ok 21 - legacy /end wrong-hash receipt: never success; replacements identical (unchanged)
+  ---
+  duration_ms: 1.639246
+  type: 'test'
+  ...
+# Subtest: funding stays off in the composed host without a manifest/policy
+ok 22 - funding stays off in the composed host without a manifest/policy
+  ---
+  duration_ms: 0.350757
+  type: 'test'
+  ...
+1..22
+# tests 22
+# suites 0
+# pass 22
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 709.250638
+[memory-guard] exit=0 peakTreeRssMiB=144 minHostAvailableMiB=30375
+[memory-guard] at peak: node:83 node:61
+[memory-guard] exit=0 peakTreeRssMiB=194 minHostAvailableMiB=30381
+[memory-guard] at peak: node:83 node:61 node:50
+[queue] EXIT 0

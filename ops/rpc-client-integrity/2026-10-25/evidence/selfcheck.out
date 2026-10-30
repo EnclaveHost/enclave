@@ -1,0 +1,12 @@
+[queue] START available=21257MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+patch applies to pristine 5476069f1eb74a56bccb56fdefd4b4bb0e3cda42
+2
+crates/consensus/providers/src/chain_provider.rs:261:            let computed = calculate_receipt_root(&envelopes);
+crates/consensus/providers/src/chain_provider.rs:307:            let computed = calculate_transaction_root(&block.body.transactions);
+crates/consensus/cli/src/l1.rs:13:const DEFAULT_L1_TRUST_RPC: bool = false;
+parses: crates/consensus/providers/src/chain_provider.rs (rustfmt rc=0)
+parses: crates/consensus/cli/src/l1.rs (rustfmt rc=0)
+## selfcheck rc=0
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

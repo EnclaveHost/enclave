@@ -1,0 +1,13 @@
+[queue] START available=18170MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+authoritative copy == worktree scanner (613a0e11681e8fd6)
+scanner-selftest rc=0  selftest: 57/57 cases ok
+scanner-staged rc=0  
+negative control ok: a path-less scan still reports the r9 lines
+gitleaks-selftest rc=0  gitleaks-selftest: 26 generated secrets found by their rules, 14 look-alikes tolerated, no global allowlist swallows a bare 64-hex secret (source/.gitleaks.toml
+gitleaks-staged rc=0  12:23AM INF no leaks found
+hook-selftest rc=0  hook-selftest: 5 real pushes through an absolute core.hooksPath, no temporary file left behind; a missing scanner refuses in both hooks; the scanner beside the 
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/scanner-fp-fix-stage/logs/run-20261026T072311Z-1131648
+## scanner-final-r4 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=122 minHostAvailableMiB=17920
+[memory-guard] at peak: gitleaks:118 bash:4
+[queue] EXIT 0

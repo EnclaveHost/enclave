@@ -1,0 +1,7 @@
+
+
+## October30 05:06UTC: second app875 included and wallet owner independently confirmed
+
+Human said signed. Actualbrowser723101089 reports included tx7b71d6205e708bcf07459df18d3291685fc718145aa6164a255d565ef099df3e/block53273632/nonce50d64bfd7ab48eeaa78b27b042788f7e26df2bc1917226b5b9dd836104846234/deadline1793337085. RootdidNOTreplay/sign/submit. Readonly80d624d1d8b940dea4fb33db11f8a644terminal0/Main0/256hard220RSSfloor27648CPU1noswap. API+Azul at53273664 agree wallet0b2owner/sameID/config/ports/inactive/balance0/runnerzero, pinnedledgercode/schema. Successfulreceipt+exactmembership+stablelateanchors. BOTHfinalized53273079 belowreceipt; NOTfinalizedyet. Neverreplay/clearjournal/reloadpendingreview. Twoappswalletownednow (a62finalized,875included).
+
+Root clicked ONLYcab8 Checkagain ONCE to preparefreshcurrentcontentreview, stillCheckingaslastobserved; no newpromotion/signature. Samebrowser2tabs723101089/723101090markedhandoff. Screenshotattemptsblank/wrongpagecrop retainedasfailedcapture, no misleadinginlineproof. DOMandindependentRPCresultpreserved wallet-875-release-poststate-r1. DNS/KVMsameleaseescrowreserveblockers; no repeatrefund/newfunding/hostmutation. SourceauthorstillterminalOAuthbeforework/no retry.

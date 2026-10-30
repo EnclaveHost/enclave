@@ -1,0 +1,27 @@
+{
+  "task": "wallet-release-prod-r1",
+  "date": "2026-10-29",
+  "status": "source-authored-not-run",
+  "authorRan": { "commands": false, "tests": false, "builds": false, "rpc": false, "browser": false, "wallet": false, "deploy": false },
+  "editedFiles": [
+    "enclave/site/js/core/wallet-release-store.js",
+    "enclave/site/js/core/wallet-release-chain.js",
+    "enclave/site/js/core/wallet-release-census.js",
+    "enclave/site/js/core/wallet-release-controller.js",
+    "enclave/site/js/core/wallet-release-view.js"
+  ],
+  "newFiles": [
+    "enclave/site/js/core/wallet-release-promote.js",
+    "enclave/test/wallet-release/prod-election.test.mjs",
+    "REPORT-WALLET-PROD-R1.md",
+    "RELEASE-CLOSURE-WALLET-PROD-R1.json"
+  ],
+  "untouched": ["../shipped-sessions.mjs", "../root-boundaries.test.mjs", "enclave/site/js/pages/sessions.js", "seed wallet-release tests and fixtures", "vendor/boot/search-clear/Host Copy/Topup/build/deployed assets"],
+  "newDependencies": [],
+  "newAssets": [],
+  "indexedDbSchema": "unchanged (version 1, store 'journal'); promote records use key prefix wp1:, seed wr1: Release records untouched",
+  "defaultProdRefusal": "preserved (unpromoted / content-drift / prod-custody without an issued owner review)",
+  "rootTestCommand": "WALLET_CENSUS_LEDGER_CREATOR=0x120ba39e91395273496c4c7d065733c9db461dbb:1 node --test enclave/test/wallet-release/ ../root-boundaries.test.mjs",
+  "notProven": ["browser IndexedDB getAll/IDBKeyRange fence", "real multi-tab", "live Base catalog/ledger", "relay acceptance of op promote", "installed host policy", "exact SDK ownerFromProvider request shape"],
+  "unfinished": ["catalog code hash unpinned and single-reader", "conflict records keep the cross-kind fence closed pending human review", "browser fixture not extended for the promote step"]
+}

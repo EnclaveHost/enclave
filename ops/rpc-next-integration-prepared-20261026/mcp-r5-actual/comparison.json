@@ -1,0 +1,1396 @@
+{
+ "format": "mcp-artifact-comparison/v2",
+ "solcVersion": "0.8.35+commit.47b9dedd",
+ "equal": true,
+ "differences": [],
+ "normalized": [
+  "build-info file name and its `id` (== the build id)",
+  "cache.builds (build ids; order)",
+  "cache.files[*].artifacts[*][*][*].build_id",
+  "cache.files[*].lastModificationDate"
+ ],
+ "a": {
+  "raw": {
+   "manifest": [
+    "966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  out/EnclaveAddressBook.sol/EnclaveAddressBook.json",
+    "269d07df2212e3a3bd701c138a398ffde9cf8f02652a5be4546d878db1e604b4  out/EnclaveAppCatalog.sol/EnclaveAppCatalog.json",
+    "039d621990f347a95a8f58a83b384e19236aedc731e0f7d2e198e77ca966622f  out/EnclaveDeployments.sol/EnclaveDeployments.json",
+    "0e40cb03958d9430161f891baded07ced297d95f16f77590fd829cf2125a5912  out/EnclaveDeployments.sol/EnclaveLedgerBandwidth.json",
+    "1e3c958b82bed469e7d5a020b534baff9ccaa7f67d2caae3d94d404661e60b26  out/EnclaveDeployments.sol/IAggregatorV3.json",
+    "60fb2b3a308ab49c57e7e6d7bab78d8fdd5d4f804fdcc48a3b861ade5b973df8  out/EnclaveDeployments.sol/IERC20Auth.json",
+    "7c59a3a06097da15e666293c732673d442511a85df893a69981c97b434435dad  out/EnclaveDeployments.sol/IEnclaveRegistry.json",
+    "bcf1dd26e5bf6e991929a02b0e588d04e79caea9da7a151a6fc19e32d6ac5a61  out/EnclaveDeployments.sol/IVerificationFeeRouter.json",
+    "1c9c52b45f65e183c466fb70e68089eaa3d11dafd6638fde0d86ad79e48f505a  out/EnclaveRegistry.sol/EnclaveRegistry.json",
+    "899e6704cfc3004613b0f27b4097da8fcbb09aa4de752e6d794e23d803c5aadb  out/MockUSDC.sol/MockUSDC.json",
+    "0a30a5fd67201fb30537068ff19da3a882db556393881fd2a076843e0ba4834a  out/PaymentRouter.sol/IERC20.json",
+    "892c57e1b310c63a4f0d0292d423dce9a3d1b8271fbe6db12a6e70420b718746  out/PaymentRouter.sol/IERC20Permit.json",
+    "e65078b0fc8ef790b2db0c0528ed1cb2fa496dbbbdedef6572aaf20992ce5aca  out/PaymentRouter.sol/PaymentRouter.json",
+    "5ee57cade477849967352df837c2657dd403a75cb6bc7bea602115e643a9132d  out/PinnedSessionVaultFactory.sol/PinnedSessionAuthority.json",
+    "ade77224e4540784706c000632ebc9c4768b27aafacd12baae2bbb9ab2363f71  out/PinnedSessionVaultFactory.sol/PinnedSessionVaultFactory.json",
+    "80c8ccd2a7fd82bc9d7d652e8511b2979a662f6d24fa3e08b1233f0a5d222941  out/SessionMocks.sol/HostileLedger.json",
+    "98cacf5195237350beebc02626f624b2e29d4a5c264763b7bfa3dfd1ba16e05b  out/SessionMocks.sol/Mock1271Owner.json",
+    "23638fc095815d630bddb83ddd0d5f721d986fb40897d044eb4ce9f7e180e108  out/SessionMocks.sol/MockKeyAttestations.json",
+    "b37e21ca0a83dbb90649fcdde991337c7b474f114d9150a5dd91413d756ddb9e  out/SessionMocks.sol/MockUSDC3009.json",
+    "6bcbd316a3c8d7bc9b7a16c673ce79844af25afdb87fd7ca18f6050bcde3b4e8  out/SessionMocks.sol/SessionRegistryStub.json",
+    "0f95193955beeb161ae64b04d16da3c9a5fbec8ef020920bdc277362d4b83c34  out/SessionVault.sol/ISV1271.json",
+    "3afdd0dcd4643eef0b584b02fd84c880fff429ae31451b0dc5b5fa0bd9250e96  out/SessionVault.sol/ISVBook.json",
+    "63f58b4051eae7bc7d21b9cf2b3b91ff59ed2a07349789a66c358b90500d128c  out/SessionVault.sol/ISVCatalog.json",
+    "75218ad281a93678120d22aa0c95dcddca1f27f0f6a2e5cb8c32f3a62bc5426f  out/SessionVault.sol/ISVFactory.json",
+    "16f7c6acc745fe4b20bb64ef2dce6e95891fc44e66a1b9887e2eff0148c5e512  out/SessionVault.sol/ISVKeyAttestations.json",
+    "0daf6b014bcf2404dbfb1d022c5bf61d2778735c17ec0d381a69001f37f5d477  out/SessionVault.sol/ISVLedger.json",
+    "940330eb7a5e2fc218d85c12c6551dc6bc175c2b23a610ef698fb0eacaf3794a  out/SessionVault.sol/ISVRouter.json",
+    "3c6ed9a2b31bfd0fbdd7ac72c4826e2a64732d73ffc3fb978ec6ec4205be1b65  out/SessionVault.sol/ISVToken.json",
+    "b5658c51bf68ad4d8ddb035a645feb36c150a2b82fb29dbd763d989f655e62a6  out/SessionVault.sol/SessionVault.json",
+    "f3b5d8c163fc748451bff8a594fb6d91bd56e53ebba661c541584e2dac396ee8  out/SessionVault.sol/SessionVaultFactory.json",
+    "97b18abcb62e0a193fe82e036761eae762c59d7f2cb47d186876593e41a18746  out/SessionVault.sol/SessionVaultLib.json",
+    "06f6b3fb4766f5a69fd397c9c475f3b65c4735db09b3c64fcbbe3812cadee070  out/build-info/1254734b24bd0c4f.json",
+    "49e6ea5b63d527d60a516ee03963337aea2fccbcd3e02e40debe83f14de61a4b  out/build-info/3401cfc54488f4ef.json",
+    "826a56ab4de54bde51cc005b3b0624ac7983d439a736ec287691b2daf4cfc46a  out/build-info/591bd09d1f5720fb.json",
+    "ea55f28daa42dc6b9704ff52466eb5945d4aad4d3cc50d6c0811d4bc0ada8b2b  out/build-info/7020ca76fcc0d808.json",
+    "12e430229a3b8233de05d88e402b7d571ffc5d779b1d9e57f0fe6ff04a909328  out/build-info/aaddc07f311ae745.json",
+    "f5b532741365a52e70fcda4a9023d86fa291101d61c74ecbeff7e078714180bc  out/build-info/b7a8a309f0971ba7.json",
+    "22f91adda5f6129242ae9224c9aacfcd668f8a0f26ea76aa4bd439b2ddb25a16  out/build-info/e4a0c863d254d42e.json"
+   ],
+   "manifestSha256": "83b3881648ce35ec2e166a9c8a8520db48345acc2988e5aca85d603771b3f6c5",
+   "cacheSha256": "f258825455b81119d763575a3e1b6bb009efdb7db63d6aea2eba58cb029f05f8",
+   "buildInfoSha256": {
+    "1254734b24bd0c4f": "06f6b3fb4766f5a69fd397c9c475f3b65c4735db09b3c64fcbbe3812cadee070",
+    "3401cfc54488f4ef": "49e6ea5b63d527d60a516ee03963337aea2fccbcd3e02e40debe83f14de61a4b",
+    "591bd09d1f5720fb": "826a56ab4de54bde51cc005b3b0624ac7983d439a736ec287691b2daf4cfc46a",
+    "7020ca76fcc0d808": "ea55f28daa42dc6b9704ff52466eb5945d4aad4d3cc50d6c0811d4bc0ada8b2b",
+    "aaddc07f311ae745": "12e430229a3b8233de05d88e402b7d571ffc5d779b1d9e57f0fe6ff04a909328",
+    "b7a8a309f0971ba7": "f5b532741365a52e70fcda4a9023d86fa291101d61c74ecbeff7e078714180bc",
+    "e4a0c863d254d42e": "22f91adda5f6129242ae9224c9aacfcd668f8a0f26ea76aa4bd439b2ddb25a16"
+   }
+  },
+  "normalizedValues": {
+   "buildIds": [
+    "1254734b24bd0c4f",
+    "3401cfc54488f4ef",
+    "591bd09d1f5720fb",
+    "7020ca76fcc0d808",
+    "aaddc07f311ae745",
+    "b7a8a309f0971ba7",
+    "e4a0c863d254d42e"
+   ],
+   "lastModificationDate": {
+    "contracts/EnclaveAddressBook.sol": 1792983999104,
+    "contracts/EnclaveAppCatalog.sol": 1792983999104,
+    "contracts/EnclaveDeployments.sol": 1792983999104,
+    "contracts/EnclaveRegistry.sol": 1792983999105,
+    "contracts/PaymentRouter.sol": 1792983999105,
+    "contracts/PinnedSessionVaultFactory.sol": 1792983999105,
+    "contracts/SessionVault.sol": 1792983999105,
+    "contracts/foundry/test/mocks/MockUSDC.sol": 1792983999109,
+    "contracts/foundry/test/mocks/SessionMocks.sol": 1792983999109
+   }
+  },
+  "semantic": {
+   "artifacts": [
+    [
+     "EnclaveAddressBook.sol/EnclaveAddressBook.json",
+     "966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca"
+    ],
+    [
+     "EnclaveAppCatalog.sol/EnclaveAppCatalog.json",
+     "269d07df2212e3a3bd701c138a398ffde9cf8f02652a5be4546d878db1e604b4"
+    ],
+    [
+     "EnclaveDeployments.sol/EnclaveDeployments.json",
+     "039d621990f347a95a8f58a83b384e19236aedc731e0f7d2e198e77ca966622f"
+    ],
+    [
+     "EnclaveDeployments.sol/EnclaveLedgerBandwidth.json",
+     "0e40cb03958d9430161f891baded07ced297d95f16f77590fd829cf2125a5912"
+    ],
+    [
+     "EnclaveDeployments.sol/IAggregatorV3.json",
+     "1e3c958b82bed469e7d5a020b534baff9ccaa7f67d2caae3d94d404661e60b26"
+    ],
+    [
+     "EnclaveDeployments.sol/IERC20Auth.json",
+     "60fb2b3a308ab49c57e7e6d7bab78d8fdd5d4f804fdcc48a3b861ade5b973df8"
+    ],
+    [
+     "EnclaveDeployments.sol/IEnclaveRegistry.json",
+     "7c59a3a06097da15e666293c732673d442511a85df893a69981c97b434435dad"
+    ],
+    [
+     "EnclaveDeployments.sol/IVerificationFeeRouter.json",
+     "bcf1dd26e5bf6e991929a02b0e588d04e79caea9da7a151a6fc19e32d6ac5a61"
+    ],
+    [
+     "EnclaveRegistry.sol/EnclaveRegistry.json",
+     "1c9c52b45f65e183c466fb70e68089eaa3d11dafd6638fde0d86ad79e48f505a"
+    ],
+    [
+     "MockUSDC.sol/MockUSDC.json",
+     "899e6704cfc3004613b0f27b4097da8fcbb09aa4de752e6d794e23d803c5aadb"
+    ],
+    [
+     "PaymentRouter.sol/IERC20.json",
+     "0a30a5fd67201fb30537068ff19da3a882db556393881fd2a076843e0ba4834a"
+    ],
+    [
+     "PaymentRouter.sol/IERC20Permit.json",
+     "892c57e1b310c63a4f0d0292d423dce9a3d1b8271fbe6db12a6e70420b718746"
+    ],
+    [
+     "PaymentRouter.sol/PaymentRouter.json",
+     "e65078b0fc8ef790b2db0c0528ed1cb2fa496dbbbdedef6572aaf20992ce5aca"
+    ],
+    [
+     "PinnedSessionVaultFactory.sol/PinnedSessionAuthority.json",
+     "5ee57cade477849967352df837c2657dd403a75cb6bc7bea602115e643a9132d"
+    ],
+    [
+     "PinnedSessionVaultFactory.sol/PinnedSessionVaultFactory.json",
+     "ade77224e4540784706c000632ebc9c4768b27aafacd12baae2bbb9ab2363f71"
+    ],
+    [
+     "SessionMocks.sol/HostileLedger.json",
+     "80c8ccd2a7fd82bc9d7d652e8511b2979a662f6d24fa3e08b1233f0a5d222941"
+    ],
+    [
+     "SessionMocks.sol/Mock1271Owner.json",
+     "98cacf5195237350beebc02626f624b2e29d4a5c264763b7bfa3dfd1ba16e05b"
+    ],
+    [
+     "SessionMocks.sol/MockKeyAttestations.json",
+     "23638fc095815d630bddb83ddd0d5f721d986fb40897d044eb4ce9f7e180e108"
+    ],
+    [
+     "SessionMocks.sol/MockUSDC3009.json",
+     "b37e21ca0a83dbb90649fcdde991337c7b474f114d9150a5dd91413d756ddb9e"
+    ],
+    [
+     "SessionMocks.sol/SessionRegistryStub.json",
+     "6bcbd316a3c8d7bc9b7a16c673ce79844af25afdb87fd7ca18f6050bcde3b4e8"
+    ],
+    [
+     "SessionVault.sol/ISV1271.json",
+     "0f95193955beeb161ae64b04d16da3c9a5fbec8ef020920bdc277362d4b83c34"
+    ],
+    [
+     "SessionVault.sol/ISVBook.json",
+     "3afdd0dcd4643eef0b584b02fd84c880fff429ae31451b0dc5b5fa0bd9250e96"
+    ],
+    [
+     "SessionVault.sol/ISVCatalog.json",
+     "63f58b4051eae7bc7d21b9cf2b3b91ff59ed2a07349789a66c358b90500d128c"
+    ],
+    [
+     "SessionVault.sol/ISVFactory.json",
+     "75218ad281a93678120d22aa0c95dcddca1f27f0f6a2e5cb8c32f3a62bc5426f"
+    ],
+    [
+     "SessionVault.sol/ISVKeyAttestations.json",
+     "16f7c6acc745fe4b20bb64ef2dce6e95891fc44e66a1b9887e2eff0148c5e512"
+    ],
+    [
+     "SessionVault.sol/ISVLedger.json",
+     "0daf6b014bcf2404dbfb1d022c5bf61d2778735c17ec0d381a69001f37f5d477"
+    ],
+    [
+     "SessionVault.sol/ISVRouter.json",
+     "940330eb7a5e2fc218d85c12c6551dc6bc175c2b23a610ef698fb0eacaf3794a"
+    ],
+    [
+     "SessionVault.sol/ISVToken.json",
+     "3c6ed9a2b31bfd0fbdd7ac72c4826e2a64732d73ffc3fb978ec6ec4205be1b65"
+    ],
+    [
+     "SessionVault.sol/SessionVault.json",
+     "b5658c51bf68ad4d8ddb035a645feb36c150a2b82fb29dbd763d989f655e62a6"
+    ],
+    [
+     "SessionVault.sol/SessionVaultFactory.json",
+     "f3b5d8c163fc748451bff8a594fb6d91bd56e53ebba661c541584e2dac396ee8"
+    ],
+    [
+     "SessionVault.sol/SessionVaultLib.json",
+     "97b18abcb62e0a193fe82e036761eae762c59d7f2cb47d186876593e41a18746"
+    ]
+   ],
+   "buildInfos": [
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveAddressBook.sol\"}}",
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveAppCatalog.sol\"}}",
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}",
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}",
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveRegistry.sol\"}}",
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PaymentRouter.sol\"}}",
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+   ],
+   "cache": {
+    "_format": "",
+    "paths": {
+     "artifacts": "contracts/foundry/out",
+     "build_infos": "contracts/foundry/out/build-info",
+     "sources": "contracts",
+     "tests": "contracts/foundry/test",
+     "scripts": "script",
+     "libraries": [
+      "contracts/foundry/lib"
+     ]
+    },
+    "files": {
+     "contracts/EnclaveAddressBook.sol": {
+      "contentHash": "78edd671328cf072",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/EnclaveAddressBook.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "EnclaveAddressBook": {
+        "0.8.35": {
+         "default": {
+          "path": "EnclaveAddressBook.sol/EnclaveAddressBook.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveAddressBook.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/EnclaveAppCatalog.sol": {
+      "contentHash": "3de9297197bbc85b",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/EnclaveAppCatalog.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "EnclaveAppCatalog": {
+        "0.8.35": {
+         "default": {
+          "path": "EnclaveAppCatalog.sol/EnclaveAppCatalog.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveAppCatalog.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/EnclaveDeployments.sol": {
+      "contentHash": "6da7a8b1654d67ae",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/EnclaveDeployments.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "EnclaveDeployments": {
+        "0.8.35": {
+         "ledger": {
+          "path": "EnclaveDeployments.sol/EnclaveDeployments.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}"
+         }
+        }
+       },
+       "EnclaveLedgerBandwidth": {
+        "0.8.35": {
+         "ledger": {
+          "path": "EnclaveDeployments.sol/EnclaveLedgerBandwidth.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}"
+         }
+        }
+       },
+       "IAggregatorV3": {
+        "0.8.35": {
+         "ledger": {
+          "path": "EnclaveDeployments.sol/IAggregatorV3.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}"
+         }
+        }
+       },
+       "IERC20Auth": {
+        "0.8.35": {
+         "ledger": {
+          "path": "EnclaveDeployments.sol/IERC20Auth.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}"
+         }
+        }
+       },
+       "IEnclaveRegistry": {
+        "0.8.35": {
+         "ledger": {
+          "path": "EnclaveDeployments.sol/IEnclaveRegistry.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}"
+         }
+        }
+       },
+       "IVerificationFeeRouter": {
+        "0.8.35": {
+         "ledger": {
+          "path": "EnclaveDeployments.sol/IVerificationFeeRouter.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/EnclaveRegistry.sol": {
+      "contentHash": "dbab89c118cca238",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/EnclaveRegistry.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "EnclaveRegistry": {
+        "0.8.35": {
+         "default": {
+          "path": "EnclaveRegistry.sol/EnclaveRegistry.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveRegistry.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/PaymentRouter.sol": {
+      "contentHash": "552ce7d17b84deb3",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/PaymentRouter.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "IERC20": {
+        "0.8.35": {
+         "default": {
+          "path": "PaymentRouter.sol/IERC20.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PaymentRouter.sol\"}}"
+         }
+        }
+       },
+       "IERC20Permit": {
+        "0.8.35": {
+         "default": {
+          "path": "PaymentRouter.sol/IERC20Permit.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PaymentRouter.sol\"}}"
+         }
+        }
+       },
+       "PaymentRouter": {
+        "0.8.35": {
+         "default": {
+          "path": "PaymentRouter.sol/PaymentRouter.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PaymentRouter.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/PinnedSessionVaultFactory.sol": {
+      "contentHash": "5bb9c8f2db517e0b",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/PinnedSessionVaultFactory.sol",
+      "imports": [
+       "contracts/SessionVault.sol"
+      ],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "PinnedSessionAuthority": {
+        "0.8.35": {
+         "ledger": {
+          "path": "PinnedSessionVaultFactory.sol/PinnedSessionAuthority.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "PinnedSessionVaultFactory": {
+        "0.8.35": {
+         "ledger": {
+          "path": "PinnedSessionVaultFactory.sol/PinnedSessionVaultFactory.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/SessionVault.sol": {
+      "contentHash": "9a93142c7fb05793",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/SessionVault.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "ISV1271": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISV1271.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVBook": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVBook.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVCatalog": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVCatalog.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVFactory": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVFactory.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVKeyAttestations": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVKeyAttestations.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVLedger": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVLedger.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVRouter": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVRouter.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVToken": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVToken.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "SessionVault": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/SessionVault.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "SessionVaultFactory": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/SessionVaultFactory.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "SessionVaultLib": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/SessionVaultLib.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/foundry/test/mocks/MockUSDC.sol": {
+      "contentHash": "c11e068705997228",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/foundry/test/mocks/MockUSDC.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "MockUSDC": {
+        "0.8.35": {
+         "ledger": {
+          "path": "MockUSDC.sol/MockUSDC.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/foundry/test/mocks/SessionMocks.sol": {
+      "contentHash": "24ea556e48c97471",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/foundry/test/mocks/SessionMocks.sol",
+      "imports": [
+       "contracts/EnclaveDeployments.sol",
+       "contracts/foundry/test/mocks/MockUSDC.sol"
+      ],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "HostileLedger": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionMocks.sol/HostileLedger.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}"
+         }
+        }
+       },
+       "Mock1271Owner": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionMocks.sol/Mock1271Owner.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}"
+         }
+        }
+       },
+       "MockKeyAttestations": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionMocks.sol/MockKeyAttestations.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}"
+         }
+        }
+       },
+       "MockUSDC3009": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionMocks.sol/MockUSDC3009.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}"
+         }
+        }
+       },
+       "SessionRegistryStub": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionMocks.sol/SessionRegistryStub.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     }
+    },
+    "builds": [
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveAddressBook.sol\"}}",
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveAppCatalog.sol\"}}",
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}",
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}",
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveRegistry.sol\"}}",
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PaymentRouter.sol\"}}",
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+    ],
+    "profiles": {
+     "default": {
+      "solc": {
+       "optimizer": {
+        "enabled": true,
+        "runs": 200
+       },
+       "metadata": {
+        "useLiteralContent": false,
+        "bytecodeHash": "ipfs",
+        "appendCBOR": true
+       },
+       "outputSelection": {
+        "*": {
+         "*": [
+          "abi",
+          "evm.bytecode.object",
+          "evm.bytecode.sourceMap",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.sourceMap",
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.immutableReferences",
+          "evm.methodIdentifiers",
+          "metadata"
+         ]
+        }
+       },
+       "evmVersion": "osaka",
+       "viaIR": true,
+       "libraries": {}
+      },
+      "vyper": {
+       "evmVersion": "osaka",
+       "outputSelection": {
+        "*": {
+         "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode"
+         ]
+        }
+       }
+      }
+     },
+     "ledger": {
+      "solc": {
+       "optimizer": {
+        "enabled": true,
+        "runs": 1
+       },
+       "metadata": {
+        "useLiteralContent": false,
+        "bytecodeHash": "ipfs",
+        "appendCBOR": true
+       },
+       "outputSelection": {
+        "*": {
+         "*": [
+          "abi",
+          "evm.bytecode.object",
+          "evm.bytecode.sourceMap",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.sourceMap",
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.immutableReferences",
+          "evm.methodIdentifiers",
+          "metadata"
+         ]
+        }
+       },
+       "evmVersion": "osaka",
+       "viaIR": true,
+       "libraries": {}
+      },
+      "vyper": {
+       "evmVersion": "osaka",
+       "outputSelection": {
+        "*": {
+         "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode"
+         ]
+        }
+       }
+      }
+     }
+    },
+    "preprocessed": false,
+    "mocks": []
+   }
+  },
+  "semanticSha256": "1fd0851df609edb376a1c9e3551a6ef0f84948ba16b88a7beae41e8f6d001723",
+  "links": {
+   "EnclaveDeployments.sol/EnclaveDeployments.json": [
+    5,
+    5
+   ],
+   "PinnedSessionVaultFactory.sol/PinnedSessionVaultFactory.json": [
+    16,
+    0
+   ],
+   "SessionVault.sol/SessionVault.json": [
+    16,
+    16
+   ],
+   "SessionVault.sol/SessionVaultFactory.json": [
+    16,
+    0
+   ]
+  }
+ },
+ "b": {
+  "raw": {
+   "manifest": [
+    "966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca  out/EnclaveAddressBook.sol/EnclaveAddressBook.json",
+    "269d07df2212e3a3bd701c138a398ffde9cf8f02652a5be4546d878db1e604b4  out/EnclaveAppCatalog.sol/EnclaveAppCatalog.json",
+    "039d621990f347a95a8f58a83b384e19236aedc731e0f7d2e198e77ca966622f  out/EnclaveDeployments.sol/EnclaveDeployments.json",
+    "0e40cb03958d9430161f891baded07ced297d95f16f77590fd829cf2125a5912  out/EnclaveDeployments.sol/EnclaveLedgerBandwidth.json",
+    "1e3c958b82bed469e7d5a020b534baff9ccaa7f67d2caae3d94d404661e60b26  out/EnclaveDeployments.sol/IAggregatorV3.json",
+    "60fb2b3a308ab49c57e7e6d7bab78d8fdd5d4f804fdcc48a3b861ade5b973df8  out/EnclaveDeployments.sol/IERC20Auth.json",
+    "7c59a3a06097da15e666293c732673d442511a85df893a69981c97b434435dad  out/EnclaveDeployments.sol/IEnclaveRegistry.json",
+    "bcf1dd26e5bf6e991929a02b0e588d04e79caea9da7a151a6fc19e32d6ac5a61  out/EnclaveDeployments.sol/IVerificationFeeRouter.json",
+    "1c9c52b45f65e183c466fb70e68089eaa3d11dafd6638fde0d86ad79e48f505a  out/EnclaveRegistry.sol/EnclaveRegistry.json",
+    "899e6704cfc3004613b0f27b4097da8fcbb09aa4de752e6d794e23d803c5aadb  out/MockUSDC.sol/MockUSDC.json",
+    "0a30a5fd67201fb30537068ff19da3a882db556393881fd2a076843e0ba4834a  out/PaymentRouter.sol/IERC20.json",
+    "892c57e1b310c63a4f0d0292d423dce9a3d1b8271fbe6db12a6e70420b718746  out/PaymentRouter.sol/IERC20Permit.json",
+    "e65078b0fc8ef790b2db0c0528ed1cb2fa496dbbbdedef6572aaf20992ce5aca  out/PaymentRouter.sol/PaymentRouter.json",
+    "5ee57cade477849967352df837c2657dd403a75cb6bc7bea602115e643a9132d  out/PinnedSessionVaultFactory.sol/PinnedSessionAuthority.json",
+    "ade77224e4540784706c000632ebc9c4768b27aafacd12baae2bbb9ab2363f71  out/PinnedSessionVaultFactory.sol/PinnedSessionVaultFactory.json",
+    "80c8ccd2a7fd82bc9d7d652e8511b2979a662f6d24fa3e08b1233f0a5d222941  out/SessionMocks.sol/HostileLedger.json",
+    "98cacf5195237350beebc02626f624b2e29d4a5c264763b7bfa3dfd1ba16e05b  out/SessionMocks.sol/Mock1271Owner.json",
+    "23638fc095815d630bddb83ddd0d5f721d986fb40897d044eb4ce9f7e180e108  out/SessionMocks.sol/MockKeyAttestations.json",
+    "b37e21ca0a83dbb90649fcdde991337c7b474f114d9150a5dd91413d756ddb9e  out/SessionMocks.sol/MockUSDC3009.json",
+    "6bcbd316a3c8d7bc9b7a16c673ce79844af25afdb87fd7ca18f6050bcde3b4e8  out/SessionMocks.sol/SessionRegistryStub.json",
+    "0f95193955beeb161ae64b04d16da3c9a5fbec8ef020920bdc277362d4b83c34  out/SessionVault.sol/ISV1271.json",
+    "3afdd0dcd4643eef0b584b02fd84c880fff429ae31451b0dc5b5fa0bd9250e96  out/SessionVault.sol/ISVBook.json",
+    "63f58b4051eae7bc7d21b9cf2b3b91ff59ed2a07349789a66c358b90500d128c  out/SessionVault.sol/ISVCatalog.json",
+    "75218ad281a93678120d22aa0c95dcddca1f27f0f6a2e5cb8c32f3a62bc5426f  out/SessionVault.sol/ISVFactory.json",
+    "16f7c6acc745fe4b20bb64ef2dce6e95891fc44e66a1b9887e2eff0148c5e512  out/SessionVault.sol/ISVKeyAttestations.json",
+    "0daf6b014bcf2404dbfb1d022c5bf61d2778735c17ec0d381a69001f37f5d477  out/SessionVault.sol/ISVLedger.json",
+    "940330eb7a5e2fc218d85c12c6551dc6bc175c2b23a610ef698fb0eacaf3794a  out/SessionVault.sol/ISVRouter.json",
+    "3c6ed9a2b31bfd0fbdd7ac72c4826e2a64732d73ffc3fb978ec6ec4205be1b65  out/SessionVault.sol/ISVToken.json",
+    "b5658c51bf68ad4d8ddb035a645feb36c150a2b82fb29dbd763d989f655e62a6  out/SessionVault.sol/SessionVault.json",
+    "f3b5d8c163fc748451bff8a594fb6d91bd56e53ebba661c541584e2dac396ee8  out/SessionVault.sol/SessionVaultFactory.json",
+    "97b18abcb62e0a193fe82e036761eae762c59d7f2cb47d186876593e41a18746  out/SessionVault.sol/SessionVaultLib.json",
+    "594433e725ec5f750548faabd9bc3ddc1654a32fe0a2fdd6f056f7dd695463fa  out/build-info/27806d25f3f5a1b8.json",
+    "e50a1989afaa02714d60b09ec5a4100ff795232db4c47537e6e0fe899ed97c43  out/build-info/2f8d284bf9b26510.json",
+    "2622742d5783850d99b3145d847b2f7f14ff45e6b0ec1f13bcd7165b4c77cc45  out/build-info/830f4bd10143205f.json",
+    "c19dca934f0acd81d2e37e686b5fdd2d0a1ae58400cc0db63c05b8d69a8f87e9  out/build-info/8e4cb8da72e1d85f.json",
+    "7e7c65f03edc78c100eee04f5349f819528fb5099aa12ec3ea162ba3e3c52c17  out/build-info/a6abe212db9874d3.json",
+    "79cd171ca965e18ec474b537d57723d68320e1348048f45162149f72b7f8a13e  out/build-info/c7a6f801117d8431.json",
+    "a78c47eba49446bb8dde40a49d6565b2d7f04fec9e11f44563f9642e3ac5e5f5  out/build-info/c8257928d3f8bc28.json"
+   ],
+   "manifestSha256": "d2efb49c83c3c2c9c303d4042b799fd3ca306fa59eb7daa5fbf1fa22a3e1682e",
+   "cacheSha256": "da49544cddc600954dfb9c81396ec47c8f4d2257a3ee14819a350f82da55d12c",
+   "buildInfoSha256": {
+    "27806d25f3f5a1b8": "594433e725ec5f750548faabd9bc3ddc1654a32fe0a2fdd6f056f7dd695463fa",
+    "2f8d284bf9b26510": "e50a1989afaa02714d60b09ec5a4100ff795232db4c47537e6e0fe899ed97c43",
+    "830f4bd10143205f": "2622742d5783850d99b3145d847b2f7f14ff45e6b0ec1f13bcd7165b4c77cc45",
+    "8e4cb8da72e1d85f": "c19dca934f0acd81d2e37e686b5fdd2d0a1ae58400cc0db63c05b8d69a8f87e9",
+    "a6abe212db9874d3": "7e7c65f03edc78c100eee04f5349f819528fb5099aa12ec3ea162ba3e3c52c17",
+    "c7a6f801117d8431": "79cd171ca965e18ec474b537d57723d68320e1348048f45162149f72b7f8a13e",
+    "c8257928d3f8bc28": "a78c47eba49446bb8dde40a49d6565b2d7f04fec9e11f44563f9642e3ac5e5f5"
+   }
+  },
+  "normalizedValues": {
+   "buildIds": [
+    "27806d25f3f5a1b8",
+    "2f8d284bf9b26510",
+    "830f4bd10143205f",
+    "8e4cb8da72e1d85f",
+    "a6abe212db9874d3",
+    "c7a6f801117d8431",
+    "c8257928d3f8bc28"
+   ],
+   "lastModificationDate": {
+    "contracts/EnclaveAddressBook.sol": 1792984006197,
+    "contracts/EnclaveAppCatalog.sol": 1792984006197,
+    "contracts/EnclaveDeployments.sol": 1792984006197,
+    "contracts/EnclaveRegistry.sol": 1792984006198,
+    "contracts/PaymentRouter.sol": 1792984006198,
+    "contracts/PinnedSessionVaultFactory.sol": 1792984006198,
+    "contracts/SessionVault.sol": 1792984006198,
+    "contracts/foundry/test/mocks/MockUSDC.sol": 1792984006203,
+    "contracts/foundry/test/mocks/SessionMocks.sol": 1792984006203
+   }
+  },
+  "semantic": {
+   "artifacts": [
+    [
+     "EnclaveAddressBook.sol/EnclaveAddressBook.json",
+     "966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca"
+    ],
+    [
+     "EnclaveAppCatalog.sol/EnclaveAppCatalog.json",
+     "269d07df2212e3a3bd701c138a398ffde9cf8f02652a5be4546d878db1e604b4"
+    ],
+    [
+     "EnclaveDeployments.sol/EnclaveDeployments.json",
+     "039d621990f347a95a8f58a83b384e19236aedc731e0f7d2e198e77ca966622f"
+    ],
+    [
+     "EnclaveDeployments.sol/EnclaveLedgerBandwidth.json",
+     "0e40cb03958d9430161f891baded07ced297d95f16f77590fd829cf2125a5912"
+    ],
+    [
+     "EnclaveDeployments.sol/IAggregatorV3.json",
+     "1e3c958b82bed469e7d5a020b534baff9ccaa7f67d2caae3d94d404661e60b26"
+    ],
+    [
+     "EnclaveDeployments.sol/IERC20Auth.json",
+     "60fb2b3a308ab49c57e7e6d7bab78d8fdd5d4f804fdcc48a3b861ade5b973df8"
+    ],
+    [
+     "EnclaveDeployments.sol/IEnclaveRegistry.json",
+     "7c59a3a06097da15e666293c732673d442511a85df893a69981c97b434435dad"
+    ],
+    [
+     "EnclaveDeployments.sol/IVerificationFeeRouter.json",
+     "bcf1dd26e5bf6e991929a02b0e588d04e79caea9da7a151a6fc19e32d6ac5a61"
+    ],
+    [
+     "EnclaveRegistry.sol/EnclaveRegistry.json",
+     "1c9c52b45f65e183c466fb70e68089eaa3d11dafd6638fde0d86ad79e48f505a"
+    ],
+    [
+     "MockUSDC.sol/MockUSDC.json",
+     "899e6704cfc3004613b0f27b4097da8fcbb09aa4de752e6d794e23d803c5aadb"
+    ],
+    [
+     "PaymentRouter.sol/IERC20.json",
+     "0a30a5fd67201fb30537068ff19da3a882db556393881fd2a076843e0ba4834a"
+    ],
+    [
+     "PaymentRouter.sol/IERC20Permit.json",
+     "892c57e1b310c63a4f0d0292d423dce9a3d1b8271fbe6db12a6e70420b718746"
+    ],
+    [
+     "PaymentRouter.sol/PaymentRouter.json",
+     "e65078b0fc8ef790b2db0c0528ed1cb2fa496dbbbdedef6572aaf20992ce5aca"
+    ],
+    [
+     "PinnedSessionVaultFactory.sol/PinnedSessionAuthority.json",
+     "5ee57cade477849967352df837c2657dd403a75cb6bc7bea602115e643a9132d"
+    ],
+    [
+     "PinnedSessionVaultFactory.sol/PinnedSessionVaultFactory.json",
+     "ade77224e4540784706c000632ebc9c4768b27aafacd12baae2bbb9ab2363f71"
+    ],
+    [
+     "SessionMocks.sol/HostileLedger.json",
+     "80c8ccd2a7fd82bc9d7d652e8511b2979a662f6d24fa3e08b1233f0a5d222941"
+    ],
+    [
+     "SessionMocks.sol/Mock1271Owner.json",
+     "98cacf5195237350beebc02626f624b2e29d4a5c264763b7bfa3dfd1ba16e05b"
+    ],
+    [
+     "SessionMocks.sol/MockKeyAttestations.json",
+     "23638fc095815d630bddb83ddd0d5f721d986fb40897d044eb4ce9f7e180e108"
+    ],
+    [
+     "SessionMocks.sol/MockUSDC3009.json",
+     "b37e21ca0a83dbb90649fcdde991337c7b474f114d9150a5dd91413d756ddb9e"
+    ],
+    [
+     "SessionMocks.sol/SessionRegistryStub.json",
+     "6bcbd316a3c8d7bc9b7a16c673ce79844af25afdb87fd7ca18f6050bcde3b4e8"
+    ],
+    [
+     "SessionVault.sol/ISV1271.json",
+     "0f95193955beeb161ae64b04d16da3c9a5fbec8ef020920bdc277362d4b83c34"
+    ],
+    [
+     "SessionVault.sol/ISVBook.json",
+     "3afdd0dcd4643eef0b584b02fd84c880fff429ae31451b0dc5b5fa0bd9250e96"
+    ],
+    [
+     "SessionVault.sol/ISVCatalog.json",
+     "63f58b4051eae7bc7d21b9cf2b3b91ff59ed2a07349789a66c358b90500d128c"
+    ],
+    [
+     "SessionVault.sol/ISVFactory.json",
+     "75218ad281a93678120d22aa0c95dcddca1f27f0f6a2e5cb8c32f3a62bc5426f"
+    ],
+    [
+     "SessionVault.sol/ISVKeyAttestations.json",
+     "16f7c6acc745fe4b20bb64ef2dce6e95891fc44e66a1b9887e2eff0148c5e512"
+    ],
+    [
+     "SessionVault.sol/ISVLedger.json",
+     "0daf6b014bcf2404dbfb1d022c5bf61d2778735c17ec0d381a69001f37f5d477"
+    ],
+    [
+     "SessionVault.sol/ISVRouter.json",
+     "940330eb7a5e2fc218d85c12c6551dc6bc175c2b23a610ef698fb0eacaf3794a"
+    ],
+    [
+     "SessionVault.sol/ISVToken.json",
+     "3c6ed9a2b31bfd0fbdd7ac72c4826e2a64732d73ffc3fb978ec6ec4205be1b65"
+    ],
+    [
+     "SessionVault.sol/SessionVault.json",
+     "b5658c51bf68ad4d8ddb035a645feb36c150a2b82fb29dbd763d989f655e62a6"
+    ],
+    [
+     "SessionVault.sol/SessionVaultFactory.json",
+     "f3b5d8c163fc748451bff8a594fb6d91bd56e53ebba661c541584e2dac396ee8"
+    ],
+    [
+     "SessionVault.sol/SessionVaultLib.json",
+     "97b18abcb62e0a193fe82e036761eae762c59d7f2cb47d186876593e41a18746"
+    ]
+   ],
+   "buildInfos": [
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveAddressBook.sol\"}}",
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveAppCatalog.sol\"}}",
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}",
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}",
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveRegistry.sol\"}}",
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PaymentRouter.sol\"}}",
+    "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+   ],
+   "cache": {
+    "_format": "",
+    "paths": {
+     "artifacts": "contracts/foundry/out",
+     "build_infos": "contracts/foundry/out/build-info",
+     "sources": "contracts",
+     "tests": "contracts/foundry/test",
+     "scripts": "script",
+     "libraries": [
+      "contracts/foundry/lib"
+     ]
+    },
+    "files": {
+     "contracts/EnclaveAddressBook.sol": {
+      "contentHash": "78edd671328cf072",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/EnclaveAddressBook.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "EnclaveAddressBook": {
+        "0.8.35": {
+         "default": {
+          "path": "EnclaveAddressBook.sol/EnclaveAddressBook.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveAddressBook.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/EnclaveAppCatalog.sol": {
+      "contentHash": "3de9297197bbc85b",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/EnclaveAppCatalog.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "EnclaveAppCatalog": {
+        "0.8.35": {
+         "default": {
+          "path": "EnclaveAppCatalog.sol/EnclaveAppCatalog.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveAppCatalog.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/EnclaveDeployments.sol": {
+      "contentHash": "6da7a8b1654d67ae",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/EnclaveDeployments.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "EnclaveDeployments": {
+        "0.8.35": {
+         "ledger": {
+          "path": "EnclaveDeployments.sol/EnclaveDeployments.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}"
+         }
+        }
+       },
+       "EnclaveLedgerBandwidth": {
+        "0.8.35": {
+         "ledger": {
+          "path": "EnclaveDeployments.sol/EnclaveLedgerBandwidth.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}"
+         }
+        }
+       },
+       "IAggregatorV3": {
+        "0.8.35": {
+         "ledger": {
+          "path": "EnclaveDeployments.sol/IAggregatorV3.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}"
+         }
+        }
+       },
+       "IERC20Auth": {
+        "0.8.35": {
+         "ledger": {
+          "path": "EnclaveDeployments.sol/IERC20Auth.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}"
+         }
+        }
+       },
+       "IEnclaveRegistry": {
+        "0.8.35": {
+         "ledger": {
+          "path": "EnclaveDeployments.sol/IEnclaveRegistry.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}"
+         }
+        }
+       },
+       "IVerificationFeeRouter": {
+        "0.8.35": {
+         "ledger": {
+          "path": "EnclaveDeployments.sol/IVerificationFeeRouter.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/EnclaveRegistry.sol": {
+      "contentHash": "dbab89c118cca238",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/EnclaveRegistry.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "EnclaveRegistry": {
+        "0.8.35": {
+         "default": {
+          "path": "EnclaveRegistry.sol/EnclaveRegistry.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveRegistry.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/PaymentRouter.sol": {
+      "contentHash": "552ce7d17b84deb3",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/PaymentRouter.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "IERC20": {
+        "0.8.35": {
+         "default": {
+          "path": "PaymentRouter.sol/IERC20.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PaymentRouter.sol\"}}"
+         }
+        }
+       },
+       "IERC20Permit": {
+        "0.8.35": {
+         "default": {
+          "path": "PaymentRouter.sol/IERC20Permit.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PaymentRouter.sol\"}}"
+         }
+        }
+       },
+       "PaymentRouter": {
+        "0.8.35": {
+         "default": {
+          "path": "PaymentRouter.sol/PaymentRouter.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PaymentRouter.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/PinnedSessionVaultFactory.sol": {
+      "contentHash": "5bb9c8f2db517e0b",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/PinnedSessionVaultFactory.sol",
+      "imports": [
+       "contracts/SessionVault.sol"
+      ],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "PinnedSessionAuthority": {
+        "0.8.35": {
+         "ledger": {
+          "path": "PinnedSessionVaultFactory.sol/PinnedSessionAuthority.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "PinnedSessionVaultFactory": {
+        "0.8.35": {
+         "ledger": {
+          "path": "PinnedSessionVaultFactory.sol/PinnedSessionVaultFactory.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/SessionVault.sol": {
+      "contentHash": "9a93142c7fb05793",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/SessionVault.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "ISV1271": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISV1271.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVBook": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVBook.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVCatalog": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVCatalog.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVFactory": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVFactory.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVKeyAttestations": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVKeyAttestations.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVLedger": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVLedger.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVRouter": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVRouter.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "ISVToken": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/ISVToken.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "SessionVault": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/SessionVault.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "SessionVaultFactory": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/SessionVaultFactory.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       },
+       "SessionVaultLib": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionVault.sol/SessionVaultLib.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/foundry/test/mocks/MockUSDC.sol": {
+      "contentHash": "c11e068705997228",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/foundry/test/mocks/MockUSDC.sol",
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "MockUSDC": {
+        "0.8.35": {
+         "ledger": {
+          "path": "MockUSDC.sol/MockUSDC.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     },
+     "contracts/foundry/test/mocks/SessionMocks.sol": {
+      "contentHash": "24ea556e48c97471",
+      "interfaceReprHash": null,
+      "sourceName": "contracts/foundry/test/mocks/SessionMocks.sol",
+      "imports": [
+       "contracts/EnclaveDeployments.sol",
+       "contracts/foundry/test/mocks/MockUSDC.sol"
+      ],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+       "HostileLedger": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionMocks.sol/HostileLedger.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}"
+         }
+        }
+       },
+       "Mock1271Owner": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionMocks.sol/Mock1271Owner.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}"
+         }
+        }
+       },
+       "MockKeyAttestations": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionMocks.sol/MockKeyAttestations.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}"
+         }
+        }
+       },
+       "MockUSDC3009": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionMocks.sol/MockUSDC3009.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}"
+         }
+        }
+       },
+       "SessionRegistryStub": {
+        "0.8.35": {
+         "ledger": {
+          "path": "SessionMocks.sol/SessionRegistryStub.json",
+          "build_id": "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}"
+         }
+        }
+       }
+      },
+      "seenByCompiler": true
+     }
+    },
+    "builds": [
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveAddressBook.sol\"}}",
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveAppCatalog.sol\"}}",
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\",\"1\":\"contracts/foundry/test/mocks/MockUSDC.sol\",\"2\":\"contracts/foundry/test/mocks/SessionMocks.sol\"}}",
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveDeployments.sol\"}}",
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/EnclaveRegistry.sol\"}}",
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PaymentRouter.sol\"}}",
+     "{\"language\":\"Solidity\",\"source_id_to_path\":{\"0\":\"contracts/PinnedSessionVaultFactory.sol\",\"1\":\"contracts/SessionVault.sol\"}}"
+    ],
+    "profiles": {
+     "default": {
+      "solc": {
+       "optimizer": {
+        "enabled": true,
+        "runs": 200
+       },
+       "metadata": {
+        "useLiteralContent": false,
+        "bytecodeHash": "ipfs",
+        "appendCBOR": true
+       },
+       "outputSelection": {
+        "*": {
+         "*": [
+          "abi",
+          "evm.bytecode.object",
+          "evm.bytecode.sourceMap",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.sourceMap",
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.immutableReferences",
+          "evm.methodIdentifiers",
+          "metadata"
+         ]
+        }
+       },
+       "evmVersion": "osaka",
+       "viaIR": true,
+       "libraries": {}
+      },
+      "vyper": {
+       "evmVersion": "osaka",
+       "outputSelection": {
+        "*": {
+         "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode"
+         ]
+        }
+       }
+      }
+     },
+     "ledger": {
+      "solc": {
+       "optimizer": {
+        "enabled": true,
+        "runs": 1
+       },
+       "metadata": {
+        "useLiteralContent": false,
+        "bytecodeHash": "ipfs",
+        "appendCBOR": true
+       },
+       "outputSelection": {
+        "*": {
+         "*": [
+          "abi",
+          "evm.bytecode.object",
+          "evm.bytecode.sourceMap",
+          "evm.bytecode.linkReferences",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.sourceMap",
+          "evm.deployedBytecode.linkReferences",
+          "evm.deployedBytecode.immutableReferences",
+          "evm.methodIdentifiers",
+          "metadata"
+         ]
+        }
+       },
+       "evmVersion": "osaka",
+       "viaIR": true,
+       "libraries": {}
+      },
+      "vyper": {
+       "evmVersion": "osaka",
+       "outputSelection": {
+        "*": {
+         "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode"
+         ]
+        }
+       }
+      }
+     }
+    },
+    "preprocessed": false,
+    "mocks": []
+   }
+  },
+  "semanticSha256": "1fd0851df609edb376a1c9e3551a6ef0f84948ba16b88a7beae41e8f6d001723",
+  "links": {
+   "EnclaveDeployments.sol/EnclaveDeployments.json": [
+    5,
+    5
+   ],
+   "PinnedSessionVaultFactory.sol/PinnedSessionVaultFactory.json": [
+    16,
+    0
+   ],
+   "SessionVault.sol/SessionVault.json": [
+    16,
+    16
+   ],
+   "SessionVault.sol/SessionVaultFactory.json": [
+    16,
+    0
+   ]
+  }
+ }
+}

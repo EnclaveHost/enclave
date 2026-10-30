@@ -1,0 +1,60 @@
+[queue] START available=17912MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "at": "2026-10-26T10:15:42Z",
+ "dbInfo": {
+  "schema_version": 32,
+  "config": {
+   "block_cache_size": 0,
+   "state_cache_size": 128,
+   "state_cache_headroom": 1,
+   "compression_level": 1,
+   "historic_state_cache_size": 1,
+   "cold_hdiff_buffer_cache_size": 16,
+   "hot_hdiff_buffer_cache_size": 1,
+   "compact_on_init": false,
+   "compact_on_prune": true,
+   "prune_payloads": true,
+   "backend": "LevelDb",
+   "hierarchy_config": {
+    "exponents": [
+     5,
+     9,
+     11,
+     13,
+     16,
+     18,
+     21
+    ]
+   },
+   "prune_blobs": true,
+   "epochs_per_blob_prune": 256,
+   "blob_prune_margin_epochs": 0
+  },
+  "split": {
+   "slot": "15515392",
+   "state_root": "0xd83003ffbbbb6890fd0cc48e8e5f75041ee04366273c78fa90d7853fb332fde5",
+   "block_root": "0xc9f985d7df3a698fa2106e2484f546a95a5a5e3de0fcbe5e4ed15117cb1eaa54"
+  },
+  "anchor": {
+   "anchor_slot": "15508320",
+   "oldest_block_slot": "15214144",
+   "oldest_block_parent": "0xdc6930e41ef72a8e1e81b10e21211f9852f3e9c287004e82994a9b707f21de2f",
+   "state_upper_limit": "18446744073709551615",
+   "state_lower_limit": "0"
+  },
+  "blob_info": null,
+  "data_column_info": null
+ },
+ "elFinalized": {
+  "number": 26276116,
+  "timestamp": 1793008727,
+  "hash": "0x3b6541d70f5d25426b52bff3428dc9c38aae3ff68baad8cc30e04f65d87898ac"
+ },
+ "clFinalized": {
+  "slot": 15515392,
+  "root": "0xc9f985d7df3a698fa2106e2484f546a95a5a5e3de0fcbe5e4ed15117cb1eaa54"
+ }
+}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

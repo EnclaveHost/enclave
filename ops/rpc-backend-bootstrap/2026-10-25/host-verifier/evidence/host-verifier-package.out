@@ -1,0 +1,7 @@
+[queue] START available=21130MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+{"sourceCommit":"9fa02e1bc6b2179e3a0e1de9d5e98dc16f579b4e","artifact":{"file":"rpc-runtime.mjs","sha256":"7aa504eb639b9e1c6eb18f4775f13927cf6eceec83e42b5edd92dbac1066f124","bytes":129250},"inputs":420}
+{"sourceCommit":"9fa02e1bc6b2179e3a0e1de9d5e98dc16f579b4e","artifact":{"file":"rpc-runtime.mjs","sha256":"7aa504eb639b9e1c6eb18f4775f13927cf6eceec83e42b5edd92dbac1066f124","bytes":129250},"inputs":420}
+REPRODUCIBLE_HOST_VERIFIER_BUNDLE
+[memory-guard] exit=0 peakTreeRssMiB=101 minHostAvailableMiB=21119
+[memory-guard] at peak: node:63 esbuild:36 bash:4
+[queue] EXIT 0

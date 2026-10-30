@@ -1,0 +1,14 @@
+Inode: 1949710   Type: directory    Mode:  0750   Flags: 0x80000
+Generation: 1611750745    Version: 0x00000000:00000009
+User:   994   Group:   985   Project:     0   Size: 4096
+File ACL: 0
+Links: 2   Blockcount: 8
+Fragment:  Address: 0    Number: 0    Size: 0
+ ctime: 0x6adf6e9b:d720ea7c -- Mon Oct 26 08:15:39 2026
+ atime: 0x6adf239d:acf98758 -- Mon Oct 26 02:55:41 2026
+ mtime: 0x6adf6e9b:d720ea7c -- Mon Oct 26 08:15:39 2026
+crtime: 0x6adf239d:acf98758 -- Mon Oct 26 02:55:41 2026
+Size of extra inode fields: 32
+Inode checksum: 0x255b0819
+EXTENTS:
+(0):499122346

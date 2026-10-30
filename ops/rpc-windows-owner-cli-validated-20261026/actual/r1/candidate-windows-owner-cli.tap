@@ -1,0 +1,79 @@
+TAP version 13
+# Subtest: status under the verifier: the registry entry and the owner balance are read from the verifier only; nothing is sent
+not ok 1 - status under the verifier: the registry entry and the owner balance are read from the verifier only; nothing is sent
+  ---
+  duration_ms: 327.419883
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-owner-cli-stage/run/20261026T021322Z/cand/test/windows-owner-cli.test.mjs:97:1'
+  failureType: 'testCodeFailure'
+  error: `Unexpected token 'c', "[chain] aut"... is not valid JSON`
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    JSON.parse (<anonymous>)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-owner-cli-stage/run/20261026T021322Z/cand/test/windows-owner-cli.test.mjs:102:20)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: fund-operator under the verifier: gated, bound backend submission, pending nonce from the backend, verified receipt; never the verifier, never public
+ok 2 - fund-operator under the verifier: gated, bound backend submission, pending nonce from the backend, verified receipt; never the verifier, never public
+  ---
+  duration_ms: 349.931929
+  type: 'test'
+  ...
+# Subtest: declare-payout under the verifier: simulate on the verifier, gated submission to the backend, the payout wallet read back from the verifier
+ok 3 - declare-payout under the verifier: simulate on the verifier, gated submission to the backend, the payout wallet read back from the verifier
+  ---
+  duration_ms: 345.89948
+  type: 'test'
+  ...
+# Subtest: pool acceptance is never inclusion: no verified receipt -> no success; a reverted receipt -> refused
+ok 4 - pool acceptance is never inclusion: no verified receipt -> no success; a reverted receipt -> refused
+  ---
+  duration_ms: 15348.081726
+  type: 'test'
+  ...
+# Subtest: no own backend: reads work, every owner-signed command is refused before signing, nothing is submitted anywhere
+ok 5 - no own backend: reads work, every owner-signed command is refused before signing, nothing is submitted anywhere
+  ---
+  duration_ms: 1021.018308
+  type: 'test'
+  ...
+# Subtest: refusals before anything: BASE_RPCS mixed with the verifier, invalid selections, a non-loopback verifier; a backend on another chain sends nothing
+ok 6 - refusals before anything: BASE_RPCS mixed with the verifier, invalid selections, a non-loopback verifier; a backend on another chain sends nothing
+  ---
+  duration_ms: 1575.196543
+  type: 'test'
+  ...
+# Subtest: ownership-status under the verifier: the verified host-ownership contract read at head - 2; a CONTRACT-WALLET owner is reported as the accepted owner
+not ok 7 - ownership-status under the verifier: the verified host-ownership contract read at head - 2; a CONTRACT-WALLET owner is reported as the accepted owner
+  ---
+  duration_ms: 294.718872
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-owner-cli-stage/run/20261026T021322Z/cand/test/windows-owner-cli.test.mjs:186:1'
+  failureType: 'testCodeFailure'
+  error: `Unexpected token 'c', "[chain] aut"... is not valid JSON`
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    JSON.parse (<anonymous>)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-owner-cli-stage/run/20261026T021322Z/cand/test/windows-owner-cli.test.mjs:191:20)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: legacy (no authority): BASE_RPCS is used exactly as before for reads and the send; the verifier and backend are never contacted
+ok 8 - legacy (no authority): BASE_RPCS is used exactly as before for reads and the send; the verifier and backend are never contacted
+  ---
+  duration_ms: 625.947184
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 6
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20064.508698

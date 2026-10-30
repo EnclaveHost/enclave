@@ -1,0 +1,2 @@
+{"format": "enclave-base-forward-sync/v1", "recoveryRoot": null, "harnessConfig": null, "productionLaunchDir": "/etc/enclave-rpc/base-bootstrap",
+ "watermarkStore": "/etc/enclave-rpc/base-finality-watermark", "serviceUser": "rpcbase", "targetMarginBlocks": null}

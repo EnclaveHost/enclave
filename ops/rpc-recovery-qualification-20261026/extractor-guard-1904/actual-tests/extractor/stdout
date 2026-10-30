@@ -1,0 +1,2 @@
+{"outcome": "REFUSED", "rc": 3, "runDir": null, "totalBytes": 0, "error": "Refuse: request sha256 differs", "session": null}
+{"outcome": "REFUSED", "rc": 3, "runDir": null, "totalBytes": 0, "error": "Refuse: request is not exactly the purpose-bound preparation request (differs in ['allowlistSha256', 'backupPath', 'backupSha256Provenance', 'canonicalAuthority', 'destParent', 'format', 'purpose', 'reconciliationSha256', 'recoveryAccepted', 'resetAuthority', 'stageSums'])", "session": null}

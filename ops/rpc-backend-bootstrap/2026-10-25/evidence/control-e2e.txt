@@ -1,0 +1,83 @@
+[queue] START available=22456MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+== 2026-10-25T11:07:57Z production-composition HEAD ec56a70f1 dirty: 
+v22.23.3
+external network: unreachable (as intended)
+TAP version 13
+# Subtest: relay mode: the supervisor claims, adopts on the VERIFIED claim receipt, and renews, every write through the own backend only; no provider or public origin is ever attempted
+ok 1 - relay mode: the supervisor claims, adopts on the VERIFIED claim receipt, and renews, every write through the own backend only; no provider or public origin is ever attempted # SKIP needs the Foundry build (forge build)
+  ---
+  duration_ms: 0.661115
+  type: 'test'
+  ...
+# Subtest: proof-source outage: new claims refuse (nothing submitted), the running app keeps serving; a restart during the outage keeps it; claims resume when proofs return
+ok 2 - proof-source outage: new claims refuse (nothing submitted), the running app keeps serving; a restart during the outage keeps it; claims resume when proofs return # SKIP needs the Foundry build (forge build)
+  ---
+  duration_ms: 0.117739
+  type: 'test'
+  ...
+# Subtest: a lost submission answer, then a restart: the release is decided from the VERIFIED receipt and nonce; nothing is sent twice
+ok 3 - a lost submission answer, then a restart: the release is decided from the VERIFIED receipt and nonce; nothing is sent twice # SKIP needs the Foundry build (forge build)
+  ---
+  duration_ms: 0.109009
+  type: 'test'
+  ...
+# Subtest: owner veto and admin delisting, decided through the verifier: a denied deployment is never claimed; a delisted app is stopped
+ok 4 - owner veto and admin delisting, decided through the verifier: a denied deployment is never claimed; a delisted app is stopped # SKIP needs the Foundry build (forge build)
+  ---
+  duration_ms: 0.0847
+  type: 'test'
+  ...
+# Subtest: the admin AddressBook migration reaches a verifier host with no provider (book polling, never frozen pins)
+ok 5 - the admin AddressBook migration reaches a verifier host with no provider (book polling, never frozen pins) # SKIP needs the Foundry build (forge build)
+  ---
+  duration_ms: 1.566589
+  type: 'test'
+  ...
+# Subtest: positive control: the same recorder sees the public defaults a LEGACY host attempts (so the empty lists above mean something)
+ok 6 - positive control: the same recorder sees the public defaults a LEGACY host attempts (so the empty lists above mean something) # SKIP needs the Foundry build (forge build)
+  ---
+  duration_ms: 0.120079
+  type: 'test'
+  ...
+# Subtest: direct mode: the supervisor started with planDirectBoot's environment for a bound chainVerifier reads only through the verifier
+ok 7 - direct mode: the supervisor started with planDirectBoot's environment for a bound chainVerifier reads only through the verifier # SKIP needs the Foundry build (forge build)
+  ---
+  duration_ms: 0.135759
+  type: 'test'
+  ...
+# Subtest: the host's lease reads are ONE local-verifier authority (no provider anywhere in its configuration)
+ok 8 - the host's lease reads are ONE local-verifier authority (no provider anywhere in its configuration)
+  ---
+  duration_ms: 41449.611571
+  type: 'test'
+  ...
+# Subtest: an app-funded claim through the real relay, verified by the verifier: landed, charged to the app's reserve once
+ok 9 - an app-funded claim through the real relay, verified by the verifier: landed, charged to the app's reserve once
+  ---
+  duration_ms: 40134.386835
+  type: 'test'
+  ...
+# Subtest: the relay's answer is lost after the lease landed: decided from the chain through the verifier; nothing is posted twice; a restarted client resolves the journal as landed
+ok 10 - the relay's answer is lost after the lease landed: decided from the chain through the verifier; nothing is posted twice; a restarted client resolves the journal as landed
+  ---
+  duration_ms: 47147.023231
+  type: 'test'
+  ...
+# Subtest: no proof source answers: the claim refuses before anything is signed or posted
+ok 11 - no proof source answers: the claim refuses before anything is signed or posted
+  ---
+  duration_ms: 42521.667255
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 7
+# todo 0
+# duration_ms 171661.20716
+[memory-guard] exit=0 peakTreeRssMiB=890 minHostAvailableMiB=21480
+[memory-guard] at peak: reth-v2.8.0:384 node:115 node:110 enclave-base-he:91 node:61 helios:59 enclave-base-he:57 witness-check:7
+[queue] EXIT 0

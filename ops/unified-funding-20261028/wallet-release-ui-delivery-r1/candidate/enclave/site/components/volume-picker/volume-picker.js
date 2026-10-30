@@ -1,0 +1,49 @@
+/* ============================================================
+   <c-volume-picker> - model volumes the fleet advertises
+   (Modelwrap): union across enclaves, each tagged with how many
+   enclaves carry it. Assign `.volumes` (list) and `.selected`
+   (a live Set the page owns); toggling a row mutates the Set and
+   dispatches a bubbling `change`. The picker is a FORM CONTROL
+   for an app config's `volumes` key - the dashboard's Models tab
+   writes the ticks into the deployment's config override; the
+   config object stays the only carrier.
+   ============================================================ */
+import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
+import { esc } from "../../js/core/util.js";
+
+class VolumePicker extends EnclaveElement {
+  static properties = { volumes: null, selected: null };
+  static _tpl = "<div class=\"fleet-list vol-list\" role=\"group\" aria-label=\"Model volumes\"></div>\n";
+
+  renderedCallback() {
+    const list = this.querySelector(".vol-list"); if (!list) return;
+    const vols = this.volumes || [], sel = this.selected || new Set();
+    list.innerHTML = vols.map(v => {
+      const on = sel.has(v.name);
+      const gb = v.bytes ? (v.bytes/1073741824).toFixed(v.bytes > 1073741824 ? 1 : 2) + " GB" : "";
+      return '<label class="vol-row' + (on ? " on" : "") + '">'
+        + '<input type="checkbox" data-vol="' + esc(v.name) + '"' + (on ? " checked" : "") + ' />'
+        + '<span class="vol-name">' + esc(v.name) + '</span>'
+        + (v.onnx ? '<span class="ap-badge info">onnx</span>' : "")
+        + (v.gguf ? '<span class="ap-badge info">gguf</span>' : "")
+        + (v.sd ? '<span class="ap-badge info">sd</span>' : "")
+        + (gb ? '<span class="vol-size dim">' + gb + '</span>' : "")
+        // WHERE, not just how many: a volume lives on the boxes that attached
+        // it, so ticking one narrows what can host this deployment. Naming the
+        // single host makes that visible here, where the choice is made, rather
+        // than only in the target dropdown below.
+        // A volume the deployment names that no live box carries (`missing`) is
+        // listed so it can be unticked - and says so, in amber.
+        + '<span class="vol-where ' + (v.missing ? "warn" : "dim") + '">' + (v.missing ? "not on any live enclave"
+            : v.count === 1 && v.hosts && v.hosts.length === 1
+            ? "only on " + esc(v.hosts[0]) : v.count + (v.count === 1 ? " enclave" : " enclaves")) + '</span>'
+        + '</label>';
+    }).join("");
+    list.querySelectorAll('input[data-vol]').forEach(cb => cb.addEventListener("change", () => {
+      if (cb.checked) sel.add(cb.dataset.vol); else sel.delete(cb.dataset.vol);
+      cb.closest(".vol-row").classList.toggle("on", cb.checked);
+      this.dispatch("change", { selected: sel });
+    }));
+  }
+}
+register("c-volume-picker", VolumePicker);

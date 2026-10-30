@@ -1,0 +1,4 @@
+RUN ['/home/steven/.foundry/bin/forge', 'build', '--offline']
+No files changed, compilation skipped
+RUN ['python3', 'prepare.py']
+prepare.py: REFUSED: viem does not resolve from client-r1

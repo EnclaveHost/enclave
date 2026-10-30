@@ -1,0 +1,10 @@
+{
+  "format": "rpc-retention-correction/v1",
+  "selectionR3": "Boundary formula predecessor, not tested and unsafe for existing mutable state. Retained as exact r4 test dependency, not an operational preflight.",
+  "selectionR4": "13 root offline tests passed via explicit discovery runner1415. Original runner1414 failed import under python -I; failure retained. Not installed live. Refuses destructive State-manifest reuse, counts mandatory components and separates exact job completion from integrity/readiness.",
+  "enrollmentR2": "Prepared only, unqualified. Source audit corrections but remaining rotate-both-floor/partial-genesis/API integration tracked in ongoing r3. Do not deploy.",
+  "production": "Owned historical retention1394 continues including staging MDBX replacement. No consumer cutover or signing transaction.",
+  "administration": "All administrator controls preserved.",
+  "activeRunRisk": "Controller1394 stops at20:58UTC2026-10-26. Pinned segmented downloader deletes unfinished part oncancel and truncates it onrestart; resumable flag does NOT preserve inflightstate. Continuation correction is in preparation, not deployed. Do not blindly stop/restart or claim saved parts recoverable.",
+  "throughput": "Short samples about18-19.4MB/s with disk/CPU headroom suggest network path limitation; ISP versus CDN cause is not proven. No reliable completion ETA."
+}

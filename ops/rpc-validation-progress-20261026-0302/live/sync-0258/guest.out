@@ -1,0 +1,27 @@
+Mon Oct 26 02:58:02 UTC 2026
+MainPID=8111
+NRestarts=0
+Id=enclave-l1-el.service
+ActiveState=active
+
+MainPID=898
+NRestarts=0
+Id=enclave-l1-cl.service
+ActiveState=active
+
+MainPID=4061
+NRestarts=0
+Id=enclave-rpc-base-snapshot.service
+ActiveState=activating
+
+MainPID=0
+NRestarts=0
+Id=enclave-base-holder.service
+ActiveState=inactive
+Oct 26 02:58:02 enclave-rpc base[4061]: 2026-10-26T02:58:02.405840Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=53.7% elapsed=8h 37m eta=7h 26m bytes=413.98 GB/770.80 GB
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1        30G   17G   14G  56% /
+/dev/sdc        2.9T  480G  2.4T  17% /srv/enclave-base-holder
+               total        used        free      shared  buff/cache   available
+Mem:           64302       11290        4429           1       49305       53011
+Swap:              0           0           0

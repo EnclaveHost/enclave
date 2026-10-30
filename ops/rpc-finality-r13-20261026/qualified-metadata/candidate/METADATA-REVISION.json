@@ -1,0 +1,21 @@
+{
+ "format": "enclave-r13-metadata-revision/v1",
+ "stage": "base-finality-proof-stage/r13-manifest-final",
+ "why": "root-original-canary-r13-0931: the frozen cold-proof canary assembler (61ba3daf) correctly refused r13-final because install/MANIFEST.json still named stage base-finality-proof-stage/r10. This revision changes ONLY that field; every other byte equals the root-qualified r13-final.",
+ "base": {
+  "stage": "base-finality-proof-stage/r13-final",
+  "sha256sums": "f58b0b4f70cf830e3d5a9a2ec975a932143e79432d36660241b937701f73a347",
+  "rootReceipt": {"path": "logs/root-finality-r13-final-0918.out", "sha256": "01c341753573e427b87c372d6049e7b72305f94adca509cb288518a530862b8c",
+                  "rc": "logs/root-finality-r13-final-0918.rc", "lines": ["## r13 SHA256SUMS f58b0b4f70cf830e3d5a9a2ec975a932143e79432d36660241b937701f73a347", "## finality-r13 rc=0"]}
+ },
+ "changed": {
+  "install/MANIFEST.json": {"from": "5a2de6e74b092c9e1259c425f98dfbff70dd3b5b14e436ac248a920b1eb2f6dc", "to": "2ff892564dff248c854374be18542122fa13ea7583b3f9e4dd72da890ef01964",
+                            "patch": "one byte span: \"stage\": \"base-finality-proof-stage/r10\" -> \"stage\": \"base-finality-proof-stage/r13-manifest-final\"; JSON differs ONLY in key stage",
+                            "readers": "no code pins this sha (only COMPOSITION.tsv/SHA256SUMS record it); the installer reads MANIFEST entries, never `stage`; the cold canary assembler requires stage == its pinned stage"}
+ },
+ "added": ["METADATA-REVISION.json", "jobs/root-r13-manifest-final.sh"],
+ "unchangedButHistorical": {"COMPOSITION.tsv": "kept byte-identical: the r13-final composition record (its install/MANIFEST.json row names the r13-final 5a2de6e7; this file supersedes that one row)"},
+ "excludedFromSums": ["logs/", "bundle/ (assembled by tools/assemble_bundle.py from bundle-origin.json, as in r13-final)"],
+ "reusedReceipt": "root-finality-r13-final-0918 (all r13-final suites PASS) covers every file proven byte-identical by jobs/root-r13-manifest-final.sh",
+ "retested": ["metadata-only diff vs r13-final SHA256SUMS + the root receipt", "manifest closure 61 files / 14 trees / 32 bundle entries", "bundle assembly + bundle closure", "ops-installer 18 (unchanged installer, new manifest)", "cold canary assembler 61ba3daf dry assembly: new stage accepted; r13-final pins, stale sums, stale manifest refused"]
+}

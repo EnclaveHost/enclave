@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: the relay is the packaged host role serving the MOVED key's payee, with its signed statement
+ok 1 - the relay is the packaged host role serving the MOVED key's payee, with its signed statement
+  ---
+  duration_ms: 752.3506
+  type: 'test'
+  ...
+# Subtest: Linux and Windows factories: claim, renew and release through ONLY the pinned relay, app-paid, zero host ETH, DigitalOcean unreachable
+ok 2 - Linux and Windows factories: claim, renew and release through ONLY the pinned relay, app-paid, zero host ETH, DigitalOcean unreachable
+  ---
+  duration_ms: 65283.101705
+  type: 'test'
+  ...
+# Subtest: refused BEFORE ANY SIGNATURE: another payee, forged/stale/other-chain/other-executor statements, a fresh ban, an unreadable or missing policy, policy off, a redirect
+ok 3 - refused BEFORE ANY SIGNATURE: another payee, forged/stale/other-chain/other-executor statements, a fresh ban, an unreadable or missing policy, policy off, a redirect
+  ---
+  duration_ms: 979.032404
+  type: 'test'
+  ...
+# Subtest: after signing: an unverifiable relay receipt is not success and its durable journal entry is held; a lost answer is settled from the chain
+ok 4 - after signing: an unverifiable relay receipt is not success and its durable journal entry is held; a lost answer is settled from the chain
+  ---
+  duration_ms: 4381.981164
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 71597.846208

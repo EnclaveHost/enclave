@@ -1,0 +1,45 @@
+{
+  "at": "2026-10-28T11:20:18.862Z",
+  "agreeing": [
+    "https://mainnet.base.org",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "blockNumber": "53198532",
+  "blockHash": "0x0ab690371bc27e066ddc1ca53b29a82136d5ebebdfa7f6eca19161191839df67",
+  "timestamp": "1793186411",
+  "gasPrice": "6000000",
+  "deployment": {
+    "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "active": true,
+    "rate": "0",
+    "balance6": "0",
+    "spent6": "100000000",
+    "runner": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+    "leaseUntil": "1793188173"
+  },
+  "reserve": {
+    "balanceWei": "19015631184626",
+    "maxPerOpWei": "31092172031561",
+    "epochCapWei": "310921720315610",
+    "enabled": true,
+    "claimPolicy": 1,
+    "sponsorRelease": true,
+    "renewWindow": 300,
+    "minExtension": 600,
+    "claimCooldown": 1800,
+    "epochSec": 3600,
+    "maxGasPrice": "50000000",
+    "maxClaimsPerEpoch": 4,
+    "epochIndex": 498107,
+    "epochSpentWei": "1707133847732",
+    "epochClaims": 1,
+    "lastClaimAt": "1793186373",
+    "lastClaimOperator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB"
+  },
+  "quotes": {
+    "claim": "2284957189363",
+    "renew": "1384089812394"
+  },
+  "operatorBalance": "1557621452445"
+}

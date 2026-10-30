@@ -1,0 +1,5 @@
+startup no-verifier: OK (rc 1, needs the relay's verifier authority)
+startup bad-value: OK (rc 1, must be "derived" or unset)
+startup url-config: OK (rc 1, absolute file path)
+startup not-composed: OK (rc 1, not composed)
+startup unset: OK (rc 124; existing writer_authority_unproven refusal logged, no selector fatal)

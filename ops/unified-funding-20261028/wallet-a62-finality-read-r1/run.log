@@ -1,0 +1,7 @@
+[queue] START available=34390MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{"at":"2026-10-30T04:57:34.009Z","readOnly":true,"tx":"0x02fcaf17c60f3890252202d4f66f39712fe453955dd1a992ebefef4e23f8c437","quorumFinalized":true,"results":[{"url":"https://api.enclave.host/rpc/base","receiptBlock":"53272106","receiptBlockHash":"0xecc1539e634c8aaf03c225f3e504881713a1cfb27955eb0447137c610a595790","finalizedBlock":"53272874","finalizedHash":"0xb9dba570d31196d2511629a22b7d398d0de49343355e6fd73a08c2fdbb26b7ab","coveredByFinalized":true,"ok":true},{"url":"https://rpc.baseazul.dev","receiptBlock":"53272106","receiptBlockHash":"0xecc1539e634c8aaf03c225f3e504881713a1cfb27955eb0447137c610a595790","finalizedBlock":"53272874","finalizedHash":"0xb9dba570d31196d2511629a22b7d398d0de49343355e6fd73a08c2fdbb26b7ab","coveredByFinalized":true,"ok":true}]}
+[memory-guard] exit=0 peakTreeRssMiB=79 minHostAvailableMiB=34299
+[memory-guard] at peak: node:79
+[memory-guard] exit=0 peakTreeRssMiB=147 minHostAvailableMiB=34301
+[memory-guard] at peak: node:79 node:68
+[queue] EXIT 0

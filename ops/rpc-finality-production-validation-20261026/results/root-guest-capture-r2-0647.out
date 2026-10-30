@@ -1,0 +1,81 @@
+[queue] START available=21133MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+checkpoint {'root': '0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094', 'slot': 15511008, 'declaredAgeSec': 40958, 'sources': 5}
+{
+ "run": "run-20261026T064437Z-993ef4a8",
+ "captureOk": false,
+ "forwardProgress": {
+  "checkpointPayloadNumber": 26271752,
+  "heliosFinalized": {
+   "number": 26275066,
+   "hash": "0x78676194226ae0690700891a4e93557afe1a5b7038cd7584dffeda6c516753bd",
+   "timestamp": 1792996055,
+   "ageSec": 1145
+  },
+  "ownElHashAtHeliosFinalized": "0x78676194226ae0690700891a4e93557afe1a5b7038cd7584dffeda6c516753bd",
+  "ok": true
+ },
+ "verifyOk": false,
+ "verifyRefused": null,
+ "error": null,
+ "heliosListener": {
+  "pid": 95230,
+  "exe": "/var/lib/enclave-rpc/canary-20261026T064437Z-993ef4a8/opt/a1-capture/bin/helios-eeffcc9",
+  "ancestry": [
+   95230,
+   94897,
+   94896,
+   94816,
+   94815,
+   94814
+  ]
+ },
+ "captureSec": 123.1,
+ "moduleSha256": "fc16b26cd23d1d6cc768f5248b92f8750ccc14e4154a9bba4605d995485afb0d",
+ "l1": {
+  "checkpoint": {
+   "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094",
+   "slot": 15511008,
+   "recordedAt": "2026-10-25T19:38:24.779941+00:00"
+  },
+  "agreeingSources": [
+   [
+    "own-lighthouse",
+    "127.0.0.1"
+   ],
+   [
+    "checkpoint-sync-provider",
+    "mainnet.checkpoint.sigp.io"
+   ],
+   [
+    "checkpoint-sync-provider",
+    "sync-mainnet.beaconcha.in"
+   ],
+   [
+    "checkpoint-sync-provider",
+    "beaconstate.ethstaker.cc"
+   ],
+   [
+    "checkpoint-sync-provider",
+    "beaconstate-mainnet.chainsafe.io"
+   ]
+  ],
+  "clCheckpointBlockSlot": 15511008,
+  "clFinalizedSlot": 15514336,
+  "checkpointPayload": {
+   "number": 26271752,
+   "hash": "0xb3a52f0d6364e8c055e5de56b3397cb5400897a913c9366c1ef12790ba70d563"
+  },
+  "elFinalized": {
+   "number": 26275066,
+   "hash": "0x78676194226ae0690700891a4e93557afe1a5b7038cd7584dffeda6c516753bd"
+  }
+ },
+ "pidsUnchanged": true
+}
+result /run/enclave-canary-20261026T064437Z-993ef4a8/result.tar
+## canary rc=1
+## private captures: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-capture-canary-stage/r2/logs/run-20261026T064437Z-993ef4a8/result/captures (0700)
+## guest-canary rc=1
+[memory-guard] exit=1 peakTreeRssMiB=144 minHostAvailableMiB=19171
+[memory-guard] at peak: python3:140 bash:4
+[queue] EXIT 1

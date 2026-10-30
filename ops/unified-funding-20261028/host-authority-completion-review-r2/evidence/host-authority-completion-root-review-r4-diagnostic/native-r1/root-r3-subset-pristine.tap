@@ -1,0 +1,262 @@
+TAP version 13
+# Subtest: integrity always applies; publisher listing and catalog-owner moderation apply only when the host owner elects them
+ok 1 - integrity always applies; publisher listing and catalog-owner moderation apply only when the host owner elects them
+  ---
+  duration_ms: 4.272654
+  type: 'test'
+  ...
+# Subtest: legacy admission is not mutated: hostAdmissionRefusal still applies mandatory platform moderation
+ok 2 - legacy admission is not mutated: hostAdmissionRefusal still applies mandatory platform moderation
+  ---
+  duration_ms: 0.400857
+  type: 'test'
+  ...
+# Subtest: scoped host authority: the production hash-checked commitment, a revision floor, freshness
+ok 3 - scoped host authority: the production hash-checked commitment, a revision floor, freshness
+  ---
+  duration_ms: 2.080563
+  type: 'test'
+  ...
+# Subtest: end to end (real policy code, real runner): an independent host serves a pending-approval app under a platform ban
+ok 4 - end to end (real policy code, real runner): an independent host serves a pending-approval app under a platform ban
+  ---
+  duration_ms: 4.281884
+  type: 'test'
+  ...
+# Subtest: end to end: elected moderation (incl. a publisher yank) or a deny list stops and records a revocation
+ok 5 - end to end: elected moderation (incl. a publisher yank) or a deny list stops and records a revocation
+  ---
+  duration_ms: 4.048886
+  type: 'test'
+  ...
+# Subtest: end to end: a publisher delist or yank of the same artifact, with no elected moderation, keeps serving
+ok 6 - end to end: a publisher delist or yank of the same artifact, with no elected moderation, keeps serving
+  ---
+  duration_ms: 6.576894
+  type: 'test'
+  ...
+# Subtest: end to end: on a host its pinned wallet owns, the platform ban is the owner's stop
+ok 7 - end to end: on a host its pinned wallet owns, the platform ban is the owner's stop
+  ---
+  duration_ms: 0.894373
+  type: 'test'
+  ...
+# Subtest: end to end: an ownership/catalog outage is unknown (fenced, not stopped, never allowed)
+ok 8 - end to end: an ownership/catalog outage is unknown (fenced, not stopped, never allowed)
+  ---
+  duration_ms: 0.631955
+  type: 'test'
+  ...
+# Subtest: snapshot admission: derived from the independent-profile snapshot only; unknown policy is unknown, never a decision
+ok 9 - snapshot admission: derived from the independent-profile snapshot only; unknown policy is unknown, never a decision
+  ---
+  duration_ms: 0.951372
+  type: 'test'
+  ...
+# Subtest: composer: only an independent-profile adapter; bindings from its reviewed pins; named blockers carried through
+ok 10 - composer: only an independent-profile adapter; bindings from its reviewed pins; named blockers carried through
+  ---
+  duration_ms: 1.511557
+  type: 'test'
+  ...
+# Subtest: restart: Host.shareUse counts recovered allocations; legacy and lifecycle new work wait until they are known
+ok 11 - restart: Host.shareUse counts recovered allocations; legacy and lifecycle new work wait until they are known
+  ---
+  duration_ms: 4.473612
+  type: 'test'
+  ...
+# Subtest: simultaneous starts in one Promise.all pass cannot over-admit the real host caps
+ok 12 - simultaneous starts in one Promise.all pass cannot over-admit the real host caps
+  ---
+  duration_ms: 0.881822
+  type: 'test'
+  ...
+# Subtest: fenced uncertainty and failed removal stay in Host.shareUse; only a confirmed stop releases (real enforceOff)
+ok 13 - fenced uncertainty and failed removal stay in Host.shareUse; only a confirmed stop releases (real enforceOff)
+  ---
+  duration_ms: 21.964596
+  type: 'test'
+  ...
+# Subtest: attach: every route starts unresolved and new work is held until its allocation is observed
+ok 14 - attach: every route starts unresolved and new work is held until its allocation is observed
+  ---
+  duration_ms: 0.490906
+  type: 'test'
+  ...
+# Subtest: recovered running allocation is retained through unknown chain, unknown admission and unknown inventory
+ok 15 - recovered running allocation is retained through unknown chain, unknown admission and unknown inventory
+  ---
+  duration_ms: 0.773224
+  type: 'test'
+  ...
+# Subtest: failed or timed-out removal keeps the allocation; only a confirmed stop releases it
+ok 16 - failed or timed-out removal keeps the allocation; only a confirmed stop releases it
+  ---
+  duration_ms: 13.348618
+  type: 'test'
+  ...
+# Subtest: a pending running intent and an ambiguous launch are commitments; a fresh process recovers them before new starts
+ok 17 - a pending running intent and an ambiguous launch are commitments; a fresh process recovers them before new starts
+  ---
+  duration_ms: 1.127901
+  type: 'test'
+  ...
+# Subtest: an unresolved route blocks every other route's NEW start; its own serving continues
+ok 18 - an unresolved route blocks every other route's NEW start; its own serving continues
+  ---
+  duration_ms: 8.511118
+  type: 'test'
+  ...
+# Subtest: simultaneous starts in one Promise.all pass see each other's reservations
+ok 19 - simultaneous starts in one Promise.all pass see each other's reservations
+  ---
+  duration_ms: 0.908592
+  type: 'test'
+  ...
+# Subtest: an unobserved runtime of a held (not yet activated) route still counts
+ok 20 - an unobserved runtime of a held (not yet activated) route still counts
+  ---
+  duration_ms: 0.351687
+  type: 'test'
+  ...
+# Subtest: owned journal: an older journal opens unchanged; floors are monotonic; holds release only after a later owner change
+ok 21 - owned journal: an older journal opens unchanged; floors are monotonic; holds release only after a later owner change
+  ---
+  duration_ms: 7.18746
+  type: 'test'
+  ...
+# Subtest: restart: the persisted floor refuses a lower still-fresh host revision
+ok 22 - restart: the persisted floor refuses a lower still-fresh host revision
+  ---
+  duration_ms: 2.347231
+  type: 'test'
+  ...
+# Subtest: restart: a local hold survives; a forced claim hint clears nothing; only a saved owner caps change releases it
+ok 23 - restart: a local hold survives; a forced claim hint clears nothing; only a saved owner caps change releases it
+  ---
+  duration_ms: 15.885197
+  type: 'test'
+  ...
+# Subtest: generated host: enforceOff persists the hold; consider(force) keeps it; setHostingCaps (owner API) releases it
+ok 24 - generated host: enforceOff persists the hold; consider(force) keeps it; setHostingCaps (owner API) releases it
+  ---
+  duration_ms: 3.359212
+  type: 'test'
+  ...
+# Subtest: default new-profile imported runtime with no saved incarnation stays fenced
+ok 25 - default new-profile imported runtime with no saved incarnation stays fenced
+  ---
+  duration_ms: 2.318891
+  type: 'test'
+  ...
+# Subtest: fresh queued app binds its incarnation before a new start
+ok 26 - fresh queued app binds its incarnation before a new start
+  ---
+  duration_ms: 1.599277
+  type: 'test'
+  ...
+# Subtest: explicit adoption rereads current host state rather than trusting a cached Online decision
+ok 27 - explicit adoption rereads current host state rather than trusting a cached Online decision
+  ---
+  duration_ms: 1.354579
+  type: 'test'
+  ...
+# Subtest: explicit adoption must not rebind while an old app transition is pending
+ok 28 - explicit adoption must not rebind while an old app transition is pending
+  ---
+  duration_ms: 1.1908
+  type: 'test'
+  ...
+# Subtest: adoption refuses when old runtime quiescence cannot be confirmed
+ok 29 - adoption refuses when old runtime quiescence cannot be confirmed
+  ---
+  duration_ms: 1.370588
+  type: 'test'
+  ...
+# Subtest: explicit current adoption succeeds after confirmed stop and independent inventory absence
+ok 30 - explicit current adoption succeeds after confirmed stop and independent inventory absence
+  ---
+  duration_ms: 1.131431
+  type: 'test'
+  ...
+# Subtest: adoption and reconcile are serialized for one deployment
+ok 31 - adoption and reconcile are serialized for one deployment
+  ---
+  duration_ms: 1.167661
+  type: 'test'
+  ...
+# Subtest: owner revision change during quiescence aborts adoption; a subsequent explicit current-owner handoff can succeed
+ok 32 - owner revision change during quiescence aborts adoption; a subsequent explicit current-owner handoff can succeed
+  ---
+  duration_ms: 1.21099
+  type: 'test'
+  ...
+# Subtest: durable host authority rejects lower revision after process restart
+ok 33 - durable host authority rejects lower revision after process restart
+  ---
+  duration_ms: 1.685716
+  type: 'test'
+  ...
+# Subtest: durable host authority rejects same revision different owner after process restart
+ok 34 - durable host authority rejects same revision different owner after process restart
+  ---
+  duration_ms: 4.412413
+  type: 'test'
+  ...
+# Subtest: schema3 snapshot admission accepts only the explicitly selected schema3 profile
+ok 35 - schema3 snapshot admission accepts only the explicitly selected schema3 profile
+  ---
+  duration_ms: 0.312557
+  type: 'test'
+  ...
+# Subtest: schema3 host composition binds exact profile and route before activation, then reconciles actual dispatcher/runner
+ok 36 - schema3 host composition binds exact profile and route before activation, then reconciles actual dispatcher/runner
+  ---
+  duration_ms: 1.677596
+  type: 'test'
+  ...
+# Subtest: schema3 routes require exact profile and bundle; no schema inference or cross-profile pairing
+ok 37 - schema3 routes require exact profile and bundle; no schema inference or cross-profile pairing
+  ---
+  duration_ms: 0.826404
+  type: 'test'
+  ...
+# Subtest: schema3 snapshot admission does not infer eligibility from a profile label or accept old-profile snapshots
+ok 38 - schema3 snapshot admission does not infer eligibility from a profile label or accept old-profile snapshots
+  ---
+  duration_ms: 0.288968
+  type: 'test'
+  ...
+# Subtest: schema3 composer refuses a changed snapshot before runtime serving and retains explicit reporter gap
+ok 39 - schema3 composer refuses a changed snapshot before runtime serving and retains explicit reporter gap
+  ---
+  duration_ms: 0.346327
+  type: 'test'
+  ...
+# Subtest: schema3 owner refusal revokes service while a foreign platform refusal has no veto
+ok 40 - schema3 owner refusal revokes service while a foreign platform refusal has no veto
+  ---
+  duration_ms: 0.348087
+  type: 'test'
+  ...
+# Subtest: schema3 incomplete adapter holds only its exact routes without falling back to legacy
+ok 41 - schema3 incomplete adapter holds only its exact routes without falling back to legacy
+  ---
+  duration_ms: 0.225518
+  type: 'test'
+  ...
+# Subtest: generated Host composes schema3, retains uncertain resources and releases only confirmed removals
+ok 42 - generated Host composes schema3, retains uncertain resources and releases only confirmed removals
+  ---
+  duration_ms: 4.401133
+  type: 'test'
+  ...
+1..42
+# tests 42
+# suites 0
+# pass 42
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 705.19735

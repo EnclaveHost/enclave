@@ -1,0 +1,32 @@
+--- a/isolation/m2/dominit.c
++++ b/isolation/m2/dominit.c
+@@ -275,6 +275,7 @@
+ #define SHIELD_CGROUP "/sys/fs/cgroup/shield-app"
+ #include "shield-memory.h"
+ #include "shield-config.h"
++#include "shield-retire-marker.h"   /* the measured bounded-retirement opt-in */
+ static char shield_model[64], shield_graph[128], shield_models_env[96], shield_preloads_env[96], shield_calib[128];
+ static char shield_workers[512], shield_vram_env[80];
+ /* The controller is private to this guest and remains root-owned. The
+@@ -498,6 +499,13 @@
+         else if (fd3 >= 0 && dup2(fd3, 3) < 0) _exit(127);       /* dup2 leaves the new fd 3 without CLOEXEC */
+         const int reclaim_sources = shield_on && shield_load_allowed && shield_large && drop &&
+             access("/rt/shield-original-source-reclaim.enabled", R_OK) == 0;
++        /* Bounded retirement of consumed private originals is a measured release choice, read as root
++         * before the drop and only with source reclaim. Absent = the deferred flush; malformed = no app. */
++        const int retire_budget = reclaim_sources ? shield_retire_marker_at(SHIELD_RETIRE_MARKER) : 0;
++        if (retire_budget < 0) {
++            dprintf(1, "DOM ERROR %s is malformed: not started\n", SHIELD_RETIRE_MARKER);
++            _exit(125);
++        }
+         if (reclaim_sources) {
+             /* Narrow native-loader capabilities, opened BEFORE dropping uid.
+              * Do not make the model device writable or relax filesystem access.
+@@ -630,6 +638,7 @@
+             if (reclaim_sources) {
+                 envp[ei++] = "ENCLAVE_SHIELD_ORIGINAL_SOURCE=fd:199";
+                 envp[ei++] = "ENCLAVE_SHIELD_PRIVATE_SOURCE=fd:198";
++                if (retire_budget == 1) envp[ei++] = SHIELD_RETIRE_ENV;
+             }
+             if (spill_fd == SHIELD_SPILL_FD) {
+                 envp[ei++] = "SHIELDED_PAD_SPILL=fd:197";

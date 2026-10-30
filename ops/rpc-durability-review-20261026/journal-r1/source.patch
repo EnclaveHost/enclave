@@ -1,0 +1,816 @@
+diff --git a/network/deployment-journal-owner.mjs b/network/deployment-journal-owner.mjs
+--- a/network/deployment-journal-owner.mjs
++++ b/network/deployment-journal-owner.mjs
+@@ -8,7 +8,8 @@
+ 
+ // Kernel-owned exclusion, released on process death. No stale PID deletion,
+ // time-based lock stealing, or deletion of a journal to recover from a crash.
+-export async function ownLifecycleJournal(file, { initialize = false } = {}) {
++export async function ownLifecycleJournal(file, { initialize = false, ...journalOptions } = {}) {
++  if (initialize && journalOptions.requireCommit) throw Error('replicated journals require explicit verified enrollment');
+   if (!path.isAbsolute(file)) throw Error('absolute journal path required');
+   const dir = fs.realpathSync(path.dirname(file));
+   const canonical = path.join(dir, path.basename(file));
+@@ -22,8 +23,15 @@
+     });
+     release = () => server.close();
+   } else throw Error('lifecycle journal needs Linux flock or a Windows named pipe');
+-  let closed = false;
+-  const close = () => { if (!closed) { closed = true; release(); } };
++  let closed = false, raw;
++  const close = () => {
++    if (!closed) {
++      closed = true;
++      const pending = raw?.close?.();
++      if (pending) return Promise.resolve(pending).then(release, release);
++      release();
++    }
++  };
+   try {
+     if (!fs.existsSync(canonical)) {
+       // Enrollment alone can initialize a new journal. A missing file during
+@@ -31,7 +39,7 @@
+       if (!initialize) throw Error('lifecycle journal missing; authenticated recovery or initial enrollment required');
+       strictWriteFile(canonical, JSON.stringify({ version: 1, deployments: [], authorityAnchors: {} }));
+     }
+-    const raw = openLifecycleJournal(canonical);
++    raw = openLifecycleJournal(canonical, { ...journalOptions, requireExisting: true });
+     const journal = Object.fromEntries(Object.entries(raw).map(([name, fn]) => [name, (...args) => {
+       if (closed) throw Error('journal owner closed'); return fn(...args);
+     }]));
+diff --git a/network/deployment-lifecycle-journal.mjs b/network/deployment-lifecycle-journal.mjs
+--- a/network/deployment-lifecycle-journal.mjs
++++ b/network/deployment-lifecycle-journal.mjs
+@@ -1,8 +1,9 @@
+-// A single host/witness process owns this journal. Mutations are synchronous
+-// and durably committed BEFORE returning an action that may start, sign or
+-// broadcast. Corruption/write failure closes the journal; never replace it
++// A single host/witness process owns this journal. Row mutations synchronously
++// commit locally before returning an action. acceptAnchor is asynchronous and
++// additionally awaits the configured exact-bytes replication hook. Corruption/write failure closes the journal; never replace it
+ // with an empty state and accidentally clear a crash loop or a witness fence.
+ import fs from 'node:fs';
++import { commitJournalBytes, validateJournalCommit } from './journal-commit.mjs';
+ import { strictWriteFile } from './lease-release-journal.mjs';
+ import { initialRestartState, validateRestartState, restartFailure, restartHealthy,
+   restartUnhealthy, restartDecision, ownerResumeRestartState } from './deployment-restart-policy.mjs';
+@@ -54,17 +55,22 @@
+   sequence: 0, digest: null, bindingDigest: null, successorVote: null, denial: null,
+   attemptSequence: 0, runtime: null, minedTransitions: [], fenced: false, pending: null });
+ 
+-export function openLifecycleJournal(file, { fsImpl = fs, platform = process.platform } = {}) {
+-  let state = { version: 1, deployments: [], authorityAnchors: {} }, failed = null;
++export function openLifecycleJournal(file, { fsImpl = fs, platform = process.platform, requireExisting = false,
++  commit = null, requireCommit = false, commitTimeoutMs = 10000 } = {}) {
++  validateJournalCommit({ commit, requireCommit, commitTimeoutMs });
++  if ((requireExisting || requireCommit) && !fsImpl.existsSync(file)) throw Error('lifecycle journal missing; explicit enrollment/recovery required');
++  let state = { version: 1, deployments: [], authorityAnchors: {} }, failed = null, pending = false, closed = false, commitController = null, pendingDone = null;
+   if (fsImpl.existsSync(file)) {
+     try { state = validate(JSON.parse(fsImpl.readFileSync(file, 'utf8'))); }
+     catch (e) { failed = `lifecycle journal is unreadable: ${e.message}`; }
+   }
+-  const check = () => { if (failed) throw new Error(failed); };
++  const check = () => { if (closed) throw Error('lifecycle journal closed'); if (failed) throw new Error(failed); if (pending) throw Error('lifecycle journal commit pending'); };
+   const idOf = id => { if (!ID.test(id)) throw new Error('invalid deployment id'); return id; };
+   function read(id) { check(); return structuredClone(state.deployments.find(x => x.id === idOf(id)) || fresh(id)); }
+   function update(id, change) {
+-    check(); const next = structuredClone(state), row = read(id), changed = change(row);
++    check();
++    if (requireCommit) throw Error('replicated anchor journal cannot mutate lifecycle rows');
++    const next = structuredClone(state), row = read(id), changed = change(row);
+     const index = next.deployments.findIndex(x => x.id === id);
+     if (index < 0) next.deployments.push(changed); else next.deployments[index] = changed;
+     validate(next);
+@@ -73,10 +79,11 @@
+     state = next; return structuredClone(changed);
+   }
+   return {
++    close() { closed = true; commitController?.abort(Error('lifecycle journal closed')); return pendingDone || undefined; },
+     read,
+     readAnchor(chainId) { check(); return structuredClone(state.authorityAnchors[String(chainId)] || null); },
+-    acceptAnchor(chainId, anchor) {
+-      check();
++    async acceptAnchor(chainId, anchor, { signal } = {}) {
++      check(); signal?.throwIfAborted();
+       if (!Number.isSafeInteger(chainId) || chainId < 1 || !validAnchor(anchor)) throw Error('invalid durable authority anchor');
+       const old = state.authorityAnchors[String(chainId)];
+       if (old && ['base', 'l1'].some(k => anchor[k].number < old[k].number ||
+@@ -85,9 +92,17 @@
+           (anchor.base.stateRoot !== old.base.stateRoot || anchor.base.outputRoot !== old.base.outputRoot || anchor.base.timestamp !== old.base.timestamp))
+         throw Error('durable authority anchor contradiction');
+       const next = structuredClone(state); next.authorityAnchors[String(chainId)] = structuredClone(anchor); validate(next);
+-      try { strictWriteFile(file, JSON.stringify(next), { fsImpl, platform }); }
+-      catch (e) { failed = `lifecycle journal write failed: ${e.message}`; throw e; }
+-      state = next;
++      const bytes = JSON.stringify(next); pending = true; commitController = new AbortController();
++      const combined = signal ? AbortSignal.any([signal, commitController.signal]) : commitController.signal;
++      let finish; pendingDone = new Promise(resolve => { finish = resolve; });
++      try {
++        strictWriteFile(file, bytes, { fsImpl, platform });
++        await commitJournalBytes(commit, { file, bytes, signal: combined }, commitTimeoutMs);
++        combined.throwIfAborted();
++        if (closed) throw Error('lifecycle journal closed');
++        state = next;
++      } catch (e) { failed = `lifecycle anchor commit failed: ${e.message}`; throw e; }
++      finally { pending = false; commitController = null; finish(); pendingDone = null; }
+     },
+     failure(id, args) { return update(id, row => ({ ...row, restart: restartFailure(row.restart, args) })); },
+     healthy(id, args) { return update(id, row => ({ ...row, restart: restartHealthy(row.restart, args) })); },
+diff --git a/network/derived-reader/coverage-store.mjs b/network/derived-reader/coverage-store.mjs
+--- a/network/derived-reader/coverage-store.mjs
++++ b/network/derived-reader/coverage-store.mjs
+@@ -42,7 +42,7 @@
+   const stat = fs.lstatSync(directory);
+   if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid() || (stat.mode & 0o077)) throw Error('coverage directory must be private');
+   const file = path.join(directory, 'manifest.json'), unlock = await takeRuntimeLock(path.join(directory, 'coverage.lock'));
+-  let state, usedBytes = 0, failed = false, closed = false, pending = false;
++  let state, usedBytes = 0, hasSavedFiles = false, failed = false, closed = false, pending = false;
+   const verified = [];
+   try {
+     // Account for orphan chunks and interrupted chunk writes too. No automatic
+@@ -52,6 +52,7 @@
+       for (let entry; (entry = dir.readSync());) {
+         if (++count > MAX_SEGMENTS * 2 + 4) throw Error('coverage directory entry limit');
+         if (entry.name === 'coverage.lock') continue;
++        hasSavedFiles = true;
+         if (['manifest.json', 'manifest.json.strict.tmp'].includes(entry.name)) { regular(path.join(directory, entry.name), MANIFEST_BYTES); continue; }
+         if (!/^[0-9a-f]{64}\.json(?:\.strict\.tmp)?$/.test(entry.name)) throw Error('unexpected coverage file');
+         usedBytes += regular(path.join(directory, entry.name), MAX_COVERAGE_BYTES);
+@@ -59,7 +60,7 @@
+     } finally { dir.closeSync(); }
+     if (usedBytes + 2 * MANIFEST_BYTES > maximumBytes) throw Error('coverage history budget exhausted');
+     if (!fs.existsSync(file)) {
+-      if (!initialize || usedBytes) throw Error('coverage manifest missing; explicit enrollment/recovery required');
++      if (!initialize || hasSavedFiles) throw Error('coverage manifest missing; explicit enrollment/recovery required');
+       state = { format: 'enclave-derived-coverage-journal/v1', binding, maximumBytes, floor: null, entries: [] };
+       strictWriteFile(file, JSON.stringify(state));
+     }
+diff --git a/network/derived-reader/journal.mjs b/network/derived-reader/journal.mjs
+--- a/network/derived-reader/journal.mjs
++++ b/network/derived-reader/journal.mjs
+@@ -8,6 +8,7 @@
+ import { createHash } from 'node:crypto';
+ import { takeRuntimeLock } from '../runtime-lock.mjs';
+ import { strictWriteFile } from '../lease-release-journal.mjs';
++import { commitJournalBytes, validateJournalCommit } from '../journal-commit.mjs';
+ const HASH = /^0x[0-9a-f]{64}$/;
+ const int = n => Number.isSafeInteger(n) && n >= 0;
+ const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+@@ -18,12 +19,16 @@
+   if (!HASH.test(base.outputRoot) || !HASH.test(base.messagePasserStorageRoot)) throw Error('invalid agreed output root');
+   return anchor;
+ }
+-export async function openDerivedJournal(directory, { binding, initialize = false } = {}) {
++export async function openDerivedJournal(directory, { binding, initialize = false, commit = null, requireCommit = false, commitTimeoutMs = 10000 } = {}) {
+   if (!path.isAbsolute(directory) || !/^[0-9a-f]{64}$/.test(binding || '')) throw Error('derived journal needs a pinned binding and absolute directory');
++  validateJournalCommit({ commit, requireCommit, commitTimeoutMs });
++  if (initialize && requireCommit) throw Error('replicated journals require explicit verified enrollment');
+   const root = fs.realpathSync(directory), file = path.join(root, 'derived-state.json');
+   const unlock = await takeRuntimeLock(path.join(root, 'derived-state.lock'));
+-  let failed = false, closed = false, state;
++  let failed = false, closed = false, state, pending = false, commitController = null, pendingDone = null;
+   try {
++    if (['.enrollment-inflight', '.enrollment-inflight.strict.tmp'].some(n => fs.existsSync(path.join(root, n))))
++      throw Error('derived enrollment uncertain; explicit recovery required');
+     if (!fs.existsSync(file)) {
+       if (!initialize) throw Error('derived journal missing; explicit enrollment/recovery required');
+       state = { format: 'enclave-derived-root-journal/v1', binding, floor: null, entries: [] };
+@@ -32,6 +37,8 @@
+     if (fs.lstatSync(file).isSymbolicLink() || fs.statSync(file).size > 262144) throw Error('invalid derived journal file');
+     state = JSON.parse(fs.readFileSync(file, 'utf8'));
+     if (state.format !== 'enclave-derived-root-journal/v1' || state.binding !== binding || !Array.isArray(state.entries) || state.entries.length > 128) throw Error('derived journal binding or schema mismatch');
++    if (requireCommit && !state.enrollment || state.enrollment &&
++        (state.enrollment.phase !== 'committed' || !/^[0-9a-f]{64}$/.test(state.enrollment.digest))) throw Error('derived enrollment incomplete; explicit recovery required');
+     if (state.floor) validateAnchor(state.floor);
+     let prior;
+     for (const entry of state.entries) {
+@@ -44,10 +51,11 @@
+     if (state.entries.length && JSON.stringify(state.entries.at(-1).anchor) !== JSON.stringify(state.floor)) throw Error('derived journal floor mismatch');
+   } catch (e) { unlock(); throw e; }
+   const alive = () => { if (closed || failed) throw Error('derived journal closed or failed'); };
++  const available = () => { alive(); if (pending) throw Error('derived journal commit pending'); };
+   return {
+-    read() { alive(); return structuredClone(state); },
+-    accept(agreed, anchor) {
+-      alive(); validateAnchor(agreed); validateAnchor(anchor);
++    read() { available(); return structuredClone(state); },
++    async accept(agreed, anchor, { signal } = {}) {
++      available(); signal?.throwIfAborted(); validateAnchor(agreed); validateAnchor(anchor);
+       if (anchor.tier !== 'l1-finalized-derived' || anchor.base.number <= agreed.base.number || anchor.l1.number < agreed.l1.number ||
+           anchor.l1.number === agreed.l1.number && anchor.l1.hash !== agreed.l1.hash) throw Error('derived result does not advance its agreed root');
+       const floor = state.floor;
+@@ -56,9 +64,25 @@
+       const value = { previousDigest: state.entries.at(-1)?.hash || '0'.repeat(64), agreedRoot: agreed.base.outputRoot,
+         agreedNumber: agreed.base.number, anchor: structuredClone(anchor) };
+       const next = { ...state, floor: structuredClone(anchor), entries: [...state.entries, { ...value, hash: digest(value) }].slice(-128) };
+-      try { strictWriteFile(file, JSON.stringify(next)); } catch (e) { failed = true; throw e; }
+-      state = next;
++      const bytes = JSON.stringify(next);
++      pending = true; commitController = new AbortController();
++      let finish; pendingDone = new Promise(resolve => { finish = resolve; });
++      const combined = signal ? AbortSignal.any([signal, commitController.signal]) : commitController.signal;
++      try {
++        strictWriteFile(file, bytes);
++        await commitJournalBytes(commit, { file, bytes, signal: combined }, commitTimeoutMs);
++        combined.throwIfAborted(); alive();
++        state = next;
++      } catch (e) { failed = true; throw e; }
++      finally { pending = false; commitController = null; finish(); pendingDone = null; }
++
+     },
+-    close() { if (!closed) { closed = true; unlock(); } },
++    close() {
++      if (!closed) {
++        closed = true; commitController?.abort(Error('derived journal closed'));
++        if (pendingDone) return pendingDone.then(unlock);
++        unlock();
++      }
++    },
+   };
+ }
+diff --git a/network/derived-reader/provider.mjs b/network/derived-reader/provider.mjs
+--- a/network/derived-reader/provider.mjs
++++ b/network/derived-reader/provider.mjs
+@@ -13,6 +13,9 @@
+ import { invokeDerivation, DERIVATION_BUILDS, DERIVATION_V3_BUILDS } from './native.mjs';
+ import { openCoverageStore, MAX_HISTORY_BYTES } from './coverage-store.mjs';
+ import { MAX_COVERAGE_BYTES } from './coverage.mjs';
++import { takeRuntimeLock } from '../runtime-lock.mjs';
++import { strictWriteFile } from '../lease-release-journal.mjs';
++import { commitJournalBytes, journalBytesDigest, validateJournalCommit } from '../journal-commit.mjs';
+ export const BOOTSTRAP_POLICY = Object.freeze({ expectedChainId: 1, pinBy: 'hash',
+   portal: '0x49048044d57e1c92a77f79988d21fa8faf74e97e', asr: '0x909f6cf47ed12f010a796527f562bfc26c7f4e72',
+   portalAsrGetter: 'anchorStateRegistry()', maxFinalizedAgeSec: 1800 });
+@@ -113,10 +116,22 @@
+           }
+           // Both durable writes precede publication. A partially committed pair
+           // fences this process; restart re-derives through the stricter floor.
+-          journal.accept(proof.agreed, accepted);
++          await journal.accept(proof.agreed, accepted, { signal: proofSignal });
++          proofSignal.throwIfAborted();
++          if (closed) throw Error('derived provider closed');
++          await consistentL1(proof.head, proofSignal); proofSignal.throwIfAborted();
++          if (closed) throw Error('derived provider closed');
+           publishCoverage?.();
+         } catch (e) { closed = true; latest = null; throw e; }
+-        agreed = accepted; latest = accepted;
++        agreed = accepted;
++        // Catch-up can advance durable progress without publishing a serving
++        // anchor. Replication latency must not turn an aged result into fresh authority.
++        const age = Math.floor(now() / 1000) - accepted.base.timestamp;
++        if (age > maxAnchorAgeSec || age < -2) {
++          latest = null;
++          return { status: 'recovering', verifiedThrough: accepted.base.number, reason: 'derived anchor outside freshness bound' };
++        }
++        latest = accepted;
+         return { status: 'verified', anchor: structuredClone(accepted) };
+       });
+     },
+@@ -147,36 +162,145 @@
+ // Called INSIDE the accepted image/domain. Its measured release pins this code,
+ // L1 binary/checkpoint, native build and library closure. No host status endpoint
+ // or arbitrary local process is substituted for those components.
+-export async function startDerivedReader(config, options = {}) {
+-  const { stateDir, initializeState = false, native, l1: l1Config, a1Config = BOOTSTRAP_POLICY, baseUrl } = config;
+-  if (!path.isAbsolute(stateDir) || Object.entries(BOOTSTRAP_POLICY).some(([key, value]) => a1Config[key] !== value))
+-    throw Error('derived reader needs private state and the reviewed ASR bootstrap policy');
++export function derivedReaderLayout(config) {
++  const split = ['journalDir', 'coverageDir', 'runsDir'].some(k => config[k] !== undefined);
++  if (split && config.stateDir !== undefined) throw Error('ambiguous legacy and split reader directories');
++  const paths = split ? { journalDir: config.journalDir, coverageDir: config.coverageDir, runsDir: config.runsDir }
++    : { journalDir: config.stateDir, coverageDir: path.join(config.stateDir || '', 'coverage'), runsDir: path.join(config.stateDir || '', 'runs') };
++  if (Object.values(paths).some(p => typeof p !== 'string' || !path.isAbsolute(p))) throw Error('absolute reader directories required');
++  for (const key of Object.keys(paths)) paths[key] = path.resolve(paths[key]);
++  if (split) for (const [i, a] of Object.values(paths).entries()) for (const b of Object.values(paths).slice(i + 1))
++    if (a === b || a.startsWith(b + path.sep) || b.startsWith(a + path.sep)) throw Error('split reader directories must be disjoint');
++  return { ...paths, split };
++}
++function readerConfiguration(config, options) {
++  const layout = derivedReaderLayout(config);
++  const { native, l1: l1Config, a1Config = BOOTSTRAP_POLICY, baseUrl } = config;
++  if (Object.entries(BOOTSTRAP_POLICY).some(([key, value]) => a1Config[key] !== value))
++    throw Error('derived reader needs the reviewed ASR bootstrap policy');
+   const resultVersion = native?.resultVersion ?? 2;
+   if (![2, 3].includes(resultVersion) || resultVersion === 3 && (config.intermediateBlockInterval ?? 1) !== 1)
+     throw Error('invalid native result version or coverage interval');
+   const builds = options.acceptedDerivationBuilds || (resultVersion === 3 ? DERIVATION_V3_BUILDS : DERIVATION_BUILDS);
+   if (!builds[native?.sha256]) throw Error('no qualified native derivation build configured');
+-  fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+-  const privateDirectory = directory => {
+-    const stat = fs.lstatSync(directory);
+-    if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid() || (stat.mode & 0o077))
+-      throw Error('reader state directories must be private and owned by the runtime user');
+-  };
+-  privateDirectory(stateDir);
+   const checkpoint = readCheckpoint(l1Config.checkpointFile, { accepted: options.l1Options?.acceptedCheckpoints, now: options.now || Date.now });
+   const binding = createHash('sha256').update(JSON.stringify({ chain: 8453, native: native.sha256,
+     nativeRuntime: native.runtime?.build ?? null, l1Runtime: l1Config.runtime?.build ?? null,
+     l1: l1Config.binary.sha256, checkpoint: checkpoint.digest, a1: a1Config, interval: config.intermediateBlockInterval ?? 1,
+     ...(resultVersion === 3 ? { resultVersion, historyMaximumBytes: config.historyMaximumBytes ?? MAX_HISTORY_BYTES } : {}) })).digest('hex');
+-  const journal = await openDerivedJournal(stateDir, { binding, initialize: initializeState });
+-  let l1, provider, runDir, coverageStore;
++  return { ...layout, native, l1Config, a1Config, baseUrl, resultVersion, builds, binding };
++}
++function privateDirectory(directory) {
++  const stat = fs.lstatSync(directory);
++  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid() || (stat.mode & 0o077))
++    throw Error('reader state directories must be private and owned by the runtime user');
++}
++// This is the binding the admin signs; computing it does not start a reader or
++// grant authority. Test-only build/checkpoint capabilities remain options, never JSON.
++export const derivedReaderBinding = (config, options = {}) => readerConfiguration(config, options).binding;
++function canonicalJson(value) {
++  if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
++  if (typeof value === 'number' && Number.isSafeInteger(value)) return JSON.stringify(value);
++  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
++  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype)
++    return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${canonicalJson(value[k])}`).join(',')}}`;
++  throw Error('invalid canonical enrollment value');
++}
++export const derivedEnrollmentFloorDigest = floor => {
++  if (floor !== null) validateAnchor(floor);
++  return journalBytesDigest(canonicalJson(floor));
++};
++
++// Explicit GENESIS enrollment only. verifyEnrollment is a trusted in-domain
++// provider capability, never JSON. It owns signature, group/image/boot binding,
++// prior-enrollment and committed-majority checks. Rotation and recovery require
++// a separate carry-floor implementation and are refused by this version.
++export async function enrollDerivedState(config, { anchorJournal, verifyEnrollment, commit,
++  commitTimeoutMs = 10000, signal, ...options } = {}) {
++  const { journalDir, coverageDir, runsDir, split, binding } = readerConfiguration(config, options);
++  validateJournalCommit({ commit, requireCommit: true, commitTimeoutMs });
++  if (!split || config.initializeState === true || typeof verifyEnrollment !== 'function' ||
++      typeof anchorJournal !== 'string' || !path.isAbsolute(anchorJournal))
++    throw Error('explicit split-state enrollment with a verified provider is required');
++  anchorJournal = path.resolve(anchorJournal);
++  const file = path.join(journalDir, 'derived-state.json'), marker = path.join(journalDir, '.enrollment-inflight');
++  if (anchorJournal === file || path.dirname(anchorJournal) === journalDir ||
++      [coverageDir, runsDir].some(p => anchorJournal === p || anchorJournal.startsWith(p + path.sep)))
++    throw Error('anchor journal must be separate from reader, cache and run directories');
++  for (const dir of [journalDir, path.dirname(anchorJournal)]) {
++    fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); privateDirectory(dir);
++  }
++  if (fs.realpathSync(journalDir) !== journalDir || fs.realpathSync(path.dirname(anchorJournal)) !== path.dirname(anchorJournal))
++    throw Error('enrollment paths must be canonical');
++  const unlock = await takeRuntimeLock(path.join(journalDir, 'derived-state.lock'), { signal });
++  let unlockAnchor, timer, onAbort;
++  const controller = new AbortController();
++  const abort = () => controller.abort(signal.reason);
++  signal?.addEventListener('abort', abort, { once: true });
+   try {
+-    if (resultVersion === 3) coverageStore = await openCoverageStore(path.join(stateDir, 'coverage'), {
+-      binding, initialize: initializeState, maximumBytes: config.historyMaximumBytes ?? MAX_HISTORY_BYTES });
+-    const runs = path.join(stateDir, 'runs'); fs.mkdirSync(runs, { recursive: true, mode: 0o700 });
+-    privateDirectory(runs);
++    signal?.throwIfAborted();
++    unlockAnchor = await takeRuntimeLock(`${anchorJournal}.lock`, { signal });
++    if ([file, anchorJournal, marker].some(p => fs.existsSync(p) || fs.existsSync(`${p}.strict.tmp`)))
++      throw Error('existing or uncertain enrollment state; explicit recovery required');
++    const floorDigest = derivedEnrollmentFloorDigest(null);
++    const deadline = new Promise((_, reject) => {
++      onAbort = () => reject(controller.signal.reason || Error('enrollment verification aborted'));
++      controller.signal.addEventListener('abort', onAbort, { once: true });
++      timer = setTimeout(() => controller.abort(Error('enrollment verification timeout')), commitTimeoutMs);
++    });
++    const verified = await Promise.race([
++      Promise.resolve().then(() => {
++        controller.signal.throwIfAborted();
++        return verifyEnrollment(Object.freeze({ binding, floorDigest, signal: controller.signal }));
++      }), deadline,
++    ]);
++    clearTimeout(timer); controller.signal.removeEventListener('abort', onAbort);
++    signal?.throwIfAborted(); controller.signal.throwIfAborted();
++    if (verified?.format !== 'enclave-derived-enrollment-result/v1' || verified.binding !== binding ||
++        !/^[0-9a-f]{64}$/.test(verified.digest || '') || verified.mode !== 'genesis' ||
++        verified.floorDigest !== floorDigest || verified.highWater !== null || !verified.priorFiles ||
++        typeof verified.priorFiles !== 'object' || Array.isArray(verified.priorFiles) || Object.keys(verified.priorFiles).length)
++      throw Error('provider did not verify a new genesis enrollment; rotation/recovery unsupported');
++    // This marker is local fencing, not another replicated journal. A failed
++    // final ACK must not allow this RAM working copy to be reopened as enrolled.
++    // The role may replace RAM copies only from its validated committed state.
++    strictWriteFile(marker, JSON.stringify({ binding, enrollmentDigest: verified.digest }));
++    const state = { format: 'enclave-derived-root-journal/v1', binding, floor: null, entries: [],
++      enrollment: { digest: verified.digest, phase: 'pending' } };
++    const persist = async (target, bytes) => {
++      signal?.throwIfAborted(); controller.signal.throwIfAborted();
++      strictWriteFile(target, bytes);
++      await commitJournalBytes(commit, { file: target, bytes, signal: controller.signal }, commitTimeoutMs);
++      signal?.throwIfAborted(); controller.signal.throwIfAborted();
++    };
++    await persist(file, JSON.stringify(state));
++    await persist(anchorJournal, JSON.stringify({ version: 1, deployments: [], authorityAnchors: {} }));
++    state.enrollment.phase = 'committed';
++    await persist(file, JSON.stringify(state));
++    fs.unlinkSync(marker);
++    const fd = fs.openSync(journalDir, 'r');
++    try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
++    return { binding, enrollmentDigest: verified.digest, floorDigest };
++  } finally {
++    clearTimeout(timer); if (onAbort) controller.signal.removeEventListener('abort', onAbort);
++    controller.abort(); signal?.removeEventListener('abort', abort);
++    unlockAnchor?.(); unlock();
++  }
++}
++export async function startDerivedReader(config, options = {}) {
++  const { journalDir, coverageDir, runsDir: runs, split, native, l1Config, a1Config, baseUrl, resultVersion, builds, binding } = readerConfiguration(config, options);
++  const initializeState = config.initializeState ?? false;
++  for (const dir of [journalDir, runs]) { fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); privateDirectory(dir); }
++  const journal = await openDerivedJournal(journalDir, { binding, initialize: initializeState,
++    commit: options.journalCommit, requireCommit: options.requireJournalCommit, commitTimeoutMs: options.commitTimeoutMs });
++  let l1, provider, runDir, coverageStore, unlockRuns;
++  try {
++    unlockRuns = await takeRuntimeLock(path.join(runs, 'runs.lock'));
++    if (resultVersion === 3) coverageStore = await openCoverageStore(coverageDir, {
++      binding, initialize: split || initializeState, maximumBytes: config.historyMaximumBytes ?? MAX_HISTORY_BYTES });
+     // Reap only task-owned saved child identities under this journal's lock.
+     for (const name of fs.readdirSync(runs)) {
++      if (name === 'runs.lock') continue;
+       if (!/^run-[A-Za-z0-9]+$/.test(name)) throw Error('unexpected derived runtime directory');
+       const old = path.join(runs, name);
+       if (fs.lstatSync(old).isSymbolicLink() || !fs.statSync(old).isDirectory()) throw Error('invalid saved reader run directory');
+@@ -208,10 +332,11 @@
+       bootstrap: params => authenticateBootstrap({ l1, execution, base, a1Config, ...params, now: options.now || Date.now }),
+       maxBlocks: config.maxBlocks, intermediateBlockInterval: config.intermediateBlockInterval, maxAnchorAgeSec: config.maxAnchorAgeSec,
+       nativeTimeoutMs: config.nativeTimeoutMs, maxWitnessBytes: config.maxWitnessBytes, maxMemoryMiB: config.maxMemoryMiB, now: options.now || Date.now });
+-    return Object.freeze({ ...provider, async close() { await provider.close(); await l1.close(); coverageStore?.close(); journal.close(); fs.rmSync(runDir, { recursive: true, force: true }); } });
++    return Object.freeze({ ...provider, async close() { await provider.close(); await l1.close(); coverageStore?.close(); await journal.close(); fs.rmSync(runDir, { recursive: true, force: true }); unlockRuns?.(); } });
+   } catch (e) {
+-    await provider?.close(); await l1?.close(); coverageStore?.close(); journal.close();
++    await provider?.close(); await l1?.close(); coverageStore?.close(); await journal.close();
+     if (runDir) fs.rmSync(runDir, { recursive: true, force: true });
++    unlockRuns?.();
+     throw e;
+   }
+ }
+diff --git a/network/journal-commit.mjs b/network/journal-commit.mjs
+new file mode 100644
+--- /dev/null
++++ b/network/journal-commit.mjs
+@@ -0,0 +1,37 @@
++// Only a trusted in-domain adapter may implement this hook. Returning true must
++// mean these exact bytes have reached a committed replica majority. A local
++// write, an IPC request queued for delivery, or an HTTP response is insufficient.
++// This module neither discovers replicas nor authenticates archive recovery.
++import { createHash } from 'node:crypto';
++export const journalBytesDigest = bytes => createHash('sha256').update(bytes).digest('hex');
++export function validateJournalCommit({ commit, requireCommit = false, commitTimeoutMs = 10000 }) {
++  if ((commit != null && typeof commit !== 'function') || requireCommit && typeof commit !== 'function')
++    throw Error('trusted durable journal commit adapter required');
++  if (!Number.isInteger(commitTimeoutMs) || commitTimeoutMs < 1 || commitTimeoutMs > 30000)
++    throw Error('invalid durable journal commit timeout');
++}
++export async function commitJournalBytes(commit, { file, bytes, signal }, commitTimeoutMs = 10000) {
++  signal?.throwIfAborted();
++  if (!commit) return;
++  const copy = Buffer.from(bytes), sha256 = journalBytesDigest(copy), controller = new AbortController();
++  const abort = () => controller.abort(signal.reason);
++  signal?.addEventListener('abort', abort, { once: true });
++  let timer, onAbort;
++  const deadline = new Promise((_, reject) => {
++    onAbort = () => reject(controller.signal.reason || Error('journal commit aborted'));
++    controller.signal.addEventListener('abort', onAbort, { once: true });
++    timer = setTimeout(() => controller.abort(Error('durable journal commit timeout')), commitTimeoutMs);
++  });
++  try {
++    const work = Promise.resolve().then(() => {
++      controller.signal.throwIfAborted();
++      return commit(Object.freeze({ file, bytes: copy, sha256, signal: controller.signal }));
++    });
++    const accepted = await Promise.race([work, deadline]);
++    controller.signal.throwIfAborted(); signal?.throwIfAborted();
++    if (accepted !== true || journalBytesDigest(copy) !== sha256) throw Error('exact journal bytes were not durably committed');
++  } finally {
++    clearTimeout(timer); signal?.removeEventListener('abort', abort);
++    controller.signal.removeEventListener('abort', onAbort); controller.abort();
++  }
++}
+diff --git a/network/lifecycle-finality-bridge.mjs b/network/lifecycle-finality-bridge.mjs
+--- a/network/lifecycle-finality-bridge.mjs
++++ b/network/lifecycle-finality-bridge.mjs
+@@ -54,8 +54,8 @@
+       const client = pinnedClient({ b: number, hash: b.hash, request, chainId, alive });
+       const value = await read(client, number, header); alive();
+       await match(); fresh(); alive();
+-      // Persist synchronously, with rollback checking, before publishing.
+-      journal.acceptAnchor(chainId, { base: b, l1, tier: anchor.tier }); alive();
++      // Commit the exact journal bytes, with rollback checking, before publishing.
++      await journal.acceptAnchor(chainId, { base: b, l1, tier: anchor.tier }, { signal: ac.signal }); alive(); fresh();
+       return { blockNumber: number, blockHash: b.hash, stateRoot: b.stateRoot,
+         timestamp: b.timestamp * 1000, observedAt: now(), value,
+         evidence: { authority: 'consumer-domain-derivation', tier: anchor.tier, proofVerified: true,
+diff --git a/test/derived-reader/coverage.test.mjs b/test/derived-reader/coverage.test.mjs
+--- a/test/derived-reader/coverage.test.mjs
++++ b/test/derived-reader/coverage.test.mjs
+@@ -3,7 +3,7 @@
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ import path from 'node:path';
+-import { createDerivedProvider, startDerivedReader } from '../../network/derived-reader/provider.mjs';
++import { createDerivedProvider, startDerivedReader, enrollDerivedState } from '../../network/derived-reader/provider.mjs';
+ import { openDerivedJournal } from '../../network/derived-reader/journal.mjs';
+ import { openCoverageStore } from '../../network/derived-reader/coverage-store.mjs';
+ import { validateCoverage, LEASE_TOPICS, COVERAGE_FORMAT, FILTER_ID, MAX_COVERAGE_BYTES } from '../../network/derived-reader/coverage.mjs';
+@@ -156,7 +156,7 @@
+   const reader=await startDerivedReader(config,options);t.after(()=>reader.close());
+   assert.equal(reader.status().resultVersion,3);assert.equal(reader.status().coverage.verifiedFromBlock,null);
+   assert.equal(reader.status().coverage.maximumBytes,4*1024**3);
+-  await reader.close();assert.deepEqual(fs.readdirSync(path.join(stateDir,'runs')),[]);
++  await reader.close();assert.deepEqual(fs.readdirSync(path.join(stateDir,'runs')),['runs.lock']);
+   fs.unlinkSync(path.join(stateDir,'coverage','manifest.json'));
+   await assert.rejects(startDerivedReader({...config,initializeState:false},options),/manifest missing/);
+ });
+@@ -183,3 +183,29 @@
+   f.now+=121000;
+   await assert.rejects(snapshot(()=>null),/age bound/,'the consumer 120-second policy was not relaxed to the reader bound');
+ });
++test('split v3 runtime rebuilds a missing disposable cache and owns its shared run directory exclusively', async t => {
++  const f = await setup(t); await f.l1.close();
++  const sha256 = await sha256File(f.native), root = path.join(f.directory, 'split');
++  const config = { journalDir: path.join(root, 'journal'), coverageDir: path.join(root, 'cache'), runsDir: path.join(root, 'runs'),
++    native: { path: f.native, sha256, resultVersion: 3 }, l1: f.l1Config, baseUrl: 'http://127.0.0.1:1' };
++  const options = { now: () => f.now, l1Options: f.l1Options, acceptedDerivationBuilds: { [sha256]: 'v3 composition fixture' } };
++  const commit = async () => true; // transport stand-in, no consensus claim
++  const enroll = (cfg, name) => enrollDerivedState(cfg, { ...options, commit, anchorJournal: path.join(root, name),
++    verifyEnrollment: async ({ binding, floorDigest }) => ({ format: 'enclave-derived-enrollment-result/v1', binding,
++      digest: '1'.repeat(64), mode: 'genesis', floorDigest, highWater: null, priorFiles: {} }) });
++  await enroll(config, 'anchor.json');
++  const required = { ...options, journalCommit: commit, requireJournalCommit: true };
++  let reader = await startDerivedReader(config, required); t.after(() => reader.close());
++  assert.equal(reader.status().coverage.savedFloor, null);
++  const other = { ...config, journalDir: path.join(root, 'other-journal'), coverageDir: path.join(root, 'other-cache') };
++  await enroll(other, 'other-anchor.json');
++  await assert.rejects(startDerivedReader(other, required), /in use/);
++  await reader.close();
++  fs.rmSync(config.coverageDir, { recursive: true });
++  reader = await startDerivedReader(config, required);
++  assert.equal(reader.status().coverage.verifiedToBlock, null);
++  await assert.rejects(reader.readAnchor(), /no locally derived/);
++  await reader.close();
++  fs.unlinkSync(path.join(config.journalDir, 'derived-state.json'));
++  await assert.rejects(startDerivedReader(config, required), /missing/);
++});
+diff --git a/test/derived-reader/provider.test.mjs b/test/derived-reader/provider.test.mjs
+--- a/test/derived-reader/provider.test.mjs
++++ b/test/derived-reader/provider.test.mjs
+@@ -99,9 +99,43 @@
+   assert.equal(reader.status().hasDerivedAnchor, false);
+   await assert.rejects(reader.readAnchor(), /no locally derived/);
+   await reader.close();
+-  assert.deepEqual(fs.readdirSync(path.join(stateDir, 'runs')), []);
++  assert.deepEqual(fs.readdirSync(path.join(stateDir, 'runs')), ['runs.lock']);
+   fs.appendFileSync(f.l1Config.checkpointFile, '\n');
+   const next = createHash('sha256').update(fs.readFileSync(f.l1Config.checkpointFile)).digest('hex');
+   options.l1Options = { ...f.l1Options, acceptedCheckpoints: { [next]: 'rotated fixture' } };
+   await assert.rejects(startDerivedReader(config, options), /binding/);
+ });
++test('native result awaits replication and rechecks freshness before publishing', async t => {
++  const f = await setup(t);
++  let ack, entered;
++  const reached = new Promise(resolve => { entered = resolve; });
++  const journal = await openDerivedJournal(f.directory, { binding: 'a'.repeat(64), initialize: true,
++    commit: () => { entered(); return new Promise(resolve => { ack = resolve; }); } });
++  t.after(() => journal.close());
++  const p = await createDerivedProvider({ l1: f.l1, journal, executable: f.native, workDir: f.directory,
++    now: () => f.now, bootstrap: async () => f.agreed, base: async () => f.candidate, maxAnchorAgeSec: 120 });
++  t.after(() => p.close());
++  const ticket = await p.prepare({ blockNumber: 101, rollupConfigTemplate: { l2_chain_id: 8453 } });
++  let returned = false;
++  const pending = p.submit({ ticket: ticket.ticket, witness: Buffer.from(JSON.stringify(nativeResult(ticket, f.candidate))) })
++    .then(value => { returned = true; return value; });
++  await reached; assert.equal(returned, false);
++  await assert.rejects(p.readAnchor(), /pending|busy/);
++  f.now += 121000; ack(true);
++  const result = await pending;
++  assert.equal(result.status, 'recovering'); assert.equal(result.verifiedThrough, 101);
++  assert.equal(journal.read().floor.base.number, 101);
++  await assert.rejects(p.readAnchor(), /no locally derived/);
++});
++test('L1 consistency is rechecked after an exact journal ACK', async t => {
++  const f = await setup(t);
++  const journal = await openDerivedJournal(f.directory, { binding: 'a'.repeat(64), initialize: true,
++    commit: async () => { f.l1Header.hash = `0x${'ab'.repeat(32)}`; f.save(); return true; } });
++  t.after(() => journal.close());
++  const p = await createDerivedProvider({ l1: f.l1, journal, executable: f.native, workDir: f.directory,
++    now: () => f.now, bootstrap: async () => f.agreed, base: async () => f.candidate });
++  t.after(() => p.close());
++  const ticket = await p.prepare({ blockNumber: 101, rollupConfigTemplate: { l2_chain_id: 8453 } });
++  await assert.rejects(p.submit({ ticket: ticket.ticket, witness: Buffer.from(JSON.stringify(nativeResult(ticket, f.candidate))) }), /no longer matches/);
++  await assert.rejects(p.readAnchor(), /closed/);
++});
+diff --git a/test/journal-durability.test.mjs b/test/journal-durability.test.mjs
+new file mode 100644
+--- /dev/null
++++ b/test/journal-durability.test.mjs
+@@ -0,0 +1,176 @@
++// Durability/control-flow tests. The provider capability below is a local test
++// double; this suite does NOT qualify signatures, replica consensus or IPC.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { commitJournalBytes, journalBytesDigest } from '../network/journal-commit.mjs';
++import { openDerivedJournal } from '../network/derived-reader/journal.mjs';
++import { derivedReaderBinding, derivedReaderLayout, derivedEnrollmentFloorDigest, enrollDerivedState } from '../network/derived-reader/provider.mjs';
++import { openLifecycleJournal } from '../network/deployment-lifecycle-journal.mjs';
++import { ownLifecycleJournal } from '../network/deployment-journal-owner.mjs';
++import { openCoverageStore } from '../network/derived-reader/coverage-store.mjs';
++
++const hash = n => `0x${n.toString(16).padStart(64, '0')}`;
++const binding = 'ab'.repeat(32), digest = 'cd'.repeat(32);
++const anchor = n => ({ tier: 'l1-finalized-derived',
++  base: { number: n, hash: hash(n), timestamp: 1000 + n, stateRoot: hash(n + 10), outputRoot: hash(n + 20), messagePasserStorageRoot: hash(n + 30) },
++  l1: { number: n + 100, hash: hash(n + 100), timestamp: 999 + n, stateRoot: hash(n + 110) } });
++const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
++function directory(t) {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'journal-durability-'));
++  t.after(() => fs.rmSync(dir, { force: true, recursive: true })); return dir;
++}
++function fixture(t) {
++  const dir = directory(t), slot = 15511008, checkpointFile = path.join(dir, 'checkpoint.json');
++  const bytes = JSON.stringify({ format: 'enclave-l1-checkpoint/v1', network: 'mainnet', slot, root: hash(99) });
++  fs.writeFileSync(checkpointFile, bytes);
++  const options = { now: () => (1606824023 + slot * 12) * 1000,
++    acceptedDerivationBuilds: { [binding]: 'test only; no native invocation' },
++    l1Options: { acceptedCheckpoints: { [journalBytesDigest(bytes)]: 'test only' } } };
++  const config = { journalDir: path.join(dir, 'journal'), coverageDir: path.join(dir, 'cache'), runsDir: path.join(dir, 'runs'),
++    native: { sha256: binding }, l1: { checkpointFile, binary: { sha256: digest } } };
++  const anchorJournal = path.join(dir, 'anchor.json'), computed = derivedReaderBinding(config, options);
++  const answer = { format: 'enclave-derived-enrollment-result/v1', binding: computed, mode: 'genesis', digest,
++    floorDigest: derivedEnrollmentFloorDigest(null), highWater: null, priorFiles: {} };
++  const calls = [];
++  const enrollOptions = { ...options, anchorJournal,
++    verifyEnrollment: async q => { assert.equal(q.binding, computed); assert.equal(q.floorDigest, answer.floorDigest); return answer; },
++    commit: async q => { calls.push({ ...q, bytes: Buffer.from(q.bytes) }); return true; } };
++  return { dir, config, options, anchorJournal, answer, calls, enrollOptions };
++}
++function seed(dir) {
++  fs.writeFileSync(path.join(dir, 'derived-state.json'), JSON.stringify({ format: 'enclave-derived-root-journal/v1',
++    binding, floor: null, entries: [], enrollment: { digest, phase: 'committed' } }));
++}
++
++test('exact bytes are copied, hashed and acknowledged strictly; false, mutation and deadlines refuse', async () => {
++  const input = Buffer.from('journal');
++  await commitJournalBytes(async q => {
++    assert.notEqual(q.bytes, input); assert.equal(q.sha256, journalBytesDigest(input));
++    assert.equal(q.file, '/private/journal'); return true;
++  }, { file: '/private/journal', bytes: input });
++  for (const reply of [undefined, false, { ok: true }])
++    await assert.rejects(commitJournalBytes(async () => reply, { file: '/j', bytes: input }), /not durably committed/);
++  await assert.rejects(commitJournalBytes(async q => { q.bytes[0] ^= 1; return true; }, { file: '/j', bytes: input }), /not durably committed/);
++  let signal;
++  await assert.rejects(commitJournalBytes(q => { signal = q.signal; return new Promise(() => {}); }, { file: '/j', bytes: input }, 20), /timeout/);
++  assert.equal(signal.aborted, true);
++});
++test('derived floor is unavailable until exact byte ACK; concurrent reads and writes cannot publish', async t => {
++  const dir = directory(t); seed(dir);
++  const entered = deferred(), ack = deferred(); let request;
++  const j = await openDerivedJournal(dir, { binding, requireCommit: true,
++    commit: q => { request = q; entered.resolve(); return ack.promise; } }); t.after(() => j.close());
++  const pending = j.accept(anchor(1), anchor(2)); await entered.promise;
++  assert.deepEqual(request.bytes, fs.readFileSync(request.file));
++  assert.equal(request.sha256, journalBytesDigest(request.bytes));
++  assert.throws(() => j.read(), /pending/);
++  await assert.rejects(j.accept(anchor(2), anchor(3)), /pending/);
++  ack.resolve(true); await pending;
++  assert.equal(j.read().floor.base.number, 2);
++});
++test('lost ACK fences derived journal permanently and late ACK cannot revive it', async t => {
++  const dir = directory(t); seed(dir); const ack = deferred();
++  const j = await openDerivedJournal(dir, { binding, requireCommit: true, commitTimeoutMs: 20, commit: () => ack.promise });
++  t.after(() => j.close());
++  await assert.rejects(j.accept(anchor(1), anchor(2)), /timeout/);
++  ack.resolve(true); await Promise.resolve();
++  assert.throws(() => j.read(), /failed/);
++  await assert.rejects(j.accept(anchor(2), anchor(3)), /failed/);
++});
++test('close aborts pending derived commit and releases exclusion after local settlement', async t => {
++  const dir = directory(t); seed(dir); const entered = deferred(), ack = deferred();
++  const j = await openDerivedJournal(dir, { binding, requireCommit: true, commit: () => { entered.resolve(); return ack.promise; } });
++  const accepted = j.accept(anchor(1), anchor(2)); const refused = assert.rejects(accepted, /closed/);
++  await entered.promise;
++  await assert.rejects(openDerivedJournal(dir, { binding }), /in use/);
++  await j.close(); await refused; ack.resolve(true);
++  assert.throws(() => j.read(), /closed/);
++  const reopened = await openDerivedJournal(dir, { binding }); await reopened.close();
++});
++test('required replication cannot initialize missing or unenrolled journals', async t => {
++  const dir = directory(t), file = path.join(dir, 'anchor.json'), commit = async () => true;
++  assert.throws(() => openLifecycleJournal(file, { requireExisting: true }), /missing/);
++  assert.throws(() => openLifecycleJournal(file, { requireCommit: true, commit }), /missing/);
++  await assert.rejects(openDerivedJournal(dir, { binding, initialize: true, requireCommit: true, commit }), /enrollment/);
++  const legacy = await openDerivedJournal(dir, { binding, initialize: true }); await legacy.close();
++  await assert.rejects(openDerivedJournal(dir, { binding, requireCommit: true, commit }), /enrollment/);
++});
++test('lifecycle anchor publication waits for ACK, rows refuse replication bypass, close preserves exclusion', async t => {
++  const dir = directory(t), file = path.join(dir, 'anchor.json');
++  fs.writeFileSync(file, JSON.stringify({ version: 1, deployments: [], authorityAnchors: {} }));
++  const entered = deferred(), ack = deferred();
++  const owner = await ownLifecycleJournal(file, { requireCommit: true, commit: q => {
++    assert.deepEqual(q.bytes, fs.readFileSync(file)); entered.resolve(); return ack.promise;
++  } }); t.after(() => owner.close());
++  assert.throws(() => owner.journal.beginAttempt(hash(1)), /cannot mutate lifecycle rows/);
++  const pending = owner.journal.acceptAnchor(8453, anchor(2)); const refused = assert.rejects(pending, /closed/);
++  await entered.promise;
++  assert.throws(() => owner.journal.readAnchor(8453), /pending/);
++  await assert.rejects(ownLifecycleJournal(file), /in use/);
++  await owner.close(); await refused; ack.resolve(true);
++  const again = await ownLifecycleJournal(file); await again.close();
++});
++test('split paths are explicit and disjoint; legacy layout remains available', () => {
++  assert.deepEqual(derivedReaderLayout({ stateDir: '/state' }), { journalDir: '/state', coverageDir: '/state/coverage', runsDir: '/state/runs', split: false });
++  const valid = { journalDir: '/state/journal', coverageDir: '/cache', runsDir: '/state/runs' };
++  assert.equal(derivedReaderLayout(valid).split, true);
++  for (const bad of [{ ...valid, stateDir: '/state' }, { ...valid, coverageDir: '/state/journal/cache' },
++    { ...valid, runsDir: '/cache' }, { ...valid, runsDir: 'relative' }, { journalDir: '/journal' }])
++    assert.throws(() => derivedReaderLayout(bad), /ambiguous|disjoint|absolute/);
++});
++test('verified genesis seeds both exact journals before opening; cached or JSON enrollment grants nothing', async t => {
++  const f = fixture(t), r = await enrollDerivedState(f.config, f.enrollOptions);
++  assert.equal(r.binding, f.answer.binding); assert.equal(f.calls.length, 3);
++  assert.deepEqual(f.calls.map(q => q.file), [path.join(f.config.journalDir, 'derived-state.json'), f.anchorJournal, path.join(f.config.journalDir, 'derived-state.json')]);
++  assert.equal(JSON.parse(f.calls[0].bytes).enrollment.phase, 'pending');
++  assert.equal(JSON.parse(f.calls[2].bytes).enrollment.phase, 'committed');
++  assert.equal(fs.existsSync(f.config.coverageDir), false); assert.equal(fs.existsSync(f.config.runsDir), false);
++  assert.equal(fs.existsSync(path.join(f.config.journalDir, '.enrollment-inflight')), false);
++  const j = await openDerivedJournal(f.config.journalDir, { binding: r.binding, requireCommit: true, commit: f.enrollOptions.commit });
++  assert.equal(j.read().floor, null); await j.close();
++  await assert.rejects(enrollDerivedState(f.config, f.enrollOptions), /existing/);
++  const other = fixture(t);
++  await assert.rejects(enrollDerivedState({ ...other.config, enrollment: other.answer }, { ...other.enrollOptions, verifyEnrollment: undefined }), /verified provider/);
++});
++test('provider binding, floor, previous state, rotation and recovery cannot be accepted as genesis', async t => {
++  for (const wrong of [{ binding }, { floorDigest: digest }, { mode: 'rotate' }, { mode: 'recover' },
++    { priorFiles: { 'reader/derived-state.json': digest } }, { highWater: anchor(10) }, { format: 'json-verified' }]) {
++    const f = fixture(t); Object.assign(f.answer, wrong);
++    await assert.rejects(enrollDerivedState(f.config, { ...f.enrollOptions, verifyEnrollment: async () => f.answer }), /provider did not verify/);
++    assert.equal(f.calls.length, 0); assert.equal(fs.existsSync(f.anchorJournal), false);
++  }
++});
++test('every failed seed ACK including final committed-phase write leaves an explicit recovery fence', async t => {
++  for (const failAt of [1, 2, 3]) {
++    const f = fixture(t); let calls = 0;
++    await assert.rejects(enrollDerivedState(f.config, { ...f.enrollOptions, commit: async () => ++calls !== failAt }), /not durably committed/);
++    assert.equal(fs.existsSync(path.join(f.config.journalDir, '.enrollment-inflight')), true);
++    await assert.rejects(openDerivedJournal(f.config.journalDir, { binding: f.answer.binding }), /uncertain/);
++    await assert.rejects(enrollDerivedState(f.config, f.enrollOptions), /existing|uncertain/);
++  }
++});
++test('verification cancellation/deadline makes no journal and ignores late provider success', async t => {
++  const f = fixture(t), entered = deferred(), response = deferred(), ac = new AbortController();
++  const pending = enrollDerivedState(f.config, { ...f.enrollOptions, signal: ac.signal,
++    verifyEnrollment: () => { entered.resolve(); return response.promise; } });
++  const rejected = assert.rejects(pending, /cancel test/); await entered.promise;
++  ac.abort(Error('cancel test')); await rejected; response.resolve(f.answer); await Promise.resolve();
++  assert.equal(f.calls.length, 0); assert.equal(fs.existsSync(f.anchorJournal), false);
++  const g = fixture(t);
++  await assert.rejects(enrollDerivedState(g.config, { ...g.enrollOptions, commitTimeoutMs: 20,
++    verifyEnrollment: () => new Promise(() => {}) }), /verification timeout/);
++  assert.equal(g.calls.length, 0);
++});
++test('an empty disposable coverage cache can initialize; any orphan bytes or temp manifest refuse', async t => {
++  const dir = directory(t), store = await openCoverageStore(dir, { binding, initialize: true });
++  assert.equal(store.status().savedFloor, null); assert.equal(store.status().verifiedToBlock, null); store.close();
++  for (const name of ['manifest.json.strict.tmp', `${'1'.repeat(64)}.json`]) {
++    const other = directory(t); fs.writeFileSync(path.join(other, name), '', { mode: 0o600 });
++    await assert.rejects(openCoverageStore(other, { binding, initialize: true }), /manifest missing/);
++    assert.equal(fs.existsSync(path.join(other, name)), true);
++    assert.equal(fs.existsSync(path.join(other, 'manifest.json')), false);
++  }
++});
+diff --git a/test/lifecycle-finality-bridge.test.mjs b/test/lifecycle-finality-bridge.test.mjs
+--- a/test/lifecycle-finality-bridge.test.mjs
++++ b/test/lifecycle-finality-bridge.test.mjs
+@@ -57,3 +57,31 @@
+   await assert.rejects(restarted(() => true), /rollback/);
+   assert.equal(openLifecycleJournal(file).readAnchor(8453).base.number, 100);
+ });
++test('replication delay cannot publish a snapshot that aged past its original bound', async t => {
++  const f = fixture(), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-commit-'));
++  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const file = path.join(dir, 'journal.json');
++  fs.writeFileSync(file, JSON.stringify({ version: 1, deployments: [], authorityAnchors: {} }));
++  let committed = false;
++  const journal = openLifecycleJournal(file, { requireCommit: true, commit: async ({ bytes, sha256 }) => {
++    assert.deepEqual(bytes, fs.readFileSync(file)); assert.equal(sha256.length, 64);
++    committed = true; f.now = 4000000; return true;
++  } });
++  await assert.rejects(f.create({ journal })(() => 'must not publish'), /age bound/);
++  assert.equal(committed, true); // durable progress is not a freshness grant
++  assert.equal(journal.readAnchor(8453).base.number, 100);
++});
++test('snapshot deadline aborts durable commit; late ACK cannot release a value', async t => {
++  const f = fixture(), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-abort-'));
++  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const file = path.join(dir, 'journal.json');
++  fs.writeFileSync(file, JSON.stringify({ version: 1, deployments: [], authorityAnchors: {} }));
++  let ack, signal, published = false;
++  const journal = openLifecycleJournal(file, { requireCommit: true, commit: q => {
++    signal = q.signal; return new Promise(resolve => { ack = resolve; });
++  } });
++  const pending = f.create({ journal, deadlineMs: 50 })(() => 'secret').then(v => { published = true; return v; });
++  await assert.rejects(pending, /deadline/);
++  assert.equal(signal.aborted, true); ack(true); await new Promise(resolve => setImmediate(resolve));
++  assert.equal(published, false); assert.throws(() => journal.readAnchor(8453), /failed/);
++});

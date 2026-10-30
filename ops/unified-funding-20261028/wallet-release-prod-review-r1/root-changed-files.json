@@ -1,0 +1,9 @@
+[
+  "enclave/site/js/core/wallet-release-census.js",
+  "enclave/site/js/core/wallet-release-chain.js",
+  "enclave/site/js/core/wallet-release-controller.js",
+  "enclave/site/js/core/wallet-release-promote.js",
+  "enclave/site/js/core/wallet-release-store.js",
+  "enclave/test/wallet-release/prod-election.test.mjs",
+  "enclave/test/wallet-release/prod-root.test.mjs"
+]

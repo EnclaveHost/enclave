@@ -1,0 +1,122 @@
+--- r1/producer/base_launch.py
++++ r2/producer/base_launch.py
+@@ -27,7 +27,7 @@
+ A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4/a2a4.py')      # root installs the reviewed stage there (HOLD: not installed)
+ # Re-anchor recovery (base-reanchor-recovery-stage; PREPARED): configs with `reanchor` run the recovery harness copy (a superset
+ # that leaves the first-bootstrap path unchanged); first-bootstrap configs keep the reviewed harness above.
+-RECOVERY_A2A4_SHA256 = 'ae948d4746317e6d3ad7dc3d7fe5704268e4467aa0d639ac73ea9aba7febd8d5'   # base-reanchor-recovery-stage/harness/a2a4.py
++RECOVERY_A2A4_SHA256 = '30273760eeab82d7d4290a8e3f44e5f1565f832ed3a30a17d682691df0c7f830'   # base-reanchor-recovery-stage/harness/a2a4.py
+ RECOVERY_A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')   # HOLD: not installed
+ HARNESS_BINARY_SHA256 = '9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f'  # selection.BASE_BINARY_SHA256 (A2-A4 runs this)
+ BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'   # m7-m10-release-completed-0055
+@@ -162,7 +162,8 @@
+ 
+ 
+ def produce(cfg_path, out_dir, *, A, coverage, release_path=BASE_RELEASE_PATH, release_sha=BASE_RELEASE_SHA256,
+-            harness_binary_sha=HARNESS_BINARY_SHA256, owner=0, top='/', now=None, predecessor=None, archive=None, W=None):
++            harness_binary_sha=HARNESS_BINARY_SHA256, owner=0, top='/', now=None, predecessor=None, archive=None, W=None,
++            watermark=None):
+     """-> {'launchSha256', 'dir'}; refuses unless every binding holds (see module docstring)."""
+     now = now or datetime.datetime.now(datetime.timezone.utc)
+     cfg_bytes = pathlib.Path(cfg_path).read_bytes()
+@@ -222,6 +223,14 @@
+     if (c.get('reanchor') is None) != (predecessor is None):
+         refuse('lineage', 'a re-anchor launch needs exactly its archived predecessor; a first-bootstrap launch has none')
+     pred = _predecessor(predecessor, archive, c['reanchor'], N, anchor, owner, top, W) if predecessor is not None else None
++    wm = None
++    if c.get('reanchor') is not None:                           # r2: bind the accepted authenticated-finality watermark
++        if c['reanchor']['watermarkStore'] != str(watermark or W.BOOTSTRAP_WATERMARK):
++            refuse('watermark', "the harness watermark store is not the wrapper's")
++        try:
++            wm = A.gate_watermark(c, None, a4['blockHash'])
++        except A.Refused as e:
++            refuse('watermark', str(e))
+     # --- publish atomically: a fully written sibling directory renamed into place; never overwrite ---
+     out = pathlib.Path(out_dir)
+     secure_path(out.parent, owner, leaf='dir', top=top)
+@@ -237,6 +246,8 @@
+               'producedAt': now.isoformat(), 'notAfter': (rel_at + datetime.timedelta(seconds=max_age)).isoformat()}
+     if pred is not None:
+         launch['predecessor'] = pred
++    if wm is not None:
++        launch['watermark'] = wm
+     tmp = out.parent / f'.{out.name}.partial-{os.getpid()}'
+     os.mkdir(tmp, 0o755); os.mkdir(tmp / 'qualification', 0o755)
+     for k, f in QUAL.items():
+@@ -331,7 +342,41 @@
+     return {'reason': 'stopped DB unchanged at N', 'checkpoints': cps, 'headerN': h, 'mdbx': want}
+ 
+ 
+-def arm(d, cfg_path, *, A, W, owner=0, top='/', now=None, archive=None):
++def _record_watermark(lsha, launch, cfg_path, A, W, watermark, owner, top, now):
++    """Under the launch lock, before the journal genesis: the watermark is still what produce bound (or this launch's own entry,
++    from an interrupted arm), then this launch's anchor is appended as an accepted authenticated-finality entry."""
++    wmb = launch['watermark']; c = A.load_config(str(cfg_path)); store = pathlib.Path(watermark or W.BOOTSTRAP_WATERMARK)
++    if c.get('reanchor') is None or c['reanchor']['watermarkStore'] != str(store):
++        refuse('watermark', "the harness watermark store is not the wrapper's")
++    try:
++        es = W.watermark_entries(store, owner, top)
++    except AssertionError as e:
++        refuse('watermark', str(e))
++    n, h = launch['anchor'].split(':'); n = int(n)
++    if es and es[-1][1]['kind'] == 'launch-anchor' and es[-1][1]['ref'] == lsha and (es[-1][1]['number'], es[-1][1]['blockHash']) == (n, h):
++        return es[-1][0]                                          # recorded by an interrupted arm: idempotent
++    if wmb.get('legacy') is True:
++        if es:
++            refuse('watermark', 'produced as legacy (no watermark), but an accepted watermark exists now: re-produce')
++        if not os.path.lexists(store):
++            os.mkdir(store, 0o755); _fsync_dir(store.parent)
++        secure_path(store, owner, leaf='dir', top=top)
++    elif not es or es[-1][0] != wmb.get('entrySha256'):
++        refuse('watermark', 'the accepted authenticated-finality watermark changed since produce: re-produce (it is never discarded)')
++    try:
++        return W.watermark_append(store, owner, es, n, h, 'launch-anchor', lsha, now.isoformat(), top)[-1][0]
++    except AssertionError as e:
++        refuse('watermark', str(e))
++
++
++def record_finality(*_a, **_k):
++    """The only other watermark writer (kind finality-proof): a reviewed acceptance of finality past the anchor. HOLD."""
++    if not FINALITY_PROOF_REVIEWED:
++        refuse('hold_finality', 'HOLD: no reviewed finality-proof acceptance writes the watermark (FINALITY_PROOF_REVIEWED is False)')
++    raise AssertionError('unreachable while FINALITY_PROOF_REVIEWED is False')
++
++
++def arm(d, cfg_path, *, A, W, owner=0, top='/', now=None, archive=None, watermark=None):
+     """Genesis: the private root lock file, then the journal with its first entry `armed`. Exactly once per launch directory
+     (an arm interrupted before its first entry landed may be repeated: no entry means nothing was ever armed)."""
+     now = now or datetime.datetime.now(datetime.timezone.utc); d = pathlib.Path(d)
+@@ -341,6 +386,8 @@
+         W.launch_lineage(launch, archive, owner, top)              # predecessor chain + archive coverage (first bootstrap: empty)
+     except AssertionError as e:
+         refuse('lineage', str(e))
++    if launch.get('predecessor') is not None and not isinstance(launch.get('watermark'), dict):
++        refuse('watermark', 'a re-anchor launch must bind the authenticated-finality watermark')
+     if not os.path.lexists(d / 'journal.lock'):
+         os.close(os.open(d / 'journal.lock', os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600))
+         _fsync_dir(d)
+@@ -352,6 +399,8 @@
+             if any(not W.JOURNAL_PARTIAL.fullmatch(n) for n in os.listdir(jd)):
+                 refuse('armed', 'this launch directory was already armed: only rearm (after consumed) or rollback')
+         evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
++        if launch.get('watermark') is not None:
++            evidence = dict(evidence, watermarkEntrySha256=_record_watermark(lsha, launch, cfg_path, A, W, watermark, owner, top, now))
+         if not os.path.lexists(jd):
+             os.mkdir(jd, 0o755); _fsync_dir(d)
+         return _append(d, lsha, [], 'armed', evidence, owner, top, now, W)
+@@ -442,12 +491,13 @@
+             A = load_a2a4(RECOVERY_A2A4_SOURCE, RECOVERY_A2A4_SHA256) if ra else load_a2a4(); W = _installed_wrapper()
+             cov = W.coverage_activation(W.CONFIG, W.ROOT / 'manifest.json', (W.MANIFEST.get('binaries') or {}).get('base'))
+             r = produce(argv[2], argv[3], A=A, coverage=cov, predecessor=argv[4] if len(argv) > 4 else None,
+-                        archive=W.BOOTSTRAP_ARCHIVE, W=W)
++                        archive=W.BOOTSTRAP_ARCHIVE, W=W, watermark=W.BOOTSTRAP_WATERMARK)
+             r['next'] = 'pin chain.json baseBootstrap.anchorLaunch {launchSha256} (reviewed manual step), then arm'
+         elif argv[1] in ('arm', 'rearm'):                                # arm|rearm <launch-dir> <a2a4-config>
+             ra = 'reanchor' in json.loads(pathlib.Path(argv[3]).read_bytes())
+             A = load_a2a4(RECOVERY_A2A4_SOURCE, RECOVERY_A2A4_SHA256) if ra else load_a2a4(); W = _installed_wrapper()
+-            r = arm(argv[2], argv[3], A=A, W=W, archive=W.BOOTSTRAP_ARCHIVE) if argv[1] == 'arm' else rearm(argv[2], argv[3], A=A, W=W)
++            r = arm(argv[2], argv[3], A=A, W=W, archive=W.BOOTSTRAP_ARCHIVE, watermark=W.BOOTSTRAP_WATERMARK) if argv[1] == 'arm' \
++                else rearm(argv[2], argv[3], A=A, W=W)
+         elif argv[1] == 'retire':                                        # retire <launch-dir>
+             W = _installed_wrapper(); r = retire(argv[2], W.BOOTSTRAP_ARCHIVE, W=W)
+         elif argv[1] == 'record-bootstrapped':

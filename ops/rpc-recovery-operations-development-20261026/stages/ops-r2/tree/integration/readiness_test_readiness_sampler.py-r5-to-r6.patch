@@ -1,0 +1,57 @@
+--- a/readiness/test_readiness_sampler.py
++++ b/readiness/test_readiness_sampler.py
+@@ -298,7 +298,7 @@
+         for role in ROLES:
+             a += [f'--{role}-port', str(self.ports[role])]
+         if '--finality-status' not in extra:                # finality r5: a current post-anchor proof for "the node" (this process)
+-            a += ['--finality-status', finality_status_file(self.tmp.name), '--finality-status-uid', str(os.getuid())]
++            a += ['--finality-status', finality_status_file(self.tmp.name, n=1000, h=self.chain.bhash(1000)), '--finality-status-uid', str(os.getuid())]
+         return a + list(extra)
+ 
+     def run(self, *extra):
+@@ -1077,14 +1077,16 @@
+ 
+ 
+ 
+-def finality_status_file(d, start=None, state='qualified'):
+-    """finality r5 fixture: a root-style published status (format of finality_state.publish_status) for THIS test process"""
+-    p = os.path.join(d, f'finality-status-{state}-{start}.json')
++def finality_status_file(d, start=None, state='qualified', n=1137, h='0x' + '11' * 32, age=0):
++    """finality r6 fixture: a root-style published status (finality_state.publish_status format) for THIS test process"""
++    import datetime
++    p = os.path.join(d, f'finality-status-{state}-{start}-{n}-{h[2:10]}-{age}.json')
+     if not os.path.exists(p):
+         st = start or open('/proc/self/stat').read().rsplit(')', 1)[1].split()[19]
++        at = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=age)).isoformat()
+         with open(p, 'w') as f:
+-            json.dump({'format': 'enclave-base-finality-status/v1', 'state': state, 'qualified': state == 'qualified', 'freshN': 1137,
+-                       'freshBlockHash': '0x' + '11' * 32, 'entrySha256': 'ab' * 32, 'process': {'pid': os.getpid(), 'startTime': st}}, f)
++            json.dump({'format': 'enclave-base-finality-status/v1', 'state': state, 'qualified': state == 'qualified', 'freshN': n,
++                       'freshBlockHash': h, 'entrySha256': 'ab' * 32, 'publishedAt': at, 'process': {'pid': os.getpid(), 'startTime': st}}, f)
+         os.chmod(p, 0o644)
+     return p
+ 
+@@ -1095,7 +1097,7 @@
+         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+ 
+     def check(self, path, exc=None, **k):
+-        a = types.SimpleNamespace(finality_status=path, finality_status_uid=k.get('uid', os.getuid()), proc_root='/proc')
++        a = types.SimpleNamespace(finality_status=path, finality_status_uid=k.get('uid', os.getuid()), proc_root='/proc', max_finality_status_age=900)
+         if exc is None:
+             return rs.validate_finality_status(a)
+         with self.assertRaises(exc) as cm:
+@@ -1114,5 +1116,14 @@
+     def test_post_anchor_finality_is_a_readiness_gate(self):
+         self.assertIn('post-anchor-finality', rs.GATES)
+ 
++    def test_stale_publication_and_served_chain_mismatch(self):
++        self.assertEqual(self.check(finality_status_file(self.tmp.name, age=1000), rs.Unavailable), 'finality-status-stale')
++        info = {'freshN': 7, 'freshBlockHash': '0x' + 'aa' * 32}
++        self.assertTrue(rs.served_chain_check(info, lambda *a: {'hash': '0x' + 'AA' * 32}))
++        for blk, exc, code in (({'hash': '0x' + 'bb' * 32}, rs.Negative, 'finality-served-chain-mismatch'), (None, rs.Unavailable, 'finality-block-not-served')):
++            with self.assertRaises(exc) as cm:
++                rs.served_chain_check(info, lambda *a, b=blk: b)
++            self.assertEqual(cm.exception.code, code)
++
+ if __name__ == '__main__':
+     unittest.main(verbosity=2)

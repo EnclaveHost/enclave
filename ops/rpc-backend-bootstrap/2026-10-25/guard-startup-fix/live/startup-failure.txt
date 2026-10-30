@@ -1,0 +1,21 @@
+Oct 25 10:40:06 warden-host python3[3681214]: ENCLAVE-RPC-GUARD: FAIL-CLOSED: cannot reach the guard QMP monitor ([Errno 11] Resource temporarily unavailable); exiting so the VM unit stops
+Oct 25 10:40:06 warden-host systemd[1899]: enclave-rpc-production-guard.service: Main process exited, code=exited, status=3/NOTIMPLEMENTED
+Oct 25 10:40:06 warden-host systemd[1899]: enclave-rpc-production-guard.service: Failed with result 'exit-code'.
+Oct 25 10:40:06 warden-host systemd[1899]: Stopping Enclave RPC backend VM (enclave-rpc-production: reth+lighthouse L1, Base holder; per-disk backing policy)...
+Oct 25 10:40:16 warden-host python3[3682007]: Traceback (most recent call last):
+Oct 25 10:40:16 warden-host python3[3682007]:   File "/home/steven/.local/state/enclave-rpc-production/provision_vm.py", line 1431, in <module>
+Oct 25 10:40:16 warden-host python3[3682007]:     sys.exit(main(sys.argv[1:]))
+Oct 25 10:40:16 warden-host python3[3682007]:              ~~~~^^^^^^^^^^^^^^
+Oct 25 10:40:16 warden-host python3[3682007]:   File "/home/steven/.local/state/enclave-rpc-production/provision_vm.py", line 1416, in main
+Oct 25 10:40:16 warden-host python3[3682007]:     return cmd_powerdown(argv[1])
+Oct 25 10:40:16 warden-host python3[3682007]:   File "/home/steven/.local/state/enclave-rpc-production/provision_vm.py", line 924, in cmd_powerdown
+Oct 25 10:40:16 warden-host python3[3682007]:     f.readline()                                # greeting
+Oct 25 10:40:16 warden-host python3[3682007]:     ~~~~~~~~~~^^
+Oct 25 10:40:16 warden-host python3[3682007]:   File "/usr/lib/python3.14/socket.py", line 729, in readinto
+Oct 25 10:40:16 warden-host python3[3682007]:     return self._sock.recv_into(b)
+Oct 25 10:40:16 warden-host python3[3682007]:            ~~~~~~~~~~~~~~~~~~~~^^^
+Oct 25 10:40:16 warden-host python3[3682007]: TimeoutError: timed out
+Oct 25 10:40:16 warden-host systemd[1899]: enclave-rpc-production-vm.service: Control process exited, code=exited, status=1/FAILURE
+Oct 25 10:40:17 warden-host systemd[1899]: enclave-rpc-production-vm.service: Failed with result 'exit-code'.
+Oct 25 10:40:17 warden-host systemd[1899]: Stopped Enclave RPC backend VM (enclave-rpc-production: reth+lighthouse L1, Base holder; per-disk backing policy).
+Oct 25 10:40:17 warden-host systemd[1899]: enclave-rpc-production-vm.service: Consumed 2min 11.324s CPU time over 1min 12.632s wall clock time, 33.9G memory peak.

@@ -1,0 +1,19 @@
+[queue] START available=24700MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+  "inodeCandidate": 1950053,
+  "generation": 3326586236,
+  "journalSequence": 17169,
+  "physicalBlock": 499155449,
+  "header": [
+    62218,
+    170,
+    340,
+    0,
+    0
+  ],
+  "firstEntriesHex": "0af3aa00540100000000000000000000001000000080ae1f001000000008000000c0af1f001800000020000000b8b11f003800000008000000b0b21f00000300001000000090ae1f",
+  "checksumVerified": false
+}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

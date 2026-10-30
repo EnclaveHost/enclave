@@ -1,0 +1,1 @@
+{"version":1,"mode":"own-rpc","trust":"self-hosted-transport","rpcs":["https://rpc-a.own-node.example/","https://rpc-b.own-node.example/base"],"note":"TEST FIXTURE ONLY: placeholder .example domains; never a production authority"}

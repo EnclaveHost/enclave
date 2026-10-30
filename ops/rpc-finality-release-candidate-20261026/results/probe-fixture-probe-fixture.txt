@@ -1,0 +1,36 @@
+test_empty_params_first_request_is_recorded_not_fatal (__main__.Probes.test_empty_params_first_request_is_recorded_not_fatal) ... /usr/lib/python3.14/unittest/case.py:673: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=0, laddr=('127.0.0.1', 46571)>
+  self.doCleanups()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_full_success_is_still_only_a_diagnostic_with_no_positive_verdict (__main__.Probes.test_full_success_is_still_only_a_diagnostic_with_no_positive_verdict) ... /usr/lib/python3.14/unittest/case.py:673: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=0, laddr=('127.0.0.1', 34533)>
+  self.doCleanups()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_helios_never_ready_is_incomplete_never_complete (__main__.Probes.test_helios_never_ready_is_incomplete_never_complete) ... /usr/lib/python3.14/unittest/case.py:673: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=0, laddr=('127.0.0.1', 38185)>
+  self.doCleanups()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_noble_keccak_kat_from_the_bundle (__main__.Probes.test_noble_keccak_kat_from_the_bundle) ... ok
+test_partial_progress_survives_sigkill_and_is_incomplete (__main__.Probes.test_partial_progress_survives_sigkill_and_is_incomplete) ... /usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=6 encoding='utf-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=4 encoding='utf-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_rpc_errors_are_observations_and_never_abort (__main__.Probes.test_rpc_errors_are_observations_and_never_abort) ... /usr/lib/python3.14/unittest/case.py:704: ResourceWarning: unclosed <socket.socket fd=6, family=2, type=1, proto=0, laddr=('127.0.0.1', 35141)>
+  function, args, kwargs = self._cleanups.pop()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:673: ResourceWarning: unclosed <socket.socket fd=4, family=2, type=1, proto=0, laddr=('127.0.0.1', 44605)>
+  self.doCleanups()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_valid_responses_complete_phase_a (__main__.Probes.test_valid_responses_complete_phase_a) ... /usr/lib/python3.14/unittest/case.py:673: ResourceWarning: unclosed <socket.socket fd=4, family=2, type=1, proto=0, laddr=('127.0.0.1', 42585)>
+  self.doCleanups()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 5.223s
+
+OK

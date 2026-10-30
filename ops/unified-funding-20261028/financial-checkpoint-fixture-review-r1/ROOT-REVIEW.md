@@ -1,0 +1,9 @@
+# Actual owned financial checkpoint fixture
+
+One explicitly coordinated bounded suite executed on the Control VM using the exact installed Node, sessions module, JsonStore and dependencies pinned in the private source profile. Parent/child hashes and dispatch manifest were reviewed. Network namespace had loopback only; public TEST key, local mock RPC and temporary owned journal. No production process attach, stop, restart, key, transaction or mutation. Both owned units/cgroups were confirmed gone; PID228946/start43738495 and production source pins unchanged.
+
+All 11 cases passed: pre-record await, held RPC, replacement send plus queued item, final write/rename failures, stale same-content successful earlier flush plus failed final checkpoint, SIGKILL, pruned unknown retention, archived unknown retention, deliberate extra exit listener/unrecorded send, and rollback contract model. The actual old module's record-before-delegation behavior was exercised. H is only a rollback model, not the production installer.
+
+The attributed successful rename is from a TEST filesystem wrapper and prepended signal marker, not a production observer. The old clean strace collection remains rejected. Matching contents or exit zero alone still fail the stale final-checkpoint case. Held/replacement/archived cases remain financially UNKNOWN and prohibit write resumption. Passing coverage never resolves unknown transactions or authorizes a resend, nonce jump, replacement, cancellation or original-writer rollback.
+
+Bounds: test256MiB/noSwap/120s+3, independent guard64MiB/150s, remote admission4480MiB/runtime floor4096MiB, local shared small256MiB/220RSS/floor27648. Remote minimum6847MiB. Real production observer, stop/checkpoint and reconciliation remain separate gates. productionAcceptance=false. Private 4610-file source profile and raw service paths stay in the work area; public test results contain only TEST data and public identities.

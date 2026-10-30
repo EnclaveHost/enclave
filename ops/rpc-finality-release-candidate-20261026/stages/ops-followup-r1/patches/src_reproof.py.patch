@@ -1,0 +1,111 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/src/reproof.py	2026-10-25 23:51:57.286874820 -0700
++++ src/reproof.py	2026-10-26 00:06:55.951855849 -0700
+@@ -11,7 +11,9 @@
+   3. finality_state qualify(write=True): harness gate_a1 + the shared admission ledger + the pinned core over the bound node
+   4. the producer's record_finality: the finality-proof watermark entry + the launch journal's `bootstrapped` (recordedAs)
+   5. finality_state status-publish
+-One run at a time (flock); capture pairs under a root 0700 directory, the newest KEEP kept. Exit: 0 done/nothing to do, 75 retry
++One run at a time (flock); capture pairs under a root 0700 directory, the newest KEEP kept. r10-ops-followup: every attempt ends with a
++receipt (attempt.json + one fsynced line of the never-pruned attempts.jsonl history); a failed or interrupted attempt is renamed
++failed-<stamp> and only the newest FAILED_KEEP keep their bytes; an attempt is never touched while active (marker + lock). Exit: 0 done/nothing to do, 75 retry
+ later (no newer anchor game yet, a capture failed, the node is behind or restarting), 78 HOLD (a review flag is False), 1 refused."""
+ import datetime, fcntl, functools, hashlib, json, os, pathlib, shutil, stat, sys, types
+ 
+@@ -20,6 +22,7 @@
+ FINALITY_STATE = (pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py'), '218bbfe56caec03e6da0829e442b793b88d4cc148a890a324892f0fafd7c78f4')
+ PRODUCER = (pathlib.Path('/opt/enclave-rpc/base-launch/base_launch.py'), '2f9450cd5c73de3cf693dd7f7d52b2f4f3a8fe0b66a5a76b1d068dda919ac4e2')
+ KEEP, TEMPFAIL, HOLD = 4, 75, 78
++FAILED_KEEP, HISTORY, IN_PROGRESS = 2, 'attempts.jsonl', '.in-progress'      # r10-ops-followup: bounded failed-attempt retention
+ HOLD_CODES = {'hold_prototype', 'a1_capture_pending', 'hold_finality'}
+ RETRY_CODES = {'not_newer', 'same_game', 'stale_l1', 'not_post_anchor', 'capture', 'a1_stale', 'a1_stale_at_append', 'not_synced',
+                'process_changed', 'process_binding', 'launch_changed', 'not_started', 'not_qualified'}
+@@ -60,6 +63,46 @@
+         shutil.rmtree(p)
+ 
+ 
++def _write_new(p, b):
++    fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
++    try:
++        os.write(fd, b); os.fsync(fd)
++    finally:
++        os.close(fd)
++
++
++def _receipt(root, d, rec):
++    """r10-ops-followup: the attempt's receipt, inside its directory AND appended (fsynced, 0600) to the root's history, which no prune
++    ever touches (a few hundred bytes per attempt), so a removed attempt's outcome stays on record; then the attempt is no longer active"""
++    b = json.dumps(rec, sort_keys=True, default=str).encode() + b'\n'
++    if not os.path.lexists(d / 'attempt.json'):                                    # a crash after it: the first receipt stands
++        _write_new(d / 'attempt.json', b)
++    fd = os.open(root / HISTORY, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
++    try:
++        os.write(fd, b); os.fsync(fd)
++    finally:
++        os.close(fd)
++    if os.path.lexists(d / IN_PROGRESS):
++        os.unlink(d / IN_PROGRESS)
++
++
++def _retire(root, d, rec):
++    """a failed or interrupted attempt (nothing qualified, so nothing can adopt it): its receipt, then renamed out of the proof-pair
++    namespace; only the newest FAILED_KEEP retired attempts keep their bytes (each is about 38 MB / 11.9k files)"""
++    _receipt(root, d, rec); os.rename(d, root / f'failed-{d.name}')
++    failed = sorted(p for p in root.iterdir() if p.is_dir() and not p.is_symlink() and p.name.startswith('failed-'))
++    for p in failed[:-FAILED_KEEP]:
++        shutil.rmtree(p)
++
++
++def _sweep(root, now):
++    """under the lock (so no attempt is active): an attempt still marked in progress was cut off by a crash or kill. Directories
++    without the marker (a recorded pair, or one written before this change) are never swept"""
++    for p in sorted(root.iterdir()):
++        if p.is_dir() and not p.is_symlink() and p.name[:1].isdigit() and os.path.lexists(p / IN_PROGRESS):
++            _retire(root, p, {'outcome': 'interrupted', 'attempt': p.name, 'at': now.isoformat()})
++
++
+ def run(c, *, F, W, R, P, capture_fn=None, top='/', proc='/proc', now=None):
+     now = now or datetime.datetime.now(datetime.timezone.utc); root = pathlib.Path(c['capturesRoot'])
+     if not root.is_dir() or root.is_symlink() or os.stat(root).st_mode & 0o077:
+@@ -70,6 +113,7 @@
+             fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
+         except BlockingIOError:
+             raise Refused('busy', 'another re-proof is running')
++        _sweep(root, now)
+         s = _status(F, W, c, top, proc)
+         if s.get('qualified') is True and s.get('recordedAs'):
+             return {'action': 'none', 'state': s['state'], 'published': F.publish_status(s, c['statusOut'], top=top)}
+@@ -87,13 +131,27 @@
+         # production-capture-closure: the root-reviewed guest Sources (never the module's workstation defaults)
+         cap = capture_fn or (lambda mode, out, initial=None: C.capture(mode, str(out), src=C.Sources.from_settings(c['captureSources'], initial_capture=initial)))
+         d = root / now.strftime('%Y%m%dT%H%M%S%fZ'); os.mkdir(d, 0o700)
+-        for mode, out, initial in (('initial', d / 'initial', None), ('recheck-capture', d / 'recheck', d / 'initial')):
+-            ok, res = cap(mode, out, initial)
+-            if not ok:
+-                raise Refused('capture', f'{mode} capture failed: {str((res or {}).get("error") or res)[:200]}')
+-        q = F.qualify(c['launchDir'], c['chainJson'], fdir, {'initialOut': str(d / 'initial'), 'recheckOut': str(d / 'recheck')}, c['rpcUrl'],
+-                      W=W, R=R, node=c['node'], deps_root=c['depsRoot'], workdir=c['workdir'], write=True, top=top, proc=proc)
+-        r = P.record_finality(c['launchDir'], c['chainJson'], fdir, c['rpcUrl'], W=W, F=Fp, owner=F.OWNER, top=top, watermark=W.BOOTSTRAP_WATERMARK)
++        _write_new(d / IN_PROGRESS, b'')                                             # active until its receipt; a kill leaves it for _sweep
++        q = None
++        try:
++            for mode, out, initial in (('initial', d / 'initial', None), ('recheck-capture', d / 'recheck', d / 'initial')):
++                ok, res = cap(mode, out, initial)
++                if not ok:
++                    raise Refused('capture', f'{mode} capture failed: {str((res or {}).get("error") or res)[:200]}')
++            q = F.qualify(c['launchDir'], c['chainJson'], fdir, {'initialOut': str(d / 'initial'), 'recheckOut': str(d / 'recheck')}, c['rpcUrl'],
++                          W=W, R=R, node=c['node'], deps_root=c['depsRoot'], workdir=c['workdir'], write=True, top=top, proc=proc)
++            r = P.record_finality(c['launchDir'], c['chainJson'], fdir, c['rpcUrl'], W=W, F=Fp, owner=F.OWNER, top=top, watermark=W.BOOTSTRAP_WATERMARK)
++        except BaseException as e:
++            rec = {'outcome': 'qualified-unrecorded' if q else 'failed', 'attempt': d.name, 'code': code_of(e), 'error': str(e)[:500], 'at': now.isoformat()}
++            try:
++                if q:                                    # a qualified proof whose record was cut off may still be ADOPTED: kept with the pairs
++                    _receipt(root, d, {**rec, 'seq': q.get('seq')})
++                else:
++                    _retire(root, d, rec)
++            except OSError:
++                pass                                     # the marker stays: the next run retires it under the lock; the refusal stands
++            raise
++        _receipt(root, d, {'outcome': 'recorded', 'attempt': d.name, 'seq': q['seq'], 'freshN': q['fresh']['N'], 'recorded': r.get('watermarkEntrySha256'), 'at': now.isoformat()})
+         pub = F.publish_status(_status(F, W, c, top, proc), c['statusOut'], top=top)
+         _prune(root)
+         return {'action': 'reproved', 'seq': q['seq'], 'freshN': q['fresh']['N'], 'recorded': r.get('watermarkEntrySha256'), 'published': pub}

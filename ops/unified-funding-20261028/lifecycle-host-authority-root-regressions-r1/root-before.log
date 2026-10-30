@@ -1,0 +1,50 @@
+TAP version 13
+# Subtest: recovered Running assignment remains charged to available host capacity
+not ok 1 - recovered Running assignment remains charged to available host capacity
+  ---
+  duration_ms: 9.322465
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-root-regressions-r1/test/root-composition.test.mjs:23:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    recovery without an in-process start must retain authenticated resource shares
+    
+    0 !== 0.1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0.1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-root-regressions-r1/test/root-composition.test.mjs:26:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: current local owner denial still reaches ledger revocation with operational generation authority
+not ok 2 - current local owner denial still reaches ledger revocation with operational generation authority
+  ---
+  duration_ms: 16.431438
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-root-regressions-r1/test/root-composition.test.mjs:28:1'
+  failureType: 'testCodeFailure'
+  error: 'the proof branch must not erase the local denial and leave only a local fence'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/lifecycle-host-authority-root-regressions-r1/test/root-composition.test.mjs:36:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 207.411187

@@ -1,0 +1,386 @@
+{
+ "format": "enclave-reader-runtime-composition/v2",
+ "base": {
+  "commit": "64156dcd91ff1e769e74f9c26a846be19254c716",
+  "tree": "602c922125459fc847c8a047386efa48aaa8f358"
+ },
+ "readerCommit": "34a3c0d6d4c5aebffffb2492437487c9de74fb66",
+ "readerParent": "c66b087acca2bed00e0232f97f990a201852faea",
+ "chain": [
+  "64156dcd91ff1e769e74f9c26a846be19254c716",
+  "903f107b1",
+  "cc8c9bd4f",
+  "c66b087acca2bed00e0232f97f990a201852faea",
+  "34a3c0d6d4c5aebffffb2492437487c9de74fb66"
+ ],
+ "v2Stage": {
+  "composedTree": "1df125598825fb5278fe6af96a50a69b46679a1c",
+  "sha256sums": "902786cd2709c1b41716d9cac71b861a016bba06464dfba4dadae26b53da8853"
+ },
+ "composedTree": "9dd20e7615ca16f69417309664f95db96640399f",
+ "files": [
+  {
+   "path": "network/deployment-lifecycle-journal.mjs",
+   "blob": "9dbf0864e78c91529d92ef02c0d922fdbff5b7fb",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "lifecycle-closure"
+  },
+  {
+   "path": "network/deployment-restart-policy.mjs",
+   "blob": "83f5c52a1cfec88ed5ef62ea50cc99fe6d8137e8",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "lifecycle-closure"
+  },
+  {
+   "path": "network/derived-reader/COVERAGE.md",
+   "blob": "d9855b737e0852bae6f11376f5335bcfea2ca735",
+   "mode": "100644",
+   "origin": "34a3c0d6d",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/README.md",
+   "blob": "778d3638d1c4bcfa404094cd5d09c29c213b9de2",
+   "mode": "100644",
+   "origin": "34a3c0d6d",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/api.mjs",
+   "blob": "b9a81d19cb9f7b94dc277107197b9a3258117c2b",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/config.example.json",
+   "blob": "9e0cdb8db6096917188926660bdcdf622b202402",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/config.v3.example.json",
+   "blob": "f0778f94737faf2eaba5ca5dd7147a685b12792d",
+   "mode": "100644",
+   "origin": "34a3c0d6d",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/coverage-store.mjs",
+   "blob": "09a4da8073f046cdad513e786e6f90e16f040ae3",
+   "mode": "100644",
+   "origin": "34a3c0d6d",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/coverage.mjs",
+   "blob": "434366ecd5282a64803750cf079547e887f5fc37",
+   "mode": "100644",
+   "origin": "34a3c0d6d",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/journal.mjs",
+   "blob": "4c46336b012ffc8b7b8cc1d710ea68b3b6346abb",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/l1-runtime.mjs",
+   "blob": "1fe5501589b8ea3326c08a752824aaaadde7fb99",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/libraries.mjs",
+   "blob": "30ec60b2125e355d0240c8a4a0b79017d09e5d20",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/lifecycle.mjs",
+   "blob": "d6de1afe455619afee95dfc0bfbf9800e970558d",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/main.mjs",
+   "blob": "e6a8dbb5d542584d36296111a5ec989589abc854",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/native.mjs",
+   "blob": "8f51e88940be8d18a33abb05ac5d0b8e9376a16b",
+   "mode": "100644",
+   "origin": "34a3c0d6d",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/process.mjs",
+   "blob": "b1c4723df9ce044eef94f1fd0f9737a273414b8a",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/proof.mjs",
+   "blob": "548efeb6fbb7a10c8e3bcb772b12039c163f7056",
+   "mode": "100644",
+   "origin": "34a3c0d6d",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/provider.mjs",
+   "blob": "8478fae0a2f9351f195c84f99a0ccef653ca2184",
+   "mode": "100644",
+   "origin": "34a3c0d6d",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/qualification.json",
+   "blob": "1de289939c3431095325f638c8cb92d94f3e63a9",
+   "mode": "100644",
+   "origin": "34a3c0d6d",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/rpc.mjs",
+   "blob": "bef9491d302a34aa7d0d4d6d7194af907a5d9e23",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/a1-anchor.mjs",
+   "blob": "ff261b164bc9821c975fe2fd7a05116559aecf34",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/anchor-bootstrap.mjs",
+   "blob": "5473933dbd5c7411192dd99dcb20cd17483369c2",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/provenance.json",
+   "blob": "a19c8a522ab5e479f70b3063c1fbea42ef4e4662",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/schedule-input-r2.mjs",
+   "blob": "09f8d7a3c0f317fb65713585f9631cae7133f9b8",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/schedule_reader.mjs",
+   "blob": "caae47061d473412bc8f1212ee76d3ba7462838c",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader"
+  },
+  {
+   "path": "network/lifecycle-finality-bridge.mjs",
+   "blob": "916f24c0af2ae888641bd565e5bb2ac0bd024184",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "lifecycle-closure"
+  },
+  {
+   "path": "test/derived-reader.test.mjs",
+   "blob": "80e1cfe7dbefed9f5db605c63209f8a91dc2fafa",
+   "mode": "100644",
+   "origin": "34a3c0d6d",
+   "role": "reader-test"
+  },
+  {
+   "path": "test/derived-reader/boundaries.test.mjs",
+   "blob": "e9f66b43598b354d64030771ba1bc8286519840e",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader-test"
+  },
+  {
+   "path": "test/derived-reader/coverage.test.mjs",
+   "blob": "c4e1e35829d0a12a646d14346f1d88aa7628fa21",
+   "mode": "100644",
+   "origin": "34a3c0d6d",
+   "role": "reader-test"
+  },
+  {
+   "path": "test/derived-reader/helpers.mjs",
+   "blob": "3b86d4ff424295e854761e92eb8018c7f52b8780",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "reader-test"
+  },
+  {
+   "path": "test/derived-reader/provider.test.mjs",
+   "blob": "14dd6a49ddf05a99e83d980f64ebd4d4057fc2db",
+   "mode": "100644",
+   "origin": "34a3c0d6d",
+   "role": "reader-test"
+  },
+  {
+   "path": "test/lifecycle-finality-bridge.test.mjs",
+   "blob": "b104fa39e48a5dc09b1e024586d45eaa5848a079",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d)",
+   "role": "lifecycle-closure"
+  }
+ ],
+ "deltaFromV2": [
+  {
+   "status": "A",
+   "path": "network/derived-reader/COVERAGE.md",
+   "v2Blob": null,
+   "r2Blob": "d9855b737e0852bae6f11376f5335bcfea2ca735"
+  },
+  {
+   "status": "M",
+   "path": "network/derived-reader/README.md",
+   "v2Blob": "0d8fade0391f20f336256e991db9fcc78c44b3b0",
+   "r2Blob": "778d3638d1c4bcfa404094cd5d09c29c213b9de2"
+  },
+  {
+   "status": "A",
+   "path": "network/derived-reader/config.v3.example.json",
+   "v2Blob": null,
+   "r2Blob": "f0778f94737faf2eaba5ca5dd7147a685b12792d"
+  },
+  {
+   "status": "A",
+   "path": "network/derived-reader/coverage-store.mjs",
+   "v2Blob": null,
+   "r2Blob": "09a4da8073f046cdad513e786e6f90e16f040ae3"
+  },
+  {
+   "status": "A",
+   "path": "network/derived-reader/coverage.mjs",
+   "v2Blob": null,
+   "r2Blob": "434366ecd5282a64803750cf079547e887f5fc37"
+  },
+  {
+   "status": "M",
+   "path": "network/derived-reader/native.mjs",
+   "v2Blob": "4fc320edd45b99504920b7cf98635b7e366ccda9",
+   "r2Blob": "8f51e88940be8d18a33abb05ac5d0b8e9376a16b"
+  },
+  {
+   "status": "M",
+   "path": "network/derived-reader/proof.mjs",
+   "v2Blob": "32ecdd83c797481d72074c5ad787b12860276260",
+   "r2Blob": "548efeb6fbb7a10c8e3bcb772b12039c163f7056"
+  },
+  {
+   "status": "M",
+   "path": "network/derived-reader/provider.mjs",
+   "v2Blob": "37928011d86e951b804951527e69469b7bc31303",
+   "r2Blob": "8478fae0a2f9351f195c84f99a0ccef653ca2184"
+  },
+  {
+   "status": "M",
+   "path": "network/derived-reader/qualification.json",
+   "v2Blob": "8839ae0126e5693aaa672cc1cb672e79a9bc938c",
+   "r2Blob": "1de289939c3431095325f638c8cb92d94f3e63a9"
+  },
+  {
+   "status": "M",
+   "path": "test/derived-reader.test.mjs",
+   "v2Blob": "542c9ad680ceefddd33431fb3efc0df1d6a9989c",
+   "r2Blob": "80e1cfe7dbefed9f5db605c63209f8a91dc2fafa"
+  },
+  {
+   "status": "A",
+   "path": "test/derived-reader/coverage.test.mjs",
+   "v2Blob": null,
+   "r2Blob": "c4e1e35829d0a12a646d14346f1d88aa7628fa21"
+  },
+  {
+   "status": "M",
+   "path": "test/derived-reader/provider.test.mjs",
+   "v2Blob": "b514aa436286fadad43138cf825bf5ee8fc24508",
+   "r2Blob": "14dd6a49ddf05a99e83d980f64ebd4d4057fc2db"
+  }
+ ],
+ "excludedFromBaseToV3Range": [
+  "contracts/EnclaveDeploymentLifecycle.sol",
+  "contracts/EnclaveSelfHostingIdentity.sol",
+  "deploy/lifecycle/AUTHORITY-ADAPTER.md",
+  "deploy/lifecycle/EnclaveDeployments.sol",
+  "deploy/lifecycle/README.md",
+  "deploy/lifecycle/artifacts/EnclaveDeploymentLifecycle.json",
+  "deploy/lifecycle/artifacts/EnclaveDeployments.json",
+  "deploy/lifecycle/artifacts/EnclaveSelfHostingIdentity.json",
+  "deploy/lifecycle/artifacts/manifest.json",
+  "deploy/lifecycle/refusals.json",
+  "network/deployment-authority-window.mjs",
+  "network/deployment-generation-certificate.mjs",
+  "network/deployment-isolation-runtime.mjs",
+  "network/deployment-journal-owner.mjs",
+  "network/deployment-lifecycle-runner.mjs",
+  "network/deployment-lifecycle-witness.mjs",
+  "network/deployment-permit-collector.mjs",
+  "network/deployment-permit-gate.mjs",
+  "network/deployment-serving-permit.mjs",
+  "network/deployment-transition-intent.mjs",
+  "network/deployment-witness-http.mjs",
+  "scripts/build-lifecycle-artifacts.mjs",
+  "scripts/test-deployment-lifecycle.sh",
+  "test/deployment-generation-certificate.test.mjs",
+  "test/deployment-isolation-runtime.test.mjs",
+  "test/deployment-journal-native.mjs",
+  "test/deployment-lifecycle-boundary.test.mjs",
+  "test/deployment-lifecycle-journal.test.mjs",
+  "test/deployment-lifecycle-policy.test.mjs",
+  "test/deployment-lifecycle-runner.test.mjs",
+  "test/lifecycle/forge/empty/.gitkeep",
+  "test/lifecycle/forge/test/Lifecycle.t.sol"
+ ],
+ "reusedFromBaseUnchanged": [
+  "network/lease-release-journal.mjs",
+  "network/runtime-lock.mjs",
+  "network/rpc-runtime.mjs",
+  "network/gossip-head-source.mjs",
+  "network/op-head-relay.mjs",
+  "network/verified-chain.mjs",
+  "package.json",
+  "package-lock.json"
+ ],
+ "pins": {
+  "nativeV3Sha256": "49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa",
+  "nativeV3ResultVersion": 3,
+  "nativeV2Sha256": "f1a6bb0e82be37fddf9e2485c50f78b4cd5eb02d43e903152230c91fd22dcfd9",
+  "heliosSha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+  "configV3ExampleBlob": "f0778f94737faf2eaba5ca5dd7147a685b12792d",
+  "qualificationBlob": "1de289939c3431095325f638c8cb92d94f3e63a9",
+  "coverageDocBlob": "d9855b737e0852bae6f11376f5335bcfea2ca735"
+ },
+ "tests": {
+  "expected": 33,
+  "provider": 8,
+  "boundaries": 8,
+  "coverage": 13,
+  "bridge": 4,
+  "files": [
+   "test/derived-reader.test.mjs",
+   "test/lifecycle-finality-bridge.test.mjs"
+  ]
+ },
+ "notClaimed": "integration preparation only: no SNP, no positive Base derivation, no accepted image, no production activation; writer/paid not composed"
+}

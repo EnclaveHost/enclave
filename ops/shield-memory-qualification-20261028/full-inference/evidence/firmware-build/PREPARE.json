@@ -1,0 +1,12 @@
+{
+  "files": {
+    "OvmfPkg/PlatformPei/AmdSev.c": "6514eae60925a691e6a655edfe1fa16dca44f427276beb555de04b3e48768e5e",
+    "OvmfPkg/PlatformPei/PlatformPei.inf": "d4801c88c572e1ac4d5056523e25c2687c1c1ad8bd123cb1ae3bb595ffbd3fc0",
+    "OvmfPkg/PlatformPei/SnpBootWindow.h": "f0baa282f25a1e1040243c52b76af853afd5dbca863a40fbfe64ceeaf0395c13"
+  },
+  "test_sha256": "4c5d8f7c015b1b2b87afd5e958598b87b48d7f04be13097f8ea400b37938127f",
+  "original": {
+    "OvmfPkg/PlatformPei/AmdSev.c": "9f159f106bd601b38420049f9213616d56f72bf1d4784afcd3fc7ac001532c34",
+    "OvmfPkg/PlatformPei/PlatformPei.inf": "a14f271cc8ff7381dfba9a49c7f2fc6fcd46e86513a9a67f61c8d8c3e7793be1"
+  }
+}

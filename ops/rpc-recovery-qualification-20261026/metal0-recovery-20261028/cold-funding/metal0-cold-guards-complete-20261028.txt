@@ -1,0 +1,129 @@
+[queue] START available=93720MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: cold: the exact expired, owned, C9-held pair with root's cold facts yields an executable cold plan (V, cap, nonces unchanged)
+ok 1 - cold: the exact expired, owned, C9-held pair with root's cold facts yields an executable cold plan (V, cap, nonces unchanged)
+  ---
+  duration_ms: 13.689855
+  type: 'test'
+  ...
+# Subtest: cold inventory: missing, partial, duplicate or extra deployments refuse
+ok 2 - cold inventory: missing, partial, duplicate or extra deployments refuse
+  ---
+  duration_ms: 1.041322
+  type: 'test'
+  ...
+# Subtest: cold leases: a live or recently expired lease, inactive, foreign holder/owner/runner, stale expiry all refuse
+ok 3 - cold leases: a live or recently expired lease, inactive, foreign holder/owner/runner, stale expiry all refuse
+  ---
+  duration_ms: 1.024172
+  type: 'test'
+  ...
+# Subtest: cold facts: missing, false, malformed, extra fields, short stop window, and the unchanged quiesce checks refuse
+ok 4 - cold facts: missing, false, malformed, extra fields, short stop window, and the unchanged quiesce checks refuse
+  ---
+  duration_ms: 1.42252
+  type: 'test'
+  ...
+# Subtest: profile binding: a live plan never passes the cold checks and vice versa; a changed profile refuses; no cold fixture
+ok 5 - profile binding: a live plan never passes the cold checks and vice versa; a changed profile refuses; no cold fixture
+  ---
+  duration_ms: 4.359157
+  type: 'test'
+  ...
+# Subtest: production incident cannot omit either original deployment, including expired ones
+ok 6 - production incident cannot omit either original deployment, including expired ones
+  ---
+  duration_ms: 0.885593
+  type: 'test'
+  ...
+# Subtest: actual preparation CLI refuses empty inventory before issuing any RPC
+ok 7 - actual preparation CLI refuses empty inventory before issuing any RPC
+  ---
+  duration_ms: 115.638574
+  type: 'test'
+  ...
+# Subtest: the read-only prepare: exact tuples, nonce rules, digests, observed storage, premise, fees within the cap
+ok 8 - the read-only prepare: exact tuples, nonce rules, digests, observed storage, premise, fees within the cap
+  ---
+  duration_ms: 338.922012
+  type: 'test'
+  ...
+# Subtest: happy path, actual processing: after A C9 is codeless and funded with storage intact; after B restored byte-exactly
+ok 9 - happy path, actual processing: after A C9 is codeless and funded with storage intact; after B restored byte-exactly
+  ---
+  duration_ms: 130.326601
+  type: 'test'
+  ...
+# Subtest: hazard between A and B: a relayed lease() call to the codeless C9 SUCCEEDS as a silent no-op; the same B then restores
+ok 10 - hazard between A and B: a relayed lease() call to the codeless C9 SUCCEEDS as a silent no-op; the same B then restores
+  ---
+  duration_ms: 119.559013
+  type: 'test'
+  ...
+# Subtest: order is enforced by the sponsor's nonces: B submitted first still runs after A
+ok 11 - order is enforced by the sponsor's nonces: B submitted first still runs after A
+  ---
+  duration_ms: 104.622848
+  type: 'test'
+  ...
+# Subtest: reorg: the same signed bytes re-include to the same hashes and the same final state
+ok 12 - reorg: the same signed bytes re-include to the same hashes and the same final state
+  ---
+  duration_ms: 108.065462
+  type: 'test'
+  ...
+# Subtest: stale A (C9's nonce moved, still delegated): A reverts and V stays with the sponsor; B (now valid) only re-delegates
+ok 13 - stale A (C9's nonce moved, still delegated): A reverts and V stays with the sponsor; B (now valid) only re-delegates
+  ---
+  duration_ms: 103.447087
+  type: 'test'
+  ...
+# Subtest: front-run: a third party applies A's authorization first; our A's authorization is skipped but its value call to the CODELESS C9 succeeds
+ok 14 - front-run: a third party applies A's authorization first; our A's authorization is skipped but its value call to the CODELESS C9 succeeds
+  ---
+  duration_ms: 94.880343
+  type: 'test'
+  ...
+# Subtest: front-run + the lease client's own authorization: our A reverts, our B is skipped; C9 ends delegated and unfunded (re-plan)
+ok 15 - front-run + the lease client's own authorization: our A reverts, our B is skipped; C9 ends delegated and unfunded (re-plan)
+  ---
+  duration_ms: 96.092184
+  type: 'test'
+  ...
+# Subtest: interruption: A mined, then C9's nonce moves (it is codeless and funded): B is stale; recovery = C9 self-restores (nonce = current + 1)
+ok 16 - interruption: A mined, then C9's nonce moves (it is codeless and funded): B is stale; recovery = C9 self-restores (nonce = current + 1)
+  ---
+  duration_ms: 93.185146
+  type: 'test'
+  ...
+# Subtest: an authorization for another chain is skipped: A reverts, nothing moves (and the plan refuses chain id 0)
+ok 17 - an authorization for another chain is skipped: A reverts, nothing moves (and the plan refuses chain id 0)
+  ---
+  duration_ms: 76.769661
+  type: 'test'
+  ...
+# Subtest: prepare refusals against the live local chain: not delegated, other target, pending nonce, sponsor with code, fee cap, quiesce, lease window
+ok 18 - prepare refusals against the live local chain: not delegated, other target, pending nonce, sponsor with code, fee cap, quiesce, lease window
+  ---
+  duration_ms: 567.30202
+  type: 'test'
+  ...
+# Subtest: gas limits cover every path with margin (measured on revm, not modelled)
+ok 19 - gas limits cover every path with margin (measured on revm, not modelled)
+  ---
+  duration_ms: 74.834997
+  type: 'test'
+  ...
+# gas used {"A_valid_transfer":"36800","B_valid_restore":"36800","A_skipped_delegated_revert":"46043","A_skipped_codeless_transfer":"46000"} limits A 50000 B 47000
+1..19
+# tests 19
+# suites 0
+# pass 19
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2087.705963
+[memory-guard] exit=0 peakTreeRssMiB=195 minHostAvailableMiB=93609
+[memory-guard] at peak: node:102 node:61 anvil:33
+[queue] EXIT 0

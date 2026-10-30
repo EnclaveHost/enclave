@@ -1,0 +1,32 @@
+{
+  "schema": "enclave-native-admission-release-closure/1",
+  "status": "SOURCE_AUTHORED_NOT_CLOSED",
+  "built": false,
+  "executed": false,
+  "actualWindowsAdmission": false,
+  "nativeQualified": false,
+  "limitAttributionQualified": false,
+  "ownerDeathQualified": false,
+  "exlockQualified": false,
+  "oldLauncherSufficient": false,
+  "files": {
+    "added": ["admission-envelope.c", "admission-envelope-cases.json", "build-request.json", "run-contract.json", "REPORT-NATIVE-ADMISSION-R1.md", "RELEASE-CLOSURE-NATIVE-ADMISSION-R1.json"],
+    "modified": {"owned-job.c": "R1 interface: validate preconfigured Job T at entry (exit 96), no Job create/assign/terminate, secondary floor 18432 MiB, finish() stops only own child"},
+    "unchanged": ["job-probe.c", "no-crt.c", "exlock-test.cjs"]
+  },
+  "implementedRefusals": ["BootstrapUnqualified", "CreatorIdentityRefused", "TestDomainRefused", "ImagePinRefused", "CapacityInterfaceAbsent", "CapacityUnknown", "HoldStale", "OverlapUnbounded", "HoldTooSmall", "CapacityImplausible", "PhysicalShortage", "CommitShortage", "ChildSetupFailedBeforeResume", "ContainmentNotProven", "ReadyIdentitiesNotProven", "ObserverSetupFailed", "ObserverDied", "DeathNotObserved", "PressureStop", "HoldExpiredDuringRun", "Deadline", "CreatorGone", "DrainUnknown", "OutputBound"],
+  "currentRuntimeOutcome": "CapacityInterfaceAbsent (or an earlier refusal) before any child creation",
+  "openInterfaces": [
+    {"name": "creator", "contract": "run-contract.json#creatorContract", "present": false},
+    {"name": "capacityHold", "contract": "run-contract.json#capacityHoldInterface", "present": false, "currentP": null}
+  ],
+  "openGaps": [
+    "Non-job-charged physical (kernel pool, page tables, shared image pages) not bounded",
+    "Sampling pressure monitor is best effort only",
+    "Toolchain/subsystem/header pins unverified",
+    "Probe child 2 s window may make death outcome inconclusive; reported, never passed"
+  ],
+  "productionTouched": false,
+  "financeTouched": false,
+  "networkUsed": false
+}

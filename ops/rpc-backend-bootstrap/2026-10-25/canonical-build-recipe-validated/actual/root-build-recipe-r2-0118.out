@@ -1,0 +1,3 @@
+[queue] START available=23317MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+jobs/root-build-recipe-r2-0118.sh: line 16: 347255 Killed                     env CAND_TREE="$X/cand" BASE_TREE="$X/base" HREPO="$B/witness-failover/helios" LREPO="$B/rpc-gossip-bridge/listener" TARBALL="$B/rpc-runtime-final-integration/closure/src/base-5476069f.tar.gz" python3 -I "$S/r2/test-build-recipe.py" > "$S/r2/plumbing.out" 2>&1
+[queue] EXIT -9

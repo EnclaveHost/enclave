@@ -1,0 +1,7 @@
+[queue] START available=20725MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+KILLED mutants/r1-no-startup-file-check.py
+KILLED mutants/r2-distance-kept.py
+KILLED mutants/r3-no-upgrade-bound.py
+[memory-guard] exit=0 peakTreeRssMiB=48 minHostAvailableMiB=20694
+[memory-guard] at peak: python3:31 python3:14 bash:4
+[queue] EXIT 0

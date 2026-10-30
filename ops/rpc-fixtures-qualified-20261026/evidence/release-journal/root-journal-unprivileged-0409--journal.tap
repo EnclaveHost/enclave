@@ -1,0 +1,53 @@
+TAP version 13
+# Subtest: 1. lost release answer + restart: the id stays HELD (chain module and the real Host), then the delayed landing settles RELEASED
+ok 1 - 1. lost release answer + restart: the id stays HELD (chain module and the real Host), then the delayed landing settles RELEASED
+  ---
+  duration_ms: 19889.592744
+  type: 'test'
+  ...
+# Subtest: 2/3. fences are not success: a never-landing release settles 'expired'; one whose nonce another operation consumed settles 'consumed'
+ok 2 - 2/3. fences are not success: a never-landing release settles 'expired'; one whose nonce another operation consumed settles 'consumed'
+  ---
+  duration_ms: 4338.179397
+  type: 'test'
+  ...
+# Subtest: 4. the journal cannot be written: nothing is signed and no relay sees a release
+ok 3 - 4. the journal cannot be written: nothing is signed and no relay sees a release
+  ---
+  duration_ms: 146.338788
+  type: 'test'
+  ...
+# [lease-gas] release journal /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/remaining-composition-triage-stage/root-journal-unprivileged-0409/tmp/windows-release-journal-hK7lK8/j5.json: unreadable (Unterminated string in JSON at position 39 (line 1 column 40)). It may hold an unresolved sponsored release: NO lease is claimed, renewed or released here and the file is not overwritten until an operator resolves it
+# Subtest: 5. a corrupt journal: every lease operation is refused and the file is never overwritten
+ok 4 - 5. a corrupt journal: every lease operation is refused and the file is never overwritten
+  ---
+  duration_ms: 22.280984
+  type: 'test'
+  ...
+# Subtest: 6. operator rotation: another key's higher nonce never settles a pending release; rotating back stays HELD; the late landing settles it
+ok 5 - 6. operator rotation: another key's higher nonce never settles a pending release; rotating back stays HELD; the late landing settles it
+  ---
+  duration_ms: 2662.586198
+  type: 'test'
+  ...
+# Subtest: 7. record rotation: a pending release signed under another reserve is not fenced by its nonce here; only its deadline settles it
+ok 6 - 7. record rotation: a pending release signed under another reserve is not fenced by its nonce here; only its deadline settles it
+  ---
+  duration_ms: 2228.457012
+  type: 'test'
+  ...
+# Subtest: 8. an entry whose identity was never recorded (an older journal) is HELD, never guessed from the current key
+ok 7 - 8. an entry whose identity was never recorded (an older journal) is HELD, never guessed from the current key
+  ---
+  duration_ms: 2130.872208
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 31602.037652

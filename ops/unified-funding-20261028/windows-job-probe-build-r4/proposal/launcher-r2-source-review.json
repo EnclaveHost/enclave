@@ -1,0 +1,24 @@
+{
+  "scope": "Readonly source delta review; no build/runtime/staging/admission by reviewer",
+  "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-exlock-launcher-build-r2/owned-job.c",
+  "sourceSha256": "509356d9833cd29aed0cc605c82a1d80a739570118e6b1e92f433378993734ee",
+  "binarySha256": "94a8483ed8eb40734cf578c7b2ffa5c3e6f83357d8268950acff5c47723e8d7c",
+  "binaryExecutedByReviewer": false,
+  "changesReviewed": [
+    "Watchdog starts after limits/selfassignment before handle duplication/CreateProcess, using entry-time baseline; includes subsequent startup and has50ms pressure checks.",
+    "STARTUPINFOEX uses actual inheritable DuplicateHandle results for exactlythree standard handles, with HANDLE_LIST, bInheritHandlesTRUE and EXTENDED_STARTUPINFO_PRESENT; new job handle remains non-inheritable.",
+    "MEMORYSTATUSEX is function-local, avoiding shared concurrent write race.",
+    "Concurrent watchdog/main finish paths target same stable owned job; no broad process killing."
+  ],
+  "remainingLimits": [
+    "Before watchdog creation, entry/setup calls have no independent watchdog; exact early-setup lifetime remains outer-controller concern.",
+    "Watchdog is best-effort scheduled thread under same job/CPU; it is not realtime enforcement of physical memory floor.",
+    "Actual limit enforcement/inheritance/parentdeath/stdin behavior must be tested on Windows; build not qualification.",
+    "Pending commitments and concurrent direct work still require coordinator accounting; no future-capacity-zero inference."
+  ],
+  "references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute",
+    "https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-createjobobjectw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-queryinformationjobobject"
+  ]
+}

@@ -1,0 +1,13 @@
+[build] clean dist/
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r3/build-work-20261026T002047Z/build-own/scripts/site-read-authority.mjs:43
+  if ("sha256:" + fingerprint !== digest) throw new Error(`${file} is sha256:${fingerprint}, not the reviewed ${digest}`);
+                                                ^
+
+Error: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r3/fixtures/own-rpc.authority.json is sha256:ed5175f72ef18e38ff2354a6e2738d7ef58406779e10aa8818ac9360925266c2, not the reviewed sha256:0000000000000000000000000000000000000000000000000000000000000000
+    at readReadAuthority (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r3/build-work-20261026T002047Z/build-own/scripts/site-read-authority.mjs:43:49)
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r3/build-work-20261026T002047Z/build-own/scripts/build-site.mjs:78:32
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.3

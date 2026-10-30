@@ -1,0 +1,13 @@
+- heading "Existing Top up panel · TEST fixture" [level=1]
+- paragraph: Local mock funds and public fixture identities. No production requests or signing.
+- heading "sia-s3:0.1.9 · queued" [level=2]
+- generic: top up · 0x4444444444444444444444444444444444444444444444444444444444444444
+- paragraph: "Self-hosted runtime is free: the ledger charges this deployment no runtime right now (rate 0, re-read each time this opens). USDC from your gas grant buys ETH for on-chain transactions. Gas funding does not promise a fixed number of runtime hours."
+- generic: Maximum for gas (USDC)
+- textbox "Maximum for gas (USDC)": "0.60"
+- button "Pay from session"
+- button "Refresh quote"
+- generic "quote details"
+- status:
+  - generic: "Pays at most $0.526 from \"Self-hosted apps\": gas at most $0.46 + relay fee $0.066. The actual debit (real swap cost + fee) is shown after payment and never exceeds that. Usable for 285s."
+- generic: PASS 12 checks zero-rate panel ready opening does not sign or send renewal-hours estimate absent transaction-gas purpose displayed existing payment button retained input change disables stale quote low maximum refuses quote expired quote never sent provider change refuses double click submits once in mock unknown outcome stays blocked unknown outcome not resent Mock sends:1; production sends:0

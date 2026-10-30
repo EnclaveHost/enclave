@@ -1,0 +1,50 @@
+[queue] START available=18296MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+test_a_dropped_upstream_line_is_found (__main__.UpstreamCopy.test_a_dropped_upstream_line_is_found) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/jobs/test_check_upstream_copy.py:15: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/jobs/../src/zk-utils/examples/derivation_harness_lease_v3.rs' mode='r' encoding='utf-8'>
+  self.text = open(HARNESS, encoding="utf-8").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/jobs/check_upstream_copy.py:39: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-runtime-final-integration/closure/src/base-5476069f.tar.gz'>
+  raw = open(tar_path, "rb").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_a_missing_region_marker_is_refused (__main__.UpstreamCopy.test_a_missing_region_marker_is_refused) ... ok
+test_an_edited_upstream_line_is_found (__main__.UpstreamCopy.test_an_edited_upstream_line_is_found) ... ok
+test_an_extra_capture_marker_is_refused (__main__.UpstreamCopy.test_an_extra_capture_marker_is_refused) ... ok
+test_an_unmarked_inserted_line_is_found (__main__.UpstreamCopy.test_an_unmarked_inserted_line_is_found) ... ok
+test_real_harness_is_verbatim_plus_three_capture_lines (__main__.UpstreamCopy.test_real_harness_is_verbatim_plus_three_capture_lines) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 1.479s
+
+OK
+TAP version 13
+# Subtest: the three filter signatures are exactly the compiled EnclaveDeployments ABI events
+ok 1 - the three filter signatures are exactly the compiled EnclaveDeployments ABI events
+  ---
+  duration_ms: 6.257543
+  type: 'test'
+  ...
+# Subtest: topic0 = keccak256(signature) equals relay/lease-generation.mjs, the guest pins and the Rust test constants
+ok 2 - topic0 = keccak256(signature) equals relay/lease-generation.mjs, the guest pins and the Rust test constants
+  ---
+  duration_ms: 2.546853
+  type: 'test'
+  ...
+# Subtest: the v3 format names and caps in the harness are the agreed ones
+ok 3 - the v3 format names and caps in the harness are the agreed ones
+  ---
+  duration_ms: 0.187428
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 142.939168
+## py=0 node=0
+[memory-guard] exit=0 peakTreeRssMiB=39 minHostAvailableMiB=18267
+[memory-guard] at peak: python3:35 bash:4
+[queue] EXIT 0

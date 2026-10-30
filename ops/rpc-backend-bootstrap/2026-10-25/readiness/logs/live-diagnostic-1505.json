@@ -1,0 +1,204 @@
+{
+ "acceptance": false,
+ "activationAuthorized": false,
+ "bounds": {
+  "interval": 1.0,
+  "maxBody": 4194304,
+  "maxDuration": 20.0,
+  "maxRequests": 80,
+  "minWindow": 600.0,
+  "samples": 2,
+  "timeout": 2.0
+ },
+ "coverage": {
+  "note": "no validated coverage receipt binding",
+  "status": "incomplete"
+ },
+ "coverageVerifiedWritten": false,
+ "endpoints": {
+  "base": "http://127.0.0.1:18545",
+  "beacon": "http://127.0.0.1:15052",
+  "el": "http://127.0.0.1:18645",
+  "rollup": "http://127.0.0.1:19545"
+ },
+ "finishedAt": 1792940695.194,
+ "format": "enclave-rpc-readiness-sample/v1",
+ "gates": {
+  "base-el-labels": {
+   "code": "not-evaluated",
+   "count": 1,
+   "detail": "syncStatus unavailable in this sample",
+   "samples": [
+    0
+   ],
+   "status": "incomplete"
+  },
+  "base-execution-synced": {
+   "code": "endpoint-unreachable",
+   "count": 1,
+   "detail": "base: URLError",
+   "samples": [
+    0
+   ],
+   "status": "incomplete"
+  },
+  "base-finalized-advancing": {
+   "code": "insufficient-samples",
+   "count": 1,
+   "detail": "0 usable samples for base-finalized",
+   "samples": [
+    null
+   ],
+   "status": "incomplete"
+  },
+  "base-finalized-fresh": {
+   "code": "not-evaluated",
+   "count": 1,
+   "detail": "syncStatus unavailable in this sample",
+   "samples": [
+    0
+   ],
+   "status": "incomplete"
+  },
+  "base-heads-consistent": {
+   "code": "endpoint-unreachable",
+   "count": 1,
+   "detail": "rollup: URLError",
+   "samples": [
+    0
+   ],
+   "status": "incomplete"
+  },
+  "base-identity": {
+   "code": "endpoint-unreachable",
+   "count": 1,
+   "detail": "base: URLError",
+   "samples": [
+    0
+   ],
+   "status": "incomplete"
+  },
+  "base-safe-advancing": {
+   "code": "insufficient-samples",
+   "count": 1,
+   "detail": "0 usable samples for base-safe",
+   "samples": [
+    null
+   ],
+   "status": "incomplete"
+  },
+  "base-safe-fresh": {
+   "code": "not-evaluated",
+   "count": 1,
+   "detail": "syncStatus unavailable in this sample",
+   "samples": [
+    0
+   ],
+   "status": "incomplete"
+  },
+  "base-unsafe-fresh": {
+   "code": "not-evaluated",
+   "count": 1,
+   "detail": "syncStatus unavailable in this sample",
+   "samples": [
+    0
+   ],
+   "status": "incomplete"
+  },
+  "historical-coverage": {
+   "code": "coverage-receipt-absent",
+   "count": 1,
+   "detail": "historical coverage UNCHECKED: root must attach an independently reviewed COVERED receipt",
+   "samples": [
+    null
+   ],
+   "status": "incomplete"
+  },
+  "l1-consensus-nonoptimistic": {
+   "code": "cl-el-offline",
+   "count": 1,
+   "detail": "L1 consensus reports the EL offline",
+   "samples": [
+    0
+   ],
+   "status": "fail"
+  },
+  "l1-custody": {
+   "info": {
+    "custodyGroupCount": 64
+   },
+   "status": "pass"
+  },
+  "l1-execution-synced": {
+   "code": "endpoint-unreachable",
+   "count": 1,
+   "detail": "el: URLError",
+   "samples": [
+    0
+   ],
+   "status": "incomplete"
+  },
+  "l1-finalized-paired": {
+   "code": "endpoint-unreachable",
+   "count": 1,
+   "detail": "el: URLError",
+   "samples": [
+    0
+   ],
+   "status": "incomplete"
+  },
+  "l1-head-advancing": {
+   "code": "insufficient-samples",
+   "count": 1,
+   "detail": "0 usable samples for l1-head",
+   "samples": [
+    null
+   ],
+   "status": "incomplete"
+  },
+  "l1-head-paired-fresh": {
+   "code": "endpoint-unreachable",
+   "count": 1,
+   "detail": "el: URLError",
+   "samples": [
+    0
+   ],
+   "status": "incomplete"
+  },
+  "l1-identity": {
+   "code": "endpoint-unreachable",
+   "count": 1,
+   "detail": "el: URLError",
+   "samples": [
+    0
+   ],
+   "status": "incomplete"
+  },
+  "sampling-complete": {
+   "code": "stopped-on-fail",
+   "count": 1,
+   "detail": "1/2 samples; a gate already failed",
+   "samples": [
+    null
+   ],
+   "status": "incomplete"
+  }
+ },
+ "http": {
+  "bytes": 45621,
+  "requests": 10
+ },
+ "notes": [
+  "Sampler evidence only. Root review is required; this never authorizes activation.",
+  "One operator / one site; Base sequencer dependence and forced inclusion remain out of scope."
+ ],
+ "overall": "FAIL",
+ "samples": [
+  {
+   "index": 0,
+   "unixTime": 1792940695.186
+  }
+ ],
+ "startedAt": 1792940695.173,
+ "unsafeLatestAloneIsNeverReadiness": true
+}

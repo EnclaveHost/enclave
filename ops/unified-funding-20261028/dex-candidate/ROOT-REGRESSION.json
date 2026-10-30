@@ -1,0 +1,7 @@
+{
+  "originalSHA256": "3767fa3195329e67c51208a4bbd4993df774943970666642143fbdfc537d4abe",
+  "fixedSHA256": "b87da7547b4401f88b42dd66a41f40fbba2fc02b8f3c34bb7a15d3408576967b",
+  "expectedRegressionDemonstrated": true,
+  "fullSuiteExitCode": 0,
+  "productionChanges": false
+}

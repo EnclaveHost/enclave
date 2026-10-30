@@ -1,0 +1,37 @@
+{
+  "at": "2026-10-30T00:58:11.446657+00:00",
+  "identity": {
+    "MainPID": "101767",
+    "InvocationID": "42ba0e50e6e84484b183aefc1bcd658c"
+  },
+  "origins": {
+    "base": [
+      {
+        "scheme": "https",
+        "host": "base-mainnet.g.alchemy.com"
+      },
+      {
+        "scheme": "https",
+        "host": "base-rpc.publicnode.com"
+      },
+      {
+        "scheme": "https",
+        "host": "base.drpc.org"
+      },
+      {
+        "scheme": "https",
+        "host": "mainnet.base.org"
+      }
+    ],
+    "base-sepolia": [
+      {
+        "scheme": "https",
+        "host": "base-sepolia.g.alchemy.com"
+      },
+      {
+        "scheme": "https",
+        "host": "sepolia.base.org"
+      }
+    ]
+  }
+}

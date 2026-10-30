@@ -1,0 +1,6 @@
+[queue] START available=34560MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+[memory-guard] exit=0 peakTreeRssMiB=261 minHostAvailableMiB=34317
+[memory-guard] at peak: node:223 python3:19 python3:13 bash:5 timeout:2
+[memory-guard] exit=0 peakTreeRssMiB=319 minHostAvailableMiB=34317
+[memory-guard] at peak: node:221 node:60 python3:19 python3:13 bash:5 timeout:2
+[queue] EXIT 0

@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "oldManifestSha256": "fd71831c7f54b79e22596ae566e21521b67979e81fa8decf886c61d90f199ca3",
+  "newManifestSha256": "a28432151c9a24bd207d9adaab401ca4e24a9cdc39807489f12c3000b0936441",
+  "backup": "/home/steven/.local/state/enclave-rpc-production/backup-base-growth-20261026T0536",
+  "newVirtualBytes": 4000000000000,
+  "runningQemuUnchanged": true,
+  "runningGuardUnchanged": true,
+  "unitsReloadedNotRestarted": true,
+  "fullProvisionVerify": true,
+  "initialReceiptError": "Postcondition queried enclave-rpc-production.service instead of actual enclave-rpc-production-vm.service. Corrected check confirms original VM and guard PIDs active. No mutation repeated.",
+  "note": "Running guard retains prior manifest in memory; NVMe policy unchanged. New manifest and pins apply on next normal coordinated boot. No guard restart because BindsTo would stop VM."
+}

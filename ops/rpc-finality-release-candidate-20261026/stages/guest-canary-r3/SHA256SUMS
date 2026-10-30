@@ -1,0 +1,7 @@
+486138c8257b04362a0c4e22feedd2d4881832d262855f764e03051f0bfeff35  ./R10-REVIEW-PINS.json
+57a58a89febfa79e89d7ccf480fe69dfd91735f141ef9c7654832750f3144ba0  ./README.md
+c1eb75c8c09a2fca8a76044feb2283c4b73c2c0cfa6cd76b101173cf57e30998  ./guest/canary.sh
+5cd01091d015bfdd66e344e3dc1c4a0aafe6d17695c732fcb14554e6c2a0a7cf  ./guest/canary_driver.py
+09b5df8e99c93399d6cf0b75676771edfbcd999adba92a6d3712b6580c60b994  ./guest/cleanup.sh
+898607e39085343b9d19b61a91005f54367f04f9e3db5f1adfb7ddafa9158d69  ./jobs/root-guest-capture-canary.sh
+dd1f0eaa851c176d7ebd0fdc92c70c67cb4fba32bfb85c23d793bbeb2c5f9026  ./tools/assemble_canary_bundle.py

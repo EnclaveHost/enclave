@@ -1,0 +1,6 @@
+[queue] START available=22866MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+PASS: artifact/provenance/evidence hashes; original incomplete receipt retained; actual compound gate accepted
+4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f  /srv/m10-guest-validation/release/run-1/out/base
+[memory-guard] exit=0 peakTreeRssMiB=14 minHostAvailableMiB=22827
+[memory-guard] at peak: ssh:10 bash:4
+[queue] EXIT 0

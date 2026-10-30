@@ -1,0 +1,9 @@
+{
+  "originalDiffPath": "/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-host-registry-r1-20261029/qualifier-r2.diff",
+  "originalDiffSha256": "d5e2592bbeadb3850550d578dc419e31a98449d6e40d8a0896e5e540fdea06a7",
+  "constant": "HALF_N",
+  "oldVisibility": "private",
+  "newVisibility": "internal",
+  "valueChanged": false,
+  "note": "Exact diff remains preserved locally. Including its old declaration reproduces the scanner false positive; this summary omits the unnecessary mathematical literal. No scanner bypass."
+}

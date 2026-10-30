@@ -1,0 +1,3 @@
+PIN=/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base/debug/helios; R=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/native-provenance-audit-stage/reproduce
+for b in $PIN $R/r3-eeffcc9/target/debug/helios $R/r3-b93fcfd/target/debug/helios $R/r2/target/debug/witness-check /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-rpc-runtime-launch/chain-verifier-inputs/witness-check; do
+  echo "$(echo $b | sed 's#.*/\(r3-[a-z0-9]*\|r2\|rpc-priority\|chain-verifier-inputs\)/.*/#\1/#;s#.*/\(chain-verifier-inputs\)/#\1/#'): $(strings -n 12 $b | grep -m2 -E '^built on: |^OpenSSL [0-9]' | tr '\n' '|')"; done

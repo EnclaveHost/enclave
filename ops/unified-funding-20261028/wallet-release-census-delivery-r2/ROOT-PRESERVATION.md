@@ -1,0 +1,1 @@
+Frozen124-file source delivery from same invocation a8561633fc04457b96fa9b7b238a4f92, timeout124 after900s, 8changes,312readonly pins unchanged, replay no issues. Collector completed ONCE. No final report/closure authored. Root verified124 manifest hashes. This package is source only; no production migration or signature.

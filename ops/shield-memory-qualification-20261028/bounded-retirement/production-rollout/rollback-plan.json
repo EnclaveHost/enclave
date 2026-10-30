@@ -1,0 +1,131 @@
+{
+  "adopt_env_added": [],
+  "candidate_argv_sha256": "536951e110dd797e0bd230fb5f884ae9652363016edf7e6865fedc9b59dab7ed",
+  "changes": [
+    {
+      "flag": "-shield-template",
+      "index": 33,
+      "new": "/home/steven/enclave-prod/release-af50d526/template",
+      "old": "/home/steven/enclave-prod/release-1da34434/template"
+    },
+    {
+      "flag": "-shield-release",
+      "index": 35,
+      "new": "af50d526be6deefcdd815968ff1dd2c04327f6c3b3f981c0aa90cc585b0effae",
+      "old": "1da344346ffe01df7695059bf4c27a5ef48ea6dc5cad11f6893683c71e5933f7"
+    },
+    {
+      "appended": "1da344346ffe01df7695059bf4c27a5ef48ea6dc5cad11f6893683c71e5933f7=/home/steven/enclave-prod/release-1da34434/template/rt/runtime.json",
+      "flag": "-adopt-runtimes",
+      "index": 29,
+      "kept_entries": 58
+    }
+  ],
+  "control_qemu": {
+    "argv0": "qemu-system-x86_64",
+    "cmdline_sha256": "ff1bd836ed090198e5d83427ef11c60824d937f2fa8217de410425998f4d3c17",
+    "name": "",
+    "pid": 3967858,
+    "start": 146386551,
+    "uid": 1000
+  },
+  "dropin": {
+    "existing": [
+      "70-protected-ports.conf",
+      "80-shield-inference.conf",
+      "90-tuna-egress.conf",
+      "95-public-web.conf",
+      "97-codegen.conf",
+      "98-artifact-gateway.conf",
+      "99-app-egress.conf",
+      "zz-memory-budget64.conf",
+      "zzz-eyesoff-vision.conf",
+      "zzzz-pad-spill.conf",
+      "zzzzz-custody.conf",
+      "zzzzzz-zimage.conf",
+      "zzzzzzz-recovery-pad-location.conf",
+      "zzzzzzzz-loader-cache-20261028.conf",
+      "zzzzzzzzz-retire-budget-20261028.conf"
+    ],
+    "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzzz-retire-rollback-20261028.conf",
+    "sha256": "5aadd2b03a78fc543c884bd4b9a26e4a7c417ce5a6b5e0bc69763dd6b124c48d"
+  },
+  "guest": "gdfc27c272",
+  "guest_qemu": {
+    "argv0": "/usr/bin/qemu-system-x86_64",
+    "cmdline_sha256": "b14ca1e71a5f80b63ec3f8291ae9f5c35e3d0562236be93b8a23990be92d819a",
+    "name": "",
+    "pid": 191523,
+    "start": 148646686,
+    "uid": 1000
+  },
+  "journal_has_adopt_ok_history": false,
+  "manager": {
+    "argv0": "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde",
+    "argv_sha256": "07e82653a41a28b1bd86490be4f7f064e0c6c6443c1fcfcf57504fa01c0840c5",
+    "cmdline_sha256": "cce2315520a5b7749af2c8ab10dd41e2e744962e5c1ddb917526d41a34ba8925",
+    "exe_sha256": "9d1562738cde6d43cef9e58931cb6425542e400b26364986c209e90377759314",
+    "name": "",
+    "pid": 177797,
+    "start": 148570641,
+    "uid": 1000
+  },
+  "preserve": {
+    "instance_dir": "/home/steven/enclave-prod/guestd-root/gdfc27c272",
+    "items": [
+      {
+        "dev": 64768,
+        "ino": 199101345,
+        "mode": "copy",
+        "name": "instance.json"
+      },
+      {
+        "dev": 64768,
+        "ino": 199101087,
+        "mode": "copy",
+        "name": "app.bundle"
+      },
+      {
+        "dev": 64768,
+        "ino": 199101090,
+        "mode": "hardlink",
+        "name": "guest.cpio.gz"
+      },
+      {
+        "dev": 64768,
+        "ino": 199101096,
+        "mode": "snapshot",
+        "name": "gdfc27c272.serial"
+      },
+      {
+        "dev": 64768,
+        "ino": 199101264,
+        "mode": "copy",
+        "name": "doc.json"
+      },
+      {
+        "dev": 64768,
+        "ino": 199101344,
+        "mode": "copy",
+        "name": "verify.txt"
+      }
+    ],
+    "pad": {
+      "dev": 64768,
+      "ino": 199101095,
+      "path": "/home/steven/enclave-prod/shield-pads-metal0-recovery-20261028/gdfc27c272.padbank",
+      "real": "/home/steven/enclave-prod/shield-pads-metal0-recovery-20261028/gdfc27c272.padbank",
+      "symlink_target": null
+    }
+  },
+  "recovery": {
+    "dir": "/home/steven/enclave-prod/retire-rollback-preservation-20261028",
+    "pad_dir": "/home/steven/enclave-prod/retire-rollback-preservation-20261028"
+  },
+  "releases": {
+    "new": "af50d526be6deefcdd815968ff1dd2c04327f6c3b3f981c0aa90cc585b0effae",
+    "old": "1da344346ffe01df7695059bf4c27a5ef48ea6dc5cad11f6893683c71e5933f7"
+  },
+  "schema": "safe-manager-switch-plan/1",
+  "unit": "enclave-guestd.service"
+}

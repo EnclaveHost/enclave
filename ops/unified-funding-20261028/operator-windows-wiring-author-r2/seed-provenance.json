@@ -1,0 +1,18 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/author-delivery",
+  "sourceManifest": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r1-20261029/author-delivery-manifest.json",
+  "sourceManifestSha256": "3d07b8960f71a212745630bb68efa90fc2390a93bc29a00fff55a261ed582840",
+  "seedFiles": 248,
+  "seedManifestSha256": "3d07b8960f71a212745630bb68efa90fc2390a93bc29a00fff55a261ed582840",
+  "preAuthorProductEdits": [],
+  "rootChainQuarantineSha256": "79771c6c85fb26e1e91cb1f99eaa006586a52082b45f6d5d7b9d7e3376870cfd",
+  "rootRepairsPreserved": {
+    "control/isolation/m4/guestd/control-client.mjs": "df77d6dbbcab2d57729e6cb6b70e5f8fab006c8c1ac5be9eb7baf1440df934b4",
+    "control/windows/node/protected-isolation.mjs": "bfbab051a4784bb45d1510596b7d8a337d80b0bccf45447149c6181ecb65f160",
+    "control/windows/node/protected-supervisor.mjs": "1cd9be0545bd0284ffb26c12131c4233b340d1e6773872fecdff8f8f540e8408"
+  },
+  "preservationCommit": "d9a547a1b84bed5a3f2044fb156fb348ae06a8c3",
+  "rootEvidence": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r1",
+  "candidateExactFrozenSeed": true,
+  "noCandidateCodeExecuted": true
+}

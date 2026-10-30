@@ -1,0 +1,7 @@
+# Root1594 actual integration failure: native byte-type mismatch
+
+Actualrun writer-integrated-stage/r2/runs/20261026T193742Z-slice-2228394 has test3 failure nullfloor and test5 failure nativeRunning never reached. All9subtests reported but test5 leaves driver timer open. Root stopped onlyownedtimeout2229364 withSIGTERM afterreports; remaining suites continue. Receipt integration-suite-stop-1599.json. This is a FAILED qualification, notskip/pass.
+
+Source evidence: relay/derived-reader-driver-wiring.mjs createWitnessTransport returns new Uint8Array(Buffer.concat(chunks)); network/derived-reader/native.mjs invokeDerivation line18 requires Buffer.isBuffer(witness), rejecting that Uint8Array. Driver accepts Uint8Array size but forwards it unchanged. Fix transport to return bounded Buffer.concat(chunks) directly, preserving native boundary/typecheck; add exactBuffer regression. Do not relax native validator to arbitrary objects.
+
+Cleanup: test5 starts realdriver then awaits until(nativeRunning) BEFOREregistering anycleanup; failure leaksdriverloop. Register t.after(() => d.stop()) immediatelyafterstart beforeuntil. wired() replaces f.reader withnewprovider afterclosing old; ensure newprovider closesin cleanup aswell. Tests should assert tick status/error beforedereferencing floor todiagnosefuturefailures. Preserveallfrozenstages; fixin NEW integratedr3/smallpatch againstintegratedr2; avoid touchingotheractiveagents'scratch.

@@ -1,0 +1,551 @@
+[queue] START available=87534MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+38f8dc891bfa9f5f74fcd8eb4ba50ea6f5f70342c49e3c7e2944a10c504436d7  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/../provision_vm.py
+## test_guard_startup
+test_absent_forever_fails_closed_after_exactly_300s (test_guard_startup.InitialGrace.test_absent_forever_fails_closed_after_exactly_300s) ... ok
+test_capacity_pause_and_check_failure_during_startup_refuse_immediately (test_guard_startup.InitialGrace.test_capacity_pause_and_check_failure_during_startup_refuse_immediately) ... ok
+test_capacity_shutdown_level_during_startup_refuses_immediately (test_guard_startup.InitialGrace.test_capacity_shutdown_level_during_startup_refuses_immediately) ... ok
+test_delayed_greeting_then_runtime_policy_unchanged (test_guard_startup.InitialGrace.test_delayed_greeting_then_runtime_policy_unchanged) ... ok
+test_qemu_gone_after_seen_exits_0_unchanged (test_guard_startup.InitialGrace.test_qemu_gone_after_seen_exits_0_unchanged) ... ok
+test_qmp_command_failure_while_present_exits_3_unchanged (test_guard_startup.InitialGrace.test_qmp_command_failure_while_present_exits_3_unchanged) ... ok
+test_reconnect_after_seen_keeps_60s_not_300s (test_guard_startup.InitialGrace.test_reconnect_after_seen_keeps_60s_not_300s) ... ok
+test_unsafe_capacity_after_connect_still_pauses (test_guard_startup.InitialGrace.test_unsafe_capacity_after_connect_still_pauses) ... ok
+test_waits_without_socket_and_without_deadline_as_before (test_guard_startup.InitialGrace.test_waits_without_socket_and_without_deadline_as_before) ... ok
+test_no_greeting_is_controlled_failure_not_traceback (test_guard_startup.PowerdownHandshake.test_no_greeting_is_controlled_failure_not_traceback) ... ERROR
+/usr/lib/python3.14/unittest/case.py:668: ResourceWarning: unclosed <socket.socket fd=3, family=1, type=1, proto=0>
+  with outcome.testPartExecutor(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+test_guard_survives_stalled_real_monitor (test_guard_startup.RealQemuStalledMonitor.test_guard_survives_stalled_real_monitor) ... FAIL
+test_accepted_no_greeting_times_out_and_closes (test_guard_startup.RealSocketQmp.test_accepted_no_greeting_times_out_and_closes) ... ERROR
+test_guard_loop_real_delayed_greeting (test_guard_startup.RealSocketQmp.test_guard_loop_real_delayed_greeting) ... ERROR
+test_malformed_reply_is_oserror_and_closes (test_guard_startup.RealSocketQmp.test_malformed_reply_is_oserror_and_closes) ... ERROR
+test_never_accepted_backlog_full_no_fd_leak (test_guard_startup.RealSocketQmp.test_never_accepted_backlog_full_no_fd_leak) ... ERROR
+test_success_restores_runtime_timeout (test_guard_startup.RealSocketQmp.test_success_restores_runtime_timeout) ... ERROR
+
+======================================================================
+ERROR: test_no_greeting_is_controlled_failure_not_traceback (test_guard_startup.PowerdownHandshake.test_no_greeting_is_controlled_failure_not_traceback)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 335, in test_no_greeting_is_controlled_failure_not_traceback
+    lst = Listener(path, accept=False)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 201, in __init__
+    self.sock.bind(path)
+    ~~~~~~~~~~~~~~^^^^^^
+OSError: AF_UNIX path too long
+
+======================================================================
+ERROR: test_accepted_no_greeting_times_out_and_closes (test_guard_startup.RealSocketQmp.test_accepted_no_greeting_times_out_and_closes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 255, in test_accepted_no_greeting_times_out_and_closes
+    lst = Listener(self.path, accept=True, greet=False)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 201, in __init__
+    self.sock.bind(path)
+    ~~~~~~~~~~~~~~^^^^^^
+OSError: AF_UNIX path too long
+
+======================================================================
+ERROR: test_guard_loop_real_delayed_greeting (test_guard_startup.RealSocketQmp.test_guard_loop_real_delayed_greeting)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 292, in test_guard_loop_real_delayed_greeting
+    lst = Listener(self.path, accept=True, delay=2.5, reply=None)   # accepts + greets only after 2.5 s
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 201, in __init__
+    self.sock.bind(path)
+    ~~~~~~~~~~~~~~^^^^^^
+OSError: AF_UNIX path too long
+
+======================================================================
+ERROR: test_malformed_reply_is_oserror_and_closes (test_guard_startup.RealSocketQmp.test_malformed_reply_is_oserror_and_closes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 271, in test_malformed_reply_is_oserror_and_closes
+    lst = Listener(self.path, reply=b'not json\n')
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 201, in __init__
+    self.sock.bind(path)
+    ~~~~~~~~~~~~~~^^^^^^
+OSError: AF_UNIX path too long
+
+======================================================================
+ERROR: test_never_accepted_backlog_full_no_fd_leak (test_guard_startup.RealSocketQmp.test_never_accepted_backlog_full_no_fd_leak)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 241, in test_never_accepted_backlog_full_no_fd_leak
+    lst = Listener(self.path, accept=False)          # QEMU busy: listening, never accepting
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 201, in __init__
+    self.sock.bind(path)
+    ~~~~~~~~~~~~~~^^^^^^
+OSError: AF_UNIX path too long
+
+======================================================================
+ERROR: test_success_restores_runtime_timeout (test_guard_startup.RealSocketQmp.test_success_restores_runtime_timeout)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 282, in test_success_restores_runtime_timeout
+    lst = Listener(self.path, reply=None)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 201, in __init__
+    self.sock.bind(path)
+    ~~~~~~~~~~~~~~^^^^^^
+OSError: AF_UNIX path too long
+
+======================================================================
+FAIL: test_guard_survives_stalled_real_monitor (test_guard_startup.RealQemuStalledMonitor.test_guard_survives_stalled_real_monitor)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 368, in test_guard_survives_stalled_real_monitor
+    self.assertTrue(os.path.exists(path))
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 16 tests in 20.044s
+
+FAILED (failures=1, errors=6)
+## test_guard_startup rc=1
+## test_nvme_migration
+test_levels (test_nvme_migration.Decide.test_levels) ... ok
+test_thresholds (test_nvme_migration.Decide.test_thresholds) ... ok
+test_check_failure_pauses (test_nvme_migration.GuardLoop.test_check_failure_pauses) ... ok
+test_qemu_gone_after_seen_exits_0 (test_nvme_migration.GuardLoop.test_qemu_gone_after_seen_exits_0) ... ok
+test_qmp_error_while_present_exits_3 (test_nvme_migration.GuardLoop.test_qmp_error_while_present_exits_3) ... ok
+test_rate_triggers_early_shutdown (test_nvme_migration.GuardLoop.test_rate_triggers_early_shutdown) ... ok
+test_shutdown_budget_mode_pauses_only_at_floor (test_nvme_migration.GuardLoop.test_shutdown_budget_mode_pauses_only_at_floor) ... ok
+test_shutdown_then_pause_once_each (test_nvme_migration.GuardLoop.test_shutdown_then_pause_once_each) ... ok
+test_unreachable_qmp_at_pause_exits_3 (test_nvme_migration.GuardLoop.test_unreachable_qmp_at_pause_exits_3) ... ok
+test_unreachable_qmp_initial_300s_exits_3 (test_nvme_migration.GuardLoop.test_unreachable_qmp_initial_300s_exits_3) ... ok
+test_waits_for_qemu_without_acting (test_nvme_migration.GuardLoop.test_waits_for_qemu_without_acting) ... ok
+test_full_cycle_resume_and_finalize (test_nvme_migration.Migration.test_full_cycle_resume_and_finalize) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/provision_vm.py'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/tmp26aqw525/hdd-mnt/enclave-rpc-production/os.qcow2'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/tmp26aqw525/hdd-mnt/enclave-rpc-production/l1-origin.qcow2'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/tmp26aqw525/hdd-mnt/enclave-rpc-production/base-origin.qcow2'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:338: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/tmp26aqw525/plan.json' mode='r' encoding='UTF-8'>
+  plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/home/.local/state/enclave-rpc-production/manifest.json'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/home/.local/state/enclave-rpc-production/provision_vm.py'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/home/.config/systemd/user/enclave-rpc-production-vm.service'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:391: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/tmp26aqw525/staged/manifest.json' mode='r' encoding='UTF-8'>
+  mtext = open(os.path.join(out, 'manifest.json')).read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:409: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/tmp26aqw525/staged/enclave-rpc-production-vm.service' mode='r' encoding='UTF-8'>
+  unit = open(os.path.join(out, pv.UNIT)).read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:412: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/tmp26aqw525/staged/enclave-rpc-production-guard.service' mode='r' encoding='UTF-8'>
+  guard = open(os.path.join(out, pv.GUARD_UNIT)).read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/home/.local/state/enclave-rpc-production/manifest.json'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/tmp26aqw525/staged/manifest.json'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/home/.local/state/enclave-rpc-production/provision_vm.py'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/tmp26aqw525/staged/provision_vm.py'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/home/.local/state/enclave-rpc-production/manifest.json'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/home/.local/state/enclave-rpc-production/provision_vm.py'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/home/.config/systemd/user/enclave-rpc-production-vm.service'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/tmp26aqw525/hdd-mnt/enclave-rpc-production/os.qcow2'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/tmp26aqw525/hdd-mnt/enclave-rpc-production/l1-origin.qcow2'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/tmp26aqw525/hdd-mnt/enclave-rpc-production/base-origin.qcow2'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_plan_accepts_only_empty_private_preexisting_dir (test_nvme_migration.Migration.test_plan_accepts_only_empty_private_preexisting_dir) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/provision_vm.py'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:324: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-sypk14n6/tmpjo7w5ap9/plan.json' mode='r' encoding='UTF-8'>
+  self.assertTrue(json.load(open(e.plan))['targetDirPreExisting'])
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_plan_refuses_without_start_capacity (test_nvme_migration.Migration.test_plan_refuses_without_start_capacity) ... ok
+test_v1_argv_and_unit_render_byte_identical (test_nvme_migration.V1Compat.test_v1_argv_and_unit_render_byte_identical) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:54: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/fixtures/v1-installed/manifest.v1.json' mode='r' encoding='UTF-8'>
+  text = open(os.path.join(SNAP, 'manifest.v1.json')).read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:57: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/fixtures/v1-installed/vm.service.v1' mode='r' encoding='UTF-8'>
+  self.assertEqual(pv.render_unit(m, pv.sha256_text(text)), open(os.path.join(SNAP, 'vm.service.v1')).read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_ok (test_nvme_migration.ValidateV2.test_ok) ... ok
+test_rejects (test_nvme_migration.ValidateV2.test_rejects) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 5.538s
+
+OK
+## test_nvme_migration rc=0
+## test_receipts
+test_active_unit_now (test_receipts.Receipts.test_active_unit_now) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/provision_vm.py'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpar1amwyu/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpar1amwyu/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpar1amwyu/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_copy_hash_differs (test_receipts.Receipts.test_copy_hash_differs) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpnfftwde8/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpnfftwde8/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpnfftwde8/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:82: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpnfftwde8/copy-l1.receipt.json' mode='r' encoding='UTF-8'>
+  rec = json.load(open(self.receipts[role]))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:85: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpnfftwde8/mut-0-l1.json' mode='w' encoding='UTF-8'>
+  json.dump(rec, open(p, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_failed_status (test_receipts.Receipts.test_failed_status) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp4wr0ri91/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp4wr0ri91/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp4wr0ri91/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:82: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp4wr0ri91/copy-os.receipt.json' mode='r' encoding='UTF-8'>
+  rec = json.load(open(self.receipts[role]))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:85: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp4wr0ri91/mut-0-os.json' mode='w' encoding='UTF-8'>
+  json.dump(rec, open(p, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_guard_unit_active_now (test_receipts.Receipts.test_guard_unit_active_now) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp15linz3n/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp15linz3n/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp15linz3n/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_launcher_repin_requires_explicit_sha (test_receipts.Receipts.test_launcher_repin_requires_explicit_sha) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpmo2dbise/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpmo2dbise/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpmo2dbise/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:220: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpmo2dbise/staged-2/manifest.json' mode='r' encoding='UTF-8'>
+  m2 = json.load(open(os.path.join(staged, 'manifest.json')))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_metadata_only_change_needs_and_passes_rehash (test_receipts.Receipts.test_metadata_only_change_needs_and_passes_rehash) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpx3w_qx0w/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpx3w_qx0w/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpx3w_qx0w/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_missing_l1 (test_receipts.Receipts.test_missing_l1) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp46iay_qr/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp46iay_qr/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp46iay_qr/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_non_hex_digest (test_receipts.Receipts.test_non_hex_digest) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp6ebrnzjt/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp6ebrnzjt/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp6ebrnzjt/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:82: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp6ebrnzjt/copy-os.receipt.json' mode='r' encoding='UTF-8'>
+  rec = json.load(open(self.receipts[role]))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:85: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp6ebrnzjt/mut-0-os.json' mode='w' encoding='UTF-8'>
+  json.dump(rec, open(p, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:85: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp6ebrnzjt/mut-1-os.json' mode='w' encoding='UTF-8'>
+  json.dump(rec, open(p, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:85: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp6ebrnzjt/mut-2-os.json' mode='w' encoding='UTF-8'>
+  json.dump(rec, open(p, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_ok_stages_v2_and_installs_nothing (test_receipts.Receipts.test_ok_stages_v2_and_installs_nothing) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp0q_4xu7j/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp0q_4xu7j/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp0q_4xu7j/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:102: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp0q_4xu7j/staged-1/manifest.json' mode='r' encoding='UTF-8'>
+  m2 = json.load(open(os.path.join(staged, 'manifest.json')))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:105: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp0q_4xu7j/copy-os.receipt.json' mode='r' encoding='UTF-8'>
+  rec = json.load(open(self.receipts[r]))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:105: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp0q_4xu7j/copy-l1.receipt.json' mode='r' encoding='UTF-8'>
+  rec = json.load(open(self.receipts[r]))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_same_path_launcher_repin (test_receipts.Receipts.test_same_path_launcher_repin) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_nvme_migration.py:48: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/provision_vm.py'>
+  return hashlib.sha256(open(path, 'rb').read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpu5hev65n/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpu5hev65n/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpu5hev65n/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_source_differs_from_plan (test_receipts.Receipts.test_source_differs_from_plan) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpovwj6mew/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpovwj6mew/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpovwj6mew/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:82: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpovwj6mew/copy-l1.receipt.json' mode='r' encoding='UTF-8'>
+  rec = json.load(open(self.receipts[role]))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:85: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpovwj6mew/mut-0-l1.json' mode='w' encoding='UTF-8'>
+  json.dump(rec, open(p, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_source_touched_after_copy (test_receipts.Receipts.test_source_touched_after_copy) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpwfbfe2zh/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpwfbfe2zh/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpwfbfe2zh/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_stale_target_mutation (test_receipts.Receipts.test_stale_target_mutation) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpxi9gusy0/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpxi9gusy0/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpxi9gusy0/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_substituted_same_name (test_receipts.Receipts.test_substituted_same_name) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp5g7n2iw1/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp5g7n2iw1/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp5g7n2iw1/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_target_held_by_qemu (test_receipts.Receipts.test_target_held_by_qemu) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpiw_t_17n/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpiw_t_17n/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpiw_t_17n/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_unit_active_in_receipt (test_receipts.Receipts.test_unit_active_in_receipt) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmph45nqtzd/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmph45nqtzd/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmph45nqtzd/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:82: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmph45nqtzd/copy-os.receipt.json' mode='r' encoding='UTF-8'>
+  rec = json.load(open(self.receipts[role]))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:85: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmph45nqtzd/mut-0-os.json' mode='w' encoding='UTF-8'>
+  json.dump(rec, open(p, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_wrong_helper (test_receipts.Receipts.test_wrong_helper) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpm4t5leh6/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpm4t5leh6/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpm4t5leh6/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:82: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpm4t5leh6/copy-os.receipt.json' mode='r' encoding='UTF-8'>
+  rec = json.load(open(self.receipts[role]))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:85: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpm4t5leh6/mut-0-os.json' mode='w' encoding='UTF-8'>
+  json.dump(rec, open(p, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_wrong_inode (test_receipts.Receipts.test_wrong_inode) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpztc3c28q/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpztc3c28q/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpztc3c28q/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:82: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpztc3c28q/copy-l1.receipt.json' mode='r' encoding='UTF-8'>
+  rec = json.load(open(self.receipts[role]))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:85: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmpztc3c28q/mut-0-l1.json' mode='w' encoding='UTF-8'>
+  json.dump(rec, open(p, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_wrong_target_path (test_receipts.Receipts.test_wrong_target_path) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:41: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp63r7keye/plan.json' mode='r' encoding='UTF-8'>
+  self.plan = json.load(open(e.plan))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp63r7keye/copy-os.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:52: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp63r7keye/copy-l1.plan.json' mode='w' encoding='UTF-8'>
+  json.dump({'format': 'enclave-nvme-copy-plan/v1',
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:82: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp63r7keye/copy-l1.receipt.json' mode='r' encoding='UTF-8'>
+  rec = json.load(open(self.receipts[role]))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_receipts.py:85: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/nvme-mig-test-lnrkv6he/tmp63r7keye/mut-0-l1.json' mode='w' encoding='UTF-8'>
+  json.dump(rec, open(p, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 11.338s
+
+OK
+## test_receipts rc=0
+## test_real_qemu
+test_production_blockdev_unmap_frees_host_blocks (test_real_qemu.DiscardUnmap.test_production_blockdev_unmap_frees_host_blocks) ... {"allocatedAfterWrite": 17043456, "allocatedAfterDiscard": 266240}
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.BufferedReader name=4>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_guard_pauses_via_second_monitor (test_real_qemu.GuardOnRealQemu.test_guard_pauses_via_second_monitor) ... ENCLAVE-RPC-GUARD: ACPI POWERDOWN requested: nvme free 400 rate 0 B/s -> shutdown
+ENCLAVE-RPC-GUARD: PAUSED VM: nvme free 360 rate 0 B/s -> pause -- operator: free space and `cont`, or `provision_vm.py resume-for-shutdown`; a paused VM cannot ACPI-shutdown
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_real_qemu.py:78: ResourceWarning: unclosed <socket.socket fd=5, family=1, type=1, proto=0, raddr=/tmp/gq-gkp50tn6/guard-qmp.sock>
+  rc = pv.guard_loop(m, 'S', IO(m), max_loops=3)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+/usr/lib/python3.14/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=3, family=1, type=1, proto=0, raddr=/tmp/gq-gkp50tn6/qmp.sock>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/suite.py:107: ResourceWarning: unclosed file <_io.BufferedReader name=4>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+test_powerdown_floor_watch_pauses_from_manifest (test_real_qemu.GuardOnRealQemu.test_powerdown_floor_watch_pauses_from_manifest) ... powerdown: ACPI powerdown sent, waiting up to 20s for the guest to halt
+powerdown: /x free 364 at/below pause threshold during shutdown: VM PAUSED; systemd will SIGTERM QEMU (crash-consistent stop)
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_real_qemu.py:93: ResourceWarning: unclosed <socket.socket fd=3, family=1, type=1, proto=0, raddr=/tmp/gq-uqb5aepq/qmp.sock>
+  rc = pv.cmd_powerdown(path, wait_s=20)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+/usr/lib/python3.14/unittest/suite.py:84: ResourceWarning: unclosed file <_io.BufferedReader name=4>
+  return self.run(*args, **kwds)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+test_real_qemu_clean_exit_while_waiting (test_real_qemu.PowerdownRegression.test_real_qemu_clean_exit_while_waiting) ... powerdown: ACPI powerdown sent, waiting up to 60s for the guest to halt
+powerdown: QEMU exited after guest shutdown
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_real_qemu.py:149: ResourceWarning: unclosed <socket.socket fd=3, family=1, type=1, proto=0, raddr=/tmp/pq-weoyarnv/qmp.sock>
+  return pv.cmd_powerdown('/unused', wait_s=60)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed <socket.socket fd=4, family=1, type=1, proto=0, raddr=/tmp/pq-weoyarnv/guard-qmp.sock>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_timeout_then_events_then_eof (test_real_qemu.PowerdownRegression.test_timeout_then_events_then_eof) ... powerdown: ACPI powerdown sent, waiting up to 60s for the guest to halt
+powerdown: QEMU exited after guest shutdown
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_real_qemu.py:149: ResourceWarning: unclosed <socket.socket fd=5, family=1, type=1, proto=0, raddr=/tmp/pr-5jwfmr5n/qmp.sock>
+  return pv.cmd_powerdown('/unused', wait_s=60)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 7.415s
+
+OK
+## test_real_qemu rc=0
+## test_systemd_lifecycle
+test_guard_vm_lifecycle (test_systemd_lifecycle.Lifecycle.test_guard_vm_lifecycle) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/provision_vm.py:155: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/self/mountinfo' mode='r' encoding='UTF-8'>
+  return {'majmin': f[2], 'opts': f[5].split(','), 'fstype': g[0], 'source': g[1], 'superOpts': g[2].split(',')}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_systemd_lifecycle.py:64: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/sdl-ktj3jle8/tmptcfgb0by/home/.local/state/enclave-rpc-production/id_ed25519.pub' mode='r' encoding='UTF-8'>
+  m['sshPublicKey'] = open(p['key'] + '.pub').read().strip()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_systemd_lifecycle.py:203: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/sdl-ktj3jle8/tmptcfgb0by/home/.local/state/enclave-rpc-production/guard-status.json' mode='r' encoding='UTF-8'>
+  return json.load(open(p['guardStatus']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+watchdog-to-VM-inactive seconds: 30.1
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_systemd_lifecycle.py:254: ResourceWarning: unclosed <socket.socket fd=4, family=1, type=1, proto=0, raddr=/tmp/sdl-fk1bbqyk/sdltest-rpc/qmp.sock>
+  q = pv.Qmp(p['qmp'])
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_install_verify_does_not_need_the_guard (test_systemd_lifecycle.VerifyWithoutGuard.test_install_verify_does_not_need_the_guard) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/provision_vm.py:155: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/self/mountinfo' mode='r' encoding='UTF-8'>
+  return {'majmin': f[2], 'opts': f[5].split(','), 'fstype': g[0], 'source': g[1], 'superOpts': g[2].split(',')}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_systemd_lifecycle.py:64: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/sdl-ktj3jle8/tmprtlmn86g/home/.local/state/enclave-rpc-production/id_ed25519.pub' mode='r' encoding='UTF-8'>
+  m['sshPublicKey'] = open(p['key'] + '.pub').read().strip()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 107.812s
+
+OK
+## test_systemd_lifecycle rc=0
+## aggregate rc=1
+[memory-guard] exit=1 peakTreeRssMiB=105 minHostAvailableMiB=87487
+[memory-guard] at peak: qemu-system-x86:35 python3:25 python3:24 systemd:13 bash:4 timeout:2 sleep:2
+[queue] EXIT 1

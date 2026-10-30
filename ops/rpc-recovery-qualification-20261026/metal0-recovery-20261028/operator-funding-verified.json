@@ -1,0 +1,38 @@
+{
+  "status": "verified",
+  "planHash": "0x9ccf63c5b369622fcf5dd09bc42186f8581e77a403d2c958481553ba16c36849",
+  "transactions": {
+    "A": "0xcc0203d97b08510aa49b33e278fcb519f22c55cbd19bdcfc6e1e5b552f635db3",
+    "B": "0x0e6c498763a1fefd9851153802aa54f279fa2ac304f5e0dd5d57ea777abb52e0"
+  },
+  "outcome": {
+    "state": "verified",
+    "cutoff": false,
+    "problems": [],
+    "receipts": {
+      "A": {
+        "status": "0x1",
+        "block": "53184670",
+        "blockHash": "0x7e115e0dd940f8576d3f3148c9be1895c5f4b298e906d104d65b050a0726b50b"
+      },
+      "B": {
+        "status": "0x1",
+        "block": "53184671",
+        "blockHash": "0x9dc9b0330457e0276760a05dad7c8c200e92e529bcfee9104be9e3e826abd255"
+      }
+    },
+    "code": "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343",
+    "nonce": "23774",
+    "balance": "5553327348199",
+    "recovery": {
+      "state": "verified",
+      "when": "B mined and every post-condition re-read on both providers",
+      "effect": "C9 restored (code hash e2f1317f), nonce N+2, storage unchanged, funded",
+      "action": "resume the keepers and signers"
+    }
+  },
+  "walletTopup": "0x29e88beb5cf7b5b1c22bcf4185076730828e9a2ca44e0651e9d6710e72bedb3a",
+  "privateJournal": "/home/steven/enclave-prod/metal0-cold-funding-20261028-r1",
+  "custodianParentResumed": true,
+  "custodianQemuNeverPaused": true
+}

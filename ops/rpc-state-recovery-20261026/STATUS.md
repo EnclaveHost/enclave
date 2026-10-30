@@ -1,0 +1,11 @@
+# State archive recovery — 2026-10-26 16:28 UTC
+
+Production RPC replacement is incomplete. Administrator controls remain unchanged. The RPC VM is off after its clean shutdown; existing production apps have priority over staging memory.
+
+The host-only fetch r3 passed30 tests; r3.1 adds two regressions and passed32 tests on the actual NTFS3 USB filesystem. Independent review led to preserving a lone temporary progress record and refusing the loopback test switch for HTTPS URLs. The complete32-case rerun passed with no skips. Real CDN range/ETag/Last-Modified and filesystem permission/fsync/atomic-rename probes passed. A real256MiB-capped120-second fetch committed1,610,612,736bytes, then handled SIGTERM without losing committed bytes. Its archive size equalled its saved offset, temporary chunk files were removed, and a64KiB prefix matched an independent CDN probe. The production continuation started16:27:06UTC from that exact offset and subsequently advanced past2.4GB. Runtime observation, not archive integrity or blockchain readiness.
+
+Archive: /mnt/usb/enclave-rpc-production/state-recovery-r3/state.tar.zst. Pinned total761228785915bytes. Preserve it after transfer. The256MiB scope continuously retains the16GiB host reserve; its filesystem cache hit the cgroup limit but the observed preflight had no OOM kills. A future interruption is recoverable from committed.json; never substitute sparse-file length for a verified progress record.
+
+Prepared/unqualified: guest extraction/import/install and actual BLAKE3 qualification; the48/32/16GiB VM memory-change tool (11 offline tests passed, no resize installed); enrollmentr6/r7. The real OS read-only inspection found the initial snapshot's completion-marker condition intact; its one drop-in only changes the command's pinned manifest/concurrency. Generic inspection still refuses unknown drop-ins; no VM restart is implied.
+
+Enrollmentr5/r6 evidence includes failures. r6 passed22journal+8replica tests but composition4/6 and role16/19; r7 corrections are prepared and unrun here. No claim of production enrollment, live reader authority, independent quorum, SNP, finality readiness, or completed decentralization follows from these artifacts.

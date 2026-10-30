@@ -1,0 +1,92 @@
+{
+ "format": "enclave-nvme-copy-receipt/v1",
+ "host": "warden-host",
+ "helperSha256": "e48a7cb8b954059e6530a3cca56b03e688f8239d0c42c68d658126fd8dfc6561",
+ "plan": {
+  "source": {
+   "path": "/mnt/usb/enclave-rpc-production/os.qcow2",
+   "dev": 2050,
+   "ino": 3219,
+   "size": 3110666240
+  },
+  "target": {
+   "dir": "/vm/enclave-volumes/rpc-production",
+   "name": "os.qcow2"
+  },
+  "unit": "enclave-rpc-production-vm.service",
+  "reserveBytes": 300000000000
+ },
+ "started": "2026-10-25T16:52:44Z",
+ "status": "ok",
+ "events": [],
+ "sourceBefore": {
+  "dev": 2050,
+  "ino": 3219,
+  "size": 3110666240,
+  "mtime_ns": 1792946515647561400,
+  "ctime_ns": 1792946515647561400,
+  "nlink": 1,
+  "mode": 33188
+ },
+ "unitBefore": {
+  "LoadState": "loaded",
+  "ActiveState": "inactive",
+  "SubState": "dead",
+  "MainPID": "0"
+ },
+ "lock": {
+  "kind": "OFD shared read lock (F_OFD_SETLK, O_RDONLY fd)",
+  "bytes": [
+   100,
+   299
+  ]
+ },
+ "unitAfterLock": {
+  "LoadState": "loaded",
+  "ActiveState": "inactive",
+  "SubState": "dead",
+  "MainPID": "0"
+ },
+ "procScan": {
+  "unreadableEntries": 557,
+  "realRoot": false,
+  "allowIncompleteProcScan": true
+ },
+ "target": {
+  "fsType": "ext4",
+  "freeBefore": 1026184744960,
+  "need": 303110666240
+ },
+ "unitAfterCopy": {
+  "LoadState": "loaded",
+  "ActiveState": "inactive",
+  "SubState": "dead",
+  "MainPID": "0"
+ },
+ "final": "/vm/enclave-volumes/rpc-production/os.qcow2",
+ "sourceSha256": "9a71081601d2a9820e422d6347736c93b98526d74a715a4a48074bdb79f33b2f",
+ "copySha256": "9a71081601d2a9820e422d6347736c93b98526d74a715a4a48074bdb79f33b2f",
+ "bytes": 3110666240,
+ "bytesWritten": 3102277632,
+ "zeroChunksSkipped": 1,
+ "chunkBytes": 8388608,
+ "allocatedBytes": 3102281728,
+ "copySec": 22.4,
+ "verifySec": 2.7,
+ "periodicFdatasyncSec": [],
+ "finalFsyncSec": 0.001,
+ "dirFsyncSec": 0.0,
+ "finalInode": 147981797,
+ "finalMode": "0o600",
+ "sourceAfter": {
+  "dev": 2050,
+  "ino": 3219,
+  "size": 3110666240,
+  "mtime_ns": 1792946515647561400,
+  "ctime_ns": 1792946515647561400,
+  "nlink": 1,
+  "mode": 33188
+ },
+ "finished": "2026-10-25T16:53:10Z",
+ "totalSec": 25.2
+}

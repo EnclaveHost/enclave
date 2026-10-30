@@ -1,0 +1,5 @@
+usage: claude-test-queue.py [-h]
+                            --mib {256,512,768,1024,1408,1536,1792,2560,4096}
+                            --log LOG
+                            ...
+claude-test-queue.py: error: argument --mib: invalid choice: '384' (choose from '256', '512', '768', '1024', '1408', '1536', '1792', '2560', '4096')

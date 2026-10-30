@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: tampered or missing witnesses and a stale head refuse every Windows state read; nothing falls back to BASE_RPCS
+ok 1 - tampered or missing witnesses and a stale head refuse every Windows state read; nothing falls back to BASE_RPCS
+  ---
+  duration_ms: 207145.361999
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 207471.558942

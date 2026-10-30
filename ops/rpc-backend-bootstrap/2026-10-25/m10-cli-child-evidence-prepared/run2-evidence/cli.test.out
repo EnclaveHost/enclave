@@ -1,0 +1,51 @@
+
+running 46 tests
+test bootnode::tests::advertised_address_defaults_to_listen_address ... ok
+test bootnode::tests::advertised_address_uses_static_overrides ... ok
+test bootnode::tests::bootstore_can_be_disabled ... ok
+test bootnode::tests::bootstore_defaults_to_chain_scoped_file ... ok
+test bootnode::tests::bootstore_uses_custom_path ... ok
+test bootnode::tests::default_key_path_is_chain_scoped ... ok
+test bootnode::tests::invalid_bootnode_errors ... ok
+test bootnode::tests::parses_enr_output_path ... ok
+test bootnode::tests::parses_raw_key_into_keypair ... ok
+test bootnode::tests::local_enr_uses_advertised_address_and_valid_chain_metadata ... ok
+test node::tests::applies_positive_schedule_to_rollup_config ... ok
+test bootnode::tests::writes_enr_output_file ... ok
+test node::tests::bootstrap_anchor_flag::parses_and_is_absent_without_the_flag ... ok
+test node::tests::bootstrap_anchor_flag::refuses_malformed_values_and_has_no_env_binding ... ok
+test node::tests::bootstrap_anchor_flag::the_embedded_sequencer_args_have_no_bootstrap_anchor_flag ... ok
+test node::tests::da_batch_inbox_override_is_rejected_in_sequencer_mode ... ok
+test node::tests::da_batcher_sender_override_is_rejected_in_sequencer_mode ... ok
+test node::tests::embedded_consensus_applies_da_batch_inbox_override ... ok
+test node::tests::embedded_consensus_preserves_da_batcher_sender_override ... ok
+test node::tests::embedded_execution_overrides_preserve_upgrade_signal_context ... ok
+test node::tests::embedded_sequencer_args_force_sequencer_mode_and_preserve_flags ... ok
+test node::tests::isolated_sequencer_does_not_require_signing_key ... ok
+test node::tests::isolated_sequencer_rejects_signing_key::case_1_raw_key ... ok
+test node::tests::isolated_sequencer_rejects_signing_key::case_2_key_path ... ok
+test node::tests::legacy_sequencer_flags_select_operating_mode::case_1_isolated ... ok
+test node::tests::isolated_sequencer_rejects_signing_key::case_3_remote_endpoint ... ok
+test node::tests::legacy_sequencer_flags_select_operating_mode::case_2_shadow ... ok
+test node::tests::parses_da_batcher_sender_override ... ok
+test node::tests::parses_upgrade_signal_args ... ok
+test node::tests::shadow_funding_above_deposit_mint_limit_is_rejected ... ok
+test node::tests::shadow_funding_is_accepted_in_shadow_sequencer_mode ... ok
+test node::tests::shadow_funding_is_rejected_outside_shadow_sequencer_mode ... ok
+test node::tests::shadow_sequencer_does_not_require_signing_key ... ok
+test node::tests::startup_upgrade_signal_defaults_to_consensus_l1_rpc ... ok
+test node::tests::startup_upgrade_signal_prefers_override_l1_rpc ... ok
+test node::tests::validates_sequencer_key::case_1_validator_no_key ... ok
+test node::tests::validates_sequencer_key::case_2_sequencer_no_key ... ok
+test node::tests::validates_sequencer_key::case_3_sequencer_raw_key ... ok
+test node::tests::validates_sequencer_key::case_4_sequencer_key_path ... ok
+test node::tests::validates_sequencer_key::case_5_sequencer_remote_endpoint ... ok
+test node::tests::validates_sequencer_key_from_env::case_1_raw_key ... ok
+test node::tests::validates_sequencer_key_from_env::case_2_key_path ... ok
+test node::tests::validates_sequencer_key_from_env_child ... ignored, spawned by validates_sequencer_key_from_env with isolated process env
+test node::tests::zero_signal_clears_existing_rollup_config ... ok
+test node::tests::zero_signal_for_unscheduled_rollup_upgrade_is_counted_as_clear ... ok
+test node::tests::validates_sequencer_key_from_env::case_3_remote_endpoint ... ok
+
+test result: ok. 45 passed; 0 failed; 1 ignored; 0 measured; 96 filtered out; finished in 0.03s
+

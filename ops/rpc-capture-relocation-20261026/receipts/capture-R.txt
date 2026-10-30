@@ -1,0 +1,17 @@
+test_cleanup_entrypoint_exact_id_only (test_capture_runners.GuestCapture.test_cleanup_entrypoint_exact_id_only) ... ok
+test_full_flow_units_private_namespace_and_order (test_capture_runners.GuestCapture.test_full_flow_units_private_namespace_and_order) ... ok
+test_refuses_before_any_unit_when_snapshot_not_terminal (test_capture_runners.GuestCapture.test_refuses_before_any_unit_when_snapshot_not_terminal) ... ok
+test_refuses_when_holder_active_or_mount_in_use (test_capture_runners.GuestCapture.test_refuses_when_holder_active_or_mount_in_use) ... ok
+test_sigterm_during_a_step_stops_exactly_this_runs_units_at_once (test_capture_runners.GuestCapture.test_sigterm_during_a_step_stops_exactly_this_runs_units_at_once) ... ok
+test_stops_at_first_refusal_and_keeps_evidence (test_capture_runners.GuestCapture.test_stops_at_first_refusal_and_keeps_evidence) ... ok
+test_admission_refuses_before_any_ssh (test_capture_runners.HostRunner.test_admission_refuses_before_any_ssh) ... ok
+test_cleanup_failure_is_21 (test_capture_runners.HostRunner.test_cleanup_failure_is_21) ... ok
+test_host_floor_breach_cleans_remote_and_is_20 (test_capture_runners.HostRunner.test_host_floor_breach_cleans_remote_and_is_20) ... ok
+test_rc0_without_covered_is_not_a_pass (test_capture_runners.HostRunner.test_rc0_without_covered_is_not_a_pass) ... ok
+test_sigterm_kills_ssh_and_cleans_remote (test_capture_runners.HostRunner.test_sigterm_kills_ssh_and_cleans_remote) ... ok
+test_success_runs_exact_id_cleanup (test_capture_runners.HostRunner.test_success_runs_exact_id_cleanup) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 7.724s
+
+OK

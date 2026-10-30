@@ -1,0 +1,60 @@
+test_partial_writes_refused (test_offline_mask.ApplyTests.test_partial_writes_refused) ... ok
+test_identity_mismatch_never_signals (test_offline_mask.CleanupTests.test_identity_mismatch_never_signals) ... ok
+test_parse_stat_and_ls (test_offline_mask.DebugfsTests.test_parse_stat_and_ls) ... ok
+test_unknown_stderr_with_rc0_fails (test_offline_mask.DebugfsTests.test_unknown_stderr_with_rc0_fails) ... ok
+test_unsafe_requests_never_run (test_offline_mask.DebugfsTests.test_unsafe_requests_never_run) ... ok
+test_refusal_before_any_write (test_offline_mask.EntryTests.test_refusal_before_any_write) ... ok
+test_usage_has_no_defaults (test_offline_mask.EntryTests.test_usage_has_no_defaults) ... ok
+test_clean (test_offline_mask.Ext4Tests.test_clean) ... ok
+test_recovery_and_unsupported_features (test_offline_mask.Ext4Tests.test_recovery_and_unsupported_features) ... ok
+test_refusals (test_offline_mask.Ext4Tests.test_refusals) ... ok
+test_ambiguous_and_mismatching_root (test_offline_mask.GptTests.test_ambiguous_and_mismatching_root) ... ok
+test_bad_geometry_with_valid_crc (test_offline_mask.GptTests.test_bad_geometry_with_valid_crc) ... ok
+test_corrupt_primary_and_backup_header_crc (test_offline_mask.GptTests.test_corrupt_primary_and_backup_header_crc) ... ok
+test_corrupt_primary_and_backup_table_crc (test_offline_mask.GptTests.test_corrupt_primary_and_backup_table_crc) ... ok
+test_mismatching_backup_table_with_valid_crc (test_offline_mask.GptTests.test_mismatching_backup_table_with_valid_crc) ... ok
+test_overlap_and_out_of_usable (test_offline_mask.GptTests.test_overlap_and_out_of_usable) ... ok
+test_valid (test_offline_mask.GptTests.test_valid) ... ok
+test_archive_verification (test_offline_mask.InventoryTests.test_archive_verification) ... ok
+test_clean_preconditions (test_offline_mask.InventoryTests.test_clean_preconditions) ... ok
+test_fragment_and_link_drift (test_offline_mask.InventoryTests.test_fragment_and_link_drift) ... ok
+test_semantic_delta (test_offline_mask.InventoryTests.test_semantic_delta) ... ok
+test_digest_mismatch_and_duplicate_keys (test_offline_mask.PlanTests.test_digest_mismatch_and_duplicate_keys) ... ok
+test_source_backup_alias_and_forbidden_destination (test_offline_mask.PlanTests.test_source_backup_alias_and_forbidden_destination) ... ok
+test_tool_pin_and_unknown_key (test_offline_mask.PlanTests.test_tool_pin_and_unknown_key) ... ok
+test_unit_pins_must_be_exact (test_offline_mask.PlanTests.test_unit_pins_must_be_exact) ... ok
+test_unqualified_primitives_need_explicit_acceptance (test_offline_mask.PlanTests.test_unqualified_primitives_need_explicit_acceptance) ... ok
+test_unsafe_paths (test_offline_mask.PlanTests.test_unsafe_paths) ... ok
+test_valid_synthetic_plan (test_offline_mask.PlanTests.test_valid_synthetic_plan) ... ok
+test_refusals (test_offline_mask.QcowTests.test_refusals) ... ok
+test_lock_bypass_argv_refused (test_offline_mask.RunnerTests.test_lock_bypass_argv_refused) ... ok
+test_output_limit_and_timeout_kill_own_child (test_offline_mask.RunnerTests.test_output_limit_and_timeout_kill_own_child) ... ok
+test_copy_accepts_the_identity_schema_passed_by_execute (test_root_integration.RootIntegration.test_copy_accepts_the_identity_schema_passed_by_execute) ... ERROR
+test_systemctl_preserves_only_required_user_bus_context (test_root_integration.RootIntegration.test_systemctl_preserves_only_required_user_bus_context) ... FAIL
+
+======================================================================
+ERROR: test_copy_accepts_the_identity_schema_passed_by_execute (test_root_integration.RootIntegration.test_copy_accepts_the_identity_schema_passed_by_execute)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/rpc-writer-tests-479n_2iu/test_root_integration.py", line 11, in test_copy_accepts_the_identity_schema_passed_by_execute
+    got=om.OsEffects().sparse_copy(str(src),identity,str(dst),om.Deadline(5,om.time.monotonic))
+  File "/tmp/rpc-writer-tests-479n_2iu/offline_mask.py", line 846, in sparse_copy
+    {k: ident[k] for k in ('dev', 'ino', 'size', 'mtimeNs')}:
+        ~~~~~^^^
+KeyError: 'dev'
+
+======================================================================
+FAIL: test_systemctl_preserves_only_required_user_bus_context (test_root_integration.RootIntegration.test_systemctl_preserves_only_required_user_bus_context)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/rpc-writer-tests-479n_2iu/test_root_integration.py", line 18, in test_systemctl_preserves_only_required_user_bus_context
+    self.assertEqual(calls[0]['env'].get('XDG_RUNTIME_DIR'),'/run/user/1000')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != '/run/user/1000'
+
+----------------------------------------------------------------------
+Ran 33 tests in 0.011s
+
+FAILED (failures=1, errors=1)
+{"refused": {"message": "usage: --plan PATH --plan-sha256 HEX --lock-fd N are required", "phase": "usage"}}
+{"refused": {"message": "plan: --plan is not a safe normalized absolute path", "phase": "plan"}}

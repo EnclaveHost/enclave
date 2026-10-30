@@ -1,0 +1,3 @@
+test/move-release-confirm.test.mjs candidate 20
+test/management-move-unit.test.mjs candidate 3
+test/management-move-unit.test.mjs base 3

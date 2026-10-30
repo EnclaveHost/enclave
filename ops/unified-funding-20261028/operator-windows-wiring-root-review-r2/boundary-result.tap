@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: ROOT positive TEST preflight reaches migration evidence without writes
+ok 1 - ROOT positive TEST preflight reaches migration evidence without writes
+  ---
+  duration_ms: 18.364436
+  type: 'test'
+  ...
+# Subtest: ROOT installer must reject service-writable configuration directory
+ok 2 - ROOT installer must reject service-writable configuration directory
+  ---
+  duration_ms: 8.105587
+  type: 'test'
+  ...
+# Subtest: ROOT installer must reject config inaccessible to selected service account
+ok 3 - ROOT installer must reject config inaccessible to selected service account
+  ---
+  duration_ms: 5.993353
+  type: 'test'
+  ...
+# Subtest: ROOT release verification must include actual owned-durable-state dependency
+ok 4 - ROOT release verification must include actual owned-durable-state dependency
+  ---
+  duration_ms: 4.471485
+  type: 'test'
+  ...
+# Subtest: ROOT existing oversized config is refused before unbounded readFileSync
+ok 5 - ROOT existing oversized config is refused before unbounded readFileSync
+  ---
+  duration_ms: 3.540062
+  type: 'test'
+  ...
+# Subtest: ROOT production configuration must use absolute PowerShell executable
+ok 6 - ROOT production configuration must use absolute PowerShell executable
+  ---
+  duration_ms: 1.425639
+  type: 'test'
+  ...
+# Subtest: ROOT PowerShell output cap is combined UTF8 bytes even for oversized multibyte chunk
+ok 7 - ROOT PowerShell output cap is combined UTF8 bytes even for oversized multibyte chunk
+  ---
+  duration_ms: 0.457086
+  type: 'test'
+  ...
+# Subtest: ROOT timeout settles even when child ignores kill and never emits close
+ok 8 - ROOT timeout settles even when child ignores kill and never emits close
+  ---
+  duration_ms: 30.097944
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 249.540785

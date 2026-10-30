@@ -1,0 +1,56 @@
+{
+  "observed_at": "2026-10-28T05:37:51.809Z",
+  "source": "Authenticated GET /health; no state mutation beyond control handshake",
+  "pool": {
+    "allocated": {
+      "memMiB": 6912,
+      "cpuPct": 800
+    },
+    "basis": "allocated = the reservations of the guests guestd holds (each unit's MemoryMax and CPUQuota), not observed use",
+    "budget": {
+      "memMiB": 98304,
+      "cpuPct": 2400
+    },
+    "free": {
+      "memMiB": 91392,
+      "cpuPct": 1600
+    },
+    "guests": 1,
+    "host": {
+      "floorMiB": 18432,
+      "memAvailableMiB": 84213,
+      "pendingMiB": 1551,
+      "unreadUnits": 0
+    },
+    "overcommitted": false,
+    "perGuest": {
+      "floorMiB": 1024,
+      "runtimeMiB": 384,
+      "unitOverheadMiB": 768
+    },
+    "pricing": "CPU share bounds app RAM as a fraction of the budget; platform overhead is reserved separately",
+    "ramShareEnforced": true
+  },
+  "inference": {
+    "cardAllocatedBytes": 4327179550,
+    "cardBudgetBytes": 33285996544,
+    "cardFreeBytes": 28958816994,
+    "cards": 2,
+    "guestFloorMiB": 8192,
+    "minimumGpuMilli": 70,
+    "model": "qwen2.5-0.5b-q8-gguf",
+    "modelFloorsMiB": {
+      "qwen3.8-27b-mtp-q4-vl-gguf": 73728,
+      "z-image-turbo-q4km-sd": 6144
+    },
+    "models": [
+      "qwen3.8-27b-mtp-q4-vl-gguf",
+      "z-image-turbo-q4km-sd"
+    ],
+    "release": [
+      "5cab66e478a78adf69c5bb6f058117fcd91cddfb72ca3f6c5d47c109cc47ba17",
+      "987b1b9f6d526ec88582b986e88a3dfad4de2742b3bbf236e974039585763422"
+    ],
+    "shareBoundedMemory": true
+  }
+}

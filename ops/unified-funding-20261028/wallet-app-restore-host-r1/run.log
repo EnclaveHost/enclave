@@ -1,0 +1,71 @@
+[queue] START available=34048MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+  "capturedAt": "2026-10-30T05:19:01.678Z",
+  "readOnly": true,
+  "sourceIdentity": [
+    {
+      "file": "C:/Program Files/Enclave/control/windows/node/agent.mjs",
+      "bytes": 93212,
+      "sha256": "a41ca4cd59252d6a00648fda88232e97fe92049c8142dc1bf7910ae38ecae1a4"
+    },
+    {
+      "file": "C:/Program Files/Enclave/control/windows/node/host.mjs",
+      "bytes": 319366,
+      "sha256": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24"
+    }
+  ],
+  "ports": [
+    {
+      "source": "C:/ProgramData/Enclave/node-config.cmd",
+      "port": 9600
+    }
+  ],
+  "host": [
+    {
+      "port": 9600,
+      "httpStatus": 200,
+      "records": [
+        {
+          "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+          "status": "failed",
+          "leaseUntil": 1793141661,
+          "reason": "claim failed: app-funded claim not sent: lease-gas RPC quorum cannot read the configured chain; this host's ETH is never used instead",
+          "updatedAt": "2026-10-30T05:19:00.103Z"
+        },
+        {
+          "id": "0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b",
+          "status": "failed",
+          "leaseUntil": 1793133631,
+          "reason": "claim failed: app-funded claim not sent: no relay landed the claim: [URL] 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; [URL] 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; this host's ETH is never used instead",
+          "updatedAt": "2026-10-30T05:18:44.031Z"
+        }
+      ],
+      "leaseReadiness": {
+        "sequence": 1408,
+        "startedAt": 1793337396043,
+        "completedAt": 0,
+        "inFlight": true,
+        "deployments": []
+      }
+    }
+  ],
+  "managers": [
+    {
+      "port": 8091,
+      "httpStatus": 200,
+      "managerEpoch": "6ba9af9a243b9f4754d8091d3de2f415",
+      "matching": []
+    },
+    {
+      "port": 8095,
+      "httpStatus": 200,
+      "managerEpoch": "eb81408d8b99f58cd715d5c56017258c",
+      "matching": []
+    }
+  ]
+}
+[memory-guard] exit=0 peakTreeRssMiB=23 minHostAvailableMiB=34006
+[memory-guard] at peak: python3:13 ssh:11
+[memory-guard] exit=0 peakTreeRssMiB=84 minHostAvailableMiB=34007
+[memory-guard] at peak: node:60 python3:13 ssh:11
+[queue] EXIT 0

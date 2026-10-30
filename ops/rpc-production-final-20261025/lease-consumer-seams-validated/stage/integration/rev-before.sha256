@@ -1,0 +1,15 @@
+c71fb232e58d06a37a0a43e0dcd3133d45d8a11ee0f9c4b8197576033d6dec8c  metal/enclave-metal.mjs
+d71abd221f65fe6644d496c685641ceb8c0a375c3563e93bccf92140705e68ac  metal/guest/gsup.mjs
+9694071f33d8d8dc2fd40fff6c408fb7889ebd24334eac2893830cd0b702ec1f  metal/guest/measured-control.mjs
+1974ad9378a45b0bffa1bf30e32802ef7abd7f863f7ec81371cd2c9650e1aaa9  network/lease-gas-conduit.mjs
+eb78a2e6838f9b04d79017ea77a7e4e4cbd06c2af21e6aa77a000e2d6229ec77  network/lease-gas-runtime.mjs
+86c81124cca6f6e1c06c25c075c03c6811bb46e9344291df080245ffdf3d6580  windows/node/chain.mjs
+ABSENT  test/lease-seams-conduit.test.mjs
+ABSENT  test/lease-seams-windows.test.mjs
+91a49d94eefa4003e50a350ad86d4b50dc059894d9ad1096c65437952fd65d9f  test/lease-pinned-relay-config.test.mjs
+0704204925c83be450980850fb6b0c1789cbf461401f3547ae60fac4cf2b0d5d  test/metal-measured-control.test.mjs
+d07acce3f46830c35d89252727bcbc4049bc7912d560db659e0ce2cac58ae12a  test/metal-lease-gas-conduit.test.mjs
+008cdca1240372d3dccedc2f58fecfcdca6377245ad67d4970a2efe79757f4e7  windows/node/lease-gas-runtime.bundle.mjs
+a7fde25eae445eebc483d4a2ff57b569746eb60ddd64bbf33aca4f3831fb3ad1  windows/node/lease-gas-runtime.bundle.mjs.manifest.json
+48bd059a57356fed542c3a6a8c0b4ddd7fdf6bca42ad7729754234445b746fd5  metal/guest/lease-gas-conduit.bundle.mjs
+12b9c87543bd35aebb50d3c838d4449a13f9ca2bec3bf3450bf5a65c67d6faf0  metal/guest/lease-gas-conduit.bundle.mjs.manifest.json

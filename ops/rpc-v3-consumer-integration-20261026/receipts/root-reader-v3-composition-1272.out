@@ -1,0 +1,20 @@
+[queue] START available=18366MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+r2 tree reproduced: 9dd20e7615ca16f69417309664f95db96640399f = base 64156dcd91ff + 32 v3 blobs = v2 1df125598825 + 12 deltas
+composition.patch on a clean base export == r2 tree
+v2-to-r2.patch on a clean v2 export == r2 tree
+no pre-existing file references the new modules
+v3 pins agree: native 49f4d7e3e70e helios cc962e2b97d5 ; qualification claims no activation/positive/accepted image
+node_modules linked (read-only) from the candidate checkout; node v22.23.3
+module closure OK: 136 imports in 26 modules
+runtime import load OK (provider, coverage, coverage-store, lifecycle, api, bridge, journal)
+PASS reader-v3-composition tests 33/33 (provider 8 + boundaries 8 + coverage 13 + bridge 4)
+passed by title: a real bridge callback can make both coverage queries without a reentrant reader lock
+passed by title: logs require exact snapshot identity and covered range; no old bootstrap, unknown filter or cancellation grants
+passed by title: full v3 runtime opens private coverage under its ownership and refuses missing history on restart
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/reader-runtime-composition-stage/r2/logs/run-20261026T113451Z-1597687
+## reader-v3-composition tree 9dd20e7615ca16f69417309664f95db96640399f
+## reader-v3-composition SHA256SUMS 1c75125e58cf0db9753a038214759ff4d3eab8ec302c58fef654d04431743402
+## reader-v3-composition rc=0
+[memory-guard] exit=0 peakTreeRssMiB=265 minHostAvailableMiB=17777
+[memory-guard] at peak: node:137 node:64 executable:56 bash:4 bash:2 timeout:2
+[queue] EXIT 0

@@ -1,0 +1,7 @@
+# the 6 EXPECTED-TAP rows reused from root's actual r7 run (65 tests); the 2 cli-combined rows (8 tests) execute in r8
+test/mcp-independent-verifier.test.mjs candidate 9 candidate-mcp-independent-verifier.tap
+test/mcp-independent-unit.test.mjs candidate 10 candidate-mcp-independent-unit.tap
+test/mcp-independent.test.mjs candidate 13 candidate-mcp-independent.tap
+test/chain-authority.test.mjs candidate 10 candidate-chain-authority.tap
+test/mcp-independent-unit.test.mjs base 10 base-mcp-independent-unit.tap
+test/mcp-independent.test.mjs base 13 base-mcp-independent.tap

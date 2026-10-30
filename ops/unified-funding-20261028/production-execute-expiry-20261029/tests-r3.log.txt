@@ -1,0 +1,238 @@
+[queue] START available=92668MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: an existing reservation for different terms remains unresolved after intent_conflict
+ok 1 - an existing reservation for different terms remains unresolved after intent_conflict
+  ---
+  duration_ms: 14.165013
+  type: 'test'
+  ...
+# Subtest: another local id for the same session cannot evade its unresolved spend
+ok 2 - another local id for the same session cannot evade its unresolved spend
+  ---
+  duration_ms: 9.714036
+  type: 'test'
+  ...
+# Subtest: body lost after HTTP 200 headers: UNKNOWN, exact public call journaled, then proven read-only from the chain
+ok 3 - body lost after HTTP 200 headers: UNKNOWN, exact public call journaled, then proven read-only from the chain
+  ---
+  duration_ms: 29.759734
+  type: 'test'
+  ...
+# Subtest: gateway 502 after dispatch: UNKNOWN (never refused), recovered from the chain
+ok 4 - gateway 502 after dispatch: UNKNOWN (never refused), recovered from the chain
+  ---
+  duration_ms: 8.592135
+  type: 'test'
+  ...
+# Subtest: connection lost / unreachable: UNKNOWN; nothing on chain stays UNRESOLVED and keeps the reservation forever
+ok 5 - connection lost / unreachable: UNKNOWN; nothing on chain stays UNRESOLVED and keeps the reservation forever
+  ---
+  duration_ms: 19.225984
+  type: 'test'
+  ...
+# Subtest: malformed or hashless success bodies are UNKNOWN and never unlock a fresh spend
+ok 6 - malformed or hashless success bodies are UNKNOWN and never unlock a fresh spend
+  ---
+  duration_ms: 7.344424
+  type: 'test'
+  ...
+# Subtest: only explicit, well-formed pre-admission refusals are 'refused'; look-alikes stay unknown
+ok 7 - only explicit, well-formed pre-admission refusals are 'refused'; look-alikes stay unknown
+  ---
+  duration_ms: 7.698652
+  type: 'test'
+  ...
+# Subtest: 202 with a known hash is PENDING; later canonical -> observed -> final -> settled; nothing resent
+ok 8 - 202 with a known hash is PENDING; later canonical -> observed -> final -> settled; nothing resent
+  ---
+  duration_ms: 15.493782
+  type: 'test'
+  ...
+# Subtest: normal success: canonical but NOT final blocks the next quote until a reconcile proves finality
+ok 9 - normal success: canonical but NOT final blocks the next quote until a reconcile proves finality
+  ---
+  duration_ms: 9.13077
+  type: 'test'
+  ...
+# Subtest: durable serialization: the journal is plain JSON; a fresh store + fresh clients after 'reload' recover it
+ok 10 - durable serialization: the journal is plain JSON; a fresh store + fresh clients after 'reload' recover it
+  ---
+  duration_ms: 11.338204
+  type: 'test'
+  ...
+# Subtest: concurrent confirmations: the same review sends once; two nonces of one session never both send
+ok 11 - concurrent confirmations: the same review sends once; two nonces of one session never both send
+  ---
+  duration_ms: 7.87531
+  type: 'test'
+  ...
+# Subtest: tampered stored call / runtime / record are refused before any hint is trusted; entry unchanged
+ok 12 - tampered stored call / runtime / record are refused before any hint is trusted; entry unchanged
+  ---
+  duration_ms: 12.213868
+  type: 'test'
+  ...
+# Subtest: foreign hash hint, reorg, moved header, wrong log metadata, removed log, unbound transaction
+ok 13 - foreign hash hint, reorg, moved header, wrong log metadata, removed log, unbound transaction
+  ---
+  duration_ms: 22.869386
+  type: 'test'
+  ...
+# Subtest: nonce consumed by ANOTHER canonical operation: superseded only when proven and final
+ok 14 - nonce consumed by ANOTHER canonical operation: superseded only when proven and final
+  ---
+  duration_ms: 17.430637
+  type: 'test'
+  ...
+# Subtest: an exact call reverted on chain stays reserved (the signature may still be usable)
+ok 15 - an exact call reverted on chain stays reserved (the signature may still be usable)
+  ---
+  duration_ms: 7.539783
+  type: 'test'
+  ...
+# Subtest: binding before signing: a tampered review, another relay or another owner sends and signs nothing
+ok 16 - binding before signing: a tampered review, another relay or another owner sends and signs nothing
+  ---
+  duration_ms: 4.119209
+  type: 'test'
+  ...
+# Subtest: a crash before the dispatching marker is provably unsent: reconcile marks it never_dispatched
+ok 17 - a crash before the dispatching marker is provably unsent: reconcile marks it never_dispatched
+  ---
+  duration_ms: 2.945907
+  type: 'test'
+  ...
+# Subtest: the successor entry overrides only the execution names; migration and every other r4 export are the same objects
+ok 18 - the successor entry overrides only the execution names; migration and every other r4 export are the same objects
+  ---
+  duration_ms: 0.262018
+  type: 'test'
+  ...
+# Subtest: production 503 quote_policy_failed is UNKNOWN and stays reserved until a finalized header passes the deadline
+ok 19 - production 503 quote_policy_failed is UNKNOWN and stays reserved until a finalized header passes the deadline
+  ---
+  duration_ms: 22.624448
+  type: 'test'
+  ...
+# Subtest: valid expiry clears read-only: finalized header past BOTH deadlines, verified vault code, seqOf(sid, lane) unconsumed
+ok 20 - valid expiry clears read-only: finalized header past BOTH deadlines, verified vault code, seqOf(sid, lane) unconsumed
+  ---
+  duration_ms: 8.889582
+  type: 'test'
+  ...
+# Subtest: the proof reads only the finalized header and that pinned number (never latest/pending/safe), at the correct lane
+ok 21 - the proof reads only the finalized header and that pinned number (never latest/pending/safe), at the correct lane
+  ---
+  duration_ms: 6.780169
+  type: 'test'
+  ...
+# Subtest: every missing / malformed / zero / non-canonical / inconsistent fact refuses; the entry stays unknown and reserved
+ok 22 - every missing / malformed / zero / non-canonical / inconsistent fact refuses; the entry stays unknown and reserved
+  ---
+  duration_ms: 72.280371
+  type: 'test'
+  ...
+# Subtest: reorg of a STORED proof: refused at admission (nothing written or sent); reconcile demotes it, keeps it in history, re-proves fresh
+ok 23 - reorg of a STORED proof: refused at admission (nothing written or sent); reconcile demotes it, keeps it in history, re-proves fresh
+  ---
+  duration_ms: 19.783889
+  type: 'test'
+  ...
+# Subtest: user-requested new quote with the SAME nonce: fresh re-proof, CAS replacement, full predecessor kept, one POST, costs and grant unchanged
+ok 24 - user-requested new quote with the SAME nonce: fresh re-proof, CAS replacement, full predecessor kept, one POST, costs and grant unchanged
+  ---
+  duration_ms: 29.324567
+  type: 'test'
+  ...
+# Subtest: concurrent fresh same-nonce re-admissions: exactly one is admitted, signed and sent
+ok 25 - concurrent fresh same-nonce re-admissions: exactly one is admitted, signed and sent
+  ---
+  duration_ms: 8.659615
+  type: 'test'
+  ...
+# Subtest: the exact old signed digest is never re-admitted (even with a stale local clock)
+ok 26 - the exact old signed digest is never re-admitted (even with a stale local clock)
+  ---
+  duration_ms: 7.077536
+  type: 'test'
+  ...
+# Subtest: settled entries are never replaced; refused entries only with a fresh expiry proof
+ok 27 - settled entries are never replaced; refused entries only with a fresh expiry proof
+  ---
+  duration_ms: 15.442912
+  type: 'test'
+  ...
+# Subtest: bounded predecessor history: the next re-admission after MAX_PREDECESSORS is refused
+ok 28 - bounded predecessor history: the next re-admission after MAX_PREDECESSORS is refused
+  ---
+  duration_ms: 39.57303
+  type: 'test'
+  ...
+# Subtest: tampered predecessor history is intent_invalid; old-schema entries keep their interpretation
+ok 29 - tampered predecessor history is intent_invalid; old-schema entries keep their interpretation
+  ---
+  duration_ms: 22.539349
+  type: 'test'
+  ...
+# Subtest: UI mapping: expired_unused is cleared but never 'funded'; only settled is; the entry re-exports the new names
+ok 30 - UI mapping: expired_unused is cleared but never 'funded'; only settled is; the entry re-exports the new names
+  ---
+  duration_ms: 0.448307
+  type: 'test'
+  ...
+# Subtest: a switch caught by dispatchGuard before the dispatching marker: abandoned_before_send, nothing posted
+ok 31 - a switch caught by dispatchGuard before the dispatching marker: abandoned_before_send, nothing posted
+  ---
+  duration_ms: 12.836042
+  type: 'test'
+  ...
+# Subtest: a switch after the marker but before fetch: the page guard refuses the POST; recorded abandoned_before_send
+ok 32 - a switch after the marker but before fetch: the page guard refuses the POST; recorded abandoned_before_send
+  ---
+  duration_ms: 4.881943
+  type: 'test'
+  ...
+# Subtest: a switch while the POST is in flight: the request was dispatched, so its lost reply stays UNKNOWN
+ok 33 - a switch while the POST is in flight: the request was dispatched, so its lost reply stays UNKNOWN
+  ---
+  duration_ms: 9.454148
+  type: 'test'
+  ...
+# Subtest: a relay answering code context_changed is a RelayError, never a page cancellation
+ok 34 - a relay answering code context_changed is a RelayError, never a page cancellation
+  ---
+  duration_ms: 0.219939
+  type: 'test'
+  ...
+# Subtest: body loss after HTTP headers is UNKNOWN, never a proven refusal
+ok 35 - body loss after HTTP headers is UNKNOWN, never a proven refusal
+  ---
+  duration_ms: 12.003109
+  type: 'test'
+  ...
+# Subtest: gateway 502 after dispatch is UNKNOWN, never proof that execute was not admitted
+ok 36 - gateway 502 after dispatch is UNKNOWN, never proof that execute was not admitted
+  ---
+  duration_ms: 5.29297
+  type: 'test'
+  ...
+# Subtest: unknown execution retains exact call for independent settlement checks after reload
+ok 37 - unknown execution retains exact call for independent settlement checks after reload
+  ---
+  duration_ms: 7.85703
+  type: 'test'
+  ...
+1..37
+# tests 37
+# suites 0
+# pass 37
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1598.096488
+[memory-guard] exit=0 peakTreeRssMiB=137 minHostAvailableMiB=92568
+[memory-guard] at peak: node:75 node:62
+[memory-guard] exit=0 peakTreeRssMiB=192 minHostAvailableMiB=92566
+[memory-guard] at peak: node:69 node:63 node:60
+[queue] EXIT 0

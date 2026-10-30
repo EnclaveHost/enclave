@@ -1,0 +1,11 @@
+--- a/forward_sync.py
++++ b/forward_sync.py
+@@ -346,7 +346,7 @@
+             argv = node_argv(exe, dd, prune); capability(exe, (efd,), argv)
+             env = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': dd, 'TMPDIR': str(root / 'tmp'), 'BASE_NODE_L1_TRUST_RPC': 'false'}
+             (root / 'tmp').mkdir(mode=0o700, exist_ok=True); (root / 'logs').mkdir(mode=0o755, exist_ok=True)
+-            tag = now().strftime('%Y%m%dT%H%M%SZ'); kw = {}
++            tag = now().strftime('%Y%m%dT%H%M%SZ') + '-' + os.urandom(16).hex(); kw = {}
+             if user:
+                 import pwd
+                 pw = pwd.getpwnam(c['serviceUser']); kw = {'user': pw.pw_uid, 'group': pw.pw_gid, 'extra_groups': []}

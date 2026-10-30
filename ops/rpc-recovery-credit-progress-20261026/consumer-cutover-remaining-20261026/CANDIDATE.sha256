@@ -1,0 +1,4 @@
+826f8d0e52e5b78ca80dc91813a48d6bfcafae4162218eb1d54c924ecc0343c9  site/js/core/read-authority.js
+31e52ce8c27f9c03232378d14fc7c2c0b4ff1a0239eab78e1222e7451389a0bf  site/credit/credit.js
+36bdac554e096e958b2233b4800ffef7887a731eb2cb1b8a26147bc91f4ac21a  scripts/build-site.mjs
+a67f827ef134a7861273e89bd17557ac1657efabab52d7604af1cf810f09f077  test/credit-read-authority.test.mjs

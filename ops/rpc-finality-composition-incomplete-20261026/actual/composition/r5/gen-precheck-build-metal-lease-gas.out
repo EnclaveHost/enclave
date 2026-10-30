@@ -1,0 +1,8 @@
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r5/run/r4-20261026T020028Z/trees/final/scripts/build-metal-lease-gas.mjs:30
+  if (!bytes.equals(await fs.readFile(output))) throw new Error("metal lease-gas conduit bundle is stale; run node scripts/build-metal-lease-gas.mjs");
+                                                      ^
+
+Error: metal lease-gas conduit bundle is stale; run node scripts/build-metal-lease-gas.mjs
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r5/run/r4-20261026T020028Z/trees/final/scripts/build-metal-lease-gas.mjs:30:55
+
+Node.js v22.23.3

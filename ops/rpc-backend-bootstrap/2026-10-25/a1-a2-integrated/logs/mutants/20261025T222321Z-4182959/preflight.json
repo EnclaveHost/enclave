@@ -1,0 +1,87 @@
+{
+ "ok": true,
+ "bad": [],
+ "count": 33,
+ "mapping": {
+  "merkle-from-n": [
+   "Gates.test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero"
+  ],
+  "no-empty-read-check": [
+   "Steps.test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing"
+  ],
+  "no-open-gaps": [
+   "Steps.test_bytecode_step_binds_this_db_and_release_still_refuses_while_the_gap_is_open"
+  ],
+  "no-a1-age": [
+   "Gates.test_stale_or_foreign_a1_is_refused",
+   "FreshInitialTrust.test_the_real_live_initial_receipt_passes_only_while_fresh"
+  ],
+  "no-journal-guard": [
+   "Gates.test_an_interrupted_mutation_blocks_every_later_step"
+  ],
+  "no-blake3-list-check": [
+   "Gates.test_download_receipt_binds_manifest_unit_marker_and_datadir"
+  ],
+  "no-checkpoints-flag": [
+   "Steps.test_a4_full_rebuild_matches_and_a_mismatch_refuses"
+  ],
+  "no-final-profile-check": [
+   "Gates.test_selection_is_exactly_the_pinned_manifest_and_final_profile"
+  ],
+  "no-exact-selection": [
+   "Gates.test_selection_is_exactly_the_pinned_manifest_and_final_profile"
+  ],
+  "db-before-units": [
+   "Gates.test_units_and_openers_are_checked_before_any_db_access"
+  ],
+  "no-v2-enforcement": [
+   "Gates.test_units_and_openers_are_checked_before_any_db_access"
+  ],
+  "no-orphan-reap": [
+   "Gates.test_post_exit_size_orphans_and_mutation_stdout"
+  ],
+  "no-post-exit-size": [
+   "Gates.test_post_exit_size_orphans_and_mutation_stdout"
+  ],
+  "no-recheck-sha": [
+   "Recheck.test_initial_receipt_pin_and_file_trust"
+  ],
+  "no-initial-pin": [
+   "Recheck.test_initial_receipt_pin_and_file_trust"
+  ],
+  "no-run-record": [
+   "Recheck.test_run_record_provenance"
+  ],
+  "no-trusted-owner": [
+   "FreshInitialTrust.test_a1_file_trust",
+   "Recheck.test_initial_receipt_pin_and_file_trust"
+  ],
+  "follow-symlink": [
+   "FreshInitialTrust.test_a1_file_trust",
+   "Recheck.test_initial_receipt_pin_and_file_trust"
+  ],
+  "no-release-binding": [
+   "Recheck.test_full_flow_binds_release_to_the_a2_receipt"
+  ],
+  "accept-advanced-fresh": [
+   "Gates.test_an_advanced_anchor_refuses_release_with_the_documented_code",
+   "Recheck.test_the_original_game_passes_after_the_latest_anchor_advanced_and_n_never_moves"
+  ],
+  "no-run-window": [
+   "Recheck.test_run_record_provenance"
+  ],
+  "no-l1-consistency": [
+   "FreshInitialTrust.test_l1_timing_is_bounded_and_consistent",
+   "Recheck.test_freshness_planned_anchor_and_mainnet_pins"
+  ],
+  "no-gate-pin": [
+   "FreshInitialTrust.test_gate_and_recheck_pins_match_the_files"
+  ],
+  "exit-bool-accepted": [
+   "Recheck.test_run_record_provenance"
+  ],
+  "no-same-run-dir": [
+   "Recheck.test_run_record_provenance"
+  ]
+ }
+}

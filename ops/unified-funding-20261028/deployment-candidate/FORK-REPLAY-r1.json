@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-28T15:26:34.624Z",
+  "forkOnly": true,
+  "productionSigning": false,
+  "syntheticEth": true,
+  "sourceBlock": "53205633",
+  "sourceHash": "0x5391f4abdd54896f5340717f73fab6c1efdf2ac1c4eb5750d9483e6a8b4b7af8",
+  "transactions": [],
+  "runtimes": {},
+  "verified": false,
+  "error": "Error: eth_estimateGas: {\"code\":-32603,\"message\":\"failed to get account for 0x8229D0bf25328D6317D9B670c982A8ca4Dc537DB: Max retries exceeded HTTP error 429 with body: {\\\"jsonrpc\\\": \\\"2.0\\\", \\\"id\\\": 0, \\\"error\\\": {\\\"code\\\": -32097, \\\"message\\\": \\\"Rate limit reached\\\"}}\\n\\nHTTP diagnostics:\\ncf-ray: a51af5dbaa1b2d61-LAX\\nserver: cloudflare\"}\n    at rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/deployment-r1/replay-fork.mjs:12:252)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/deployment-r1/replay-fork.mjs:24:24",
+  "ownedAnvilExitCode": 0
+}

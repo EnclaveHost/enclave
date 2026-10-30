@@ -1,0 +1,12 @@
+[
+  {
+    "name": "fixed-composition",
+    "exitCode": 1,
+    "expectedExitCode": 1
+  },
+  {
+    "name": "runner-proof-regressions",
+    "exitCode": 0,
+    "expectedExitCode": 0
+  }
+]

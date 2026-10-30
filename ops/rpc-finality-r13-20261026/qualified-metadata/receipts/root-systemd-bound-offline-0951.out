@@ -1,0 +1,13 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=18522MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+612fee0b44075bd4abeb611a551ea66ffeea3dd72b813da27e6e11ccba2168e9  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-launcher-handshake-validated-20261026/inputs/launcher-service-audit-0143/base-unit.out
+2df07889f713d43a9d352ed954fa8f57489a9867ffcf879bb3e268acdaf6e6be  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r13/units/enclave-base-holder.service.d/60-release-mode.conf
+b36ee8d8e700b9aabf302d9ee237c7131bb4ae8adedeecf0628854acf603e945  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r13/units/enclave-base-finality-reproof.service
+6a4d7aa5da385bf1d8dea74c37060eb1332d5d468625d54ae02ae878c7135189  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r13/wrapper/chain_service.py
+## FAIL: rc 1 Ran 17 last FAILED (failures=1) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/bootstrap-systemd-canary-stage/r3/logs/run-20261026T094442Z-1421798/offline.txt)
+## sdcanary-offline SHA256SUMS f54fb0672a5f130759d53248e5834276072187f964bc63888933836321a6b94b
+## sdcanary-offline rc=1
+[memory-guard] exit=1 peakTreeRssMiB=54 minHostAvailableMiB=18382
+[memory-guard] at peak: python3:30 bash:4 bash:4 fake-ssh:4 bash:2 bash:2 sleep:2 sleep:2
+[queue] EXIT 1

@@ -1,0 +1,16 @@
+[queue] START available=87605MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
+[ok] offline: interfaces = lo only (lo )
+[ok] offline: no IPv4 route
+[tool] rustc 1.96.0 (ac68faa20 2026-05-25) binary: rustc commit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96 commit-date: 2026-05-25 host: x86_64-unknown-linux-gnu release: 1.96.0 LLVM version: 22.1.2 
+[tool] cargo 1.96.0 (30a34c682 2026-05-25)
+[tool] rustc ba4b837efb6612df cargo f30f9fd1b1d0b8fd cc cc (GCC) 16.2.1 20260810
+== pre: inputs
+[ok] build-binaries.sh d5bb17e8
+[ok] base tarball 9784e20a
+[ok] listener 5e178676 tree 00e3a61d
+[ok] helios ef320298 tree eec339e1 (exported by the script)
+[pre] listener repo HEAD 5e178676bbe0ce5cda7ea95a3ccfefa8dca8a4b7 status-digest e3b0c44298fc1c14; helios repo HEAD ef3202982b475212d9bb6adfdc3eed4ebb0b83c5 status-digest e3b0c44298fc1c14
+[pre] original listener cargo home manifest 95d7ca2220f90c7d70dc8a80d18d13ee498249134850fcbee1474f33ee9c5ceb (24401 files)
+[ok] fresh a
+[ok] copy a == original
+== build a 2026-10-25T17:14:03Z

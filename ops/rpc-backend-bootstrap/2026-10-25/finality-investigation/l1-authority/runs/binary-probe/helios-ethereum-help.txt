@@ -1,0 +1,16 @@
+Usage: helios-eeffcc9 ethereum [OPTIONS]
+
+Options:
+  -n, --network <NETWORK>                [default: mainnet]
+  -b, --rpc-bind-ip <RPC_BIND_IP>        [env: RPC_BIND_IP=]
+  -p, --rpc-port <RPC_PORT>              [env: RPC_PORT=]
+      --tui                              Enable terminal user interface
+  -w, --checkpoint <CHECKPOINT>          [env: CHECKPOINT=]
+  -e, --execution-rpc <EXECUTION_RPC>    [env: EXECUTION_RPC=]
+  -v, --verifiable-api <VERIFIABLE_API>  [env: VERIFIABLE_API=]
+  -c, --consensus-rpc <CONSENSUS_RPC>    [env: CONSENSUS_RPC=]
+  -d, --data-dir <DATA_DIR>              [env: DATA_DIR=]
+  -f, --fallback <FALLBACK>              [env: FALLBACK=]
+  -l, --load-external-fallback           [env: LOAD_EXTERNAL_FALLBACK=]
+  -s, --strict-checkpoint-age            [env: STRICT_CHECKPOINT_AGE=]
+  -h, --help                             Print help

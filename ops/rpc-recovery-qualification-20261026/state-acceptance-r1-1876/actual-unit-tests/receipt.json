@@ -1,0 +1,18 @@
+{
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "expected": 38,
+ "format": "state-acceptance-test-receipt/r1",
+ "pass": true,
+ "ran": [
+  "38"
+ ],
+ "rc": 0,
+ "scope": "pure predicates/parsers only: not the production runner, not a compiled-fixture qualification, not a state result",
+ "stageSums": "25ca8ece39facad5b1ffc4b1c1ef821324f205f9c8b0d8b5c58b23111edf52a7"
+}

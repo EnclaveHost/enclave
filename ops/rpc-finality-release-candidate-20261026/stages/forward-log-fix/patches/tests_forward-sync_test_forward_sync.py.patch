@@ -1,0 +1,95 @@
+--- a/test_forward_sync.py
++++ b/test_forward_sync.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-"""base-forward-sync-stage real-module tests (PREPARED; NOT run by Claude: jobs/root-forward-sync-tests.sh, exact count 8). Run INSIDE the
++"""base-forward-sync-stage real-module tests (PREPARED; NOT run by Claude; r10-forward-repair: jobs/root-r10-forward-repair-tests.sh, exact count 8). Run INSIDE the
+ private recovery-r7 copy carrying the finality-r6 harness, wrapper and producer: the REAL harness (gate_static with the completed-download
+ receipt, head_checkpoints, read_header/header_hash, gate_watermark) on the r7 fixture's fake reth, the REAL wrapper journal/watermark
+ functions, and forward_sync.py. The node child is a fake release binary (help text, argv/env capture, a loopback progress RPC); its
+@@ -49,8 +49,14 @@
+         self.flags = sorted({x for x in FS.node_argv('x', 'd', []) if x.startswith('--')})
+         (self.d / 'fake-base-release.flags').write_text(json.dumps(self.flags))
+         ports = dict(FS.SYNC_PORTS, http=free_port())
++        # r10-forward-repair (root r10 run 0701: 5 FAIL 'baseRetention.historyFromBlock not configured' + 1 ERROR): the recovery fixture
++        # patches W.CONFIG (with baseRetention) ONLY inside its start() boundary, so forward_sync.run - outside it - read the unpatched
++        # module config. The suite now holds the SAME fixture retention (T.HISTORY_FROM/T.STATE_FROM, the boundary's values; production
++        # reads root's /etc/enclave-rpc/chain.json) for the whole test; retention stays REQUIRED (negative check in the isolated run).
++        self.retention = {'historyFromBlock': RR.T.HISTORY_FROM, 'stateHistoryFromBlock': RR.T.STATE_FROM}; self.prune_seen = []
+         for obj, k, v in ((FS, 'SYNC_PORTS', ports), (W, 'BASE_RELEASE_PATH', self.fake), (W, 'BASE_RELEASE_SHA256', sha(self.fake.read_bytes())),
+-                          (W, 'prune_args', lambda *a: []),
++                          (W, 'CONFIG', dict(W.CONFIG, baseRetention=self.retention)),
++                          (W, 'prune_args', lambda profile, h=None, s=None: self.prune_seen.append((h, s)) or []),   # records what it is given
+                           # r2 fix (root 0605: all 8 errored in the inherited start(): the wrapper compares history_from <= snap, and
+                           # this fixture had stubbed history_from_block/state_history_from_block to None module-wide). They are no
+                           # longer stubbed: start() AND forward_sync read the SAME real functions over the recovery fixture's config.
+@@ -92,7 +98,7 @@
+             self.op(name, **kw)
+         self.assertEqual(cm.exception.code, code, str(cm.exception))
+ 
+-    def events(self):
++    def fs_events(self):                                     # r10-forward-repair: self.events is the r7 fixture's boundary log (a list)
+         return [r['event'] for r in FS.journal(self.root)]
+ 
+     def synced_db(self, n=FL + 10, header=None):
+@@ -104,7 +110,7 @@
+ 
+     def test_authenticated_isolated_run_stops_at_target(self):
+         self.scenario(); self.op('authenticate')
+-        self.assertEqual(self.runs(), 0); self.assertEqual(self.events(), ['authenticated', 'started', 'stopped'])
++        self.assertEqual(self.runs(), 0); self.assertEqual(self.fs_events(), ['authenticated', 'started', 'stopped'])
+         self.assertEqual(FS.journal(self.root)[-1]['evidence']['reason'], 'target'); self.assertTrue((self.dd / 'fake-stopped').exists())
+         rec = json.loads((self.dd / 'fake-node.json').read_text()); argv = rec['argv']
+         self.assertEqual(argv[:3], ['--chain', 'mainnet', 'rpc']); self.assertEqual(argv[argv.index('--datadir') + 1], str(self.dd))
+@@ -115,12 +121,18 @@
+         self.assertEqual((argv[argv.index('--l1-eth-rpc') + 1], argv[argv.index('--l1-beacon') + 1]), FS.L1)
+         self.assertEqual(argv[argv.index('--http.addr') + 1], '127.0.0.1'); self.assertEqual(argv[argv.index('--http.api') + 1], 'eth')
+         self.assertEqual(set(rec['env']) - {'PWD', 'SHLVL', '_', 'LC_CTYPE'}, {'PATH', 'LANG', 'HOME', 'TMPDIR', 'BASE_NODE_L1_TRUST_RPC'})
++        self.assertEqual(self.prune_seen[-1], (self.retention['historyFromBlock'], self.retention['stateHistoryFromBlock']))   # the configured starts
++        for drop in ('historyFromBlock', 'stateHistoryFromBlock'):      # r10-forward-repair: retention is REQUIRED; without it nothing starts
++            r = {k: v for k, v in self.retention.items() if k != drop}; seen = len(self.prune_seen)
++            with patch.object(W, 'CONFIG', dict(W.CONFIG, baseRetention=r)), self.assertRaisesRegex(AssertionError, rf'baseRetention\.{drop}\) not configured'):
++                self.runs()
++            self.assertEqual((self.fs_events(), len(self.prune_seen)), (['authenticated', 'started', 'stopped'], seen))
+ 
+     def test_authenticate_refuses_live_production_moved_db_floor_not_above_and_missing_blobs(self):
+         self.scenario(rolled_back=False); self.fsrefused('production_live', 'authenticate')
+         self.rollback('crash'); self.blobs = []; self.fsrefused('blob_history_missing', 'authenticate'); self.blobs = [{'blob': 'x'}]
+         self.state['cp'] = {k: A.SNAPSHOT_HEAD + 5 for k in self.state['cp']}; self.write(); self.fsrefused('not_snapshot', 'authenticate')
+-        self.assertEqual(self.events(), [])
++        self.assertEqual(self.fs_events(), [])
+ 
+     def test_floor_not_above_the_snapshot_uses_the_normal_reanchor(self):
+         self.scenario(floor=A.SNAPSHOT_HEAD); self.fsrefused('not_below_floor', 'authenticate')
+@@ -128,19 +140,26 @@
+     def test_a_flag_absent_from_the_pinned_binary_help_never_runs(self):
+         self.scenario(); self.op('authenticate')
+         (self.d / 'fake-base-release.flags').write_text(json.dumps([f for f in self.flags if f != '--upgrade-signal.mode']))
+-        self.fsrefused('capability', 'run', user=False, poll=0.2); self.assertEqual(self.events(), ['authenticated'])
++        self.fsrefused('capability', 'run', user=False, poll=0.2); self.assertEqual(self.fs_events(), ['authenticated'])
+ 
+     def test_crash_is_recorded_and_the_retry_resumes(self):
+         self.scenario(); self.op('authenticate'); (self.dd / 'fake-crash').write_text('1')
+-        self.assertEqual(self.runs(), 1); self.assertEqual(FS.journal(self.root)[-1]['evidence']['reason'], 'exited')
+-        (self.dd / 'fake-crash').unlink(); self.assertEqual(self.runs(), 0)
+-        self.assertEqual(self.events(), ['authenticated', 'started', 'stopped', 'started', 'stopped'])
++        instant = FS.now()
++        with patch.object(FS, 'now', lambda: instant):
++            self.assertEqual(self.runs(), 1); self.assertEqual(FS.journal(self.root)[-1]['evidence']['reason'], 'exited')
++            first = {p: p.read_bytes() for p in (self.root / 'logs').glob('node-*')}
++            self.assertEqual(len(first), 2)
++            (self.dd / 'fake-crash').unlink(); self.assertEqual(self.runs(), 0)
++        self.assertEqual(len(list((self.root / 'logs').glob('node-*'))), 4)
++        for p, contents in first.items():
++            self.assertEqual(p.read_bytes(), contents, 'retry overwrote the earlier attempt log')
++        self.assertEqual(self.fs_events(), ['authenticated', 'started', 'stopped', 'started', 'stopped'])
+ 
+     def test_verify_proves_the_floor_block_then_handoff_and_the_floor_stays(self):
+         self.scenario(); self.op('authenticate'); self.runs()
+         self.synced_db(n=FL - 5); self.fsrefused('below_floor', 'verify')
+         self.synced_db(header=dict(FXF['header'], parentHash='0x' + '42' * 32)); self.fsrefused('floor_conflict', 'verify')
+-        self.synced_db(); self.op('verify'); self.op('handoff'); self.assertEqual(self.events()[-2:], ['synced', 'handed-off'])
++        self.synced_db(); self.op('verify'); self.op('handoff'); self.assertEqual(self.fs_events()[-2:], ['synced', 'handed-off'])
+         with self.assertRaisesRegex(A.Refused, '^watermark_below'):                    # the re-anchor still needs N >= the retained floor
+             A.gate_watermark({'N': FL - 1, 'reanchor': {'watermarkStore': str(self.store)}}, None)
+ 

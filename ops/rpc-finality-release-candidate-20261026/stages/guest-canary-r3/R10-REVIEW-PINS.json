@@ -1,0 +1,9 @@
+{
+ "note": "Filled ONLY after 50cf freezes base-finality-proof-stage/r10 and logs/claude-finality-r10-result.md exists. Any null refuses the whole canary (no bundle is assembled). After filling, regenerate this stage's SHA256SUMS (the job verifies it).",
+ "r10Sha256sums": "1dbb3abb6a8d2e162817d13531b9369b0bceb3eef11d4395f2719b062b4a6dcb",
+ "r10Manifest": "6eb25a486ff23e0bf7f4891968dbcb851dba766b740eb3c0f0915c81e91127fa",
+ "r10BundleOrigin": "3b4f5ad66aafeb0574b80408b34f0eff4ac0f73084c16f3018bde2af7c706246",
+ "captureModule": "47c49b114e6d596a7dd3c46a9f4a5e55bb016cd140a95e001a58ff9a0e69c5b5",
+ "finalityState": "218bbfe56caec03e6da0829e442b793b88d4cc148a890a324892f0fafd7c78f4",
+ "finalityCore": "686cbc22cd837dbc0bb79512105972297c5addbe512dbd6dce2cfac28aaa6eab"
+}

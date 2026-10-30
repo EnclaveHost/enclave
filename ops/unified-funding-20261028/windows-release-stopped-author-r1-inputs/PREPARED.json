@@ -1,0 +1,56 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "priority": "ROOT_REVIEW_PENDING_NO_LAUNCH",
+  "seedEntries": 114,
+  "readonlyInputPins": 256,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "turnLimit": 55,
+  "childTimeoutSec": 1800,
+  "outerTimeoutSec": 2100,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpuIndex": 1,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-release-stopped-author-r1-20261029/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "accountCheckedNow": false,
+  "productPreEdits": 0,
+  "scope": "Exact installed targeted release-stopped route source only; no activation/lifecycle/capacity/financial work",
+  "rootAdmissionGate": "root-author-approval.json must bind this PREPARED sha256 with launchAuthorized true; root independently checks Max first",
+  "sourceClosureLimitations": [
+    "Static dependency inventory is not a runnable test qualification.",
+    "Source provenance does not establish loaded-code or current process/job ownership.",
+    "Existing agent lacks qualified graceful replacement queue drain; restart not authorized."
+  ],
+  "hashes": {
+    "PLAN.md": "02482746a3345c56ea9c01e6010a24c4a856938c4cc1d52d6312caa70c546d33",
+    "REVIEW-STATUS.txt": "0546945da83c10777a81c792cc6980e09edcf039b96986b1a8a985506f4805c1",
+    "SOURCE-NOTES.md": "ef989da6b0e94eecc68510d8c641657e705ad10879bb120f47d5d2dcc93ef39e",
+    "TASK.txt": "bf78fa85b0c3fa678ced22b932afaf660047f2db4c855a2eab17e9525bc406bf",
+    "account-requirements.json": "f7f904f166ddbb3f4c8a0c039b4a520d42823408422fbc2bc8f2861553466d34",
+    "allowed-edit-paths.json": "1b0f5d627a7963b55f9f5c29ab03d43baf8dec828f75e0cef5bafdb657c1684d",
+    "collect-terminal.py": "c0a16176148b0e3abb0acd6fcb10f3aca56257246298653c53183396ac4504c5",
+    "dependency-closure.json": "5313387e2866398458ab3c7bd23025c27c967b8c107078ffc463b5b500aa7d0c",
+    "input-pins.json": "4cc21cdbbc8dcfde2f90b57c01521c05e234c1f3dadcd3a890162d21e9ebfd52",
+    "launch-command.txt": "0fe4472246045daed3fdeeddd75a512b9df3e914af3d824b7614688cfc89dbb8",
+    "preparation-audit.json": "bb312571762fb9d36ec529f9c8ee05325ce7a225868543fc7b86fe372d7377c3",
+    "prepare.py": "a09a205e9a6c2abdb72f355aaf60c0e9bb7f46304e85110f02cbd4ae2ab4a642",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "run.py": "eb894da24ff0253e60c2aef5f7db80bb8df6aa7dc39b076793b86e81fb9d540e",
+    "seed-pins.json": "baffb691d7996893ca296943280431a72788fe16dfd166db26bb3a77546a9d88",
+    "seed-provenance.json": "f6e9f12f2e3eafa141fe12af06b06700807ba05cfdeb940506a18b6bebf35ce3",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8"
+  }
+}

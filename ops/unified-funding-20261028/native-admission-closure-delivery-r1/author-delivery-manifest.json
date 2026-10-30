@@ -1,0 +1,12 @@
+{
+  "RELEASE-CLOSURE-NATIVE-ADMISSION-R1.json": "42674bc7f4acfabe66891f7815739196a08f559d9e6fb3ca2ca69baa226766bf",
+  "REPORT-NATIVE-ADMISSION-R1.md": "4537b6d6e223a92bf4035133c273d7511566055133edd6bb4426449fa8b384e4",
+  "admission-envelope-cases.json": "8f0384f028e86540b7febc2a1b1c172386d0ebf562383f36684d470e9bb7caf4",
+  "admission-envelope.c": "a82de080eac44d5c1eef651579e1dbff74c1cfdc805ab219fbf3ee24be5b191e",
+  "build-request.json": "acb40137584189586a47124c4dfbe45be3bfb5b01492699325fa6677b9be5f63",
+  "exlock-test.cjs": "860ea7545e68901905c0c6c995793be55a4c29180e857dd9bca762b4956cfb55",
+  "job-probe.c": "eb8bb8e80f0e2eb992294fdde0190c366bc7d281a9ec082ca67f021bcfbcc058",
+  "no-crt.c": "7dec90649a90d212f39da082eebc0aacd17eadcad17952b924027e627b4156a2",
+  "owned-job.c": "31fd95ef3f444931bb8e22409ea4064fe018aead90706f5507cf465e57db3eca",
+  "run-contract.json": "a4f9b646dfb4c214cb13546b8f56191d0c611bae72959a6281bceb638c401ff0"
+}

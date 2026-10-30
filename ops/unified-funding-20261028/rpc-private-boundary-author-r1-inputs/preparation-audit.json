@@ -1,0 +1,22 @@
+{
+  "seedEntries": 11,
+  "candidateEqualsSeed": true,
+  "committedSeedVerified": true,
+  "commit": "886d93b155d6b9ec40331e03be046f785c3d8ff3",
+  "productPreEdits": 0,
+  "readonlyInputPins": 69,
+  "inputDrift": [],
+  "allowedNewFiles": [
+    "test_private_boundary.py",
+    "qualify_private_boundary.py",
+    "PRIVATE-POLICY.md",
+    "PRIVATE-CLOSURE.json"
+  ],
+  "authorLaunched": false,
+  "accountCheckedNow": false,
+  "testsRun": false,
+  "nativeToolsExecuted": false,
+  "imagesOrDatabaseRead": false,
+  "runtimeOrFinancialAction": false,
+  "metadataGitReadOnly": true
+}

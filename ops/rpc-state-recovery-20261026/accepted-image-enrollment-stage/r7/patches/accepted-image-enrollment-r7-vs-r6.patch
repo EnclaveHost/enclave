@@ -1,0 +1,90 @@
+diff --git a/test/derived-state-enrollment.test.mjs b/test/derived-state-enrollment.test.mjs
+index 0f1bd14..8f7cd77 100644
+--- a/test/derived-state-enrollment.test.mjs
++++ b/test/derived-state-enrollment.test.mjs
+@@ -412,19 +412,26 @@ test("B1: the previous child's exit not CONFIRMED -> nothing is composed or seed
+   assert.equal(e.seeded[BR], committedSha(primary(), BR), "then seeded with the committed bytes");
+ });
+ 
+-test("B2: leadership lost during the exit wait -> the stale term seeds nothing; the new primary seeds ITS committed scan", { timeout: 150000 }, async () => {
+-  const l = await live(), sd = path.join(l.roleCfg.dirs.root, "derived-reader-v3"), anchorBefore = inode(path.join(sd, "anchor-journal.json"));
+-  EXIT_DELAY.ms = 2800;                                                          // < derivedExitWaitMs (3 s): the exit IS confirmed, after the term is gone
+-  await sleep(1200); const rot = await rotateNow(l); assert.equal(rot.status, 200, JSON.stringify(rot.json));   // stop + start: the plan waits for the exit
+-  await sleep(300); NET.down.add(l.i);                                           // its lease cannot be renewed: it steps down during the wait
+-  await waitFor("the stale start refused", () => l.logs.some((x) => /derived start refused: the committed view changed while starting/.test(x)), 15000);
+-  EXIT_DELAY.ms = 0;
+-  const n = await waitFor("another primary with derived", async () => { const x = M.find((m) => m !== l && !m.stopped && m.role.status().role === "leader" && m.role.status().relay); if (!x) return null; const y = await relay(x, "GET", "/env"); return y?.descriptor ? { x, y } : null; }, 60000);
+-  assert.equal(n.y.seeded[BR], committedSha(n.x, BR), "the new primary seeds exactly its committed scan");
+-  await sleep(3500);                                                             // past the old exit
+-  assert.equal(inode(path.join(sd, "anchor-journal.json")), anchorBefore, "the deposed member did not seed on its stale term");
+-  NET.down.delete(l.i);
+-  await waitFor("a primary with its relay after healing", () => leader());
++test("B2: leadership lost during the exit wait -> the stale term composes and seeds nothing; once a majority is back, the primary seeds exactly ITS committed scan", { timeout: 150000 }, async () => {
++  const l = await live(), sd = path.join(l.roleCfg.dirs.root, "derived-reader-v3");
++  const anchorBefore = inode(path.join(sd, "anchor-journal.json")), stateBefore = inode(path.join(l.roleCfg.dirs.root, "derived-reader", "state.json"));
++  // the failover test stopped one member: with the primary partitioned too, NO majority exists (no successor can be elected)
++  // until healing - so the stale term is observed alone, and the seed is checked on whichever primary the healed group elects
++  const others = M.filter((m) => m !== l && !m.stopped);
++  try {
++    EXIT_DELAY.ms = 2800;                                                        // < derivedExitWaitMs (3 s): the exit IS confirmed, after the term is gone
++    await sleep(1200); const rot = await rotateNow(l); assert.equal(rot.status, 200, JSON.stringify(rot.json));   // stop + start: the plan waits for the exit
++    await sleep(300); NET.down.add(l.i);                                         // its lease cannot be renewed: it steps down during the wait
++    await waitFor("the stale start refused", () => l.logs.some((x) => /derived start refused: the committed view changed while starting/.test(x)), 15000);
++    await sleep(500);
++    assert.notEqual(l.role.status().role, "leader");
++    assert.equal(inode(path.join(sd, "anchor-journal.json")), anchorBefore, "the deposed member did not seed on its stale term");
++    assert.equal(inode(path.join(l.roleCfg.dirs.root, "derived-reader", "state.json")), stateBefore, "nor composed a descriptor");
++    if (others.length < 2) assert.equal(others.some((m) => m.role.status().role === "leader"), false, "without a majority no other primary exists");
++  } finally { EXIT_DELAY.ms = 0; NET.down.delete(l.i); }
++  const n = await waitFor("a primary with derived after healing", async () => { const x = await live(); const y = await relay(x, "GET", "/env"); return y?.descriptor ? { x, y } : null; }, 60000);
++  assert.equal(n.y.seeded[BR], committedSha(n.x, BR), "the primary seeds exactly its committed scan");
++  for (const m of M.filter((x) => !x.stopped)) await waitFor(`member ${m.i} to hold the seeded bytes`, () => committedSha(m, BR) === n.y.seeded[BR]);
+ });
+ 
+ test("M3: a rejecting replica commit is a plain failure: the child's commit is OUTCOME UNKNOWN, the barrier answers ok:false, no unhandled rejection", { timeout: 90000 }, async () => {
+@@ -451,7 +458,8 @@ test("stop with a commit IN FLIGHT (review item 7): the commit completes under t
+   await sleep(1200);                                                             // past the crash guard's stable window
+   NET.delayMs = 400;                                                             // the majority round now takes > 800 ms
+   const pending = relay(l, "POST", "/commit", { file: BR, text: T }).catch((e) => ({ transport: e.message }));
+-  await sleep(150);                                                              // the role holds the lock: written, awaiting node.commit()
++  // exactly IN FLIGHT: the role has written the bytes (under its lock) and awaits the delayed majority round
++  await waitFor("written, awaiting the majority", () => { try { return fs.readFileSync(path.join(l.roleCfg.dirs.data, DS.STATE_DIR, BR), "utf8") === T; } catch { return false; } }, 5000);
+   const old = childPid(l); process.kill(old, "SIGKILL");
+   const r = await pending;
+   NET.delayMs = 0;
+diff --git a/test/derived-state-kvm-composition.test.mjs b/test/derived-state-kvm-composition.test.mjs
+index d4f73f8..d2c1959 100644
+--- a/test/derived-state-kvm-composition.test.mjs
++++ b/test/derived-state-kvm-composition.test.mjs
+@@ -69,7 +69,9 @@ const createCommitter = (o) => { const c = createDerivedCommitter(o); return { .
+   commit: async (q) => { const r = await c.commit(q); acks++; events.push(["ack", q.file]); if (dieAfterAck && acks === dieAfterAck) process.exit(1); return r; },
+   verifyEnrollment: async (q) => { events.push(["verify", q.binding]); return c.verifyEnrollment(q); } }; };
+ const runtime = { ...REAL,
+-  enrollDerivedState: async (config, options) => { events.push(["enroll", { hasStateDir: "stateDir" in config, coverageDir: config.coverageDir }]); return REAL.enrollDerivedState(config, options); },
++  // the KVM -> adapter boundary: KVM names each write by its canonical ABSOLUTE RAM path; the adapter maps it to the IPC wire name
++  enrollDerivedState: async (config, options) => { events.push(["enroll", { hasStateDir: "stateDir" in config, coverageDir: config.coverageDir }]);
++    return REAL.enrollDerivedState(config, { ...options, commit: (q) => { events.push(["kvm-commit", q.file]); return options.commit(q); } }); },
+   startDerivedLifecycleReader: async (config, options) => { events.push(["start", { hasStateDir: "stateDir" in config, journalDir: config.journalDir, coverageDir: config.coverageDir, requireJournalCommit: options.requireJournalCommit }]);
+     // "advance": move BOTH floors with KVM's own journals through the real durable commit (synthetic, well-formed anchors)
+     const adv = onceText("advance");
+@@ -171,7 +173,9 @@ test("genesis through REAL KVM + role IPC + ReplicaNode: a crash after ACK 1 res
+   const r = await enroll(l, await pkgFor(l, {})); assert.equal(r.status, 200, JSON.stringify(r.json)); DIGEST = r.json.digest;
+   const s = await waitFor("derived authority after the resumed genesis", async () => { const x = await get(await live()); return x.authority ? x : null; });
+   assert.equal(fs.existsSync(path.join(CTL, "die-after-ack")), false, "the first child crashed after ACK 1");
+-  assert.deepEqual(s.events.filter((e) => e[0] === "ack").map((e) => e[1]), [s.descriptor.paths[BR], s.descriptor.paths[RD]].map((p) => p), "the resumed child sent ONLY the remaining two writes");
++  // exact order and count at BOTH layers: KVM's canonical absolute RAM paths, and the canonical relative names on the IPC wire
++  assert.deepEqual(s.events.filter((e) => e[0] === "kvm-commit").map((e) => e[1]), [s.descriptor.paths[BR], s.descriptor.paths[RD]], "KVM resumed with ONLY the remaining two writes (absolute RAM paths)");
++  assert.deepEqual(s.events.filter((e) => e[0] === "ack").map((e) => e[1]), [BR, RD], "acknowledged on the wire as exactly those two canonical names, in order");
+   assert.deepEqual(s.events.find((e) => e[0] === "enroll")[1], { hasStateDir: false, coverageDir: path.join(path.dirname(s.descriptor.journalDir), "coverage", BINDING) });
+   assert.deepEqual(s.events.find((e) => e[0] === "start")[1].hasStateDir, false);
+   assert.deepEqual(s.descriptor.files.map((f) => f.rel), [RD], "the resumed child was seeded with exactly the committed pending reader");
+@@ -231,7 +235,8 @@ test("ROTATE to a new binding carries EXACTLY the dominating floor (the reader's
+   const r = await enroll(await prim(), await pkgFor(await prim(), { ...base, floorDigest: DS.floorDigestOf(FR) })); assert.equal(r.status, 200, JSON.stringify(r.json)); ROTATE = r.json.digest;
+   const s = await waitFor("the resumed rotation", async () => { const y = await derivedUp("derived under the new binding"); return JSON.parse(y.reader.text).binding === BINDING2 ? y : null; });
+   assert.equal(fs.existsSync(path.join(CTL, "die-after-ack")), false, "the first rotating child crashed after ACK 2");
+-  assert.deepEqual(s.events.filter((e) => e[0] === "ack").map((e) => e[1]), [s.descriptor.paths[RD]], "the resumed child sent ONLY the final reader record");
++  assert.deepEqual(s.events.filter((e) => e[0] === "kvm-commit").map((e) => e[1]), [s.descriptor.paths[RD]], "KVM resumed with ONLY the final reader record (absolute RAM path)");
++  assert.deepEqual(s.events.filter((e) => e[0] === "ack").map((e) => e[1]), [RD], "acknowledged on the wire as exactly that canonical name");
+   assert.equal(s.descriptor.coverageDir, path.join(path.dirname(s.descriptor.journalDir), "coverage", BINDING2), "a fresh cache for the new binding");
+   const rd = JSON.parse(s.reader.text), bd = JSON.parse(s.bridge.text);
+   assert.deepEqual(canon(rd.floor), canon(FR), "the carried floor is the dominating one, exactly"); assert.deepEqual(canon(bd.authorityAnchors["8453"]), canon(FR));

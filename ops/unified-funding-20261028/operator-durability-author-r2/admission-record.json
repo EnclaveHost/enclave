@@ -1,0 +1,41 @@
+{
+  "unit": "enclave-operator-durability-repair-r2-20261029.service",
+  "mainPid": 1839586,
+  "runnerPid": 1839605,
+  "claudePid": 1839630,
+  "invocation": "d0130484484b4f56965f37d85b64228e",
+  "mainStartTicks": "160728395",
+  "runnerStartTicks": "160728407",
+  "claudeStartTicks": "160728477",
+  "processes": [
+    {
+      "pid": 1839586,
+      "ppid": 1899,
+      "start": "160728395",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven"
+    },
+    {
+      "pid": 1839605,
+      "ppid": 1839598,
+      "start": "160728407",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven"
+    },
+    {
+      "pid": 1839630,
+      "ppid": 1839605,
+      "start": "160728477",
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r2-20261029"
+    }
+  ],
+  "rawUnit": "ActiveState=active\nInvocationID=d0130484484b4f56965f37d85b64228e\nMainPID=1839586\n",
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "rootAuthorizedOneLaunch": true,
+  "recordedAt": 1793302203.8263662
+}

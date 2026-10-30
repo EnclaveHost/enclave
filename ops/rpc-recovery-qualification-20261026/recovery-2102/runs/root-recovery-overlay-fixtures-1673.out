@@ -1,0 +1,20 @@
+[queue] START available=24185MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "rc": 1,
+ "ran8": false,
+ "lastOK": false,
+ "stdoutEmpty": true,
+ "clean": false,
+ "noMountsLeft": true,
+ "peersUnchanged": true,
+ "pass": false
+}
+Ran 0 tests in 0.300s
+
+FAILED (errors=1)
+## FAIL
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r1/runs/tests-20261026T210002Z-2343708
+## rov-r1-tests rc=1
+[memory-guard] exit=1 peakTreeRssMiB=57 minHostAvailableMiB=24181
+[memory-guard] at peak: python3:51 bash:4 timeout:2
+[queue] EXIT 1

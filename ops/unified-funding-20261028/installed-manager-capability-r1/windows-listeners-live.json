@@ -1,0 +1,27 @@
+{
+  "checkedAt": "2026-10-29T11:18:24.2028386Z",
+  "listeners": [
+    {
+      "port": 8095,
+      "pid": 41308,
+      "modules": [
+        {
+          "sha256": "8b749fa787ce991577ae9007b0c4cf2a884e5d3d362e8444b9fbc15736de3b25",
+          "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\\bootstrap.mjs"
+        }
+      ],
+      "executable": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+    },
+    {
+      "port": 8097,
+      "pid": 40360,
+      "modules": [
+        {
+          "sha256": "8b749fa787ce991577ae9007b0c4cf2a884e5d3d362e8444b9fbc15736de3b25",
+          "path": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\bootstrap.mjs"
+        }
+      ],
+      "executable": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+    }
+  ]
+}

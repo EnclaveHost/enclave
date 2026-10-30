@@ -1,0 +1,192 @@
+TAP version 13
+# Subtest: the vendored bundle is exactly a fresh build of network/management-browser.mjs and its sources
+ok 1 - the vendored bundle is exactly a fresh build of network/management-browser.mjs and its sources
+  ---
+  duration_ms: 109.146804
+  type: 'test'
+  ...
+# Subtest: with the source helper
+    # Subtest: status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+    ok 1 - status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+      ---
+      duration_ms: 43.683577
+      type: 'test'
+      ...
+    # Subtest: records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+    ok 2 - records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+      ---
+      duration_ms: 27.245982
+      type: 'test'
+      ...
+    # Subtest: no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+    ok 3 - no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+      ---
+      duration_ms: 14.098671
+      type: 'test'
+      ...
+    # Subtest: refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+    ok 4 - refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+      ---
+      duration_ms: 19.538573
+      type: 'test'
+      ...
+    # Subtest: mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+    ok 5 - mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+      ---
+      duration_ms: 31.783113
+      type: 'test'
+      ...
+    # Subtest: app token: returned to the caller only; never stored, never echoed in an error
+    ok 6 - app token: returned to the caller only; never stored, never echoed in an error
+      ---
+      duration_ms: 18.468104
+      type: 'test'
+      ...
+    # Subtest: the page sends only to the origin inside the operator's signature
+    ok 7 - the page sends only to the origin inside the operator's signature
+      ---
+      duration_ms: 4.198535
+      type: 'test'
+      ...
+    # Subtest: attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+    ok 8 - attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+      ---
+      duration_ms: 7.212843
+      type: 'test'
+      ...
+    # Subtest: the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+    ok 9 - the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+      ---
+      duration_ms: 17.767702
+      type: 'test'
+      ...
+    # Subtest: a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+    ok 10 - a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+      ---
+      duration_ms: 6.509771
+      type: 'test'
+      ...
+    # Subtest: floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+    ok 11 - floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+      ---
+      duration_ms: 6.235874
+      type: 'test'
+      ...
+    # Subtest: GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+    ok 12 - GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+      ---
+      duration_ms: 16.402077
+      type: 'test'
+      ...
+    1..12
+ok 2 - with the source helper
+  ---
+  duration_ms: 214.154292
+  type: 'suite'
+  ...
+# Subtest: with the shipped bundle helper
+    # Subtest: status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+    ok 1 - status: an agreed lease, the operator's record from every directory, the floor saved, one signed request to the signed origin
+      ---
+      duration_ms: 32.951431
+      type: 'test'
+      ...
+    # Subtest: records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+    ok 2 - records: a stranger's newer record is ignored; a rollback below the saved floor is refused with no host request
+      ---
+      duration_ms: 28.893974
+      type: 'test'
+      ...
+    # Subtest: no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+    ok 3 - no browser transport: a dashboard the operator did not list, a v1 record, a withdrawal - the native command instead
+      ---
+      duration_ms: 14.018802
+      type: 'test'
+      ...
+    # Subtest: refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+    ok 4 - refused before anything is sent: no agreed lease, a stale owner, no current host, an ended session, a missing scope
+      ---
+      duration_ms: 19.752251
+      type: 'test'
+      ...
+    # Subtest: mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+    ok 5 - mutations: a lost or cut answer is outcome-unknown (check status), sent once; a fetch failure on a read is 'unreachable'
+      ---
+      duration_ms: 30.321329
+      type: 'test'
+      ...
+    # Subtest: app token: returned to the caller only; never stored, never echoed in an error
+    ok 6 - app token: returned to the caller only; never stored, never echoed in an error
+      ---
+      duration_ms: 17.410176
+      type: 'test'
+      ...
+    # Subtest: the page sends only to the origin inside the operator's signature
+    ok 7 - the page sends only to the origin inside the operator's signature
+      ---
+      duration_ms: 4.020698
+      type: 'test'
+      ...
+    # Subtest: attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+    ok 8 - attestation is host-reported: a fresh 32-byte nonce, never 'verified'
+      ---
+      duration_ms: 6.864847
+      type: 'test'
+      ...
+    # Subtest: the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+    ok 9 - the gateway's own limits (busy, rate limited, replay capacity) refuse before forwarding: 'try again shortly', nothing ran
+      ---
+      duration_ms: 18.085788
+      type: 'test'
+      ...
+    # Subtest: a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+    ok 10 - a wallet-held deployment refused for want of a delegation is labeled so the panel can offer it
+      ---
+      duration_ms: 7.243884
+      type: 'test'
+      ...
+    # Subtest: floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+    ok 11 - floors are the helper's composite, per operator; a legacy single floor is not honored or kept
+      ---
+      duration_ms: 6.534471
+      type: 'test'
+      ...
+    # Subtest: GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+    ok 12 - GPU: one signed GET to /v1/deployments/<id>/gpu under api.status; a CPU-only host is 'no GPU', not a transport failure
+      ---
+      duration_ms: 17.95692
+      type: 'test'
+      ...
+    1..12
+ok 3 - with the shipped bundle helper
+  ---
+  duration_ms: 205.114498
+  type: 'suite'
+  ...
+# Subtest: GPU view: rows from the supervisor's answer, every value host-reported; Shield proof fields named as unverified claims
+ok 4 - GPU view: rows from the supervisor's answer, every value host-reported; Shield proof fields named as unverified claims
+  ---
+  duration_ms: 0.705922
+  type: 'test'
+  ...
+# Subtest: Startup tier: SNP by default (byte-identical to the CLI's activation); Shield only when chosen, which the Shield node accepts
+ok 5 - Startup tier: SNP by default (byte-identical to the CLI's activation); Shield only when chosen, which the Shield node accepts
+  ---
+  duration_ms: 0.890811
+  type: 'test'
+  ...
+# Subtest: pending owner grant: the CLI's typed data is accepted only as the SDK's exact SessionGrant for this wallet's vault
+ok 6 - pending owner grant: the CLI's typed data is accepted only as the SDK's exact SessionGrant for this wallet's vault
+  ---
+  duration_ms: 2.86893
+  type: 'test'
+  ...
+1..6
+# tests 28
+# suites 2
+# pass 28
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 701.314223

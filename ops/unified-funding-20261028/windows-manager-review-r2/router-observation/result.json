@@ -1,0 +1,34 @@
+{
+  "checkedAt": "2026-10-29T13:49:01.7766952Z",
+  "publicPins": {
+    "entrySha256": "8b749fa787ce991577ae9007b0c4cf2a884e5d3d362e8444b9fbc15736de3b25",
+    "manifestSha256": "93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292",
+    "configSha256": "21b96fb6745c82ad94a44e6275d4a0d028998c6720954fa5323991b1228817f5",
+    "selectedSourceSha256": {
+      "windows/vbslike/router/main.mjs": "d021c31460f8b4313ab15a50a1e9792360df4b00de2f64d727e21b79d04fb9a7",
+      "windows/vbslike/router/control.mjs": "966fd3b5480e9859de4f1dc578b25afa1150e97552437e8c183c03bba4606e6a",
+      "windows/vbslike/router/io.mjs": "3a81d403c8f9a4d20d2f7651b31ca5d5a8eb8acae9c2b817082ec1bae74083e2",
+      "windows/vbslike/router/platform.mjs": "1dc849de7a4495c91dcfd3b7f82e2fbc6385b0456a69855be569c3bbd27a3710"
+    },
+    "journal": {
+      "lastState": "observed",
+      "physicalMiB": 0,
+      "digest": "6a64e839b805ee7960c2ef4a8001b6d72d7266a28dac776e7427892cbe01c84d"
+    },
+    "chainValidated": true,
+    "stableBytes": true,
+    "admissible": false
+  },
+  "pid": 40360,
+  "admissible": false,
+  "created": "2026-10-27T08:24:42.8500370Z",
+  "port": 8097,
+  "remainingUnknown": [
+    "future launches",
+    "other host commitments",
+    "concurrent/direct admissions"
+  ],
+  "schema": "enclave-router-admission-observation/1",
+  "configPath": "C:\\ProgramData\\Enclave\\native-desktop\\releases\\a2272bcd8f7d5db883ae212ee1cb499a8bf100f9cc6f23073e61b68343f185f9\\router-config.json",
+  "entry": "C:\\ProgramData\\Enclave\\native-manager\\releases\\93564093040d89309bbac1b7220e5000aef77f481b68d58a0a4e8ac10748c292\\bootstrap.mjs"
+}

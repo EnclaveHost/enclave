@@ -1,0 +1,28 @@
+# every non-ok actual r12 row (final RESULT FAIL 1: regressions 8, baseline-not-clean 16, stack 9) -> required qualified replacement
+# disposition: ROW = needs a qualified per-row receipt listed in ROW-EVIDENCE.tsv (gated) | ACTUAL = already an actual r12 pass | HOLD-PROD = explicit production hold (never waived, never counted as pass)
+test	r12 rows	actual cause	disposition	evidence source
+test/attested-chain-verifier.test.mjs	verifier REGRESSION; REGRESS REGRESSION; STACK fail (one file, 3 rows)	G5 stale message (P2)	ROW	composed rerun (closure P2+P4); P2 job 92355 is the patch-level control
+test/host-service-transport.test.mjs	REGRESS REGRESSION 11/3	rpcs is not defined (P1)	ROW	P1 job 82988 (closure P1 only)
+test/host-services-cold-start.test.mjs	REGRESS REGRESSION 10/2	rpcs is not defined (P1)	ROW	P1 job 82988
+test/windows-chain-authority.test.mjs	REGRESS REGRESSION 9/1	rpcs is not defined (P1)	ROW	P1 job 82988
+test/windows-node-network-enroll.test.mjs	REGRESS REGRESSION 3/9	rpcs is not defined (P1)	ROW	P1 job 82988
+test/windows-node-wallet-enroll.test.mjs	REGRESS REGRESSION 0/1	rpcs is not defined (P1)	ROW	P1 job 82988
+test/windows-node-lease-renewal-keeper.test.mjs	REGRESS REGRESSION 0/1	test/helpers/windows-lease-scripted-fixture.mjs re-exports 4 names; chain.mjs needs chainAuthorityFromEnv/refusingChainAuthority (NOT covered by P3)	ROW	NO FIX EXISTS: needs a test-only pass-through patch like P3, then a receipt (HOLD)
+test/stack-windows-chain-reader.test.mjs	STACK fail 2/1	stale expected import names (harness file, not in debbfb37)	ROW	P5 job (stack-import-fixture-stage); 3/3 not assumed
+test/lease-designated-relays.test.mjs	REGRESS BNC 0/5	stale lease adapter exports (P3)	ROW	P3 job 29692
+test/lease-host-relay.test.mjs	REGRESS BNC 0/3	same (P3)	ROW	P3 job 29692
+test/lease-pinned-relay.test.mjs	REGRESS BNC 2/2	same (P3)	ROW	P3 job 29692
+test/lease-relay-migration.test.mjs	REGRESS BNC 2/6	same (P3)	ROW	P3 job 29692
+test/windows-current-runtime.test.mjs	REGRESS BNC 0/3	same (P3)	ROW	P3 job 29692
+test/windows-host-app-funded.test.mjs	REGRESS BNC 0/3	same (P3)	ROW	P3 job 29692
+test/windows-release-journal.test.mjs	REGRESS BNC 0/7	same (P3)	ROW	P3 job 29692
+test/lease-relay-host-policy.test.mjs	leaseRelay component BNC 0/9; final 0/9	MockFeed artifact ENOENT	ROW	rig impacted rerun r2 (0346)
+test/cli-independent-sessions.test.mjs	REGRESS BNC 0/13	MockFeed ENOENT	ROW	rig impacted rerun r2 (0346)
+test/cli-combined-independent.test.mjs	REGRESS BNC 0/4	MockFeed ENOENT; closure P4	ROW	composed rerun WITH the MockFeed artifact (one run covers both)
+test/offchain-heartbeat-writers.test.mjs	REGRESS BNC 0/2 +1 skip	MockFeed ENOENT; test 2 needs OFFCHAIN_HEARTBEAT_BASE_SUPERVISOR	ROW	rig impacted rerun r2 with the heartbeat input; a skip is not a pass
+test/metal-control-overlay.test.py	REGRESS BNC 19 + 2 skip (E2, CHAIN_VERIFIER_INPUTS unset)	runner phase gap	ACTUAL	r12 F2 NATIVE row "rc 0 OK" with the full inputs (actual PASS)
+test/windows-node-lease-readiness.test.mjs	REGRESS BNC 8 + 1 skip	test 9: PWSH unset; external cutover tools missing	HOLD-PROD	native PowerShell cutover gate on a Windows host
+test/site-independent-account-first.test.mjs	REGRESS BNC 0/5	needs a fork of public Base (blocked offline)	HOLD-PROD	own historical RPC (pending)
+test/site-independent-management.test.mjs	REGRESS BNC 0/10	same	HOLD-PROD	own historical RPC (pending)
+test/site-independent-passkey-aa.test.mjs	REGRESS BNC 0/7	same	HOLD-PROD	own historical RPC (pending)
+(phase D)	[FAIL] regeneration touched non-generated files	r12 line-191 directory allowance (auditor bug)	ROW	corrected D audit JSON (root-actual-0347/audit.json) - currently ok:false (pyc residue)

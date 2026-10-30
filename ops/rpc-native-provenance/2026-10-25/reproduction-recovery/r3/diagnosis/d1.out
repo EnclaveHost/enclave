@@ -1,0 +1,31 @@
+PIN rpc-priority…/helios size 124722632 build-id 7f15da75b90e57d1be90d0221f86faff47c62db0 sections 35
+
+CAND r3-eeffcc9 size 124722632 (pin 124722632, delta 0) build-id 85672e72ba1ddbbf6b5d026a1c61311d6d3a3276
+  identical sections (31): , .interp, .note.ABI-tag, .dynsym, .gnu.version, .gnu.version_r, .gnu.hash, .dynstr, .rela.plt, .gcc_except_table, .eh_frame_hdr, .eh_frame, .init, .fini, .plt, .tdata, .tbss, .fini_array, .init_array, .data.rel.ro, .dynamic, .got, .got.plt, .relro_padding, .tm_clone_table, .data, .bss, .comment, .symtab, .shstrtab, .strtab
+  differing sections:
+  .note.gnu.build-id           size pin         36 cand         36  bytes differing 20  sha pin e3b0ff6e5e23 cand 4cb613642c7f
+  .rela.dyn                    size pin    6084144 cand    6084144  bytes differing 840  sha pin abefdcb6e528 cand d1c1a0a7f4ba
+  .rodata                      size pin   23421136 cand   23421136  bytes differing 28103  sha pin 1fac2ec26d6a cand 58bd3b196536
+  .text                        size pin   51979393 cand   51979393  bytes differing 1393  sha pin bdd9a22f379e cand 9d9c955ccd24
+
+CAND r3-b93fcfd size 124703248 (pin 124722632, delta -19384) build-id d4d25aa8b40c74db29048b3c30bd4278ad09efac
+  identical sections (18): , .interp, .note.ABI-tag, .dynsym, .gnu.version, .gnu.version_r, .gnu.hash, .dynstr, .fini, .tdata, .tbss, .fini_array, .init_array, .tm_clone_table, .data, .bss, .comment, .shstrtab
+  differing sections:
+  .note.gnu.build-id           size pin         36 cand         36  bytes differing 20  sha pin e3b0ff6e5e23 cand 95d6de664d64
+  .rela.dyn                    size pin    6084144 cand    6079128  SIZE DIFFERS  sha pin abefdcb6e528 cand 705b4b376c11
+  .rela.plt                    size pin       3336 cand       3336  bytes differing 278  sha pin af43732c9a03 cand aed4e5481d49
+  .gcc_except_table            size pin    2277652 cand    2273424  SIZE DIFFERS  sha pin 78c851ed2650 cand b5356fb068e5
+  .rodata                      size pin   23421136 cand   23421136  bytes differing 18915719  sha pin 1fac2ec26d6a cand c74e9f79b392
+  .eh_frame_hdr                size pin    1618444 cand    1618444  bytes differing 228808  sha pin 0514c2444d66 cand c8faca789121
+  .eh_frame                    size pin    5520944 cand    5520936  SIZE DIFFERS  sha pin 9bd55c5d38f8 cand 63a044da4b30
+  .text                        size pin   51979393 cand   51979393  bytes differing 9496236  sha pin bdd9a22f379e cand 28d4cba1dbbd
+  .init                        size pin         32 cand         32  bytes differing 2  sha pin cee4e17c9ded cand c89649c73f00
+  .plt                         size pin       2240 cand       2240  bytes differing 282  sha pin dfa6ddfa826e cand 59aee4932cb1
+  .data.rel.ro                 size pin    2197592 cand    2197688  SIZE DIFFERS  sha pin 7a5f22a4e24e cand a303fc2723ff
+  .dynamic                     size pin        480 cand        480  bytes differing 13  sha pin 5d278e9d78e4 cand 5d42e6d91849
+  .got                         size pin    1157144 cand    1155392  SIZE DIFFERS  sha pin 5243cc951106 cand a6067e8571c3
+  .got.plt                     size pin       1136 cand       1136  bytes differing 142  sha pin fe193699f07c cand 082b3eddc1f0
+  .relro_padding               size pin       2240 cand       3896  SIZE DIFFERS  sha pin e3b0c44298fc cand e3b0c44298fc
+  .symtab                      size pin    6614880 cand    6611832  SIZE DIFFERS  sha pin 50bc702cfe16 cand dce18d40dbef
+  .strtab                      size pin   23766076 cand   23763661  SIZE DIFFERS  sha pin bc35d57ff4d3 cand fbd515861dc8
+[memory-guard] exit=0 peakTreeRssMiB=222 minHostAvailableMiB=21394

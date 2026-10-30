@@ -1,0 +1,13 @@
+--- a/test/cli-combined-independent.test.mjs
++++ b/test/cli-combined-independent.test.mjs
+@@ -167,6 +167,9 @@
+       ENCLAVE_TEST_NET_LOG: netLog, ENCLAVE_API_BASE: r.apiOrigin } });
+     let all = ""; p.stdout.on("data", (d) => (all += d)); p.stderr.on("data", (d) => (all += d)); p.on("close", (code) => resolve({ code, all }));
+   });
+-  assert.notEqual(hosted.code, 0); assert.match(hosted.all, /--signer-mode apply to independent mode: add --independent/);
++  // r8 (P8): the CLI's one stray-flag refusal names EVERY independent-only flag, now including --chain-verifier
++  // (cli/enclave.mjs configureIndependent); the exact full line, anchored, still proves --signer-mode alone is refused
++  assert.notEqual(hosted.code, 0);
++  assert.match(hosted.all, /^error: --quorum, --confirmations, --max-block-age, --usdc-token, --max-fee-gwei, --signer-mode and --chain-verifier apply to independent mode: add --independent$/m);
+   noEnclave();
+ });

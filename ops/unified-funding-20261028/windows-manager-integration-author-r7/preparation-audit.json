@@ -1,0 +1,19 @@
+{
+  "status": "PREPARATION_HASH_FILE_AND_HELPER_AST_INSPECTION_ONLY",
+  "preparedSha256": "6ba30d3d95290f103db8dc3be643a46ee865483c7500dcae13dfae8242cfaa3f",
+  "seedFiles": 165,
+  "candidateExactSeed": true,
+  "preAuthorProductChanges": 0,
+  "readonlyPins": 2668,
+  "inputDrift": [],
+  "authorLaunched": false,
+  "candidateExecuted": false,
+  "testsOrBuildsRun": false,
+  "helperASTParsedNotExecuted": [
+    "run.py",
+    "collect-terminal.py",
+    "readonly-progress.py"
+  ],
+  "collectorChange": "Check actual pinned executable and candidate-tree cwd, not comm=claude; binary comm is versioned. Unknown same-exe cwd requires manual audit.",
+  "note": "Only file/hash/AST metadata inspection. Coordinator reviews and launches. No future mutable root evidence documents pinned."
+}

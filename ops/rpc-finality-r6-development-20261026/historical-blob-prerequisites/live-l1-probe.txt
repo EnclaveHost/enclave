@@ -1,0 +1,17 @@
+2026-10-26T05:46:53Z
+== EL
+{"jsonrpc":"2.0","id":1,"result":"reth/v2.8.0-05ba481/x86_64-unknown-linux-gnu"}
+{"jsonrpc":"2.0","id":1,"result":"0x1"}
+{"jsonrpc":"2.0","id":1,"result":false}
+{"jsonrpc":"2.0","id":1,"result":"0x190ec30"}
+ 26274864 1792993607 0x661450f1adc60ca609057d478204b0064d438033f0e040490e0d1f3a5be0db3d
+ 26274780 1792992599 0x0a9f6c79a160c230ca77cc61a0add6ac63804e7043207b1cfe1c547f4fb7d01d
+{"jsonrpc":"2.0","id":1,"error":{"code":4444,"message":"pruned history unavailable: requested 0, earliest available 26100000"}}
+== CL
+/eth/v1/node/version: {"data":{"version":"Lighthouse/v8.3.2/x86_64-linux"}}
+/eth/v1/node/syncing: {"data":{"is_syncing":false,"is_optimistic":false,"el_offline":false,"head_slot":"15514132","sync_distance":"0"}}
+/eth/v1/beacon/genesis: {"data":{"genesis_time":"1606824023","genesis_validators_root":"0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95","genesis_fork_version":"0x00000000"}}
+/lighthouse/database/info: {"schema_version":32,"config":{"block_cache_size":0,"state_cache_size":128,"state_cache_headroom":1,"compression_level":1,"historic_state_cache_size":1,"cold_hdiff_buffer_cache_size":16,"hot_hdiff_buffer_cache_size":1,"compact_on_init":false,"compact_on_prune":true,"prune_payloads":true,"backend":"LevelDb","hierarchy_config":{"exponents":[5,9,11,13,16,18,21]},"prune_blobs":true,"epochs_per_blob_prune":256,"blob_prune_margin_epochs":0},"split":{"slot":"15514048","state_root":"0xb313275f72a390c19abf2acd3f92c26679dc05bd7b2c4557f64a91a515b4e687","block_root":"0xca07f2810ff542a14e1ea7ca4ad33afad8edec6bab699ff805667a548dcde933"},"anchor":{"anchor_slot":"15508320","oldest_block_slot":"15341760","oldest_block_parent":"0x205fc68a0c5aee1d266a4d8336a3317cf5006becb38789af5f9b3f6ae171a580","state_upper_limit":"18446744073709551615","state_lower_limit":"0"},"data_info":{"oldest_data_slot":"15382624"}}
+identity metadata {'seq_number': '8', 'attnets': '0x0000180000000000', 'syncnets': '0x00', 'custody_group_count': '64'}
+ slot 15514132 opt False fin False
+ slot 15514048 opt False fin True

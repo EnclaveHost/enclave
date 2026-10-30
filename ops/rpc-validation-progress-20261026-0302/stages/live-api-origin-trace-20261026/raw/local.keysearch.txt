@@ -1,0 +1,9 @@
+utc=2026-10-26T02:55:55Z host=warden-host target_fp=SHA256:AJ9e7qoY87oouCCs53DIAJVvcfKEgHNikJ83RxSvLsI
+pub_match /home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/tunnel.pub sha16=8571a345231cc241 SHA256:AJ9e7qoY87oouCCs53DIAJVvcfKEgHNikJ83RxSvLsI (ED25519)
+pub_files_scanned=15
+enclavedns ActiveEnterTimestamp=Sun 2026-10-18 09:37:23 MST
+enclavedns ExecStart={ path=/usr/bin/enclavedns ; argv[]=<redacted>; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }
+enclavedns User=enclavedns
+lan_neighbor 192.168.8.1 REACHABLE
+lan_neighbor 192.168.8.238 REACHABLE
+uptime_since=2026-10-10 22:01:26

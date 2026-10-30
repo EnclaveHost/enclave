@@ -1,0 +1,103 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 9 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 10 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 11 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 12 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 13 not started; sleep 30
+[queue] START available=22653MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "ok": false,
+ "fails": [
+  "windows-release-journal: {'rc': 1, 'tests': 7, 'pass': 6, 'fail': 1, 'skipped': 0, 'todo': 0, 'cancelled': 0} (expected 7/7, nothing skipped)"
+ ],
+ "results": {
+  "lease-designated-relays": {
+   "rc": 0,
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "lease-host-relay": {
+   "rc": 0,
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "lease-pinned-relay": {
+   "rc": 0,
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "lease-relay-migration": {
+   "rc": 0,
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "windows-current-runtime": {
+   "rc": 0,
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "windows-host-app-funded": {
+   "rc": 0,
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "windows-release-journal": {
+   "rc": 1,
+   "tests": 7,
+   "pass": 6,
+   "fail": 1,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  }
+ }
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/remaining-composition-triage-stage/runs/20261026T035918Z-821032
+## lease-fixture rc=1
+[memory-guard] exit=1 peakTreeRssMiB=696 minHostAvailableMiB=22046
+[memory-guard] at peak: solc-0.8.35:461 node:94 node:57 forge:53 anvil:24 bash:4 timeout:2 bash:2
+[queue] EXIT 1

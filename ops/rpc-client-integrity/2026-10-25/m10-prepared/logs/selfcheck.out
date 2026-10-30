@@ -1,0 +1,9 @@
+[queue] START available=19802MiB required=18688MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1792MiB
+applies: OK
+default unchanged: pub async fn reset_with_checkpoint_reader
+default unchanged: pub async fn reset
+default unchanged: pub async fn find_starting_forkchoice_with_checkpoint_reader
+flag occurrences: 2 (no env)
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

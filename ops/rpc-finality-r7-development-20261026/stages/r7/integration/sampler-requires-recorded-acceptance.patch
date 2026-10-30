@@ -1,0 +1,22 @@
+--- a/readiness/readiness_sampler.py
++++ b/readiness/readiness_sampler.py
+@@ -315,6 +315,10 @@
+         raise Negative('finality-status-malformed', f'not a bounded {FINALITY_STATUS_FORMAT} document')
+     if s.get('state') != 'qualified' or s.get('qualified') is not True:
+         raise Unavailable('finality-not-current', f'published finality state {s.get("state")!r}: a new post-anchor proof is required')
++    # r7: proven is not accepted. READY needs the proof DURABLY recorded (producer record-finality: watermark entry + the launch journal's
++    # `bootstrapped` event naming it); finality_state reports that event's sha as recordedAs, which is bound into this report.
++    if not re.fullmatch(r'[0-9a-f]{64}', str(s.get('recordedAs'))):
++        raise Unavailable('finality-not-recorded', 'the proof is not durably recorded (record-finality): consumers are not admitted yet')
+     p = s.get('process') if isinstance(s.get('process'), dict) else {}
+     try:
+         with open(os.path.join(a.proc_root, str(int(p['pid'])), 'stat')) as f:
+@@ -332,7 +336,7 @@
+     if not isinstance(s.get('freshN'), int) or not re.fullmatch(r'0x[0-9a-f]{64}', str(s.get('freshBlockHash'))):
+         raise Negative('finality-status-malformed', 'freshN/freshBlockHash')
+     return {'freshN': s.get('freshN'), 'freshBlockHash': s.get('freshBlockHash'), 'entrySha256': s.get('entrySha256'), 'pid': p['pid'],
+-            'startTime': p.get('startTime'), 'publishedAt': s.get('publishedAt')}   # r6-ops: the consumer gate re-binds the LIVE holder to it
++            'startTime': p.get('startTime'), 'publishedAt': s.get('publishedAt'), 'recordedAs': s.get('recordedAs')}   # r6-ops: the consumer gate re-binds the LIVE holder to it
+ 
+ 
+ def served_chain_check(info, rpc):

@@ -1,0 +1,8 @@
+41d1e6fe23f40d2e636b5b684475ea6ea6b315fbf70d57c060ac03b98764fdec  ./README.md
+709b4ab95b022c897998c2b519ab8478239c8ffde41b008e9de1d714d474da63  ./guest/cleanup.sh
+e0e16e881ea54323102ff8fda8faa36d7846c7c56f0560037bfa69edaed3d96f  ./guest/diag.sh
+6d9b692874fbc3417b5726aaaf71f44275bdef4b3bffed350746d9b8b9e636ac  ./guest/el_probe.mjs
+20e7124928126192d598cc8b8258e814557fdab2f0283943bbe3452367e374ae  ./guest/helios_probe.mjs
+f2b22d58d44b695b34cc49908fbd76261acd9d8cf552dbe5a9b0892806befd39  ./guest/rpc_log_proxy.py
+482a20c9b1bbd2e3eda3ee6097b77c21f990e09b825209eebeda18c665e9f506  ./jobs/root-guest-call-diagnostic-r2.sh
+965db41297343881c197dcd0c5e9d74fd0e99b8159ed7d8a1e40226eaae25418  ./tools/status.py

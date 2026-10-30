@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: deployed registry (schema 4): agreed host list and posted prices
+ok 1 - deployed registry (schema 4): agreed host list and posted prices # SKIP set ENCLAVE_LIVE_READS=1 (read-only public Base RPC access)
+  ---
+  duration_ms: 0.620214
+  type: 'test'
+  ...
+# Subtest: deployed ledger (rev 16d): count/getPage/get decode at one agreed block
+ok 2 - deployed ledger (rev 16d): count/getPage/get decode at one agreed block # SKIP set ENCLAVE_LIVE_READS=1 (read-only public Base RPC access)
+  ---
+  duration_ms: 0.111629
+  type: 'test'
+  ...
+# Subtest: ETH funding quote: the ledger's own feed, reviewed address, 8 decimals, fresh finalized round
+ok 3 - ETH funding quote: the ledger's own feed, reviewed address, 8 decimals, fresh finalized round # SKIP set ENCLAVE_LIVE_READS=1 (read-only public Base RPC access)
+  ---
+  duration_ms: 0.120349
+  type: 'test'
+  ...
+# Subtest: token domain and pinned session factory reads
+ok 4 - token domain and pinned session factory reads # SKIP set ENCLAVE_LIVE_READS=1 (read-only public Base RPC access)
+  ---
+  duration_ms: 0.067989
+  type: 'test'
+  ...
+# Subtest: unsupported methods are refused precisely: the deployed registry has no registerRelay or setCaps
+ok 5 - unsupported methods are refused precisely: the deployed registry has no registerRelay or setCaps # SKIP set ENCLAVE_LIVE_READS=1 (read-only public Base RPC access)
+  ---
+  duration_ms: 0.086739
+  type: 'test'
+  ...
+# Subtest: every selector the dashboard sends exists in the deployed ledger, catalog, factory and vault implementation
+ok 6 - every selector the dashboard sends exists in the deployed ledger, catalog, factory and vault implementation # SKIP set ENCLAVE_LIVE_READS=1 (read-only public Base RPC access)
+  ---
+  duration_ms: 0.07008
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 0
+# fail 0
+# cancelled 0
+# skipped 6
+# todo 0
+# duration_ms 42.820832

@@ -1,0 +1,8 @@
+
+running 3 tests
+test service::anchor_safedb::tests::a_failing_reset_is_fatal ... ok
+test service::anchor_safedb::tests::a_surviving_entry_is_refused_and_disabled_is_accepted ... ok
+test service::anchor_safedb::tests::real_redb_wipe_removes_snapshot_entries_persistently ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 373 filtered out; finished in 0.20s
+

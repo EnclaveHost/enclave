@@ -1,0 +1,11 @@
+89a8f9331624d6a96633cdf1c03cf7c61524f13a1bc4c89c875e32e8bccc9ade  ./README.md
+90faf7966426d97fb4ab3e2d270504f1b3c75b047d628c2abd6ef9942144173d  ./candidates/C1-metal0-privacy-agent.chain.merge-patch.json
+4808a1c6990e0e3a9ef2197707f5b231f6bc8fa945047e1d469a47553b784d38  ./candidates/C2-metal0-control.chainVerifier.merge-patch.json
+ba56f19cc8ef4f2fe92bc1157c9fba6ef2fd3d008c205996d1212d1a9a01e3b0  ./candidates/C3-lease-relay.env.delta
+3875f971911aa4e214ba62809da0e627121737648e718bb67286e53c2d0ff831  ./candidates/C4-regional-provider.attested-verifier.TEMPLATE.json
+9e409799f99cd1c67f4f1687f6bd1d73e642d4a4820d1d5afb2c9f2316353548  ./observed/live-front-ap-southeast.json
+4b618d56aa5ebd6926ebc50be4cfbeb8b21e5c11dabfb0c218b4ef0b8f82f6c5  ./observed/live-front-ca-east.json
+9e409799f99cd1c67f4f1687f6bd1d73e642d4a4820d1d5afb2c9f2316353548  ./observed/live-front-eu-central.json
+9e409799f99cd1c67f4f1687f6bd1d73e642d4a4820d1d5afb2c9f2316353548  ./observed/live-front-us-west.json
+9acfd826dc8b8e7bbd6efd4e011942ac481f1af99fbd11c9d96d3d2631203ac9  ./observed/metal0-local.json
+332a1a1af4e02db74f00d8a2ca0a60f5c3f0fc11f7c23075ef94e84626e290fd  ./observed/remote-summary.json

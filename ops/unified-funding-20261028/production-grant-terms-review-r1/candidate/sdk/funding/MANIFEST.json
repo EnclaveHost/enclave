@@ -1,0 +1,14 @@
+{
+  "schema": "new-gas-grant-candidate-r1",
+  "status": "NOT_APPROVED_OR_INSTALLED",
+  "files": {
+    "v2-store.mjs": "b00d0742ee3d2b211b4cf811c48c8e7004dbf7e8a4cf30517db5ec199181733c",
+    "migration.mjs": "4effbfeb6c893bd897991f609a3314a054ab81070b3772e739c0e6cded9a3b8f",
+    "util.mjs": "38b678a68ecf7fd897fb1ae905d27471a17d10f8061fa29d81f5870549e12e66",
+    "gas-execution.mjs": "1ccf75dbd8ac248c9a139ab692f1f144b8f0f16c8e2b0334c4047ceac9b3df5c",
+    "browser-entry.mjs": "9820589c2aab82d3ae22f2ba73011970d0754557f12da7871859f3d368bbf879",
+    "funding-client.mjs": "4a17b36549b5eb115863b0d08ac76e6e9dbd966934b93875bbc34fd0ea897fa7",
+    "funding-codec.mjs": "ceed082639299b35073005d2ffb0ce8e5ceee1a3035804f197cdf53a4f6739d7",
+    "chain-proof.mjs": "ca799d8f86db1dd3a7113703cba5fd929e770f02f5c63fa3f5589b05f5e074b3"
+  }
+}

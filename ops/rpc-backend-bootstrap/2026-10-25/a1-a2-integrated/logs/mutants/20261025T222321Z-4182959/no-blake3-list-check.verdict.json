@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "Gates.test_download_receipt_binds_manifest_unit_marker_and_datadir": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "Gates.test_download_receipt_binds_manifest_unit_marker_and_datadir"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

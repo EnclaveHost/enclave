@@ -1,0 +1,46 @@
+[queue] START available=23512MiB required=19456MiB cap=2560MiB floor=16384MiB concurrentSmall=256MiB
+[ok] offline: interfaces = lo only (lo )
+[ok] offline: no IPv4 route
+[tool] rustc 1.96.0 (ac68faa20 2026-05-25) binary: rustc commit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96 commit-date: 2026-05-25 host: x86_64-unknown-linux-gnu release: 1.96.0 LLVM version: 22.1.2 
+[tool] cargo 1.96.0 (30a34c682 2026-05-25)
+[tool] rustc ba4b837efb6612df cargo f30f9fd1b1d0b8fd cc cc (GCC) 16.2.1 20260810
+[ok] fresh /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-evm-stage/run/evm-mutants-20261026T003119Z
+[ok] source repo HEAD eeffcc9
+[ok] source repo clean
+[ok] clone tree == R3x tree
+[ok] clone Cargo.lock == R3x
+[ok] base files == INPUT-MANIFEST
+[ok] candidate patch pin 41667ec9
+[ok] patched files == PATCHED.sha256 (candidate 41667ec9)
+[ok] new test file == EVM-TESTS.sha256
+[ok] base archive pin 9784e20a
+[ok] vendor-inspect/base-v1.5.1 == pinned extraction c9301490
+[ok] vendor-inspect holds only base-v1.5.1
+[ok] cache-reuse: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z ended per /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/root-canonical-native-types-2345.out (rc 20)
+
+[ok] cache-reuse: exclusive lock held for this job
+[ok] cache-reuse: cargo-home/registry/cache == CH0
+[ok] cache-reuse: cargo-home/registry/src == CH0
+[ok] cache-reuse: cargo-home/git == CH0
+[ok] cache-reuse: CARGO_HOME=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/cargo-home CARGO_TARGET_DIR=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target (mutable; fresh source, patch, closure and logs in /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-evm-stage/run/evm-mutants-20261026T003119Z)
+rustc 1.96.0 (ac68faa20 2026-05-25)
+cargo 1.96.0 (30a34c682 2026-05-25)
+== A0: locked closure (cargo metadata --offline --locked)
+[closure] 26 path packages; outside the work dir: 0
+== A0: dependency cache (cargo fetch --offline --locked, this target)
+[ok] Cargo.lock unchanged
+mutant: KILLED (1 named tests failed by their own assertion; cargo exit 101; binaries ['node_evm_canonical'])
+E1-call-post-check-removed: KILLED (evm_call_reorg_during_proof_fetch_refuses_require_canonical_true)
+mutant: KILLED (1 named tests failed by their own assertion; cargo exit 101; binaries ['node_evm_canonical'])
+E2-estimate-gas-post-check-removed: KILLED (evm_estimate_gas_binds_state_and_post_check_refuses_reorg)
+mutant: KILLED (1 named tests failed by their own assertion; cargo exit 101; binaries ['node_evm_canonical'])
+E3-create-access-list-post-check-removed: KILLED (evm_create_access_list_binds_state_and_post_check_refuses_reorg)
+mutant: KILLED (1 named tests failed by their own assertion; cargo exit 101; binaries ['node_evm_canonical'])
+E4-blockhash-by-height: KILLED (evm_blockhash_is_pinned_parent_not_height_lookup)
+mutant: KILLED (1 named tests failed by their own assertion; cargo exit 101; binaries ['node_evm_canonical'])
+E5-call-pre-check-removed: KILLED (evm_unknown_hash_and_wrong_upstream_block_refused)
+[ok] Cargo.lock unchanged
+RESULT: ALL CRITICAL MUTANTS KILLED
+[memory-guard] exit=0 peakTreeRssMiB=717 minHostAvailableMiB=22722
+[memory-guard] at peak: rust-lld:350 rustc:204 cargo:151 bash:4 cc:3 collect2:3 timeout:2
+[queue] EXIT 0

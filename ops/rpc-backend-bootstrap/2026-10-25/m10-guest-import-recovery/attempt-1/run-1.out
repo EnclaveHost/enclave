@@ -1,0 +1,27 @@
+## toolchain rustc 1.96.0 (ac68faa20 2026-05-25) | cargo 1.96.0 (30a34c682 2026-05-25)
+## GUEST run /srv/m10-guest-validation/runs/run-1: stage /srv/m10-guest-validation/stage, build /srv/m10-guest-validation/runs/run-1/build, CARGO_BUILD_JOBS=1 RUSTFLAGS='-C link-arg=-Wl,--threads=1' CC=/usr/bin/cc cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+## GUEST: every locked dependency present offline: 1535 registry + 110 git; Cargo.lock f122da76b80d5df4
+## [1] engine lib (all tests: default paths unchanged + M10)
+## engine: REBUILT base_consensus_engine-22bbca68e14337e9 sha256 8fd6a7ccefc36151dfef0b1c5c3060bf261c0348366b1e7ebf2a0f2bee661bee
+test sync::anchor::tests::anchored_forkchoice_is_head_over_n_and_requires_n_canonical ... ok
+test sync::anchor::tests::parse_accepts_only_number_colon_hash ... ok
+test sync::anchor::tests::precondition_propagates_execution_layer_errors ... ok
+test sync::anchor::tests::precondition_accepts_head_exactly_n_with_labels_at_or_below_n ... ok
+test sync::anchor::tests::precondition_refuses_replayed_snapshot_labels_above_n ... ok
+test sync::anchor::tests::precondition_refuses_wrong_number_wrong_hash_and_rpc_claimed_hash ... ok
+test task_queue::core::tests::bootstrap_anchor::anchor_not_canonical_refuses_before_any_fcu ... ok
+test task_queue::core::tests::bootstrap_anchor::fcu_rpc_error_refuses_without_retry ... ok
+test task_queue::core::tests::bootstrap_anchor::valid_fcu_starts_from_head_over_anchor_with_safe_finalized_at_anchor ... ok
+test task_queue::core::tests::bootstrap_anchor::invalid_or_syncing_fcu_refuses_without_retry ... ok
+test result: ok. 152 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s
+## engine OK
+## [2] node lib (actors::engine:: incl. processor + validator anchor tests)
+## INVALID: node: test build FAILED (a compile error is not a valid result):    Compiling rstest v0.26.1
+   Compiling base-consensus-sources v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/sources)
+   Compiling base-health v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/utilities/health)
+   Compiling base-consensus-node v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/service)
+error: could not compile `base-consensus-node` (lib test) due to 1 previous error
+## aggregate rc=1
+[disk-guard] exit=1 childExit=1 minFreeMiB=19057
+[memory-guard] exit=1 peakTreeRssMiB=4486 minHostAvailableMiB=49508
+[memory-guard] at peak: rustc:4141 cargo:330 python3:12 bash:4

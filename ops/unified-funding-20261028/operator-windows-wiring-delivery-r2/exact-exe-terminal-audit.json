@@ -1,0 +1,62 @@
+{
+  "checkedAt": 1793308007.455967,
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "admission": {
+    "unit": "enclave-operator-windows-wiring-r2-20261029.service",
+    "ActiveState": "active",
+    "InvocationID": "0ea10fe59de846dc8c4086e9b2aa413c",
+    "MainPID": "1878242",
+    "processes": [
+      {
+        "pid": 1878242,
+        "start": "161126472",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven"
+      },
+      {
+        "pid": 1878258,
+        "start": "161126484",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven"
+      },
+      {
+        "pid": 1878272,
+        "start": "161126559",
+        "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+        "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r2-20261029",
+        "affinity": "pid 1878272's current affinity list: 1"
+      }
+    ],
+    "account": {
+      "loggedIn": true,
+      "email": "steven.r.batchelor@gmail.com",
+      "subscriptionType": "max"
+    },
+    "verifiedAt": 1793306169.6550364,
+    "sourceOnly": true,
+    "remoteOrFinancialActions": false
+  },
+  "knownProcesses": [
+    {
+      "pid": 1878242,
+      "originalStartTicks": "161126472",
+      "exists": false
+    },
+    {
+      "pid": 1878258,
+      "originalStartTicks": "161126484",
+      "exists": false
+    },
+    {
+      "pid": 1878272,
+      "originalStartTicks": "161126559",
+      "exists": false
+    }
+  ],
+  "reviewedExe": "/home/steven/.local/share/claude/versions/2.1.281",
+  "executableSha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1",
+  "otherExactExeProcesses": [],
+  "unreadableCwd": [],
+  "samePreparationTree": [],
+  "terminalConfirmed": true
+}

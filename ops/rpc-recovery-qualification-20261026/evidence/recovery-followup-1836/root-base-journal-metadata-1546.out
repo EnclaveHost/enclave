@@ -1,0 +1,33 @@
+[queue] START available=30654MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+{
+  "readonly": true,
+  "disk": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+  "discard": "ignore",
+  "commands": {
+    "journal-superblock": {
+      "command": "logdump -S",
+      "returncode": 0,
+      "elapsed": 14.233049071859568,
+      "outputBytes": 391
+    },
+    "journal-inode": {
+      "command": "stat <8>",
+      "returncode": 0,
+      "elapsed": 0.1640030751004815,
+      "outputBytes": 848
+    },
+    "deleted-db-entries": {
+      "command": "ls -d -l /data/db",
+      "returncode": 0,
+      "elapsed": 0.16395508497953415,
+      "outputBytes": 128
+    }
+  },
+  "unmountRc": 0,
+  "nbdfuseRc": 0,
+  "diskUnchanged": true,
+  "openAfter": []
+}
+[memory-guard] exit=0 peakTreeRssMiB=56 minHostAvailableMiB=30521
+[memory-guard] at peak: python3:21 qemu-nbd:17 nbdfuse:10 debugfs:6 timeout:2
+[queue] EXIT 0

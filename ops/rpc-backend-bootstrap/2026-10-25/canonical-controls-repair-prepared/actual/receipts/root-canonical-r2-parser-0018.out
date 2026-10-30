@@ -1,0 +1,37 @@
+[queue] START available=23192MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+[ok] A1 actual --no-fail-fast M1 (per-target + '1 target failed') KILLED: exit 0 (want 0) mutant: KILLED (3 named tests failed by their own assertion; cargo exit 101; binaries ['canonical_block_gate']
+[ok] A2 actual --no-fail-fast M3 (2 per-target + '2 targets failed') KILLED: exit 0 (want 0) mutant: KILLED (2 named tests failed by their own assertion; cargo exit 101; binaries ['canonical_block_gate',
+[ok] A3 actual --no-fail-fast M7 (3 binaries) KILLED: exit 0 (want 0) mutant: KILLED (4 named tests failed by their own assertion; cargo exit 101; binaries ['block_cache_exact_hash
+[ok] A4 actual ORIGINAL single-footer M1 (no --no-fail-fast) KILLED: exit 0 (want 0) mutant: KILLED (3 named tests failed by their own assertion; cargo exit 101; binaries ['canonical_block_gate']
+[ok] A5 actual M3 judged against one binary only (extra binary ran) INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X1 per-target footer missing (M3 gate): exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X2 per-target footer duplicated (M3 node): exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X3 per-target footer wrong target: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X4 aggregate missing with 2 failed binaries: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X5 aggregate count mismatch (says 3): exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X6 aggregate lists one target only: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X7 aggregate target order swapped: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X8 aggregate duplicated: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X9 trailing non-blank line after aggregate: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X10 aggregate before the last per-target footer: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X11 per-target footer for a PASSING binary: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X12 arbitrary extra error line: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X13 compiler error E-code: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X14 error without code (could not compile): exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X15 non-blank line between summary and per-target footer: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] X16 single footer without aggregate but trailing text: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] R0 actual M3 with cargo exit 0 INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] R1 actual M3 with cargo exit 1 INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] R2 actual M3 with cargo exit 2 INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] R124 actual M3 with cargo exit 124 INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] R137 actual M3 with cargo exit 137 INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] S1 ignored summary count INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] S2 filtered summary INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] S3 requested binary missing INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] S4 named test panic missing INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] S5 named test line missing INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] S6 named test that passed NOT KILLED: exit 1 (want 1) mutant: NOT KILLED
+## r2 parser controls failed=0
+[memory-guard] exit=0 peakTreeRssMiB=35 minHostAvailableMiB=23155
+[memory-guard] at peak: python3:20 python3:15
+[queue] EXIT 0

@@ -1,0 +1,108 @@
+diff --git a/cli/enclave.mjs b/cli/enclave.mjs
+index a477a4a0d..a039ef069 100755
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -3097,6 +3097,13 @@ async function secretsFleetWarn() {
+   } catch {}
+ }
+ async function cmdSecrets(rest) {
++  // independent: owner-readable custody v2 ONLY (cli/custody-independent.mjs cmdSecretsIndependent: the policy's own ownerRead
++  // opt-in, the committee's owner read, revision-guarded writes); never the relay-held hosted secrets below
++  if (INDEPENDENT) {
++    const { cmdSecretsIndependent } = await import("./custody-independent.mjs");
++    // --yes is also a global flag (approve prompts), taken out of argv before the command runs: `secrets clear` needs it
++    return cmdSecretsIndependent([...rest, ...(opt.yes ? ["--yes"] : [])], independentCustodyHandles());
++  }
+   const sub = rest.shift();
+   const usage = "usage: enclave secrets set <id> KEY=VALUE… [--file .env] [--restart]\n"
+               + "     | enclave secrets ls <id> [--show]\n"
+@@ -3164,6 +3171,9 @@ async function cmdArtifact(rest) {
+ }
+ 
+ // ---- secret custody (cli/custody.mjs; docs/security/secret-custody.md): the CLI's own helpers, handed in ----------
++// independent custody AND secrets get the same handles: the quorum chain, trust and the independent writer (never the API)
++const independentCustodyHandles = () => ({ flags, loadKey, say, jout, short, secretsKv, env, json: !!opt.json, warn: (m) => console.error(m),
++  readFile: (p) => fs.readFileSync(p, "utf8"), chain: INDEPENDENT.chain, trust: INDEPENDENT.trust, send: INDEPENDENT.send });
+ async function cmdCustodyHere(rest) {
+   // independent: custody v2 only, every read a quorum of the operator's RPCs, every write the independent writer, the vault
+   // the reviewed pin; no Enclave API, relay or first-answer RPC (cli/custody-independent.mjs; work/custody-cli-interface.txt)
+@@ -3174,8 +3184,7 @@ async function cmdCustodyHere(rest) {
+     const from = commandFlag("custody", "--from");
+     if (from !== null && opt.from === from) opt.from = null;
+     rest = [...rest, ...(from !== null ? ["--from", from] : []), ...(opt.yes ? ["--yes"] : [])];
+-    return cmdCustodyIndependent(rest, { flags, loadKey, say, jout, short, secretsKv, env, json: !!opt.json, warn: (m) => console.error(m),
+-      readFile: (p) => fs.readFileSync(p, "utf8"), chain: INDEPENDENT.chain, trust: INDEPENDENT.trust, send: INDEPENDENT.send });
++    return cmdCustodyIndependent(rest, independentCustodyHandles());
+   }
+   // loaded on use: the custody code imports ../custody (and viem from the repo root), which a bare `cli/` install lacks
+   const { cmdCustody } = await import("./custody.mjs");
+@@ -5200,13 +5209,9 @@ stop:   systemctl --user disable --now enclave-metal`);
+ const INDEPENDENT_COMMANDS = new Set(["key", "whoami", "ls", "list", "status", "hosts", "pricing", "availability", "apps",
+   "deploy", "fund", "stop", "suspend", "resume", "rate-cap", "cap", "refund", "cancel", "transfer", "upgrade", "set-version",
+   "resize", "bootstrap", "artifact", "session", "logs", "restart", "attest", "publish", "app-token", "cpu-profile",
+-  "config", "encvol", "host", "gpu", "move", "login", "logout", "account", "signer", "custody", "lease-gas", "history"]);
++  "config", "encvol", "host", "gpu", "move", "login", "logout", "account", "signer", "custody", "secrets", "lease-gas", "history"]);
+ // Why each remaining command has no independent path (work/cli-remaining-interface.txt has the exact missing pieces).
+-const INDEPENDENT_REFUSALS = {
+-  secrets: "relay-held secrets are a hosted service. Independently, `custody status|set|migrate|pause|resume|clear|claim` "
+-    + "stores the WHOLE map in custody v2; listing, showing, removing one KEY or merging need the owner read "
+-    + "(work/owner-secrets-interface.txt), which is not integrated yet: it needs its final source and a new measured custodian image",
+-};
++const INDEPENDENT_REFUSALS = {};   // secrets: owner-readable custody v2 (cmdSecretsIndependent); nothing left refused by name
+ async function configureIndependent() {
+   const asked = opt.independent || opt.profile || opt.profileDigest;
+   const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei", "signerMode", "chainVerifier"].filter((k) => opt[k] !== null);
+diff --git a/test/cli-combined-independent.test.mjs b/test/cli-combined-independent.test.mjs
+index d127032fa..c46c5ada8 100644
+--- a/test/cli-combined-independent.test.mjs
++++ b/test/cli-combined-independent.test.mjs
+@@ -153,10 +153,14 @@ test("host: init/install/run/check through `enclave host` with the plan's quorum
+   noEnclave();
+ });
+ 
+-test("dispatch: custody and signer reach their commands; secrets stays refused, naming the pending owner read; --signer-mode needs --independent", T, async () => {
++test("dispatch: custody, secrets and signer reach their commands; secrets is the owner read, stopped at the vault pin; --signer-mode needs --independent", T, async () => {
++  // secrets is routed to the owner read (cli/custody-independent.mjs cmdSecretsIndependent), never the hosted relay: these rig
++  // pins carry no secretVaultV2, so it stops at the exact pin refusal before any chain read, signature or custodian request
+   const sec = await cli(["secrets", "ls", "0x" + "11".repeat(32)]);
+   assert.notEqual(sec.code, 0);
+-  assert.match(sec.all, /not available in independent mode: .*custody status\|set\|migrate.*owner read .*not integrated yet/);
++  assert.match(sec.all, /independent custody needs a pinned EnclaveSecretVaultV2: a reviewed --profile, or --contract-pins naming secretVaultV2/);
++  assert.doesNotMatch(sec.all, /not available in independent mode/);
++  noEnclave();
+   // custody runs its own pin check (these rig pins carry no secretVaultV2), not the old blanket refusal
+   const cus = await cli(["custody", "status", "0x" + "11".repeat(32)]);
+   assert.notEqual(cus.code, 0); assert.doesNotMatch(cus.all, /not available in independent mode/);
+diff --git a/test/cli-independent.test.mjs b/test/cli-independent.test.mjs
+index 10f7ecb9a..2b742863b 100644
+--- a/test/cli-independent.test.mjs
++++ b/test/cli-independent.test.mjs
+@@ -255,7 +255,13 @@ test("a record that changed hands is refused before anything is signed", T, asyn
+ 
+ test("hosted-only commands, session relaying and an external signer are refused in independent mode", T, async () => {
+   // move is an independent command now (test/cli-independent-move.test.mjs), but only toward a registry host id, never a name
+-  for (const [args, re] of [[["secrets", "list", "0x" + "11".repeat(32)]], [["move", "0x11111111", "box"], /registry host id.*no host names/]]) {
++  // secrets is the owner read now (cli/custody-independent.mjs cmdSecretsIndependent), not a hosted-only refusal: for a real
++  // deployment of this key it stops at the exact vault-pin refusal (these rig pins carry no secretVaultV2), before any read
++  const sid = r.createdId(await r.create(KEYS.owner));
++  const s = await cli(["secrets", "list", sid]);
++  assert.equal(s.code, 1); assert.match(s.err, /independent custody needs a pinned EnclaveSecretVaultV2: a reviewed --profile, or --contract-pins naming secretVaultV2/);
++  assert.doesNotMatch(s.err + s.out, /not available in independent mode/);
++  for (const [args, re] of [[["move", "0x11111111", "box"], /registry host id.*no host names/]]) {
+     const x = await cli(args);
+     assert.equal(x.code, 1); assert.match(x.err, re || /not available in independent mode/);
+   }
+diff --git a/test/custody-cli-independent.test.mjs b/test/custody-cli-independent.test.mjs
+index 4d36ed4cd..8732fbec6 100644
+--- a/test/custody-cli-independent.test.mjs
++++ b/test/custody-cli-independent.test.mjs
+@@ -415,4 +415,9 @@ test("the CLI entry point: --independent custody status / set through cli/enclav
+   assert.notEqual(r.code, 0); assert.match(r.err + r.out, /do not allow an owner read/); assert.ok(!(r.out + r.err).includes("s3cret"));
+   r = await cli(["--json", "custody", "status", id]);
+   assert.equal(r.code, 0, r.err); assert.equal(JSON.parse(r.out).ownerRead, false);
++  // a real deployment of this owner with NO custody v2 policy: the exact missing-policy refusal, before any custodian request
++  const bare = await W.dep(owner);
++  r = await cli(["secrets", "ls", bare]);
++  assert.notEqual(r.code, 0); assert.match(r.err + r.out, /no custody v2 policy for \S+: create one with `custody set \S+ … --rules … --committee … --owner-read on`/);
++  assert.ok(!(r.out + r.err).includes("s3cret"));
+ });

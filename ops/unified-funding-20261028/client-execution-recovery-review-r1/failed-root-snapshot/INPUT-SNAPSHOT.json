@@ -1,0 +1,12 @@
+{
+  "note": "Independent root snapshot while author source task remains active; tests apply to these exact bytes only.",
+  "files": {
+    "lib/gas-execution.mjs": "5d4093b00b3e60760204dd9b92e109767735e917932b90a79898664ddc2902b8",
+    "lib/browser-entry.mjs": "915c9c8243c401a6e8919813b3aa2522aa54c54434fd3a5de7bb350021e7a213",
+    "test/guard.test.mjs": "738f739f8c0f68862845e7b4bef3597c10fc498eb41d37eb20d6837a0a6822e3",
+    "test/exec-fixtures.mjs": "b91ef6c9be0652c634a7b4a65f79a4c18b7106e2c181f9921f77c8f1867d2680",
+    "test/root-regression.fixed.test.mjs": "879773510b8b019e87220e1d72b2cdd7f54e085ffdb37cecd5ce88dbad61d409",
+    "test/execution.test.mjs": "2ca57add63e31970ac35eb975b54b9b0060ca8ad4ae8f5e7ceecc13ed9f6e714",
+    "root-review/reservation-regressions.test.mjs": "fb402d916b41133b9202fd59d846b01128b7c8664d6352314bba1713b290c751"
+  }
+}

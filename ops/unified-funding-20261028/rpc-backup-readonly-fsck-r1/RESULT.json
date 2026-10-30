@@ -1,0 +1,9 @@
+{
+  "fsckExit": 0,
+  "readOnly": true,
+  "partitionOffset": 1074790400,
+  "partitionLength": 33284931072,
+  "backupStatUnchanged": true,
+  "exporterGone": true,
+  "scope": "full read-only filesystem check; no repairs, image modification, publication or readiness claim"
+}

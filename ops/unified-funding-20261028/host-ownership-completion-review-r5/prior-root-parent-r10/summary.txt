@@ -1,0 +1,1 @@
+FAIL parent-journal rc 1 expected 2 tests 2 pass 1 fail 1 cancelled 0 skipped 0 todo 0

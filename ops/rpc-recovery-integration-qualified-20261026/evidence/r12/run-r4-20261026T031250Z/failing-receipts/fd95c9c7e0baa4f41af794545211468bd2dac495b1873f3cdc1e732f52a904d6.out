@@ -1,0 +1,129 @@
+TAP version 13
+# Subtest: the fork serves the pinned deployed code (every provider pin matches) and has the RIP-7212 precompile
+not ok 1 - the fork serves the pinned deployed code (every provider pin matches) and has the RIP-7212 precompile
+  ---
+  duration_ms: 30218.057211
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:98:1'
+  failureType: 'hookFailed'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:38:51)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:63:5)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: create: two passkeys under two RPs and a recovery key; signers from the pinned factory; the Safe at its predicted address
+not ok 2 - create: two passkeys under two RPs and a recovery key; signers from the pinned factory; the Safe at its predicted address
+  ---
+  duration_ms: 1.12935
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:113:1'
+  failureType: 'hookFailed'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:38:51)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:63:5)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: sign in: a funded session opened by the Safe - SessionGrant and USDC authorization signed by ONE passkey as ERC-1271, checked by the contracts before submission
+not ok 3 - sign in: a funded session opened by the Safe - SessionGrant and USDC authorization signed by ONE passkey as ERC-1271, checked by the contracts before submission
+  ---
+  duration_ms: 0.142569
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:151:1'
+  failureType: 'hookFailed'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:38:51)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:63:5)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: refused before anything is sent: a wrong challenge, no user verification; and the passkey signer itself refuses a UV-less assertion
+not ok 4 - refused before anything is sent: a wrong challenge, no user verification; and the passkey signer itself refuses a UV-less assertion
+  ---
+  duration_ms: 0.037729
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:178:1'
+  failureType: 'hookFailed'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:38:51)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:63:5)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: recovery: raise the threshold with one passkey, then remove the other passkey with a passkey AND the recovery key (Safe owner management)
+not ok 5 - recovery: raise the threshold with one passkey, then remove the other passkey with a passkey AND the recovery key (Safe owner management)
+  ---
+  duration_ms: 0.05257
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:198:1'
+  failureType: 'hookFailed'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:38:51)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:63:5)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: ERC-4337 v0.7: the owner's own transport only; a 2-of-2 user operation (passkey + recovery key) moves USDC; a passkey account is CREATED by a user operation
+not ok 6 - ERC-4337 v0.7: the owner's own transport only; a 2-of-2 user operation (passkey + recovery key) moves USDC; a passkey account is CREATED by a user operation
+  ---
+  duration_ms: 0.030139
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:237:1'
+  failureType: 'hookFailed'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:38:51)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:63:5)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: account-first: a shared-signer passkey configured atomically by the initializer; front-running deploys exactly it; the account creates itself by a user operation paid from its own ETH
+not ok 7 - account-first: a shared-signer passkey configured atomically by the initializer; front-running deploys exactly it; the account creates itself by a user operation paid from its own ETH
+  ---
+  duration_ms: 0.083799
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:271:1'
+  failureType: 'hookFailed'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:38:51)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-passkey-aa.test.mjs:63:5)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 0
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 30457.334635

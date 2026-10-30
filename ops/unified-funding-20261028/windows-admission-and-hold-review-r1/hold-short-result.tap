@@ -1,0 +1,29 @@
+TAP version 13
+# Subtest: ROOT authenticated hold must not acknowledge ingress closed after actual closeInstance fails
+not ok 1 - ROOT authenticated hold must not acknowledge ingress closed after actual closeInstance fails
+  ---
+  duration_ms: 518.185625
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/root-hold.test.mjs:4:1'
+  failureType: 'testCodeFailure'
+  error: 'MAC-authenticated reply claimed ingress closed despite failed closure and an open stream'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: true
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r1/root-hold.test.mjs:20:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 788.627543

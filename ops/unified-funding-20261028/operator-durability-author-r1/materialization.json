@@ -1,0 +1,10 @@
+{
+  "scope": "Exact230 ROOT REPAIRED r12 seed with exactly3 reviewed root fixes, no preparation product edits/additions",
+  "originalFiles": 230,
+  "addedFiles": 0,
+  "existingFilesOverwritten": [],
+  "productEdits": [],
+  "inheritedMaterialization": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r12-20261029/materialization.json",
+  "inheritedMaterializationSha256": "2f1fe82be168470ed49df4569dd01412d93744cd64aff33f163f865caec5c6e1",
+  "note": "Full230 source tree retained; scoped ownership dependencies all present. Sponsored source remains separately namespaced; no bundle equivalence, npm/build or platform qualification. No module evaluation/tests/builds/author launch."
+}

@@ -1,0 +1,1 @@
+Canceled only confirmed not-started q wrapper720763, no test descendants. Prior recovery tree RSS219MiB; new cap256 fits and reserves full4096 concurrent large plus16GiBfloor. No source/runner/test changed. Old exec71380 superseded.

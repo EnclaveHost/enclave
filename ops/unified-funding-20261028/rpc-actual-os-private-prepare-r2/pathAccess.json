@@ -1,0 +1,164 @@
+{
+  "format": "enclave-rpc-private-path-access/1",
+  "operationId": "rpc-os-private-20261030t093130z-133828",
+  "maintenanceUid": 1000,
+  "capturedBy": "root-reviewed-private-maintenance",
+  "chains": {
+    "source": [
+      {
+        "path": "/",
+        "device": 64768,
+        "inode": 2,
+        "type": "directory",
+        "uid": 0,
+        "gid": 0,
+        "mode": 365,
+        "acl": "none"
+      },
+      {
+        "path": "/vm",
+        "device": 64769,
+        "inode": 2,
+        "type": "directory",
+        "uid": 0,
+        "gid": 0,
+        "mode": 493,
+        "acl": "none"
+      },
+      {
+        "path": "/vm/enclave-volumes",
+        "device": 64769,
+        "inode": 83361793,
+        "type": "directory",
+        "uid": 1000,
+        "gid": 0,
+        "mode": 493,
+        "acl": "none"
+      },
+      {
+        "path": "/vm/enclave-volumes/rpc-production",
+        "device": 64769,
+        "inode": 147981555,
+        "type": "directory",
+        "uid": 1000,
+        "gid": 1000,
+        "mode": 448,
+        "acl": "none"
+      },
+      {
+        "path": "/vm/enclave-volumes/rpc-production/os.qcow2",
+        "device": 64769,
+        "inode": 147981797,
+        "type": "regular",
+        "uid": 1000,
+        "gid": 1000,
+        "mode": 384,
+        "acl": "none"
+      }
+    ],
+    "backup": [
+      {
+        "path": "/",
+        "device": 64768,
+        "inode": 2,
+        "type": "directory",
+        "uid": 0,
+        "gid": 0,
+        "mode": 365,
+        "acl": "none"
+      },
+      {
+        "path": "/vm",
+        "device": 64769,
+        "inode": 2,
+        "type": "directory",
+        "uid": 0,
+        "gid": 0,
+        "mode": 493,
+        "acl": "none"
+      },
+      {
+        "path": "/vm/enclave-volumes",
+        "device": 64769,
+        "inode": 83361793,
+        "type": "directory",
+        "uid": 1000,
+        "gid": 0,
+        "mode": 493,
+        "acl": "none"
+      },
+      {
+        "path": "/vm/enclave-volumes/rpc-production-maint",
+        "device": 64769,
+        "inode": 148391933,
+        "type": "directory",
+        "uid": 1000,
+        "gid": 1000,
+        "mode": 448,
+        "acl": "none"
+      },
+      {
+        "path": "/vm/enclave-volumes/rpc-production-maint/os-backup-20261030T061922Z-1a31c4",
+        "device": 64769,
+        "inode": 148392229,
+        "type": "directory",
+        "uid": 1000,
+        "gid": 1000,
+        "mode": 448,
+        "acl": "none"
+      },
+      {
+        "path": "/vm/enclave-volumes/rpc-production-maint/os-backup-20261030T061922Z-1a31c4/os.qcow2",
+        "device": 64769,
+        "inode": 148392253,
+        "type": "regular",
+        "uid": 1000,
+        "gid": 1000,
+        "mode": 256,
+        "acl": "none"
+      }
+    ],
+    "destinationParent": [
+      {
+        "path": "/",
+        "device": 64768,
+        "inode": 2,
+        "type": "directory",
+        "uid": 0,
+        "gid": 0,
+        "mode": 365,
+        "acl": "none"
+      },
+      {
+        "path": "/vm",
+        "device": 64769,
+        "inode": 2,
+        "type": "directory",
+        "uid": 0,
+        "gid": 0,
+        "mode": 493,
+        "acl": "none"
+      },
+      {
+        "path": "/vm/enclave-volumes",
+        "device": 64769,
+        "inode": 83361793,
+        "type": "directory",
+        "uid": 1000,
+        "gid": 0,
+        "mode": 493,
+        "acl": "none"
+      },
+      {
+        "path": "/vm/enclave-volumes/rpc-production-maint",
+        "device": 64769,
+        "inode": 148391933,
+        "type": "directory",
+        "uid": 1000,
+        "gid": 1000,
+        "mode": 448,
+        "acl": "none"
+      }
+    ]
+  }
+}

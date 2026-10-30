@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: host mode: ingress none or on the Enclave network, optional Enclave-network fallback
+ok 1 - host mode: ingress none or on the Enclave network, optional Enclave-network fallback
+  ---
+  duration_ms: 2.067247
+  type: 'test'
+  ...
+# Subtest: destinations: the same refusals as enclave-wg (private, reserved, metadata, SMTP, own address)
+ok 2 - destinations: the same refusals as enclave-wg (private, reserved, metadata, SMTP, own address)
+  ---
+  duration_ms: 3.725219
+  type: 'test'
+  ...
+# Subtest: the SOCKS entry: connects judged public addresses, refuses the rest, resolves names publicly, honours admission
+ok 3 - the SOCKS entry: connects judged public addresses, refuses the rest, resolves names publicly, honours admission
+  ---
+  duration_ms: 19.335567
+  type: 'test'
+  ...
+# Subtest: manager: host egress plus ingress-only network circuits; the website stays on the Enclave network
+ok 4 - manager: host egress plus ingress-only network circuits; the website stays on the Enclave network
+  ---
+  duration_ms: 12.73015
+  type: 'test'
+  ...
+# Subtest: manager: host egress with no ingress builds no network circuit at all
+ok 5 - manager: host egress with no ingress builds no network circuit at all
+  ---
+  duration_ms: 0.541414
+  type: 'test'
+  ...
+# Subtest: manager: a host that does not offer its connection refuses the mode (and the Network tab is not offered it)
+ok 6 - manager: a host that does not offer its connection refuses the mode (and the Network tab is not offered it)
+  ---
+  duration_ms: 0.581614
+  type: 'test'
+  ...
+# Subtest: manager: host egress down with the owner's fallback: one egress-only network circuit carries it
+ok 7 - manager: host egress down with the owner's fallback: one egress-only network circuit carries it
+  ---
+  duration_ms: 0.962309
+  type: 'test'
+  ...
+# Subtest: manager: the operator withdraws the offer (config reload): the host circuit goes, the owner's fallback takes over
+ok 8 - manager: the operator withdraws the offer (config reload): the host circuit goes, the owner's fallback takes over
+  ---
+  duration_ms: 1.430904
+  type: 'test'
+  ...
+# Subtest: network host: hostEgress changes apply in place; a malformed block is refused and the offer stands
+ok 9 - network host: hostEgress changes apply in place; a malformed block is refused and the offer stands
+  ---
+  duration_ms: 4.693639
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 354.574318

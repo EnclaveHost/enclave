@@ -1,0 +1,14 @@
+{
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/network/guestd-ingress.mjs": "bbd237cbb52bd21be8081d6d81bdaf5dd6918e1108c706a5913a6f1821258463",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/network/privacy-agent.mjs": "cc0714ed63ff17bf9f6de3739630090764e401622efe3118fd0e033a83c84da3",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/network/app-ingress.mjs": "4d2d38d1d62ddc647e7e8a3ab530539dbff50d7ca6b68c59d726b3e0e9b03988",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/network/app-broker.mjs": "fcedbe9ff9c9c706508f0675cc1f16380b83d78c275942756ba999004c49f374",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/network/broker-client.mjs": "378b0fc63f24fc1ede9bad98462d05c86abde011869068014e4197e94a51260c",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/network/wg-circuit-runtime.mjs": "4333ab6d5306a8afbe9fe05bf71c2e0e1b0ef6920487f7c53e63c9d71ecddda1",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/network/windows-circuit-worker.mjs": "57a39332727db6978dd593e1f277c46c7b39a49b7a2837d3b3bd0360697ade77",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/windows/node/isolation-client.mjs": "8d07cb4ea105819c8f769e942c58063d20cf1289544c2afac0b9aeda0d963b7b",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/isolation/m4/guestd/server.go": "f415aaa366111de9f54a36e179206c4bf616bec62024d0227be6e20fde829c73",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/isolation/m4/guestd/server_test.go": "83db1b380dc11084ecfbdaa6c52e3fb8bedd3594cdc7eec34eda0293bf63422b",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/isolation/m4/guestd/supervisor-splice.mjs": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+  "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/isolation/m4/guestd/control-client.mjs": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6"
+}

@@ -1,0 +1,8 @@
+{
+  "viemVersion": "2.53.1",
+  "externalFiles": {
+    "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-kvm-guest/package-lock.json": "9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20",
+    "/home/steven/Documents/Codex/2026-10-23/it/work/enclave-kvm-guest/node_modules/viem/package.json": "e949a8d53708d253df522476d1ff2face4b05beee8099a90ed81934793455dfb"
+  },
+  "note": "Existing dependency installation used for Linux logic tests. Observation is not a fresh npm integrity audit or portable Windows release closure."
+}

@@ -1,0 +1,24 @@
+{
+  "processes": [
+    {
+      "pid": 2019941,
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2019899-i39773581.scope",
+      "memory.current": "259117056",
+      "memory.peak": "268509184",
+      "memory.max": "268435456",
+      "memory.swap.max": "0",
+      "memory.events": "low 0\nhigh 0\nmax 1208\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0"
+    },
+    {
+      "pid": 2019942,
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2019899-i39773581.scope",
+      "memory.current": "259117056",
+      "memory.peak": "268509184",
+      "memory.max": "268435456",
+      "memory.swap.max": "0",
+      "memory.events": "low 0\nhigh 0\nmax 1208\noom 0\noom_kill 0\noom_group_kill 0\nsock_throttled 0"
+    }
+  ],
+  "committed_offset": 335544320,
+  "archive_size": 335544320
+}

@@ -1,0 +1,11 @@
+--- a/recovery/forward_sync.py
++++ b/recovery/forward_sync.py
+@@ -439,7 +439,7 @@
+ 
+ 
+ # ---- CLI: pinned closures executed from verified bytes (as the r6 producer) -----------------------------------------------
+-WRAPPER = (pathlib.Path('/opt/enclave-rpc/chain_service.py'), '6a4d7aa5da385bf1d8dea74c37060eb1332d5d468625d54ae02ae878c7135189')
++WRAPPER = (pathlib.Path('/opt/enclave-rpc/chain_service.py'), '9607b831c8941d1108022a500cf1ae328367b84a110e38b00fdd18476ff4656a')
+ HARNESS = (pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py'), '27ecfb40044025709ed8f7645724082c1580b36e5fac988826aa826fb2f4814e')
+ SELECTION_SHA256 = 'e6c312f4007f6d747197a6569eaeb36c8c949a0819be49738ce6a0723b999532'
+ 

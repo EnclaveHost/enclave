@@ -1,0 +1,58 @@
+--- a/harness/a2a4.py
++++ b/harness/a2a4.py
+@@ -258,6 +258,10 @@
+ LEDGER_KEY = re.compile(r'(capture|evidence|record):[0-9a-f]{32,64}')
+ LEDGER_MAX = 16 << 20
+ LEDGER_LOCK_TIMEOUT_SEC = 60
++# finality r5 (base-finality-proof-stage/r5): the ONE shared admission ledger (== chain_service.A1_ADMISSION_LEDGER). Every admission
++# and every admission check goes through _ledger_paths, which refuses any other path BEFORE the ledger is read or written, so
++# re-anchor admissions and post-anchor finality admissions are one replay domain. A source constant, never config.
++A1_ADMISSION_LEDGER = pathlib.Path('/etc/enclave-rpc/base-a1-admission.jsonl')
+ 
+ 
+ def ledger_line(rec):
+@@ -267,6 +271,8 @@
+ 
+ def _ledger_paths(c):
+     p = pathlib.Path(c['reanchor']['admissionLedger'])
++    if p != A1_ADMISSION_LEDGER:
++        refuse('a1_ledger_path', f'{p} is not the shared A1 admission ledger {A1_ADMISSION_LEDGER}: nothing is admitted or checked')
+     st = os.lstat(p.parent)
+     if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode) or st.st_uid != TRUSTED_UID or st.st_mode & 0o022:
+         refuse('untrusted_file', f'{p.parent} (the ledger directory) must be a real directory owned by uid {TRUSTED_UID}, not group/other-writable')
+@@ -365,6 +371,17 @@
+         os.close(fd)
+ 
+ 
++def check_admissible(c, summaries):
++    """finality r5: the replay RULE against the shared ledger, in memory only (`finality_state check`): nothing is written."""
++    C = load_capture(); p, _lock = _ledger_paths(c)
++    _recs, seen, _raw = ledger_records(p); new = set(seen)
++    try:
++        for summary in summaries:
++            C.admit(summary, new)
++    except C.Refused as e:
++        refuse('a1_replayed', f'{e.code}: {e}')
++
++
+ def watermark_entries(store):
+     """The verified watermark chain -> [(sha256, entry)] oldest first; [] when the store is absent or holds no entry."""
+     p = pathlib.Path(store)
+@@ -646,7 +663,7 @@
+         refuse('a1_provenance', 'the recheck receipt time lies outside its run record window')
+ 
+ 
+-def gate_a1(c, at_a2=False):
++def gate_a1(c, at_a2=False, admit=True):
+     """A1 evidence (module docstring). Both modes: root-owned exact bytes through the pinned JS gate, then here: receipt age <=
+     a1MaxAgeSec, mainnet ASR/type/code-hash pins, exactly the planned N/output root/game, finalized-header age bounded and
+     consistent with the receipt time. original-game-recheck additionally: pinned initial sha, root-reviewed recheck sha, run record."""
+@@ -699,7 +716,7 @@
+         g['recheckCapture'] = {k: sr[k] for k in ('captureId', 'captureSha256', 'evidenceSha256', 'finishedAt')}
+         # admitted only after EVERY check passed: the recheck at every step; the initial once, when A2 records it
+         initial = {'captureId': bound['captureId'], 'captureSha256': bound['captureSha256'], 'evidenceSha256': bound['evidenceSha256']}
+-        admit_captures(c, [sr] + ([initial] if at_a2 else []))
++        (admit_captures if admit else check_admissible)(c, [sr] + ([initial] if at_a2 else []))   # r5: admit=False only for `check`
+     return g
+ 
+ 

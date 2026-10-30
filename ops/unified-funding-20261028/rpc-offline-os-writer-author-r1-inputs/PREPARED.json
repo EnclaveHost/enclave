@@ -1,0 +1,59 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "priority": "ROOT_REVIEW_PENDING_NO_LAUNCH",
+  "seedEntries": 5,
+  "readonlyInputPins": 37,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "turnLimit": 20,
+  "childTimeoutSec": 900,
+  "outerTimeoutSec": 1200,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpuIndex": 1,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-offline-os-writer-author-r1-20261029/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "accountCheckedNow": false,
+  "productPreEdits": 0,
+  "scope": "New source-only offline OS derivative writer; five immutable references, no production edits or publication",
+  "rootAdmissionGate": "root-author-approval.json must bind this PREPARED sha256 with launchAuthorized true; root independently checks Max first",
+  "sourceClosureLimitations": [
+    "No actual image identity or current account check in preparation.",
+    "Native hashes are metadata pins, not current production tool qualification.",
+    "Only referenced root synthetic primitive fixture has run; new author tests never run here.",
+    "No production image/VM/DB/client/funding action authorized by this package."
+  ],
+  "hashes": {
+    "ACCOUNT-PREFLIGHT.md": "ea744144afe802746f415f0c342412acbf03794429fbe350cad2eedc7a66e54d",
+    "PLAN.md": "9591a302859349869a5ed767d0d78c21fc85b2e9637c8dc8cea3c5ce0838a951",
+    "REVIEW-STATUS.txt": "27c732e494dd2e2a9e502104d96857866a0a7d057d4bde8364bb59e69d82706b",
+    "TASK.txt": "318cdfcadb26de2e0d3ece24c872dadcd6a1174d5cdd2f53690838d4eea7e36f",
+    "account-requirements.json": "f7f904f166ddbb3f4c8a0c039b4a520d42823408422fbc2bc8f2861553466d34",
+    "allowed-edit-paths.json": "da693249b2a5ff4fc7059217d94e1426471e8cd42c31867afefe19bfe04231ee",
+    "collect-terminal.py": "c3d8db039235e04263f6fca42ba979358cbe2bf8cf7d8e640b353ff48f1951c2",
+    "dependency-closure.json": "10e171f940a1991ebbc58b80cc749dca853c750cd011aa61535a22316548f7cf",
+    "input-pins.json": "567f46bfd99778159a115782d5d6dda99df75ef456748f20a606fec824db67f5",
+    "launch-command.txt": "e128172388f30bf7558becbb8448b29a1d6cb50bb9989f24ee9388534f2b2d8c",
+    "native-tool-pins.json": "b74bae381439481edf3d883bc06847b9b92b7af2983986779a2cf83e714323b4",
+    "preparation-audit.json": "480cbfd2199fc3262ce9fc08af62d0112c00e5d54da9dc37f58ff9272d94a60e",
+    "prepare.py": "e931e066ce52db52457e6b10b447213c49aa99f83cf3c286758e47f85f59b020",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "root-preflight.py": "f2b64c984bac20feb6cbc31c6df55131ef834f0c4939a8f82f47593fae43658b",
+    "run.py": "97af48598c5774de393cc6474aca796680acb74646e421621df0d8cdac3c7090",
+    "seed-pins.json": "694b485f4175c79264e8e2159b2a4fc5aedff1e8c1a13d6fb9687f1d8b28d3c1",
+    "seed-provenance.json": "611203853182a11498df92d6df3fa3b59b2903ebc423d9cd477bdd14f8159f26",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8"
+  }
+}

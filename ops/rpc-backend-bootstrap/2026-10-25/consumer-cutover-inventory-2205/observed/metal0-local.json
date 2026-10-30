@@ -1,0 +1,68 @@
+{
+  "observedAt": "2026-10-25T22:10Z",
+  "method": "local read-only, public fields only (secret-named keys redacted, URLs reduced to hosts)",
+  "privacyAgent": {
+    "process": "relay-free-0b326889/privacy-agent.mjs (pid 2276329, started 2026-10-19)",
+    "config": "/home/steven/enclave-prod/enclave-network/metal0/config.json (mtime 2026-10-24T07:39Z, sha256 f9818fa4b43f5541..)",
+    "supportsChainAuthority": false,
+    "chain.rpc": [
+      "base-rpc.publicnode.com",
+      "base.drpc.org",
+      "mainnet.base.org"
+    ],
+    "chain.addressBook": "0xab214342d5A490150A4A977063A2f88E21F80907",
+    "chain.authorityPins": {
+      "deployments": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+      "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+      "connectivity": "0x5f8b636e0768e84bd47b736652030b65db615111",
+      "sessionVaultFactory": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c"
+    },
+    "egressProbeUrls": [
+      "base-rpc.publicnode.com",
+      "base.drpc.org",
+      "mainnet.base.org"
+    ],
+    "hostServices": "absent",
+    "apps": 10,
+    "checkers": [
+      "0x57144c9008cff0b3ed94f6e40964a321fbee848a",
+      "0x033bc2b92bb1bb97c7dadf2879d3048748e2257b"
+    ],
+    "driftVsInventory1208": "12:08 inventory labelled the agent release-808f691d0; the RUNNING agent is relay-free-0b326889 and enclave-wg runs from release-2e8e7e3d7"
+  },
+  "metal0Control": {
+    "process": "metal/enclave-metal.mjs in /home/steven/enclave-prod/metal-deabf8f90 (pid 1034366, started 2026-10-23)",
+    "config": "/home/steven/Projects/enclave/metal/config.json (mtime 2026-10-23T23:43Z, sha256 58aa9653586b6e4d..)",
+    "supportsChainVerifier": false,
+    "chainVerifier": "absent",
+    "leaseGas.rpcs": [
+      "base-rpc.publicnode.com",
+      "mainnet.base.org",
+      "base-mainnet.public.blastapi.io"
+    ],
+    "leaseGas.quorum": 2,
+    "leaseGas.relays": [
+      "134.209.248.172"
+    ],
+    "payoutAddress": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61"
+  },
+  "custodianV2": {
+    "process": "custodian-v2/host.mjs (pid 3817646, dist custodian-v2-9d43e63e8)",
+    "rpc": "mainnet.base.org",
+    "vault": "0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5",
+    "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
+    "note": "measured MEASURED_RPCS also baked into the image (source audit K1)"
+  },
+  "networkChecker": {
+    "process": "network-checker/nan-retirement-2d848c8/wg-qualify.mjs (pid 3934626)",
+    "--rpc": "base-rpc.publicnode.com (single provider)",
+    "--book": "0xab214342d5A490150A4A977063A2f88E21F80907"
+  },
+  "publicRpcHostsSeen": [
+    "base-rpc.publicnode.com",
+    "base.drpc.org",
+    "mainnet.base.org",
+    "base-mainnet.public.blastapi.io",
+    "1rpc.io"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+ "seam": "aebf4c9321279c37afce863c2bd6144a96128cea",
+ "receipt": "../../logs/lease-seams-aebf4c932-root-receipt.out",
+ "receiptSha256": "f6c5369b274de4364e779044c56bc840eb4c0e6a17816a6ffe46972556f69dfd",
+ "base": "81ba668531d17151db810e14562c77a672d742e4",
+ "conflicts": {
+  "test/lease-pinned-relay-config.test.mjs": {
+   "result": "9ff3f4893692e89c665d3ba3bbc4e7b082a72b4f",
+   "rationale": "union: seam's authority comment + assertion message, lineage (433f04fa1) local-verifier selection and refusal assertions"
+  },
+  "test/metal-measured-control.test.mjs": {
+   "result": "fdf977819f8df818442d8c40bdce835b75021019",
+   "rationale": "seam's per-line exactly-once check of the SAME reviewed lines (f04efa124 GPU, a7fc374f4 custody v1/v2) replaces the lineage's block form; stricter"
+  },
+  "metal/guest/lease-gas-conduit.bundle.mjs": {
+   "result": "267ffb6f94fcbdafd0e513708aa5d318b502cde6",
+   "rationale": "REGENERATE: node scripts/build-metal-lease-gas.mjs (from network/lease-gas-conduit.mjs) after the merge; interim = the root-passed seam's bytes"
+  },
+  "metal/guest/lease-gas-conduit.bundle.mjs.manifest.json": {
+   "result": "ccd352397e0e54edc79a08f1120e5545272ec561",
+   "rationale": "REGENERATE: node scripts/build-metal-lease-gas.mjs (from network/lease-gas-conduit.mjs) after the merge; interim = the root-passed seam's bytes"
+  }
+ }
+}

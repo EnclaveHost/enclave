@@ -1,0 +1,66 @@
+[queue] START available=23011MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+[ok] 0 pin  {}
+[ok] 1 missing path: exit 2 before any child  {"rc": 2}
+[ok] 2 below floor at start: exit 97 before any child  {"rc": 97}
+[ok] 3 child rc propagated (0, 7)  {"rcs": [0, 7]}
+[ok] 4 SIGTERM: guard exits 143, child + grandchild gone, output kept  {"rc": 143}
+[ok] 5 SIGINT: guard exits 130, child + grandchild gone, output kept  {"rc": 130}
+[ok] 6 early child exit: rc 5 returned and the leftover grandchild is stopped  {"rc": 5}
+[ok] 7 below floor during the run: 97, child + grandchild gone, output kept  {"rc": 97}
+[ok] 8 unrelated process survives every guard stop  {"pid": 43922}
+{
+ "result": "pass",
+ "failed": 0,
+ "cases": [
+  {
+   "case": "0 pin",
+   "pass": true
+  },
+  {
+   "case": "1 missing path: exit 2 before any child",
+   "pass": true,
+   "rc": 2
+  },
+  {
+   "case": "2 below floor at start: exit 97 before any child",
+   "pass": true,
+   "rc": 97
+  },
+  {
+   "case": "3 child rc propagated (0, 7)",
+   "pass": true,
+   "rcs": [
+    0,
+    7
+   ]
+  },
+  {
+   "case": "4 SIGTERM: guard exits 143, child + grandchild gone, output kept",
+   "pass": true,
+   "rc": 143
+  },
+  {
+   "case": "5 SIGINT: guard exits 130, child + grandchild gone, output kept",
+   "pass": true,
+   "rc": 130
+  },
+  {
+   "case": "6 early child exit: rc 5 returned and the leftover grandchild is stopped",
+   "pass": true,
+   "rc": 5
+  },
+  {
+   "case": "7 below floor during the run: 97, child + grandchild gone, output kept",
+   "pass": true,
+   "rc": 97
+  },
+  {
+   "case": "8 unrelated process survives every guard stop",
+   "pass": true,
+   "pid": 43922
+  }
+ ]
+}
+[memory-guard] exit=0 peakTreeRssMiB=39 minHostAvailableMiB=22008
+[memory-guard] at peak: python3:20 python3:12 sleep:2 sleep:2 sleep:2
+[queue] EXIT 0

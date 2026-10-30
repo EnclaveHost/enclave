@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: an existing claim OLDER than this start's coverage is served from the authenticated [ledger floor, anchor] history with the unchanged replay
+ok 1 - an existing claim OLDER than this start's coverage is served from the authenticated [ledger floor, anchor] history with the unchanged replay
+  ---
+  duration_ms: 4.731651
+  type: 'test'
+  ...
+# Subtest: the default path is unchanged: coverage from the ledger floor or no history capability means no history call
+ok 2 - the default path is unchanged: coverage from the ledger floor or no history capability means no history call
+  ---
+  duration_ms: 0.751661
+  type: 'test'
+  ...
+# Subtest: the history answer is checked strictly: range from <= ledger floor to the anchor, this lease, this anchor, per-log ABI/order/range rules
+ok 3 - the history answer is checked strictly: range from <= ledger floor to the anchor, this lease, this anchor, per-log ABI/order/range rules
+  ---
+  duration_ms: 2.004055
+  type: 'test'
+  ...
+# Subtest: an unavailable history (scan running, failed, not joined, not enabled) refuses retryably; other reader failures stay derived_unavailable
+ok 4 - an unavailable history (scan running, failed, not joined, not enabled) refuses retryably; other reader failures stay derived_unavailable
+  ---
+  duration_ms: 1.080636
+  type: 'test'
+  ...
+# Subtest: two anchors: the old claim from the history is still subject to claim <= B_f, the 120 s ceiling on S, and A2 evidence before the fact
+ok 5 - two anchors: the old claim from the history is still subject to claim <= B_f, the 120 s ceiling on S, and A2 evidence before the fact
+  ---
+  duration_ms: 1.127896
+  type: 'test'
+  ...
+# Subtest: selector: the history only from the ENROLLED state's runtime service; an unsigned config or service offering it refuses
+ok 6 - selector: the history only from the ENROLLED state's runtime service; an unsigned config or service offering it refuses
+  ---
+  duration_ms: 7.246368
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 83.553656

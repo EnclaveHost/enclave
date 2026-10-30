@@ -1,0 +1,32 @@
+[queue] START available=30707MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: completed POST body does not leave a ten-second socket timeout during preflight
+not ok 1 - completed POST body does not leave a ten-second socket timeout during preflight
+  ---
+  duration_ms: 10027.791528
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-deploy-r1/root-timeout-test.mjs:6:1'
+  failureType: 'testCodeFailure'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-deploy-r1/root-timeout-test.mjs:9:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10688.418874
+[memory-guard] exit=1 peakTreeRssMiB=131 minHostAvailableMiB=30607
+[memory-guard] at peak: node:78 node:53
+[memory-guard] exit=1 peakTreeRssMiB=192 minHostAvailableMiB=30607
+[memory-guard] at peak: node:78 node:61 node:53
+[queue] EXIT 1

@@ -1,0 +1,30 @@
+{
+  "changes": {
+    "CLOSURE.json": {
+      "seedSha256": null,
+      "finalSha256": "19dc1e88114697326b12627ef938f84f6cf8f34dae5b4c7e701acf87ffb987d0",
+      "kind": "new"
+    },
+    "REPORT.md": {
+      "seedSha256": null,
+      "finalSha256": "ab99ca4b51e3ea1e008a37d2c007fbd60fd65b7b2acf0ab96301ebfa8582a29a",
+      "kind": "new"
+    },
+    "maint_boot.py": {
+      "seedSha256": "10e41ac8e5496856567752b52f36eb84ef8cdd6f44e40d83e85f79604bb0f1ff",
+      "finalSha256": "cfd4816b307efb7d64dd6c339ea708eb841880c40539d9df770c62be6fac231b",
+      "kind": "modified"
+    },
+    "test_maintenance_diagnostics.py": {
+      "seedSha256": null,
+      "finalSha256": "f3f5d07d201388af1ea75b09cae35bd4d73e48c651a0b8c60f8b8a67f80363ec",
+      "kind": "new"
+    },
+    "test_qmp_transport.py": {
+      "seedSha256": null,
+      "finalSha256": "542fbca5e016b32bb73041b1a7b24ed6bf628d3b3a289f09240c9f46aa24c78b",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}

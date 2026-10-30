@@ -1,0 +1,23 @@
+{
+  "exit": 0,
+  "writerResult": {
+    "status": "READY",
+    "receipt": "/vm/enclave-volumes/rpc-production-maint/synthetic-writer-ph4sz636/result/RESULT.json",
+    "error": null
+  },
+  "syntheticOnly": true,
+  "mocks": [
+    "vm_stopped",
+    "scan_holders for exact new fixture inodes only"
+  ],
+  "real": [
+    "sparse_copy",
+    "native OFD lock attempts",
+    "GPT/ext4 validation",
+    "native export/fsck/debugfs/qcow checks",
+    "writer workflow"
+  ],
+  "sourceBackupUnchanged": true,
+  "fixture": "/vm/enclave-volumes/rpc-production-maint/synthetic-writer-ph4sz636",
+  "productionQualified": false
+}

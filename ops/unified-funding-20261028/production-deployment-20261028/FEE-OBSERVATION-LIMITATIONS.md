@@ -1,0 +1,3 @@
+# Read-only fee observations
+
+The r1 observation passed using the then configured envelope, not a signed production execution. Subsequent r2 and r4 sequencer-aware attempts were refused by PublicNode HTTP 429 before a common block was acquired. An r3 attempt using mainnet.base.org was refused locally by the wallet helper provider allowlist before any RPC call; the reviewed helper was not modified and the restriction was not bypassed. None of these attempts approved a fee policy, signed, broadcast, changed a journal or moved funds. Existing configured 600000 gas ceiling is not a measured real signed execution. Actual production fee/grant decisions remain to be prepared and reviewed.

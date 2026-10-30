@@ -1,0 +1,31 @@
+[Unit]
+Description=Enclave host-local Base proof verifier
+After=enclave-rpc-production-vm.service
+Requires=enclave-rpc-production-vm.service
+ConditionPathExists=@STATE@/activation-reviewed.json
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStartPre=/usr/bin/python3 @STAGE@/preflight.py
+ExecStartPre=/usr/bin/node @STAGE@/rpc-runtime.mjs check @STAGE@/config.json
+ExecStart=/usr/bin/node @STAGE@/rpc-runtime.mjs run @STAGE@/config.json
+WorkingDirectory=@STAGE@
+Restart=on-failure
+RestartSec=10
+KillMode=control-group
+TimeoutStopSec=45
+MemoryMax=1536M
+MemorySwapMax=0
+TasksMax=128
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=@STATE@
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=default.target

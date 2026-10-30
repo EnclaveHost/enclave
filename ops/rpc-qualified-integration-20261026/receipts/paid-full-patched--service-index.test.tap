@@ -1,0 +1,100 @@
+TAP version 13
+# Subtest: the pin is reproducible from the reviewed source and the chain; other code is refused
+ok 1 - the pin is reproducible from the reviewed source and the chain; other code is refused
+  ---
+  duration_ms: 5599.492455
+  type: 'test'
+  ...
+# Subtest: two operators register independently: directly, and signed with a separate gas payer; both are untrusted candidates
+ok 2 - two operators register independently: directly, and signed with a separate gas payer; both are untrusted candidates
+  ---
+  duration_ms: 174.800479
+  type: 'test'
+  ...
+# Subtest: replacement needs a higher sequence; withdrawal removes the ad and revokes older signatures
+ok 3 - replacement needs a higher sequence; withdrawal removes the ad and revokes older signatures
+  ---
+  duration_ms: 102.616885
+  type: 'test'
+  ...
+# Subtest: the former governor (the deployer) cannot take anything down; a wrong signer cannot publish
+ok 4 - the former governor (the deployer) cannot take anything down; a wrong signer cannot publish
+  ---
+  duration_ms: 51.8239
+  type: 'test'
+  ...
+# Subtest: expired ads are not candidates, and only then may anyone prune them
+ok 5 - expired ads are not candidates, and only then may anyone prune them
+  ---
+  duration_ms: 78.763493
+  type: 'test'
+  ...
+# Subtest: RPCs that disagree, a single RPC, or the wrong chain yield no candidates at all
+ok 6 - RPCs that disagree, a single RPC, or the wrong chain yield no candidates at all
+  ---
+  duration_ms: 30.76314
+  type: 'test'
+  ...
+# Subtest: enumeration is bounded, and unsafe advertised targets are dropped with a reason
+ok 7 - enumeration is bounded, and unsafe advertised targets are dropped with a reason
+  ---
+  duration_ms: 473.130815
+  type: 'test'
+  ...
+# Subtest: provider bootstrap: legacy is unchanged; explicit names every authority and defaults nothing to Enclave
+ok 8 - provider bootstrap: legacy is unchanged; explicit names every authority and defaults nothing to Enclave
+  ---
+  duration_ms: 1.269272
+  type: 'test'
+  ...
+# Subtest: main.mjs --check-config and install.sh --config-only: explicit authorities, legacy only by opt-in, operator fields kept
+ok 9 - main.mjs --check-config and install.sh --config-only: explicit authorities, legacy only by opt-in, operator fields kept
+  ---
+  duration_ms: 1428.855858
+  type: 'test'
+  ...
+# Subtest: 2 honest + 1 liar, + 1 wrong chain, + 1 hanging, + 1 future head, + 1 reorganizing: the honest pair decides
+ok 10 - 2 honest + 1 liar, + 1 wrong chain, + 1 hanging, + 1 future head, + 1 reorganizing: the honest pair decides
+  ---
+  duration_ms: 509.67286
+  type: 'test'
+  ...
+# Subtest: 1 honest + 1 liar, or + 1 hanging, fails closed with evidence; it is never an empty directory
+ok 11 - 1 honest + 1 liar, or + 1 hanging, fails closed with evidence; it is never an empty directory
+  ---
+  duration_ms: 1776.277156
+  type: 'test'
+  ...
+# Subtest: pagination resumes at the same block; a known operator is found past any window; a forged cursor is refused
+ok 12 - pagination resumes at the same block; a known operator is found past any window; a forged cursor is refused
+  ---
+  duration_ms: 100.40368
+  type: 'test'
+  ...
+# Subtest: a smart-contract wallet publishes by direct call, and by an ERC-1271 signature a gas payer submits
+ok 13 - a smart-contract wallet publishes by direct call, and by an ERC-1271 signature a gas payer submits
+  ---
+  duration_ms: 339.583472
+  type: 'test'
+  ...
+# Subtest: the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked
+ok 14 - the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked
+  ---
+  duration_ms: 2080.542542
+  type: 'test'
+  ...
+# Subtest: probe targets: explicit zone and canary in independent mode; the compatibility defaults otherwise
+ok 15 - probe targets: explicit zone and canary in independent mode; the compatibility defaults otherwise
+  ---
+  duration_ms: 6.265122
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15281.609628

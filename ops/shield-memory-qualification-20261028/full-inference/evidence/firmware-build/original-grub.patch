@@ -1,0 +1,34 @@
+diff --git a/OvmfPkg/AmdSev/Grub/grub.sh b/OvmfPkg/AmdSev/Grub/grub.sh
+index 99807d7..d94b3d3 100644
+--- a/OvmfPkg/AmdSev/Grub/grub.sh
++++ b/OvmfPkg/AmdSev/Grub/grub.sh
+@@ -23,6 +23,18 @@ cleanup()  {
+ 
+ trap cleanup EXIT
+ 
++# TWO MODULES DROPPED so grub-mkimage can run with Arch's GRUB, which ships neither:
++#   linuxefi  - a Fedora/RHEL patch; upstream GRUB 2.06+ merged it into `linux`, which is still in the list.
++#   sevsecret - reads an injected SEV secret to unlock an encrypted disk.
++# Both belong to the AmdSev encrypted-disk-with-secret-injection boot flow. THE FIRMWARE BUILT FROM THIS TREE IS
++# THEREFORE NOT SUITABLE FOR THAT FLOW. It is built for the QEMU -kernel/-initrd path, where what matters is
++# BlobVerifierLibSevHashes comparing the served blobs against the SEV hash table - which is untouched by either
++# module and is the whole reason for building this firmware.
++#
++# linuxefi -> linux: linuxefi is a Fedora/RHEL GRUB patch and upstream GRUB (2.06+) merged it into `linux`.
++# Arch's grub ships no linuxefi.mod, so grub-mkimage fails on it. This changes only the GRUB image embedded in
++# the AmdSev firmware volume, which is for the encrypted-disk-with-secret-injection flow and is NOT on the
++# QEMU -kernel path this project boots; the blob verifier that step 0a exists to get is unaffected.
+ GRUB_MODULES="
+             part_msdos
+             part_gpt
+@@ -42,9 +54,8 @@ GRUB_MODULES="
+             test
+             regexp
+             linux
+-            linuxefi
++            linux
+             reboot
+-            sevsecret
+             "
+ basedir=$(dirname -- "$0")
+ 

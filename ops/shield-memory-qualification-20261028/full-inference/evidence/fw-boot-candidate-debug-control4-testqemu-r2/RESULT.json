@@ -1,0 +1,155 @@
+{
+  "scope": "GPU-free boot/rejection qualification; not inference or independently verified attestation",
+  "spec": {
+    "target": "candidate-debug",
+    "case": "control4",
+    "firmware_sha256": "0598d551eea4e8becd54cb80aa5c7964ee46f21e50936fc06809ed171672594c",
+    "image_sha256": "7a71d50dfe4282a895d677377347f47f0230b0fc69000b697f38c6a3da8846ec",
+    "qemu": "/home/steven/.cache/enclave-isolation/parallel-vmsa-qemu-hashtest/build/qemu-system-x86_64",
+    "qemu_sha256": "80907c75de32a16b469c0476f994b4db5ff2df4a45743dd74e0698c674e32ccc",
+    "guest_mib": 4096,
+    "cap_mib": 6144,
+    "no_gpu": true,
+    "no_disks": true,
+    "no_network": true,
+    "override_sha256": null
+  },
+  "argv": [
+    "systemd-run",
+    "--user",
+    "--unit",
+    "fullbench-b16d72aec1de4c77-fw.service",
+    "--service-type=exec",
+    "-p",
+    "MemoryMax=6144M",
+    "-p",
+    "MemorySwapMax=0",
+    "-p",
+    "CPUQuota=200%",
+    "-p",
+    "TasksMax=128",
+    "-p",
+    "RuntimeMaxSec=120",
+    "-p",
+    "TimeoutStopSec=10",
+    "-p",
+    "KillMode=control-group",
+    "--setenv=LD_LIBRARY_PATH=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/test-qemu-compat",
+    "--",
+    "/home/steven/.cache/enclave-isolation/parallel-vmsa-qemu-hashtest/build/qemu-system-x86_64",
+    "-machine",
+    "q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1",
+    "-object",
+    "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on",
+    "-object",
+    "memory-backend-memfd,id=ram1,size=4096M,share=true",
+    "-cpu",
+    "host",
+    "-smp",
+    "2",
+    "-m",
+    "4096M",
+    "-bios",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/OVMF.candidate-debug.fd",
+    "-kernel",
+    "/home/steven/enclave-prod/release-5cab66e4/kernel",
+    "-initrd",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/A.cpio.gz",
+    "-append",
+    "console=ttyS0 rdinit=/init loglevel=3",
+    "-nodefaults",
+    "-no-user-config",
+    "-nic",
+    "none",
+    "-monitor",
+    "none",
+    "-display",
+    "none",
+    "-serial",
+    "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fw-boot-candidate-debug-control4-testqemu-r2/serial.log",
+    "-debugcon",
+    "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fw-boot-candidate-debug-control4-testqemu-r2/debug.log",
+    "-global",
+    "isa-debugcon.iobase=0x402",
+    "-no-reboot"
+  ],
+  "samples": [
+    {
+      "t": 1793169155.7228806,
+      "host_available": 88744558592
+    },
+    {
+      "t": 1793169156.737781,
+      "host_available": 88856092672
+    },
+    {
+      "t": 1793169157.75287,
+      "host_available": 88874225664
+    },
+    {
+      "t": 1793169158.7685974,
+      "host_available": 88856436736
+    },
+    {
+      "t": 1793169159.7956798,
+      "host_available": 87072477184
+    },
+    {
+      "t": 1793169160.824174,
+      "host_available": 85059211264
+    },
+    {
+      "t": 1793169161.840834,
+      "host_available": 84543975424
+    },
+    {
+      "t": 1793169162.8561618,
+      "host_available": 84503412736
+    },
+    {
+      "t": 1793169163.8725216,
+      "host_available": 84443164672
+    },
+    {
+      "t": 1793169164.888412,
+      "host_available": 84257845248
+    },
+    {
+      "t": 1793169165.9034426,
+      "host_available": 84244971520
+    },
+    {
+      "t": 1793169166.918963,
+      "host_available": 84237152256
+    },
+    {
+      "t": 1793169167.934143,
+      "host_available": 84242284544
+    },
+    {
+      "t": 1793169168.9507143,
+      "host_available": 85717151744
+    }
+  ],
+  "outcome": "reached_dominit",
+  "identity": {
+    "unit": "fullbench-b16d72aec1de4c77-fw.service",
+    "binary": "/home/steven/.cache/enclave-isolation/parallel-vmsa-qemu-hashtest/build/qemu-system-x86_64",
+    "created_by_us": true,
+    "invocation": "f53d5c7763f4461a80b23afe7dac90cb",
+    "main_pid": 4186074,
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/fullbench-b16d72aec1de4c77-fw.service",
+    "pid_start": "147426940"
+  },
+  "cleanup_errors": [],
+  "cleanup": "clean",
+  "kernel_entered": true,
+  "fallback": false,
+  "substitution_active": false,
+  "verifier_success": {
+    "kernel": true,
+    "initrd": true,
+    "cmdline": true
+  },
+  "accepted": true
+}

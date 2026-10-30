@@ -1,0 +1,100 @@
+[queue] START available=20709MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+[ok] 1 pins + candidate differs only in MAX_LARGE_MIB and the --mib choices  {"current": "b7de4344154fdd9f4e000059cc0d130426e67d5a34474cc714407c2f7e656c00", "candidate": "5f752320e19ab092a0a320610ff1435ca90edf31f1fa086aed77f460d7bb58ce"}
+[ok] 2 caps: candidate 2048 rejected (2), current 2560 rejected (2) [control], candidate 1792 and 2560 start  {"rcs": [2, 2, 0, 0]}
+[ok] 3 large 2560 alone: starts at 19200 (child rc 7 propagated, stub argv caps 2560/16384); NOT at 19199 (98, nothing started)  {"pos": [7, "[queue] START available=19200MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB"], "argv": {"MemoryMax": "MemoryMax=2560M", "swap": "MemorySwapMax=0", "guardMax": "2560", "guardFloor": "16384"}, "neg": [98, "[queue] NOT STARTED: available=19199MiB required=19200MiB cap=2560MiB"]}
+[ok] 4 large 2560 + small held: starts at 19456 with concurrentSmall=256; NOT at 19455 (98)  {"pos": "[queue] START available=19456MiB required=19456MiB cap=2560MiB floor=16384MiB concurrentSmall=256MiB", "neg": [98, "[queue] NOT STARTED: yielding to reserved small allocation"]}
+[ok] 5 small + large lane occupied: candidate reserves 2560 (starts 19456, NOT 19455); control current reserves 1792 (starts at 18688 = under-reserves a 2560 job)  {"pos": "[queue] START available=19456MiB required=19456MiB cap=256MiB floor=16384MiB concurrentLargeReserve=2560MiB", "neg": [98, "[queue] NOT STARTED: available=19455MiB required=19456MiB cap=256MiB"], "control": "[queue] START available=18688MiB required=18688MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1792MiB"}
+[ok] 6 second small allocation refused (98, nothing started) in candidate and current  {"cand": [98, "[queue] NOT STARTED: small allocation held"], "cur": [98, "[queue] NOT STARTED: small allocation held"]}
+[ok] 7 large 1792: alone starts at 18432 (unchanged); with small held candidate YIELDS at 19455 (98) where current starts [documented change]  {"alone": 0, "cand": [98, "[queue] NOT STARTED: yielding to reserved small allocation"], "cur": "[queue] START available=19455MiB required=18688MiB cap=1792MiB floor=16384MiB concurrentSmall=256MiB"}
+[ok] 8 SIGTERM during a 2560 job: queue exits 143 and its exact child is gone  {"rc": 143, "childPid": 3962161, "childAlive": false}
+{
+ "result": "pass",
+ "failed": 0,
+ "cases": [
+  {
+   "case": "1 pins + candidate differs only in MAX_LARGE_MIB and the --mib choices",
+   "pass": true,
+   "current": "b7de4344154fdd9f4e000059cc0d130426e67d5a34474cc714407c2f7e656c00",
+   "candidate": "5f752320e19ab092a0a320610ff1435ca90edf31f1fa086aed77f460d7bb58ce"
+  },
+  {
+   "case": "2 caps: candidate 2048 rejected (2), current 2560 rejected (2) [control], candidate 1792 and 2560 start",
+   "pass": true,
+   "rcs": [
+    2,
+    2,
+    0,
+    0
+   ]
+  },
+  {
+   "case": "3 large 2560 alone: starts at 19200 (child rc 7 propagated, stub argv caps 2560/16384); NOT at 19199 (98, nothing started)",
+   "pass": true,
+   "pos": [
+    7,
+    "[queue] START available=19200MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB"
+   ],
+   "argv": {
+    "MemoryMax": "MemoryMax=2560M",
+    "swap": "MemorySwapMax=0",
+    "guardMax": "2560",
+    "guardFloor": "16384"
+   },
+   "neg": [
+    98,
+    "[queue] NOT STARTED: available=19199MiB required=19200MiB cap=2560MiB"
+   ]
+  },
+  {
+   "case": "4 large 2560 + small held: starts at 19456 with concurrentSmall=256; NOT at 19455 (98)",
+   "pass": true,
+   "pos": "[queue] START available=19456MiB required=19456MiB cap=2560MiB floor=16384MiB concurrentSmall=256MiB",
+   "neg": [
+    98,
+    "[queue] NOT STARTED: yielding to reserved small allocation"
+   ]
+  },
+  {
+   "case": "5 small + large lane occupied: candidate reserves 2560 (starts 19456, NOT 19455); control current reserves 1792 (starts at 18688 = under-reserves a 2560 job)",
+   "pass": true,
+   "pos": "[queue] START available=19456MiB required=19456MiB cap=256MiB floor=16384MiB concurrentLargeReserve=2560MiB",
+   "neg": [
+    98,
+    "[queue] NOT STARTED: available=19455MiB required=19456MiB cap=256MiB"
+   ],
+   "control": "[queue] START available=18688MiB required=18688MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1792MiB"
+  },
+  {
+   "case": "6 second small allocation refused (98, nothing started) in candidate and current",
+   "pass": true,
+   "cand": [
+    98,
+    "[queue] NOT STARTED: small allocation held"
+   ],
+   "cur": [
+    98,
+    "[queue] NOT STARTED: small allocation held"
+   ]
+  },
+  {
+   "case": "7 large 1792: alone starts at 18432 (unchanged); with small held candidate YIELDS at 19455 (98) where current starts [documented change]",
+   "pass": true,
+   "alone": 0,
+   "cand": [
+    98,
+    "[queue] NOT STARTED: yielding to reserved small allocation"
+   ],
+   "cur": "[queue] START available=19455MiB required=18688MiB cap=1792MiB floor=16384MiB concurrentSmall=256MiB"
+  },
+  {
+   "case": "8 SIGTERM during a 2560 job: queue exits 143 and its exact child is gone",
+   "pass": true,
+   "rc": 143,
+   "childPid": 3962161,
+   "childAlive": false
+  }
+ ]
+}
+[memory-guard] exit=0 peakTreeRssMiB=46 minHostAvailableMiB=20658
+[memory-guard] at peak: python3:20 python3:16 python3:10
+[queue] EXIT 0

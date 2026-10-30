@@ -1,0 +1,5 @@
+2a037dae4bb38df19979b0f7397d44da2d7219f1a55cc455f1e35b8ecb49e3d0  ./relocate.py
+a7fc28751c9107455ae48569be77ff53622ca8b4d7a7caf2cb45cc33432e8dc0  ./tests/test_relocate.py
+4170a4275f0f644424895df6e045b2d2224c79aa17b48e81ebca6a94a83a4aa1  ./jobs/tests.sh
+27b277c20039a5e3526d61f4cd1684a6ca8b4f3436394c958397aca7c144c743  ./jobs/rsync-dir-mtime-diagnostic.py
+2a85efde96b88fb59d7d4d96b3989d288b2487c7112fc559ad6e243598c8552a  ./config.production.template.json

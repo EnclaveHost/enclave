@@ -1,0 +1,287 @@
+{
+ "mode": "integration",
+ "harness": "bind-mounted read-only node_modules (unshare -Urnm)",
+ "sharedRelayRuntime": {
+  "sha256": "e12c5bafb8b17abb891fb26fe1cdc054159d7bd2de5486d2c1a2480430671ed6",
+  "equalsBaseBuild": true,
+  "equalsCommittedPin": true
+ },
+ "platformApiGuestBundle": {
+  "committedStale": true,
+  "checkAfterRegeneration": 0
+ },
+ "writerStartup": {
+  "ok": 3,
+  "fail": 0
+ },
+ "relayReaderTest": {
+  "rc": 0,
+  "tests": 4,
+  "pass": 4,
+  "fail": 0,
+  "skipped": 0,
+  "todo": 0,
+  "cancelled": 0
+ },
+ "writer": {
+  "rc": 0,
+  "tests": 23,
+  "pass": 23,
+  "fail": 0,
+  "skipped": 0,
+  "todo": 0,
+  "cancelled": 0
+ },
+ "kvmReader": {
+  "rc": 0,
+  "tests": 33,
+  "pass": 33,
+  "fail": 0,
+  "skipped": 0,
+  "todo": 0,
+  "cancelled": 0
+ },
+ "paidAdapter": {
+  "rc": 0,
+  "tests": 15,
+  "pass": 15,
+  "fail": 0,
+  "skipped": 0,
+  "todo": 0,
+  "cancelled": 0
+ },
+ "paidPackaging": {
+  "rc": 0,
+  "tests": 5,
+  "pass": 5,
+  "fail": 0,
+  "skipped": 0,
+  "todo": 0,
+  "cancelled": 0
+ },
+ "paidNestedSuite": true,
+ "regression": {
+  "stack-provider-authority": {
+   "pristine": {
+    "rc": 0,
+    "tests": 4,
+    "pass": 4,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 4,
+    "pass": 4,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true
+  },
+  "attested-provider-collateral": {
+   "pristine": {
+    "rc": 0,
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true
+  },
+  "wg-provider": {
+   "pristine": {
+    "rc": 0,
+    "tests": 10,
+    "pass": 10,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 10,
+    "pass": 10,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true
+  },
+  "paid-network": {
+   "pristine": {
+    "rc": 0,
+    "tests": 5,
+    "pass": 5,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 5,
+    "pass": 5,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true
+  },
+  "verified-chain": {
+   "pristine": {
+    "rc": 0,
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true
+  },
+  "service-index": {
+   "pristine": {
+    "rc": 0,
+    "tests": 15,
+    "pass": 15,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 15,
+    "pass": 15,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true
+  },
+  "attested-paid-provider": {
+   "pristine": {
+    "rc": 0,
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true
+  },
+  "attested-route-composition": {
+   "pristine": {
+    "rc": 0,
+    "tests": 7,
+    "pass": 7,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 7,
+    "pass": 7,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true
+  },
+  "attested-chain-verifier": {
+   "pristine": {
+    "rc": 0,
+    "tests": 15,
+    "pass": 15,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 15,
+    "pass": 15,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true
+  },
+  "windows-node-lease-renewal-keeper": {
+   "pristine": {
+    "rc": 0,
+    "tests": 16,
+    "pass": 16,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "final": {
+    "rc": 0,
+    "tests": 16,
+    "pass": 16,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "finalClean": true
+  }
+ },
+ "ok": true,
+ "scope": "release-candidate tree 929fc19a: packaging/composition/adapter evidence only; NOT fresh-state authority (writer 120 s ceiling vs L1-finalized anchors), NOT feature availability, NOT production"
+}

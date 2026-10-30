@@ -1,0 +1,14 @@
+{
+  "enclave-windows-manager-integration-r5-20261029": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "enclave-windows-manager-root-r5-20261029": "ActiveState=failed\nSubState=failed\nInvocationID=baf7e8ca6d334860b0ad5554ce2ab745\nMainPID=0\nExecMainStatus=1\n",
+  "enclave-windows-manager-root-r5-fixture-20261029": "ActiveState=failed\nSubState=failed\nInvocationID=a7055569068c4231986d1aad78ce1694\nMainPID=0\nExecMainStatus=1\n",
+  "enclave-windows-manager-root-r5-authority-fixed-20261029": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "enclave-windows-manager-root-r5-revocation-20261029": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "enclave-windows-manager-root-r5-router-20261029": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "_interpretation": "Collected transient units report inactive/default status after removal; those default ExecMainStatus=0 values are not test exit codes. Use corresponding result.rc/TAP and guard logs for actual outcomes. Recorded invocation IDs follow.",
+  "_recordedInvocations": {
+    "authority-fixed": "9f8cfe841f53474d89f551e2c79f2f12",
+    "revocation": "c93646f5daa849ca954bce48d08280a0",
+    "router-operation": "dde094652af947b3a32fc74cb6639b6e"
+  }
+}

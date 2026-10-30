@@ -1,0 +1,25 @@
+{
+  "existing": [
+    "offline_mask.py"
+  ],
+  "newTests": [
+    "test_exporter_cleanup.py",
+    "test_offline_revalidation.py"
+  ],
+  "reports": [
+    "REPORT.md",
+    "CLOSURE.json"
+  ],
+  "immutable": [
+    "inspect_os_disk.py",
+    "inspect_units.py",
+    "guest_mask.py",
+    "fixture_reference.py",
+    "UNIT-PINS.json",
+    "test_offline_mask.py",
+    "all files outside candidate",
+    "four methods in PROTECTED-SOURCE.json"
+  ],
+  "scope": "Focused exporter/inventory/revalidation/rollback repair only",
+  "note": "Tools are not an OS sandbox; root reviews semantic diff and mutation replay."
+}

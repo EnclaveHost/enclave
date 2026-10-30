@@ -1,0 +1,93 @@
+--- a/wrapper/chain_service.py
++++ b/wrapper/chain_service.py
+@@ -323,10 +323,62 @@
+     return {'block': doc['block'], 'timestamp': doc['timestamp'], 'url': snapshot_url, 'effectiveBaseUrl': effective,
+             'components': len(comps), 'scope': 'manifest identity and location only; not authenticated snapshot state'}
+ 
++# ---- N-anchored segmented coverage (historical-origin-segments-stage/r4) -------------------------------------------------
++# Explicit opt-in only: baseBootstrap.mode == 'anchored-segments' selects the anchored verification; no `mode` keeps the legacy
++# safe-label path unchanged; any other mode refuses. The verification code is root-installed under ANCHORED_COVERAGE_LIB, root-owned,
++# and executed only from bytes equal to these pins (the same three files readiness_sampler pins).
++ANCHORED_COVERAGE_LIB = ROOT / 'lib' / 'anchored-coverage'
++ANCHORED_COVERAGE_PINS = {
++    'anchored_origin.py': 'ed1a547d4d8aea112cae66479c64cd9e556b531063ef361c9b156c6d2948ddfa',
++    'segments.py': '8764f5cc55cc42307eadbe71695bb986ca5fa86c07db671553d50d0635c51aa1',
++    'anchored_acceptance.py': 'cb68413866d0534822bdfc37702e253acfe04abad30d98e34b2231595518138d'}
++ANCHORED_A1_SHA256 = 'b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c'   # the source-pinned original A1 receipt (N 52866960)
++
++def _anchored_overlay(owner):
++    lib = pathlib.Path(ANCHORED_COVERAGE_LIB)
++    _secure_path(lib, owner, leaf='dir')
++    mods = {}
++    for name in ('anchored_origin.py', 'segments.py', 'anchored_acceptance.py'):   # dependency order
++        p = lib / name
++        _secure_path(p, owner)
++        fd = os.open(p, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
++        with os.fdopen(fd, 'rb') as f:
++            raw = f.read(1 << 22)
++        assert hashlib.sha256(raw).hexdigest() == ANCHORED_COVERAGE_PINS[name], f'anchored coverage {name} is not the pinned bytes'
++        mod = type(sys)(name[:-3]); mod.__file__ = str(p)
++        sys.modules[name[:-3]] = mod                       # segments imports anchored_origin; anchored_acceptance imports both
++        exec(compile(raw, str(p), 'exec'), mod.__dict__)
++        mods[name] = mod
++    return mods['anchored_acceptance.py']
++
++def base_coverage(cfg, manifest_path, base_binary_sha256):
++    """-> (binding, bound L1 origin). No mode: the legacy snapshot-safe-label activation, unchanged. 'anchored-segments': header N
++    authenticated by the original A1 output root, its L1 origin bound by the parent-beacon-root/mixHash linkage, and complete segmented
++    coverage, all re-verified from root-owned evidence. Any other mode refuses (no implicit activation)."""
++    mode = (cfg.get('baseBootstrap') or {}).get('mode') if isinstance(cfg.get('baseBootstrap'), dict) else None
++    if mode is None:
++        o = coverage_activation(cfg, manifest_path, base_binary_sha256)
++        return o, o['safeL1Origin']
++    assert mode == 'anchored-segments', f'unknown baseBootstrap.mode {mode!r}: no implicit activation'
++    aa = _anchored_overlay(ROOT_UID)
++    view = type(sys)(__name__); view.__dict__.update(globals())     # this module's helpers/pins, however it was loaded
++    o = aa.anchored_coverage_activation(view, cfg, manifest_path, base_binary_sha256, COVERAGE_DIR, ROOT_UID,
++                                        ANCHORED_A1_SHA256, time.time())
++    return o, o['l1Origin']
++
++def anchored_launch_binding(origin, lock):
++    """Anchored coverage exists only for the release anchor launch: before anything is consumed, the immutable launch record must
++    name exactly the anchored-coverage header N (number and block hash)."""
++    assert lock is not None, 'anchored coverage requires the release launch (manifest baseRelease + launch lock)'
++    _l_sha, launch, n = launch_record(CONFIG, BASE_RELEASE_SHA256)
++    a = origin['anchor']
++    assert n == a['N'] and launch.get('anchor') == f"{a['N']}:{a['headerHash']}", 'launch anchor is not the anchored-coverage header N'
++
+ def coverage_activation(cfg, manifest_path, base_binary_sha256, directory=COVERAGE_DIR, owner=0):
+     """Offline, fail-closed validation of the activation evidence. Returns the bound bootstrap or raises AssertionError."""
+     bb = cfg.get('baseBootstrap')
+     assert isinstance(bb, dict) and bb.get('coverageVerified') is True, 'Base snapshot blob coverage not approved'
++    assert 'mode' not in bb, 'legacy coverage activation refuses any baseBootstrap.mode'
+     acc = bb.get('coverageAcceptance')
+     assert isinstance(acc, dict) and all(isinstance(acc.get(k), str) and SHA_RE.fullmatch(acc[k])
+                                          for k in ('receiptSha256', 'verdictSha256', 'originSha256', 'snapshotManifestSha256')), \
+@@ -1040,7 +1092,9 @@
+             a += ['--checkpoint-state', base + '/anchor/state.ssz', '--checkpoint-block', base + '/anchor/block.ssz',
+                   '--wss-checkpoint', ck['root'] + ':' + str(ck['epoch'])]
+     elif side == 'base':
+-        origin = coverage_activation(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base'))
++        origin, so = base_coverage(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base'))
++        if origin.get('mode') == 'anchored-segments':
++            anchored_launch_binding(origin, lock)
+         history_from = history_from_block(CONFIG)
+         state_from = state_history_from_block(CONFIG)
+         snap = (origin.get('snapshot') or {}).get('block')
+@@ -1049,7 +1103,6 @@
+         history_files_present(datadir, profile, history_from)
+         segment_files_present(datadir, profile, state_from, STATE_FILES)
+         ready = l1_ready()
+-        so = origin['safeL1Origin']
+         assert ready['l1Finalized'] >= max(so['number'], origin['toBlock']), 'reviewed coverage range above our L1 finalized'
+         canon = rpc(18645, 'eth_getBlockByNumber', [hex(so['number']), False])
+         assert canon and str(canon.get('hash', '')).lower() == so['hash'], 'snapshot safe L1 origin not canonical on this L1'
+@@ -1104,7 +1157,7 @@
+                           'kzgcheckSha256': KZGCHECK_SHA256, 'evidenceDir': str(COVERAGE_DIR)}, sort_keys=True))
+     elif argv == ['coverage-check']:
+         # Read-only offline validation of the installed activation evidence; no L1 call, never starts a client.
+-        print(json.dumps(coverage_activation(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base')),
++        print(json.dumps(base_coverage(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base'))[0],
+                          sort_keys=True))
+     elif len(argv) == 1 and argv[0] in ('el', 'cl', 'base'):
+         run(argv[0])

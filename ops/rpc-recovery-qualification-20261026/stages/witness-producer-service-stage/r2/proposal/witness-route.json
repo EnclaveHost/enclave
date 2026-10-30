@@ -1,0 +1,23 @@
+{
+ "format": "enclave-witness-route-proposal/r2",
+ "status": "PROPOSAL: not deployed; needs a root-coordinated RPC VM restart (hostfwd) and an admin-signed enrollment plus HOST_DATA binding",
+ "rpcVm": {
+  "producer": "127.0.0.1:18747 (loopback only; the frozen r1 producer bytes, or a later reviewed producer at the same port)",
+  "forward": {"name": "witness", "port": 28747, "target": 18747},
+  "socketUnit": "systemd/enclave-witness-forward.socket (ListenStream=10.0.2.15:28747, IPAddressAllow=10.0.2.2/32)",
+  "proxyUnit": "systemd/enclave-witness-forward.service (systemd-socket-proxyd --connections-max=2 127.0.0.1:18747)"
+ },
+ "host": {
+  "hostfwd": "hostfwd=tcp:127.0.0.1:28747-10.0.2.15:28747",
+  "manifestForwardsExisting": [
+   {"name": "base-rpc", "port": 28545, "target": 18545},
+   {"name": "l1-el", "port": 28645, "target": 18645},
+   {"name": "l1-cl", "port": 25052, "target": 15052}
+  ]
+ },
+ "snpGuest": {
+  "hostData": {"platformApi.derivedReader.witnessUrl": "http://10.0.2.2:28747/witness"},
+  "signedDriverPolicy": {"witness.url": "http://10.0.2.2:28747/witness"},
+  "rule": "both must be equal (patches/...: startReaderDriver bindWitnessUrl); the bytes stay untrusted native input"
+ }
+}

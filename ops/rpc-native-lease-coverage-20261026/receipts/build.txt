@@ -1,0 +1,139 @@
+   Compiling base-proof-zk-utils v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-client-stage/r3/build/deps-43698236e9186750/base/crates/proof/zk/utils)
+warning: struct `Trusted` is reachable but cannot be named
+  --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:53:1
+   |
+53 | pub struct Trusted {
+   | ^^^^^^^^^^^^^^^^^^ reachable at visibility `pub`, but can only be named at visibility `pub(crate)`
+   |
+   = note: requested on the command line with `-W unnameable-types`
+
+warning: struct `ExecutedHead` is reachable but cannot be named
+   --> crates/proof/zk/utils/examples/derivation_harness_combined.rs:120:1
+    |
+120 | pub struct ExecutedHead {
+    | ^^^^^^^^^^^^^^^^^^^^^^^ reachable at visibility `pub`, but can only be named at visibility `pub(crate)`
+
+warning: missing documentation for a constant
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:48:1
+   |
+48 | pub const RESULT_FORMAT_V3: &str = "enclave-base-derivation-result/v3";
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: requested on the command line with `-W missing-docs`
+
+warning: missing documentation for a constant
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:49:1
+   |
+49 | pub const COVERAGE_FORMAT: &str = "enclave-lease16-coverage/v1";
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:50:1
+   |
+50 | pub const FILTER_ID: &str = "lease16-events/v1";
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:55:1
+   |
+55 | pub const MAX_RANGE_BLOCKS: u64 = 1800;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:56:1
+   |
+56 | pub const MAX_COVERAGE_BYTES: usize = 16 << 20;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a constant
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:57:1
+   |
+57 | pub const MAX_RESULT_BYTES: usize = 16 << 20;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:59:1
+   |
+59 | pub fn lease16_topics() -> [B256; 3] {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:70:5
+   |
+70 |     pub address: Address,
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:71:5
+   |
+71 |     pub log_index: u64,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:72:5
+   |
+72 |     pub topics: Vec<B256>,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:73:5
+   |
+73 |     pub data: Bytes,
+   |     ^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:74:5
+   |
+74 |     pub tx_hash: B256,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:82:5
+   |
+82 |     pub header: Sealed<Header>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:83:5
+   |
+83 |     pub output_root: B256,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:84:5
+   |
+84 |     pub logs: Vec<CoveredLog>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:85:5
+   |
+85 |     pub error: Option<String>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for an associated function
+  --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:89:5
+   |
+89 |     pub fn compact(cfg: &RollupConfig, header: &Sealed<Header>, receipts: &[BaseReceiptEnvelope], transactions: &[Bytes], output_root: B256) -> Self {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: missing documentation for a function
+   --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:193:1
+    |
+193 | / pub async fn advance_to_target<E, DP, P>(
+194 | |     driver: &mut Driver<E, DP, P>,
+195 | |     cfg: &RollupConfig,
+196 | |     mut target: Option<u64>,
+...   |
+202 | |     DP: DriverPipeline<P> + Send + Sync + Debug,
+203 | |     P: Pipeline + SignalReceiver + Send + Sync + Debug,
+    | |_______________________________________________________^
+
+warning: missing documentation for a function
+   --> crates/proof/zk/utils/examples/derivation_harness_lease_v3.rs:452:1
+    |
+452 | pub fn verify_v3(trusted: &[u8], witness: &[u8]) -> Result<String> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `base-proof-zk-utils` (example "derivation_harness_lease_v3") generated 21 warnings
+    Finished `dev` profile [unoptimized] target(s) in 2.51s

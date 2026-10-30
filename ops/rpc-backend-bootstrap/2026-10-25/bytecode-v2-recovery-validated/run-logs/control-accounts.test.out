@@ -1,0 +1,39 @@
+
+running 23 tests
+test tests::client_panics_exactly_where_the_checker_predicts ... ok
+test tests::client_cross_check_independently_refuses_harmful_rows ... ok
+test tests::completeness_counts_missing_code_and_ignores_empty ... ok
+test tests::client_written_rows_are_canonical_and_agree ... ok
+test tests::extra_table_bytes_and_bits_past_bit_len_are_non_canonical_not_failures ... ok
+test tests::forged_jump_bits_are_executed_by_the_client ... ok
+test tests::framed_digest_is_stable_and_length_and_count_framed ... ok
+test tests::mdbx_scan_end_to_end_reports_failures_missing_code_and_is_read_only ... ok
+test tests::digests_change_with_one_row_one_byte_or_one_reference ... ok
+test tests::missing_or_partial_checkpoints_are_not_ok ... ok
+test tests::missing_code_bad_row_and_empty_accounts_are_not_ok ... ok
+test tests::nonzero_padding_is_executed_by_the_client ... ok
+test tests::padding_shorter_than_revm42_is_refused_and_dupn_is_classified ... ok
+test tests::mutation_between_scans_changes_txn_id_entries_and_digests ... ok
+test tests::raw_tag0_rows_follow_new_raw ... ok
+test tests::read_errors_and_absent_databases_are_never_ok ... ok
+test tests::report_ok_requires_every_v2_binding ... FAILED
+test tests::rows_the_client_misreads_silently_are_refused ... ok
+test tests::size_key_and_length_guards ... ok
+test tests::v2_json_has_exactly_the_a2_schema ... ok
+test tests::v2_scan_leaves_every_byte_of_mdbx_dat_unchanged ... ok
+test tests::v2_scan_valid_fixture_is_ok_with_exact_counts_digests_and_checkpoints ... ok
+test tests::pseudo_random_client_rows_pass_and_every_read_jump_bit_flip_fails ... ok
+
+failures:
+
+---- tests::report_ok_requires_every_v2_binding stdout ----
+
+thread 'tests::report_ok_requires_every_v2_binding' (80625) panicked at etc/tools/base-bytecode-check/src/tests.rs:501:9:
+HashedAccounts entries != scanned
+
+
+failures:
+    tests::report_ok_requires_every_v2_binding
+
+test result: FAILED. 22 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.76s
+

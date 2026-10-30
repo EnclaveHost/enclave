@@ -1,0 +1,48 @@
+{
+ "counts": {
+  "errors": 4,
+  "expectedFailures": 0,
+  "failures": 1,
+  "skipped": 0,
+  "testsRun": 54,
+  "unexpectedSuccesses": 0
+ },
+ "expectedTests": "54",
+ "failureDetails": [
+  [
+   "test_r5_continuation.WrapperPhase.test_partial_write_is_not_a_state_and_an_edited_entry_breaks_the_chain",
+   "Traceback (most recent call last):\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py\", line 210, in test_partial_write_is_not_a_state_and_an_edited_entry_breaks_the_chain\n    r, _, _ = self.start(t2)\n              ~~~~~~~~~~^^^^\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py\", line 143, in start\n    before = [e[1]['event'] for e in t.journal()]\n                                     ~~~~~~~~~^^\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py\", line 78, in journal\n    return W.journal_entries(self.bd / 'journal', self.uid, self.lsha, self.root)\n           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/overlay/wrapper/chain_service.py\", line 960, in journal_entries\n    assert e.get('format') == JOURNAL_FORMAT and e.get('launchSha256') == launch_sha and e.get('seq') == len(out) + 1 \\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        and e.get('prevSha256') == prev, f'journal chain broken at {name}'\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: journal chain broken at 000002.json\n"
+  ],
+  [
+   "test_r5_continuation.ReadinessPhase.test_no_current_proof_falls_back_to_the_initial_window_and_expired_evidence_fails",
+   "Traceback (most recent call last):\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py\", line 262, in test_no_current_proof_falls_back_to_the_initial_window_and_expired_evidence_fails\n    rc, r = self.run_sampler(self.install(I._stale), finality='initial')\n            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py\", line 251, in run_sampler\n    return self.sampler(inst, finality=finality, **kw)\n           ^^^^^^^^^^^^\nAttributeError: 'ReadinessPhase' object has no attribute 'sampler'\n"
+  ],
+  [
+   "test_r5_continuation.ReadinessPhase.test_post_bootstrap_mode_conflict_is_refused",
+   "Traceback (most recent call last):\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py\", line 276, in test_post_bootstrap_mode_conflict_is_refused\n    rc, r = self.run_sampler(inst, extra=('--coverage-receipt', '/x/receipt.json'))\n            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py\", line 251, in run_sampler\n    return self.sampler(inst, finality=finality, **kw)\n           ^^^^^^^^^^^^\nAttributeError: 'ReadinessPhase' object has no attribute 'sampler'\n"
+  ],
+  [
+   "test_r5_continuation.ReadinessPhase.test_post_bootstrap_ready_with_expired_historical_evidence_and_a_current_recorded_proof",
+   "Traceback (most recent call last):\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py\", line 255, in test_post_bootstrap_ready_with_expired_historical_evidence_and_a_current_recorded_proof\n    rc, r = self.run_sampler(inst, extra=())\n            ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py\", line 251, in run_sampler\n    return self.sampler(inst, finality=finality, **kw)\n           ^^^^^^^^^^^^\nAttributeError: 'ReadinessPhase' object has no attribute 'sampler'\n"
+  ],
+  [
+   "test_r5_continuation.ReadinessPhase.test_proof_for_another_process_is_not_current",
+   "Traceback (most recent call last):\n  File \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r5/tests/test_r5_continuation.py\", line 268, in test_proof_for_another_process_is_not_current\n    rc, r = self.sampler(inst, finality=None, extra=('--finality-status', TRS.finality_status_file(self.tmp, start='1', n=1000),\n            ^^^^^^^^^^^^\nAttributeError: 'ReadinessPhase' object has no attribute 'sampler'\n"
+  ]
+ ],
+ "format": "historical-origin-segments-test-receipt/v2",
+ "modules": [
+  "test_anchored_origin",
+  "test_segments",
+  "test_r3_integration",
+  "test_r5_continuation"
+ ],
+ "notPassed": [
+  "test_r5_continuation.ReadinessPhase.test_no_current_proof_falls_back_to_the_initial_window_and_expired_evidence_fails",
+  "test_r5_continuation.ReadinessPhase.test_post_bootstrap_mode_conflict_is_refused",
+  "test_r5_continuation.ReadinessPhase.test_post_bootstrap_ready_with_expired_historical_evidence_and_a_current_recorded_proof",
+  "test_r5_continuation.ReadinessPhase.test_proof_for_another_process_is_not_current",
+  "test_r5_continuation.WrapperPhase.test_partial_write_is_not_a_state_and_an_edited_entry_breaks_the_chain"
+ ],
+ "pass": false
+}

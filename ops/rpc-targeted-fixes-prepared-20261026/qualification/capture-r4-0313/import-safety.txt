@@ -1,0 +1,51 @@
+test_a_caller_that_disabled_bytecode_keeps_its_own_state (__main__.Capture.test_a_caller_that_disabled_bytecode_keeps_its_own_state) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-stkl_c_k/out1/.partial-739299/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-stkl_c_k/out1/.partial-739299/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-stkl_c_k/out1/.partial-739299/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-stkl_c_k/out1/.partial-739299/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_initial_capture_writes_no_bytecode_and_verifies (__main__.Capture.test_initial_capture_writes_no_bytecode_and_verifies) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-usjeysr8/out1/.partial-739299/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-usjeysr8/out1/.partial-739299/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-usjeysr8/out1/.partial-739299/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-usjeysr8/out1/.partial-739299/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_plain_recheck_capture_writes_no_bytecode_and_verifies (__main__.Capture.test_plain_recheck_capture_writes_no_bytecode_and_verifies) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-3nfciwph/out1/.partial-739299/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-3nfciwph/out1/.partial-739299/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-3nfciwph/out1/.partial-739299/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-3nfciwph/out1/.partial-739299/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_recheck_capture_of_a_fresh_initial_verifies_both (__main__.Capture.test_recheck_capture_of_a_fresh_initial_verifies_both)
+the exact r5 failure path: initial capture, then recheck-capture verifying that initial, then the consumer's verify ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-a4cefvnd/out1/.partial-739299/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-a4cefvnd/out1/.partial-739299/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-a4cefvnd/out1/.partial-739299/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-a4cefvnd/out1/.partial-739299/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-a4cefvnd/out2/.partial-739299/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-a4cefvnd/out2/.partial-739299/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-a4cefvnd/out2/.partial-739299/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-a4cefvnd/out2/.partial-739299/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_this_caller_really_writes_bytecode_through_the_r2_file_loader (__main__.Control.test_this_caller_really_writes_bytecode_through_the_r2_file_loader)
+negative control: the r2 loader, verbatim, under THIS caller state, leaves a .pyc beside the loaded file, so the ... ok
+test_a_planted_bytecode_cache_is_still_refused_by_file_set (__main__.Strict.test_a_planted_bytecode_cache_is_still_refused_by_file_set)
+the fix removes the cause; it does not whitelist caches: a trusted-looking .pyc in code/ still refuses ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-q7k4vz_5/out1/.partial-739299/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-q7k4vz_5/out1/.partial-739299/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-q7k4vz_5/out1/.partial-739299/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r4/logs/root-capture-tests-20261026T032659Z-736443/tmp/a1cap-q7k4vz_5/out1/.partial-739299/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_the_pinned_loader_keeps_module_semantics_and_refuses_unpinned_bytes (__main__.Strict.test_the_pinned_loader_keeps_module_semantics_and_refuses_unpinned_bytes) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 2.865s
+
+OK

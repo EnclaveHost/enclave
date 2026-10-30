@@ -1,0 +1,34 @@
+[queue] START available=20850MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+Root verified all 21 manifest digests against actual installed viem file contents.
+
+scan-crypto-keys: REFUSED - 21 cryptocurrency private key(s) in the staged changes
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:2490: e2fbea…db3c  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:2491: c807ca…af8f  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:2498: b057a4…d974  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:2499: caf8da…2bdb  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:2506: 5fd7ef…4f57  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:2507: 18789e…43bd  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:5235: 0f2c44…78ab  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:5236: f0de8a…dbda  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:5243: c056d3…78e6  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:5244: ec5f8d…429b  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:5251: 67daee…0b0b  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:5252: e070b4…43a3  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:7982: 9af199…2d1a  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:7983: 4efa5a…1f94  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:7990: d13730…6bfa  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:7991: 085516…293b  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:7998: 816fd3…bab4  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:7999: 980c37…5a33  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:10688: 0915e2…bce2  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:10693: d6827e…c733  hex private key assigned to a key/secret field
+  [eth-key] ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json:10697: ab9173…e8b5  hex private key assigned to a key/secret field
+
+A committed key is public the moment it is pushed and cannot be un-published,
+only rotated. Remove it from the commit (git reset / rebase) and move the
+secret to metal/config.json, a .env file or the deployment secrets store.
+Confirmed false positive? Re-run with --no-verify.
+pre-commit: COMMIT REFUSED (confirmed false positive: git commit --no-verify)
+[memory-guard] exit=1 peakTreeRssMiB=59 minHostAvailableMiB=20792
+[memory-guard] at peak: python3:27 git:13 git:12 bash:4 bash:4
+[queue] EXIT 1

@@ -1,0 +1,17 @@
+{
+  "preparedSha256": "1f4b22991ceaabf48f17557c79dae59d1681bc8f915e31492b065142e78f67c4",
+  "launchAuthorized": true,
+  "scope": "SOURCE_ONLY_NO_EXECUTION",
+  "rootReviewedAt": 1793339441.4944277,
+  "preflightInvocation": "1a52087a46384495b96f659d9801ae51",
+  "originalPreflightFailurePreserved": true,
+  "accountPreflightScriptSha256": "f2b64c984bac20feb6cbc31c6df55131ef834f0c4939a8f82f47593fae43658b",
+  "limits": {
+    "hardMiB": 1536,
+    "rssMiB": 1408,
+    "floorMiB": 27648,
+    "cpu": 1,
+    "swap": 0
+  },
+  "noVmImageDbTestBuildLiveFinance": true
+}

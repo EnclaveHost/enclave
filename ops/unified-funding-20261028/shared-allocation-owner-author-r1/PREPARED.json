@@ -1,0 +1,47 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "seedEntries": 252,
+  "readonlyInputPins": 17283,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "mutationPolicy": "Candidate subtree only; terminal Write/Edit result audit and successful-mutation replay; missing/mismatched/outside outcomes never called clean",
+  "turnLimit": 55,
+  "turnMetric": "CLI max-agentic/API-turns; success result num_turns is separate user-message counter; preserve both",
+  "childTimeoutSec": 1800,
+  "outerTimeoutSec": 2100,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/shared-allocation-owner-r1-20261029/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "hashes": {
+    "TASK.txt": "7e54e565835815ed32b10eb77e5d37908a80469df0706a2a7b871200e39136be",
+    "run.py": "ede915a8f198572b53cfc031cb09c9e66de295d476af5a950067e6189b7d3faf",
+    "collect-terminal.py": "c0a16176148b0e3abb0acd6fcb10f3aca56257246298653c53183396ac4504c5",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8",
+    "input-pins.json": "944734112809addba20586e8bf4951091150a85fcc817ff0174e86a013a1973b",
+    "seed-pins.json": "28a94534fa697b8e972dbe5881f727df1af111a21b6c6cd7c7f5c1a16d603e12",
+    "seed-provenance.json": "9c4ea6f22e68305f00d7d3cfd67e51cf8938e6ab6f10492f4a01fc08062911ac",
+    "launch-command.txt": "ce0bda710ab0ca74ff52be5b350f2455762bdab5716c6c03620410ef448d9ebd",
+    "qualification-admission-plan.json": "7538040f2a3e6af511984b17f95684c4e1450034276c5d65647f50beaa990c95",
+    "REVIEW-STATUS.txt": "bf3ff70d583adc700bbf68f44797b84abd2fcae1b78ba0750064a6dc3bf1e50d",
+    "preparation-closure.json": "45f8a93576aea7cfbe258293f7f71c40ebd8283534047c8cb071a6e5aeb7cd59"
+  },
+  "originalSeedEntries": 252,
+  "addedPinnedDependencies": 0,
+  "priority": "ROOT_REVIEW_PENDING_NO_LAUNCH",
+  "cpuIndex": 1,
+  "cpuAffinity": "taskset -c1 and AllowedCPUs=1; runner requires exact{1}"
+}

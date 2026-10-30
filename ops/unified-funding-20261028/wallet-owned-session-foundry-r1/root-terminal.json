@@ -1,0 +1,17 @@
+{
+  "unit": "enclave-wallet-owned-session-foundry-r1-20261029.service",
+  "invocationId": "c8ae998b3b28482aa5cfcbc0196cb241",
+  "status": "RESOURCE_GUARD_STOP_NO_COMPILATION_RESULT",
+  "guardExit": 99,
+  "compilePassed": false,
+  "compileResultKnown": false,
+  "testsRun": false,
+  "sizeMeasured": false,
+  "readonlyPins": 86,
+  "sourceFiles": 35,
+  "inputDrift": [],
+  "runSourceDrift": [],
+  "stageProcesses": [],
+  "unitState": "ActiveState=inactive\nMainPID=0\n",
+  "observedAt": 1793330289.0741737
+}

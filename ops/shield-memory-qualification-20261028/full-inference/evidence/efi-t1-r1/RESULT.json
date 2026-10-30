@@ -1,0 +1,105 @@
+{
+  "scope": "GPU-free boot diagnostic only; no attestation/inference result",
+  "argv": [
+    "systemd-run",
+    "--user",
+    "--unit",
+    "fullbench-6be549eb7f7a4092-efi.service",
+    "--service-type=exec",
+    "-p",
+    "MemoryMax=4864M",
+    "-p",
+    "MemorySwapMax=0",
+    "-p",
+    "CPUQuota=200%",
+    "-p",
+    "TasksMax=128",
+    "-p",
+    "RuntimeMaxSec=120",
+    "-p",
+    "TimeoutStopSec=10",
+    "-p",
+    "KillMode=control-group",
+    "--",
+    "/usr/bin/qemu-system-x86_64",
+    "-machine",
+    "q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1",
+    "-object",
+    "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on",
+    "-object",
+    "memory-backend-memfd,id=ram1,size=4096M,share=true",
+    "-cpu",
+    "host",
+    "-smp",
+    "2",
+    "-m",
+    "4096M",
+    "-bios",
+    "/home/steven/enclave-prod/release-5cab66e4/firmware.fd",
+    "-kernel",
+    "/home/steven/enclave-prod/release-5cab66e4/kernel",
+    "-initrd",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/A.cpio.gz",
+    "-append",
+    "console=ttyS0 rdinit=/init loglevel=3",
+    "-nodefaults",
+    "-no-user-config",
+    "-nic",
+    "none",
+    "-monitor",
+    "none",
+    "-display",
+    "none",
+    "-serial",
+    "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/efi-t1-r1/serial.log",
+    "-no-reboot"
+  ],
+  "image_sha256": "7a71d50dfe4282a895d677377347f47f0230b0fc69000b697f38c6a3da8846ec",
+  "image_bytes": 758415031,
+  "samples": [
+    {
+      "t": 1793167795.4086955,
+      "host_available": 88673189888
+    },
+    {
+      "t": 1793167796.4230478,
+      "host_available": 88628875264
+    },
+    {
+      "t": 1793167797.4382298,
+      "host_available": 88664289280
+    },
+    {
+      "t": 1793167798.453931,
+      "host_available": 88623915008
+    },
+    {
+      "t": 1793167799.4801676,
+      "host_available": 86694920192
+    },
+    {
+      "t": 1793167800.4974048,
+      "host_available": 86464172032
+    },
+    {
+      "t": 1793167801.5124571,
+      "host_available": 86431551488
+    },
+    {
+      "t": 1793167802.527217,
+      "host_available": 86431272960
+    }
+  ],
+  "identity": {
+    "unit": "fullbench-6be549eb7f7a4092-efi.service",
+    "binary": "/usr/bin/qemu-system-x86_64",
+    "created_by_us": true,
+    "invocation": "3de3fa9a4d224936985ca42a93450b92",
+    "main_pid": 4145846,
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/fullbench-6be549eb7f7a4092-efi.service",
+    "pid_start": "147290909"
+  },
+  "outcome": "same_efi_out_of_resources",
+  "cleanup_errors": [],
+  "cleanup": "clean"
+}

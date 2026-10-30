@@ -1,0 +1,35 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] START available=25851MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+smoke 20261026T131535Z-9e875185 host MemAvailable 25833 MiB
+node v18.19.1 f3f93db342d5ac5bb61656d0599a603a73779e98befd9342171e550002725f4d python 3.12 systemd systemd 255 (255.4-1ubuntu8.18)
+PASS T0 node v18.19.1 >= 18
+PASS T0 python 3.12 >= 3.11
+PASS T1 kit bundle copy verifies (020cc8bf)
+PASS T2 test_anchored_origin 9/9 on node v18.19.1 (bundle-copy lib, rpcbase, private unit)
+PASS T3 origin refuses a non-pinned receipt (rc 2)
+PASS T4 origin refuses a datadir without db/ (rc 2)
+PASS T5a datadir writable inside the unit (ReadWritePaths): the CLI refuses 'not on a read-only mount'
+PASS T5b with BindReadOnlyPaths (private): the read-only gate passes; stops at the next gate (Finish absent)
+PASS T6 no persistent mount: guest mountinfo unchanged; fixture datadir writable again
+INFO production bundle at /opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e verifies
+SMOKE PASS (runtime qualification only: refusals + private read-only semantics + 9 tests; NOT a positive capture proof)
+## guest-smoke 20261026T131535Z-9e875185 rc=0
+## guest-smoke-runner run=20261026T131535Z-9e875185 rc=0 cleanupFailed=0 floorBreach=no
+[memory-guard] exit=0 peakTreeRssMiB=26 minHostAvailableMiB=25809
+[memory-guard] at peak: ssh:10 bash:4 gzip:3 tar:3 sleep:2 timeout:2 bash:2
+[queue] EXIT 0

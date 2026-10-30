@@ -1,0 +1,18 @@
+[queue] START available=18694MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+REUSED root-finality-r13-final-0918 (PASS f58b0b4f) for 109 byte-identical files; metadata diff: install/MANIFEST.json stage only
+manifest closure OK: 61 files, 14 trees, 32 bundle entries
+bundle assembled: {"ok": true, "entries": 32}
+bundle closure OK: 32 entries
+PASS ops-installer Ran 18 (expected 18)
+{"bundle": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r13-manifest-final/logs/run-20261026T093525Z-1412396/tmp/out-new/bundle", "files": 12139, "helios": "opt/a1-capture/bin/helios-eeffcc9", "a1gate": 3}
+ACCEPT this stage: base-finality-proof-stage/r13-manifest-final bundle files 12139
+REFUSE r13final -> REFUSED: manifest stage is base-finality-proof-stage/r10
+REFUSE stalesums -> REFUSED: composed-stage SHA256SUMS is not the reviewed one
+REFUSE stalemanifest -> REFUSED: composed-stage install/MANIFEST.json is not the reviewed manifest
+REFUSE wrongstage -> REFUSED: composed-stage SHA256SUMS is not the reviewed one
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r13-manifest-final/logs/run-20261026T093525Z-1412396
+## r13 SHA256SUMS 80cea88861f069540bd6d4214cdcd9e2020c897558f7dd4badcf572edecccd60
+## finality-r13 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=149 minHostAvailableMiB=18488
+[memory-guard] at peak: python3:145 bash:4
+[queue] EXIT 0

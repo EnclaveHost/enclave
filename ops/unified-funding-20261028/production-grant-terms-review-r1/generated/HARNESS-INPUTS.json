@@ -1,0 +1,14 @@
+{
+  "schema": "production-grant-terms-r1-harness-inputs/v1",
+  "note": "Root verified new TEST terms/amount, all native contracts/queue fixture unchanged.",
+  "files": {
+    "production-grant-terms-r1/page/index.html": "18338b36a1e27bc0e8ba5ded645675efa2e806413f25850249942c483b6cdcf7",
+    "production-grant-terms-r1/page/dist/harness.js": "7faa04181b707e9f2c4212346065c66570c55dcb8aa7aa00e0c4e8db7461408a",
+    "production-grant-terms-r1/candidate/site/vendor/funding.js": "3493bb17439d2febeab3d7fea0548261c115845349b85b3312d7cdd5fac0ef88",
+    "../source/sdk/sessions/dist/browser.mjs": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997"
+  },
+  "vendor": {
+    "/harness/vendor/funding.js": "production-grant-terms-r1/candidate/site/vendor/funding.js",
+    "/harness/vendor/sessions.js": "../source/sdk/sessions/dist/browser.mjs"
+  }
+}

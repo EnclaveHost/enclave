@@ -1,0 +1,208 @@
+{
+  "arms": [
+    {
+      "argv": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--unit",
+        "shield-snp-ab-4dbb374ddba8de4a262a5a3d4bb67f1f-A.service",
+        "--service-type=exec",
+        "--description",
+        "shield loader-only SNP A/B bench (owned, transient)",
+        "--property=MemoryMax=50G",
+        "--property=MemorySwapMax=0",
+        "--property=CPUQuota=200%",
+        "--property=RuntimeMaxSec=180",
+        "--property=KillMode=control-group",
+        "--property=RemainAfterExit=yes",
+        "--",
+        "/usr/bin/qemu-system-x86_64",
+        "-nodefaults",
+        "-no-user-config",
+        "-no-reboot",
+        "-display",
+        "none",
+        "-monitor",
+        "none",
+        "-parallel",
+        "none",
+        "-nic",
+        "none",
+        "-serial",
+        "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-run-r1/serial-A.log",
+        "-machine",
+        "q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram0,vmport=off",
+        "-cpu",
+        "host",
+        "-smp",
+        "2",
+        "-m",
+        "48G",
+        "-object",
+        "memory-backend-memfd,id=ram0,size=48G,share=true",
+        "-object",
+        "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on",
+        "-bios",
+        "/home/steven/enclave-prod/release-5cab66e4/firmware.fd",
+        "-kernel",
+        "/home/steven/enclave-prod/release-5cab66e4/kernel",
+        "-initrd",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-build-r1/images/arm-A.initramfs.cpio.gz",
+        "-append",
+        "console=ttyS0 rdinit=/init loglevel=3 panic=-1",
+        "-drive",
+        "if=none,id=model,file=/home/steven/Projects/enclave-models/qwen3.8-27b-mtp-q4-vl-gguf/Qwen3.8-27B-UD-Q4_K_XL.gguf,format=raw,readonly=on,cache=none",
+        "-device",
+        "virtio-blk-pci,drive=model,disable-legacy=on,iommu_platform=on"
+      ],
+      "arm": "A",
+      "initramfs": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-build-r1/images/arm-A.initramfs.cpio.gz",
+      "initramfs_sha256": "80d28b6f957c232cf9d721b2b6ef1a1d9af0d1c81356440d59914e140e262d9e",
+      "serial_log": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-run-r1/serial-A.log",
+      "unit": "shield-snp-ab-4dbb374ddba8de4a262a5a3d4bb67f1f-A.service"
+    },
+    {
+      "argv": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--unit",
+        "shield-snp-ab-4dbb374ddba8de4a262a5a3d4bb67f1f-B.service",
+        "--service-type=exec",
+        "--description",
+        "shield loader-only SNP A/B bench (owned, transient)",
+        "--property=MemoryMax=50G",
+        "--property=MemorySwapMax=0",
+        "--property=CPUQuota=200%",
+        "--property=RuntimeMaxSec=180",
+        "--property=KillMode=control-group",
+        "--property=RemainAfterExit=yes",
+        "--",
+        "/usr/bin/qemu-system-x86_64",
+        "-nodefaults",
+        "-no-user-config",
+        "-no-reboot",
+        "-display",
+        "none",
+        "-monitor",
+        "none",
+        "-parallel",
+        "none",
+        "-nic",
+        "none",
+        "-serial",
+        "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-run-r1/serial-B.log",
+        "-machine",
+        "q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram0,vmport=off",
+        "-cpu",
+        "host",
+        "-smp",
+        "2",
+        "-m",
+        "48G",
+        "-object",
+        "memory-backend-memfd,id=ram0,size=48G,share=true",
+        "-object",
+        "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on",
+        "-bios",
+        "/home/steven/enclave-prod/release-5cab66e4/firmware.fd",
+        "-kernel",
+        "/home/steven/enclave-prod/release-5cab66e4/kernel",
+        "-initrd",
+        "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-build-r1/images/arm-B.initramfs.cpio.gz",
+        "-append",
+        "console=ttyS0 rdinit=/init loglevel=3 panic=-1",
+        "-drive",
+        "if=none,id=model,file=/home/steven/Projects/enclave-models/qwen3.8-27b-mtp-q4-vl-gguf/Qwen3.8-27B-UD-Q4_K_XL.gguf,format=raw,readonly=on,cache=none",
+        "-device",
+        "virtio-blk-pci,drive=model,disable-legacy=on,iommu_platform=on"
+      ],
+      "arm": "B",
+      "initramfs": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-build-r1/images/arm-B.initramfs.cpio.gz",
+      "initramfs_sha256": "bade714371254c63a6e64f7e2a5706dc7049c1ae0035b331aa4bd0ad03ce8497",
+      "serial_log": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-run-r1/serial-B.log",
+      "unit": "shield-snp-ab-4dbb374ddba8de4a262a5a3d4bb67f1f-B.service"
+    }
+  ],
+  "build_manifest_sources": {
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-harness/benchlib.py": "9e02c4c0fc4344b07e9ed8a5c10b2990f4a20264e2d26f7a44b9b9225ff8a53f",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-harness/build_initramfs.py": "bfc2374c9bdd42b2e97463fddd1db94e52823c4311d24e5f319de3e7840005c2",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-harness/init/main.go": "4321e965d4b7d5d9649b08d4783a1c66ce093ee370b23cf849e7eb765bdc40a7",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-harness/init/main_test.go": "33e0d7eec3e03be30f8dd546359bd06d92bbb7c10ffe2631668d5663a075bd66",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/loader-candidate/fadvise_linux_amd64.go": "7b78900ab779002a9fb26be8f29a5bb7aa63293eef9f8dc9a07994531625c8de",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/loader-candidate/main.go": "5fabc993bfe2c63ea4abe8701a833d91554af4b717bdd549226cb344f43c8157",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/loader-candidate/main_test.go": "8a30f8d9a4322cad0310506ee651ea3bf0293f9ee5733842163a74a2d087c1cc"
+  },
+  "cpu_model": "host",
+  "host_floor_bytes": 19327352832,
+  "kind": "shield-loader-only-snp-ab-plan",
+  "model_identity": {
+    "ctime_ns": 1792900032848536549,
+    "dev": 64769,
+    "ino": 147981760,
+    "mtime_ns": 1788304922518471895,
+    "size": 17559178144
+  },
+  "out": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-run-r1",
+  "pending_production_bytes": 13958643712,
+  "pins": {
+    "firmware": {
+      "path": "/home/steven/enclave-prod/release-5cab66e4/firmware.fd",
+      "sha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9"
+    },
+    "init": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-build-r1/init",
+      "sha256": "773a9ae9b4c28fb166c049c3e0d45a5082e28a2241fe190ca85d5209964fe77f"
+    },
+    "kernel": {
+      "path": "/home/steven/enclave-prod/release-5cab66e4/kernel",
+      "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+    },
+    "loader": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-build-r1/shieldmodel",
+      "sha256": "acd688ecd7fdd1bca3a2e6269a948bab36fa066e8dca2b91b1886d4fe4c68d28"
+    },
+    "model": {
+      "path": "/home/steven/Projects/enclave-models/qwen3.8-27b-mtp-q4-vl-gguf/Qwen3.8-27B-UD-Q4_K_XL.gguf",
+      "sha256": "3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e",
+      "size": 17559178144,
+      "verified": "inside guest by shieldmodel; host stat only"
+    }
+  },
+  "plan_time_problems": [],
+  "production_guests": [
+    {
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-custodian-v2.service",
+      "pid": 3817658,
+      "ram_bytes": 3221225472,
+      "start": "32598976"
+    },
+    {
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal.service",
+      "pid": 3967858,
+      "ram_bytes": 4294967296,
+      "start": "146386551"
+    },
+    {
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gd8b0d8776-3970531.service",
+      "pid": 3970560,
+      "ram_bytes": 6442450944,
+      "start": "146403173"
+    }
+  ],
+  "qemu": {
+    "path": "/usr/bin/qemu-system-x86_64",
+    "sha256": "a2250f5e2b3b07c754473c0817df1cccf6c3c2443fc616dc474c4c311fa6ef1c"
+  },
+  "required_available_bytes": 86973087744,
+  "run_id": "4dbb374ddba8de4a262a5a3d4bb67f1f",
+  "snp_claim": "configured only: QEMU was given sev-snp-guest with kernel-hashes=on. No attestation report was requested or verified, so this run does not show that SNP was active or that the measurement matches production.",
+  "unit_limits": {
+    "CPUQuota": "200%",
+    "KillMode": "control-group",
+    "MemoryMax": "50G",
+    "MemorySwapMax": "0",
+    "RuntimeMaxSec": 180
+  }
+}

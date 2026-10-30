@@ -1,0 +1,63 @@
+{
+  "sourceHashes": {
+    "wasm/llama-shim/enclave_llama.c": "aaea0c34798d1ca554d9af7ac8385dd3fc5770f97db388172752e0445c96aa3d",
+    "wasm/llama-shim/enclave_shield_loader.cpp": "7fc1dd14c0086f02d6edafa063c438da4925278c601461a071d4810c68a63151",
+    "wasm/llama-shim/shield-original-source.hpp": "d6dee052f3674fd856d6eb9eaf980c1b82322744d97cdd6751c6c4a602edcbff"
+  },
+  "commands": [
+    [
+      "c++",
+      "-c",
+      "-fPIC",
+      "-O2",
+      "-std=c++17",
+      "-DGGML_MAX_NAME=128",
+      "-Wno-deprecated-declarations",
+      "-I",
+      "/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/include",
+      "-I",
+      "/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/src",
+      "-I",
+      "/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/include",
+      "-I",
+      "/home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov/wasm/ggml-shielded",
+      "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/candidate-build/enclave_shield_loader.cpp",
+      "-o",
+      "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/candidate-build/shield-loader.o"
+    ],
+    [
+      "cc",
+      "-shared",
+      "-fPIC",
+      "-O2",
+      "-Wl,-soname,libenclave_llama.so",
+      "-DGGML_MAX_NAME=128",
+      "-DELL_SHIELD_SOURCE_LOADER",
+      "-I",
+      "/home/steven/Projects/enclave/.consolidation/2026-10-24/worktrees/enclave-padgov/wasm/llama-shim",
+      "-I",
+      "/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/include",
+      "-I",
+      "/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/ggml/include",
+      "-I",
+      "/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-src/tools/mtmd",
+      "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/candidate-build/enclave_llama.c",
+      "-L",
+      "/home/steven/enclave-bench/shield-original-reclaim-20260929/build/engine-build/bin",
+      "-L",
+      "/home/steven/enclave-prod/release-af50d526/template/rt",
+      "-lllama",
+      "-lggml",
+      "-l:libmtmd.so.0",
+      "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/candidate-build/shield-loader.o",
+      "-lstdc++",
+      "-lcrypto",
+      "-o",
+      "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/steady-memory-r1/candidate-build/libenclave_llama.so"
+    ]
+  ],
+  "baselineBuiltSha256": "dd7ad838ec6b1054f8b7f3e90a91d2b35fbcc68878b101e648aea4542001e136",
+  "installedSha256": "5fce1b9e76824424e9d549bc2b784d946007067856d7530edb5ba958ead81b5c",
+  "exactMatch": false,
+  "compiler": "c++ (GCC) 16.2.1 20260810"
+}

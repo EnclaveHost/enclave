@@ -1,0 +1,8 @@
+[queue] START available=81470MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+{"plan": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r1/runs/plan-real-20261026T210516Z-2348696/plan.json", "planSha256": "e7355498953877b4ce7c108d9187d50c23e4f8aa7d71fa7481ac309169267bdc", "patches": 30, "patchBytes": 119040, "extents": 9001, "acceptance": "DIAGNOSTIC RECOVERY VIEW ONLY: patched metadata is authentic journal content; the DATA blocks are not authenticated"}
+e7355498953877b4ce7c108d9187d50c23e4f8aa7d71fa7481ac309169267bdc  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r1/runs/plan-real-20261026T210516Z-2348696/plan.json
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r1/runs/plan-real-20261026T210516Z-2348696
+## rov-r1-plan rc=0
+[memory-guard] exit=0 peakTreeRssMiB=59 minHostAvailableMiB=81585
+[memory-guard] at peak: python3:54 bash:4 timeout:2
+[queue] EXIT 0

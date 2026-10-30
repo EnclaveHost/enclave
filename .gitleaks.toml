@@ -45,6 +45,38 @@ regexes = ['''(?i)sha-?256|sha3|keccak|digest|hash|measurement|topic|pubkey|publ
 [[rules.allowlists]]
 regexes = ['''(?i)^(?:0x)?(?:ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80|59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d|5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a|7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6|47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a|8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba|92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e|4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356|dbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97|2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6|0{64}|1{64}|2{64}|3{64}|4{64}|5{64}|6{64}|7{64}|8{64}|9{64}|a{64}|b{64}|c{64}|d{64}|e{64}|f{64}|(?:0123456789abcdef){4})$''']
 
+[[rules.allowlists]]
+# The 21 viem 2.53.1 FILE-CONTENT digests listed in .githooks/scan-crypto-keys.py VERIFIED_MANIFEST_DIGESTS (each verified against the
+# installed file; logs/claude-scanner-final.md): only in a file named install/MANIFEST.json or bundle-origin.json AND only a line that
+# is exactly one of these entries. Rule-level (not global); a changed digest, other path, other file or extra content still fires.
+description = "verified viem 2.53.1 file-content digest entries in install manifests / bundle origins"
+condition = "AND"
+paths = ['''(^|/)(?:install/MANIFEST|bundle-origin)\.json$''']
+regexTarget = "line"
+regexes = [
+  '''^\s*"_cjs/accounts/generatePrivateKey\.js"\s*:\s*"e2fbea1ddb4f726d77389949d56accabd9451dffc5ea0ac8999cdb7e7246db3c",?\s*$''',
+  '''^\s*"_cjs/accounts/generatePrivateKey\.js\.map"\s*:\s*"c807cadad214bcb58bddc6a3744c0551f91433aa92be591fb90a8d9898d5af8f",?\s*$''',
+  '''^\s*"_cjs/accounts/privateKeyToAccount\.js"\s*:\s*"b057a40a26b6d4a831f6f336da835773abbfa5a5a2838f7ab8a54b573a3bd974",?\s*$''',
+  '''^\s*"_cjs/accounts/privateKeyToAccount\.js\.map"\s*:\s*"caf8daa9ba2e610771f6fab145725d29e3769f9558211b0dd2f40e5b24762bdb",?\s*$''',
+  '''^\s*"_cjs/accounts/utils/privateKeyToAddress\.js"\s*:\s*"5fd7ef732dd6ee612f2f40474d487127e7df84d1c8c5360af3c140f440254f57",?\s*$''',
+  '''^\s*"_cjs/accounts/utils/privateKeyToAddress\.js\.map"\s*:\s*"18789e337b762a30549df1b4c4f100949ea005444f3071de87c87996134c43bd",?\s*$''',
+  '''^\s*"_esm/accounts/generatePrivateKey\.js"\s*:\s*"0f2c44265a893e19b873236baa1d828965482af578ca49277ec7e96b04a178ab",?\s*$''',
+  '''^\s*"_esm/accounts/generatePrivateKey\.js\.map"\s*:\s*"f0de8a3a8a3466703245dc995db823cfc4fbfd50542a818dd75a73987a20dbda",?\s*$''',
+  '''^\s*"_esm/accounts/privateKeyToAccount\.js"\s*:\s*"c056d3c2d9308e74476007cda3e93cd3547068778c2b6ce67809537e207e78e6",?\s*$''',
+  '''^\s*"_esm/accounts/privateKeyToAccount\.js\.map"\s*:\s*"ec5f8d6c920ab2dcbdf1145aa07d23c39bda1c626f78795889b689b1feff429b",?\s*$''',
+  '''^\s*"_esm/accounts/utils/privateKeyToAddress\.js"\s*:\s*"67daee9447748cbb4c0caf6ad8cc45b083e32104ac0e6e23ab200a54814f0b0b",?\s*$''',
+  '''^\s*"_esm/accounts/utils/privateKeyToAddress\.js\.map"\s*:\s*"e070b4bd34caf00d87c0e67152ea521a916dade2ac2c97a6df0bc8e42cd843a3",?\s*$''',
+  '''^\s*"_types/accounts/generatePrivateKey\.d\.ts"\s*:\s*"9af19972a61e526a6482144a4a0e0fc8f86c5eacf98e58661b693cbecb552d1a",?\s*$''',
+  '''^\s*"_types/accounts/generatePrivateKey\.d\.ts\.map"\s*:\s*"4efa5af808011f7ce6fb540ff641a5735a20721626b274c3ce3b23d1f9161f94",?\s*$''',
+  '''^\s*"_types/accounts/privateKeyToAccount\.d\.ts"\s*:\s*"d1373008514c235db793c7e0981daef4461b957335b0618ad5c767dbf6026bfa",?\s*$''',
+  '''^\s*"_types/accounts/privateKeyToAccount\.d\.ts\.map"\s*:\s*"085516461cd3a24582a5cf9a78181ace68e593f9233ce42669d46ed38859293b",?\s*$''',
+  '''^\s*"_types/accounts/utils/privateKeyToAddress\.d\.ts"\s*:\s*"816fd3edc7b03bf8b6e47f2815dd8c5a4ed6eb1372718a762e458e5ef0e2bab4",?\s*$''',
+  '''^\s*"_types/accounts/utils/privateKeyToAddress\.d\.ts\.map"\s*:\s*"980c370bb07365c0e3a02f025b492ac5b179bfabfe0088ba16a30d119c875a33",?\s*$''',
+  '''^\s*"accounts/generatePrivateKey\.ts"\s*:\s*"0915e2c0b7fc500a8a5d26a709696ce8153a3ba4541e39f1af680c3bdf45bce2",?\s*$''',
+  '''^\s*"accounts/privateKeyToAccount\.ts"\s*:\s*"d6827e2718013415cd307baef5f622614b15b218f7bb1f0eb7358133a656c733",?\s*$''',
+  '''^\s*"accounts/utils/privateKeyToAddress\.ts"\s*:\s*"ab9173b7a82e03a3409239e2ffb04ee13cc97a85e8e86a168f4165fa7b27e8b5",?\s*$''',
+]
+
 [[rules]]
 id = "ethereum-private-key-env"
 description = "32-byte hex private key in a *KEY= / *SECRET= / *PRIV*= env line"
@@ -489,3 +521,148 @@ targetRules = ["coinbase-access-token"]
 paths = ["^network/attested-guest-verify\\.bundle\\.mjs\\.manifest\\.json$", "^test/fixtures/attested-guest-image\\.bundle\\.mjs\\.manifest\\.json$"]
 regexTarget = "line"
 regexes = ["^\\s*\"node_modules/viem/_esm/actions/test/setCoinbase\\.js\": \"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb\",?\\s*$"]
+[[allowlists]]
+description = "Verified SHA256 of installed public viem setCoinbase.js source in the two tested lease bundle manifests; not a Coinbase token"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = [
+  '''^ops/rpc-production-final-20261025/lease-consumer-seams-validated/tested-source/windows/node/lease-gas-runtime\.bundle\.mjs\.manifest\.json$''',
+  '''^ops/rpc-production-final-20261025/lease-consumer-seams-validated/tested-source/metal/guest/lease-gas-conduit\.bundle\.mjs\.manifest\.json$''',
+]
+regexTarget = "line"
+regexes = ['''^\s*"node_modules/viem/_esm/actions/test/setCoinbase\.js": "c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",?\s*$''']
+
+[[allowlists]]
+description = "Same verified public viem setCoinbase.js SHA256 in six actual Windows bundle-closure receipts; not a token"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = [
+    '''^ops/rpc-integration-progress-20261026/windows-r3/actual/run-20261026T015404Z/bundle-closure-baseline\.json$''',
+  '''^ops/rpc-integration-progress-20261026/windows-r3/actual/run-20261026T015404Z/bundle-closure-candidate-before\.json$''',
+  '''^ops/rpc-integration-progress-20261026/windows-r3/actual/run-20261026T015404Z/bundle-closure-candidate-after\.json$''',
+  '''^ops/rpc-windows-authority-validated-20261026/actual/run-20261026T020649Z/bundle-closure-baseline\.json$''',
+  '''^ops/rpc-windows-authority-validated-20261026/actual/run-20261026T020649Z/bundle-closure-candidate-before\.json$''',
+  '''^ops/rpc-windows-authority-validated-20261026/actual/run-20261026T020649Z/bundle-closure-candidate-after\.json$''',
+]
+regexTarget = "line"
+regexes = ['''^\s*"(?:\.\./){6}enclave/node_modules/viem/_esm/actions/test/setCoinbase\.js": "c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",?\s*$''']
+
+[[allowlists]]
+description = "Verified SHA256 of 13 installed public viem 2.53.1 *Coinbase* source files (toCoinbaseSmartAccount, setCoinbase) as exact path/digest lines of any install/MANIFEST.json or bundle-origin.json; public file-content digests, not Coinbase tokens (logs/claude-gitleaks-coinbase-fp.md)"
+# targetRules restricts this to the DEFAULT coinbase-access-token rule only: no crypto rule (ethereum-*, wif, xprv, bip39, keystore)
+# and no other default rule is affected. condition = "AND": the file NAME must be install/MANIFEST.json or bundle-origin.json (the
+# same constraint as .githooks/scan-crypto-keys.py) AND the line must be exactly one of the 13 verified path/digest entries. It is
+# reusable by any preserved snapshot stage because it names public file CONTENTS, never a location; another file name, another
+# digest, extra content or a real token still fires.
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ['''(^|/)(?:install/MANIFEST|bundle-origin)\.json$''']
+regexTarget = "line"
+regexes = [
+  '''^\s*"_cjs/account\-abstraction/accounts/implementations/toCoinbaseSmartAccount\.js"\s*:\s*"ccffc5536cd901914eaee2b279f08c983ae7b3ed6ae180ffd309cd9d4011f1b6",?\s*$''',
+  '''^\s*"_cjs/account\-abstraction/accounts/implementations/toCoinbaseSmartAccount\.js\.map"\s*:\s*"db3574564ad9130d19d89277b88b70da8f6ba27c97843ee737a8839e43609450",?\s*$''',
+  '''^\s*"_cjs/actions/test/setCoinbase\.js"\s*:\s*"9d77333d14f993f37fa7f101068b6c0399622e932b628597b3ff1a2d1d8125ea",?\s*$''',
+  '''^\s*"_cjs/actions/test/setCoinbase\.js\.map"\s*:\s*"508bf1493b23e8fe823519de960c8545059870214e86c3d9572c1663b53b81c5",?\s*$''',
+  '''^\s*"_esm/account\-abstraction/accounts/implementations/toCoinbaseSmartAccount\.js"\s*:\s*"e66a4b64e7684f42f557e9212318e2394508b833d5a6e197eb02b6a5b9c1ca21",?\s*$''',
+  '''^\s*"_esm/account\-abstraction/accounts/implementations/toCoinbaseSmartAccount\.js\.map"\s*:\s*"4c588c7240f580902577a6e21824e9e0ea4517e6a72ec051bfca65227f702cd5",?\s*$''',
+  '''^\s*"_esm/actions/test/setCoinbase\.js"\s*:\s*"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",?\s*$''',
+  '''^\s*"_esm/actions/test/setCoinbase\.js\.map"\s*:\s*"05dd8b6ec6a67ea0730c24f4d8b17af83621e82eafe2092b74be0f8841dace02",?\s*$''',
+  '''^\s*"_types/account\-abstraction/accounts/implementations/toCoinbaseSmartAccount\.d\.ts"\s*:\s*"f4b79c91693fbed54cbc52c904ec5ab8fea9a6f6e875fee00f23df7d366d0ae8",?\s*$''',
+  '''^\s*"_types/actions/test/setCoinbase\.d\.ts"\s*:\s*"91d378f564d91afa23da2a7985d2a721cee70494e02b96a439ae3d156297e8ce",?\s*$''',
+  '''^\s*"_types/actions/test/setCoinbase\.d\.ts\.map"\s*:\s*"989a876500a3fa277df29a5bbea7d106e95f02b734f274978f3ddce21fcee423",?\s*$''',
+  '''^\s*"account\-abstraction/accounts/implementations/toCoinbaseSmartAccount\.ts"\s*:\s*"e61ddd268dd9c5e588d3cb65599ca9c478743e78596243c027b96bc1350238a6",?\s*$''',
+  '''^\s*"actions/test/setCoinbase\.ts"\s*:\s*"52ef6c939763a0597d1241035a9eda94d90fc44e34abe6e9af687a861c3e8072",?\s*$''',
+]
+
+# The committed signed-capture r2 vendor manifest is ONE compact JSON line (1.5 MB) of public viem 2.53.1 file paths and their
+# sha256. 14 of those files are named *Coinbase*; each digest was recomputed against the vendored file (review:
+# ops/rpc-runtime-followups-20261026/public-digest-scan-review.json). The default coinbase-access-token rule matches 13 of them
+# (toCoinbaseSmartAccount.d.ts.map puts 22 characters between "coinbase" and the separator, beyond the rule's 20); all 14 audited
+# digests are listed. condition = "AND": exactly this one path AND the SECRET is exactly one of these digests (a LINE target would
+# allowlist everything on the single line). Only this default rule, no crypto rule: a forged digest, a token, a key or a mnemonic
+# in the same file, or these digests anywhere else, still fire (.githooks/gitleaks-selftest.py VENDOR scenarios v1-v7).
+[[allowlists]]
+description = "14 audited public viem 2.53.1 *Coinbase* file digests in the committed signed-capture r2 VENDOR.json; exact path and exact digest only"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ['''^ops/rpc-runtime-followups-20261026/signed-capture-r2/VENDOR\.json$''']
+regexes = [
+  '''^ccffc5536cd901914eaee2b279f08c983ae7b3ed6ae180ffd309cd9d4011f1b6$''',
+  '''^db3574564ad9130d19d89277b88b70da8f6ba27c97843ee737a8839e43609450$''',
+  '''^9d77333d14f993f37fa7f101068b6c0399622e932b628597b3ff1a2d1d8125ea$''',
+  '''^508bf1493b23e8fe823519de960c8545059870214e86c3d9572c1663b53b81c5$''',
+  '''^e66a4b64e7684f42f557e9212318e2394508b833d5a6e197eb02b6a5b9c1ca21$''',
+  '''^4c588c7240f580902577a6e21824e9e0ea4517e6a72ec051bfca65227f702cd5$''',
+  '''^c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb$''',
+  '''^05dd8b6ec6a67ea0730c24f4d8b17af83621e82eafe2092b74be0f8841dace02$''',
+  '''^f4b79c91693fbed54cbc52c904ec5ab8fea9a6f6e875fee00f23df7d366d0ae8$''',
+  '''^3c970490971d0be5bd0ccccd79fc7481bc8ffb84300327d388518813d7c44b67$''',
+  '''^91d378f564d91afa23da2a7985d2a721cee70494e02b96a439ae3d156297e8ce$''',
+  '''^989a876500a3fa277df29a5bbea7d106e95f02b734f274978f3ddce21fcee423$''',
+  '''^e61ddd268dd9c5e588d3cb65599ca9c478743e78596243c027b96bc1350238a6$''',
+  '''^52ef6c939763a0597d1241035a9eda94d90fc44e34abe6e9af687a861c3e8072$''',
+]
+
+# The regenerated credit-vault-submitter host-service package manifest (ONE exact path) lists public viem 2.53.1 file paths with
+# their sha256 file-content digests (re-hashed from the installed files; logs/claude-package-digest-scan.md). Three file names contain
+# "privateKey" (ethereum-private-key-labelled) and one contains "Coinbase" (default coinbase-access-token). condition = "AND":
+# exactly this path AND exactly one of these entry lines; each allowlist targets only its own rule. Mirrored by
+# .githooks/scan-crypto-keys.py VERIFIED_FILE_DIGESTS (the labelled lines are built exactly as gitleaks_allow_line() builds them).
+[[allowlists]]
+description = "3 verified public viem 2.53.1 *privateKey* file digests in the regenerated credit-vault-submitter package manifest; exact path and exact entries only"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ['''^ops/rpc-consumer-final-r4-20261026/stage/inputs/regenerated/credit-vault-submitter\.package\.json$''']
+regexTarget = "line"
+regexes = [
+  '''^\s*"node_modules/viem/_esm/accounts/generatePrivateKey\.js"\s*:\s*"0f2c44265a893e19b873236baa1d828965482af578ca49277ec7e96b04a178ab",?\s*$''',
+  '''^\s*"node_modules/viem/_esm/accounts/privateKeyToAccount\.js"\s*:\s*"c056d3c2d9308e74476007cda3e93cd3547068778c2b6ce67809537e207e78e6",?\s*$''',
+  '''^\s*"node_modules/viem/_esm/accounts/utils/privateKeyToAddress\.js"\s*:\s*"67daee9447748cbb4c0caf6ad8cc45b083e32104ac0e6e23ab200a54814f0b0b",?\s*$''',
+]
+
+[[allowlists]]
+description = "verified public viem 2.53.1 setCoinbase.js digest in the regenerated credit-vault-submitter package manifest; exact path and exact entry only"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ['''^ops/rpc-consumer-final-r4-20261026/stage/inputs/regenerated/credit-vault-submitter\.package\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"node_modules/viem/_esm/actions/test/setCoinbase\.js"\s*:\s*"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",?\s*$''']
+
+# Public Solidity test-double class name, defined in the archived LifecycleR5Doubles.sol.
+# This is not credential material. Exact file + exact matched class name only.
+[[allowlists]]
+description = "Public R4SecretVaultV2 fixture class name at its one ABI conformance test"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^ops/rpc-rollout-integration-20261026/lifecycle-r6/test/deployment-chain-adapter-r5-abi\.test\.mjs$''']
+regexTarget = "secret"
+regexes = ['''^R4SecretVaultV2$''']
+
+# Public assertion message in the archived journal-r1 root test script (an AssertionError text, "missing/unexpected summary").
+# This is not credential material. Exact file + exact matched literal only, for the default generic-api-key rule only.
+[[allowlists]]
+description = "Public assertion-message literal at its one archived root test script"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^ops/rpc-durability-review-20261026/journal-r1/root-test\.sh$''']
+regexTarget = "secret"
+regexes = ['''^missing/unexpected$''']
+
+# Public preparation-mode selector, not an API credential. Exact five archived
+# files and exact matched literal only; every other secret rule remains active.
+[[allowlists]]
+description = "Public funding preparation mode literal in reviewed cutover package"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['^ops/unified-funding-20261028/migration-cutover-site-review-r1/(generator/generate_site(\.author)?\.py|author-final/generator/generate_site\.py|candidate/sdk/funding/funding-client\.mjs|candidate/site/vendor/funding\.js)$']
+regexTarget = "secret"
+regexes = ['^pre-funding-api-404-r1$']
+
+# Same public preparation-mode enum in the byte-preserved production SDK evidence.
+[[allowlists]]
+description = "Public preparation-mode enum in reviewed expired-execution SDK snapshot"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['^ops/unified-funding-20261028/production-execute-expiry-20261029/production-sdk/funding/funding-client\.mjs$']
+regexTarget = "secret"
+regexes = ['^pre-funding-api-404-r1$']

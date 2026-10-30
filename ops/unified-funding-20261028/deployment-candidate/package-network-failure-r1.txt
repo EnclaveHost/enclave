@@ -1,0 +1,17 @@
+[queue] START available=30345MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/unified-funding-20261028/deployment-candidate/prepare-bundle.mjs:13
+const request=providers.map(url=>async(method,params)=>{if(!['eth_chainId','eth_blockNumber','eth_getBlockByNumber','eth_call','eth_getCode','eth_getTransactionCount','eth_getBalance'].includes(method))throw new Error('read-only RPC allowlist');const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params}),signal:AbortSignal.timeout(12000)});if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(j.error)throw new Error(JSON.stringify(j.error));return j.result;});
+                                                                                                                                                                                                                                                                                                                                                                                                                                                   ^
+
+Error: HTTP 429
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/unified-funding-20261028/deployment-candidate/prepare-bundle.mjs:13:436
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Promise.all (index 0)
+    at async file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/unified-funding-20261028/deployment-candidate/prepare-bundle.mjs:15:11
+
+Node.js v22.23.3
+[memory-guard] exit=1 peakTreeRssMiB=77 minHostAvailableMiB=30264
+[memory-guard] at peak: node:77
+[memory-guard] exit=1 peakTreeRssMiB=137 minHostAvailableMiB=30264
+[memory-guard] at peak: node:77 node:60
+[queue] EXIT 1

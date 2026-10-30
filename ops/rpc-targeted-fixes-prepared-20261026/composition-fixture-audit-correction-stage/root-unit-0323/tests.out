@@ -1,0 +1,18 @@
+test_a_dependency_closure_change_fails (__main__.Audit.test_a_dependency_closure_change_fails) ... ok
+test_a_tampered_or_missing_artifact_fails (__main__.Audit.test_a_tampered_or_missing_artifact_fails) ... ok
+test_an_arbitrary_source_change_fails (__main__.Audit.test_an_arbitrary_source_change_fails) ... ok
+test_an_extra_unexpected_file_fails (__main__.Audit.test_an_extra_unexpected_file_fails) ... ok
+test_cache_or_build_info_only_with_an_exact_record (__main__.Audit.test_cache_or_build_info_only_with_an_exact_record) ... ok
+test_git_runs_without_optional_locks_and_writes_nothing (__main__.Audit.test_git_runs_without_optional_locks_and_writes_nothing) ... ok
+test_network_runtime_and_stack_copies_must_be_their_recorded_bytes (__main__.Audit.test_network_runtime_and_stack_copies_must_be_their_recorded_bytes) ... ok
+test_r12_line_191_rule_flags_every_listed_artifact_file (__main__.Audit.test_r12_line_191_rule_flags_every_listed_artifact_file) ... ok
+test_symlinks_and_escapes_fail (__main__.Audit.test_symlinks_and_escapes_fail) ... ok
+test_the_corrected_audit_passes_the_exact_bound_state (__main__.Audit.test_the_corrected_audit_passes_the_exact_bound_state) ... ok
+test_the_d_time_evidence_must_be_exactly_the_bound_artifacts (__main__.Audit.test_the_d_time_evidence_must_be_exactly_the_bound_artifacts) ... ok
+test_combine_accepts_only_a_completed_run_whose_only_failure_is_the_d_line (__main__.Combine.test_combine_accepts_only_a_completed_run_whose_only_failure_is_the_d_line) ... ok
+test_combine_never_passes_an_unfinished_or_unclean_run (__main__.Combine.test_combine_never_passes_an_unfinished_or_unclean_run) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 4.128s
+
+OK

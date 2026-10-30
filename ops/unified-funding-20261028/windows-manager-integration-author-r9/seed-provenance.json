@@ -1,0 +1,15 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-integration-r9-20261029/materialized-seed",
+  "sourceManifest": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/source-pins.json",
+  "sourceManifestSha256": "ce6e378ef2db3e0c83ddbee6a14720c5f0e1777d461fd88a050590cb7a508b9d",
+  "originalRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/candidate",
+  "originalFiles": 176,
+  "seedFiles": 216,
+  "seedManifestSha256": "8cd008e2c36650204cc7f16ff2cb2cd572ba1c6a40b5b7c69e32a2069132474c",
+  "materializationSha256": "fb931980d8414bf0b541a03a3342e53a4cacec7b3cc03da455a36adbb979231e",
+  "preAuthorProductEdits": [],
+  "existingFilesOverwritten": [],
+  "rootProductChangesSinceAuthorR8": [],
+  "noCandidateCodeExecuted": true,
+  "externalFixtureCorrections": "Preserved read-only root-corrected-r7-owner-lifetime and root-corrected-r8-permit-owner-loss. Candidate fixtures untouched in preparation."
+}

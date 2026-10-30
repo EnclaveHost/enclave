@@ -1,0 +1,36 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] START available=18161MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+test_changed_pin_count_refuses (__main__.Engine.test_changed_pin_count_refuses) ... ok
+test_declared_helper_edge_is_followed (__main__.Engine.test_declared_helper_edge_is_followed) ... ok
+test_discovered_graph_equals_spec_and_propagates_to_a_fixpoint (__main__.Engine.test_discovered_graph_equals_spec_and_propagates_to_a_fixpoint) ... ok
+test_missing_declared_edge_refuses (__main__.Engine.test_missing_declared_edge_refuses) ... ok
+test_propagation_that_does_not_converge_within_the_bound_refuses (__main__.Engine.test_propagation_that_does_not_converge_within_the_bound_refuses) ... ok
+test_residue_refuses_a_remaining_superseded_pin (__main__.Engine.test_residue_refuses_a_remaining_superseded_pin) ... ok
+test_undeclared_edge_refuses (__main__.Engine.test_undeclared_edge_refuses) ... ok
+test_add_over_existing_and_manifest_dest_collision_refuse (__main__.Wiring.test_add_over_existing_and_manifest_dest_collision_refuse) ... ok
+test_cross_overlay_base_pin_is_propagated_not_refused (__main__.Wiring.test_cross_overlay_base_pin_is_propagated_not_refused) ... ok
+test_cross_overlay_without_the_alias_or_with_a_wrong_count_refuses (__main__.Wiring.test_cross_overlay_without_the_alias_or_with_a_wrong_count_refuses) ... ok
+test_embedded_qualification_in_the_frozen_input_refuses (__main__.Wiring.test_embedded_qualification_in_the_frozen_input_refuses) ... ok
+test_exact_base_overlay_applies_and_seeds_the_registry (__main__.Wiring.test_exact_base_overlay_applies_and_seeds_the_registry) ... ok
+test_external_qualification_binds_a_frozen_input_after_the_fact (__main__.Wiring.test_external_qualification_binds_a_frozen_input_after_the_fact) ... ok
+test_file_binding_mode (__main__.Wiring.test_file_binding_mode) ... ok
+test_overlapping_change_refuses (__main__.Wiring.test_overlapping_change_refuses) ... ok
+test_qualification_for_other_sums_or_stage_refuses (__main__.Wiring.test_qualification_for_other_sums_or_stage_refuses) ... ok
+test_second_overlay_on_the_same_path_refuses (__main__.Wiring.test_second_overlay_on_the_same_path_refuses) ... ok
+test_stale_pin_refuses (__main__.Wiring.test_stale_pin_refuses) ... ok
+test_wrong_receipt_sha_or_missing_line_or_unbound_receipt_refuses (__main__.Wiring.test_wrong_receipt_sha_or_missing_line_or_unbound_receipt_refuses) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 0.016s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

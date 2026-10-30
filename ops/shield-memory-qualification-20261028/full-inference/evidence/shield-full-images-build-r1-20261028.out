@@ -1,0 +1,40 @@
+[queue] START available=84332MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB
+Running as unit: enclave-shield-full-images-build-r1-20261028.service
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/public-probe.bundle 117553 bytes app_id=f957f6cba2b43fc4a68e065bcd10fa3447514bd93261d7c17058a32ea024b5ed
+app_image /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/A.cpio.gz app_id f957f6cba2b43fc4a68e065bcd10fa3447514bd93261d7c17058a32ea024b5ed
+app_image /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/B.cpio.gz app_id f957f6cba2b43fc4a68e065bcd10fa3447514bd93261d7c17058a32ea024b5ed
+app_image /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/A1.cpio.gz app_id f957f6cba2b43fc4a68e065bcd10fa3447514bd93261d7c17058a32ea024b5ed
+{
+  "scope": "build only, no execution",
+  "guest_mib": 57344,
+  "vcpus": 16,
+  "app_sha256": "f957f6cba2b43fc4a68e065bcd10fa3447514bd93261d7c17058a32ea024b5ed",
+  "probe_source_sha256": "b175be3f48e14befe42e4d055ba2a106e225b2d93ba56a1dd4dd6b6972cd189c",
+  "candidate_loader_sha256": "acd688ecd7fdd1bca3a2e6269a948bab36fa066e8dca2b91b1886d4fe4c68d28",
+  "stage_manifest_sha256": "b31584a53b0db0c734f9202aa925530eb0899cb973ab7937ce99ea9229fb7c42",
+  "arms": {
+    "A": {
+      "image": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/A.cpio.gz",
+      "sha256": "7a71d50dfe4282a895d677377347f47f0230b0fc69000b697f38c6a3da8846ec",
+      "measurement": "9eacbb3f9bb85967bcf9a8affa34fd3231cb7ab810faccca7ffa36acf848ea7984c1087895afda532b34a3088d053896"
+    },
+    "B": {
+      "image": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/B.cpio.gz",
+      "sha256": "355b93ef88bf1edc3de1e2e693f73ae6bc4f39ae5236b4f56499178e2d991ea6",
+      "measurement": "f36f57ee86807d690977872184350350924440db54babf2100c1d990364cb2fad0577931a63ea35454ffd2ef10977ae2"
+    },
+    "A1": {
+      "image": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/A1.cpio.gz",
+      "sha256": "9998bfa8dec31fe9c6e57d426c8899afa9b8dedf96f5af56f07ce799cbf84187",
+      "measurement": "f3c9e57ced0dee41818fb4b18f7709f9f1f661dc6efdba3340e2064018d134db92353ca1cccdf02e9f37bf113ec33e96"
+    }
+  }
+}
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 5min 3.728s
+             CPU time consumed: 5min 1.145s
+                   Memory peak: 2.5G (swap: 0B)
+[memory-guard] exit=0 peakTreeRssMiB=5 minHostAvailableMiB=82748
+[memory-guard] at peak: systemd-run:5
+[queue] EXIT 0

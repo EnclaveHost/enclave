@@ -1,0 +1,3 @@
+# Native admission mechanism delivery — not qualified
+
+All ten frozen source/contract files are preserved. Seven files changed or were added; none were removed. The author completed with exit 0; readonly drift and mutation replay issues were zero. No author build or test ran. The creator and actual shared capacity-hold interfaces remain absent. The ordinary limits/death path unconditionally refuses before creating a child. The separate internal observer path requires independent review and must not be treated as covered by that ordinary-path refusal. All Windows/native/production qualification flags remain false.

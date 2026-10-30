@@ -1,0 +1,11 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/candidate",
+  "sourceManifest": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r7/source-pins.json",
+  "sourceManifestSha256": "9b84468a0754ecda6f87f588bd4bd9a8db00560f5646687fb13b9870ad3bb464",
+  "seedFiles": 169,
+  "seedManifestSha256": "d11f2f60afbfff9bd7e4154057b86cd0a209c79337093ceb19d67b1e3c0b1c9c",
+  "preAuthorProductEdits": [],
+  "rootProductChangesSinceAuthorR7": [],
+  "noCandidateCodeExecuted": true,
+  "externalFixtureCorrections": "root-composite.test.mjs shares runtime sequence with actual gate journal and routes TCP through actual router.dataServer. Candidate remains byte-exact author169."
+}

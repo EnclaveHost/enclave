@@ -1,0 +1,32 @@
+[queue] START available=23118MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+test_child_runs_need_the_original_case_env_and_argv (__main__.Compound.test_child_runs_need_the_original_case_env_and_argv) ... ok
+test_complete_evidence_is_accepted_and_the_original_failure_stays_recorded (__main__.Compound.test_complete_evidence_is_accepted_and_the_original_failure_stays_recorded) ... ok
+test_run2_pins_and_its_own_failure_cannot_be_rewritten (__main__.Compound.test_run2_pins_and_its_own_failure_cannot_be_rewritten) ... ok
+test_the_control_must_fail_exactly_by_its_assertion (__main__.Compound.test_the_control_must_fail_exactly_by_its_assertion) ... ok
+test_the_pinned_binary_and_source_must_be_the_ones_executed (__main__.Compound.test_the_pinned_binary_and_source_must_be_the_ones_executed) ... ok
+test_the_single_ignored_test_must_be_exactly_the_annotated_child (__main__.Compound.test_the_single_ignored_test_must_be_exactly_the_annotated_child) ... ok
+test_zero_test_multi_test_ignored_and_wrong_name_runs_are_refused (__main__.Compound.test_zero_test_multi_test_ignored_and_wrong_name_runs_are_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 1.368s
+
+OK
+
+## cli-child supplement attempt 1: unit exit 0; compound checker rc 0 (receipt /srv/m10-guest-validation/receipts/cli-child-1.compound.json)
+## compoundAccepted: True
+{
+ "format": "m10-cli-child-compound/v1",
+ "originalReceiptPass": false,
+ "originalReceiptPreserved": true,
+ "compoundAccepted": true,
+ "basis": "run-2 pinned (8 phases + aggregate) + supplement (45 alone + child x3 + no-env control)",
+ "summary": {
+  "nonIgnoredPassed": 45,
+  "childPassed": 3,
+  "controlKilledByAssertion": true
+ },
+ "failures": []
+}
+[memory-guard] exit=0 peakTreeRssMiB=47 minHostAvailableMiB=23090
+[memory-guard] at peak: python3:23 python3:20 bash:4
+[queue] EXIT 0

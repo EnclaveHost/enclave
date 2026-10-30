@@ -1,0 +1,13 @@
+# Production runtime evidence
+
+October28 08:33 UTC: normal signed dashboard Restart accepted for EyesOff 1.0.85, deployment0x9eb4e600…871c. Guestgdc03538eb booted with original firmware/kernel, same64281MiB,16vCPU,65%CPU/RAM and80%GPU shares. The code/config/version and original administrator controls remain unchanged.
+
+The guest measurement exactly matches both independent reconstruction and the live relay catalog prediction foraf50d526. A separate trusted client checked a fresh AMD-chain/TCB-verified SNP report, unchanged runtime W^X/seccomp policy, HOST_DATA, current TLS handshake key, second fresh nonce and replay rejection, then received200/models on the pinned key. The model is preloaded and GPU-enabled. This is VMPL0; no confinement above the guest is claimed. Runtime self-tests are the measured guest's statements, not independent hardware measurements of all process behavior.
+
+Model hash3f227079…8b01e matched all17559178144bytes; source_dontneed_advised_bytes=17559178144, failures0. Copy+verify20.874s versus original observed30.086s. The authenticated browser canary returned exactly LOADER_CANARY_OK on GPU: app-reported72tokens, prefill38187ms, decode3695ms,19.5tokens/sec. This is one successful generation, not a controlled before/after throughput comparison.
+
+The host cgroup initially reached about38.6GiB, but full warm-up later reached58.61GiB, approximately the old58.58GiB. Thus the loader-only saving does NOT establish a sustained RAM reduction or justify lowering the VM allocation/floors. Existing four isolated loading trials remain valid only for their loading-only scope. No OOM events observed. Sampled host reserve stayed above16GiB.
+
+Both public certificates were installed: eyesoff.ai viaZeroSSL and9eb4e600.app.enclave.host viaLet's Encrypt, both bound to the freshly attested guest key. Transient stale DNS had pointed to old ingress addresses; the KVM chat independently observed matching fresh signed routes and200 on the current ingresses. Its investigation did not change route-state floors or serviceconfiguration. Separate route rollback/equivocation messages remain unattributed; no trust protections were disabled.
+
+The authenticated browser canary completed on the new guest. It did not require another wallet transaction or financial transfer. Tool discovery reported the existing unavailable api-mcp-adapter and cron deployments; the plain-text inference still succeeded. Other user chats were preserved. Screenshot retained locally in outputs/rpc-production-final-20261025/eyesoff-loader-canary-20261028.jpg, not published with account UI. No claims of sustained RAM saving or fully qualified production throughput are made by this file.

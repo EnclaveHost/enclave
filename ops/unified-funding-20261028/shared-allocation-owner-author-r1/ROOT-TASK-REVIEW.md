@@ -1,0 +1,7 @@
+# Shared allocation source author admission
+
+Reviewed TASK, runner, preparation closure, collector and shared queue. Preflight verifies17,283 readonly inputs, exact252 seed and zero extras, exact Claude2.1.281 hash and required Max account. Runner independently repeats checks and uses exclusive attempt/output creation,55 turns/1,800s child/2,100s outer; one CPU1,1,536MiB hard/1,408RSS,27,648MiB floor/no swap. Tool restrictions are not an OS sandbox; terminal mutation replay and outside-path audit remain required.
+
+Positive scope: one physically owned durable allocation ledger and authenticated service shared by two actual manager clients, acquire/validate/observe/release, exact request/incarnation commitments, integration at captured backend launch and final WMI define/start boundaries. Preserve same Manager/domain/relay/readiness/Stop/serving state. Author tests but does not execute them. Four focused modules plus narrow composition changes; no primitive/chain/bundle/native creator/hot-loader or production mutations.
+
+Open qualification boundaries must remain explicit: aggregate host/helper/kernel/commit bounds, current resident source and activation hook, native storage/creator proof. Conservative full-interval capacity accounting remains a valid alternative if independently proved to fit. No new successful API wrapper may be labelled installed or native-qualified. Source author can proceed without another human approval; production permission does not replace technical readiness.

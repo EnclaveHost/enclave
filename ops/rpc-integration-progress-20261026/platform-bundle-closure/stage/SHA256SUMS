@@ -1,0 +1,5 @@
+8c3492799b5bb85f598e581ca3602ed592dd052670506cc266a4e4261bb6be66  ./README.md
+132fc7b1bb152fe84740ace0ddbe92dc61bbd5b0936a92188f4ee60427f39488  ./composition/consumer-1bdf-r4.env
+68f786d58347bcdb2e4b7badd13758da1f629ee6c27bb8aca75764956c240010  ./expected/generated-artifacts.txt
+8fef44576b76094ff87a6c2807f4f34a66c45e75a9beb5b607793a8ad7938ea8  ./jobs/root-platform-bundle-closure.sh
+dc30837419d44ea5fddc6965e3e95a020588db9e6957e83cd24d84e9b4c76439  ./lib/closure.py

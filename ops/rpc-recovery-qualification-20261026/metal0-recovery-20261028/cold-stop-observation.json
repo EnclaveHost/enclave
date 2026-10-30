@@ -1,0 +1,20 @@
+{
+  "observedAt": "2026-10-28T03:15:03.870032+00:00",
+  "stoppedAtSec": 1793157303,
+  "units": {
+    "enclave-metal.service": {
+      "ActiveState": "inactive",
+      "InactiveEnterTimestampMonotonic": "1462417550708",
+      "MainPID": "0"
+    },
+    "enclave-custody-protected-leases-20261023.service": {
+      "ActiveState": "inactive",
+      "InactiveEnterTimestampMonotonic": "0",
+      "MainPID": "0"
+    }
+  },
+  "noGuestUnits": true,
+  "noGuestRecords": true,
+  "preservationReceiptSha256": "e98390ab7f10f4df83593b177e9bcc1d8b9fc1f17065664165e420627ee4cc90",
+  "walletTransaction": "0x29e88beb5cf7b5b1c22bcf4185076730828e9a2ca44e0651e9d6710e72bedb3a"
+}

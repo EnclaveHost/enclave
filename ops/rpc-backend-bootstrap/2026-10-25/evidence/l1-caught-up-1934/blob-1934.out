@@ -1,0 +1,69 @@
+[queue] START available=20120MiB required=18688MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1792MiB
+{
+  "observedAt": "2026-10-25T19:32:53.269204+00:00",
+  "kind": "availability-diagnostic-only",
+  "coverageVerified": false,
+  "authenticatedCanonicalHistory": false,
+  "checkpointSlot": 15508320,
+  "samples": [
+    {
+      "startSlot": 15505056,
+      "slot": 15505056,
+      "executionOptimistic": false,
+      "blockFinalized": true,
+      "commitments": 6,
+      "blobHTTP": 200,
+      "blobCount": 6,
+      "allKzgCommitmentsMatch": true,
+      "versionedHashes": [
+        "0x0176abadfe6f773db42d20351b067d94750768108badc5c43d8cd41d74802980",
+        "0x010a68a276f692a0eeb80bb7f8095745a1f0ef56e97229a6ed538371abbc2aa7",
+        "0x0158d6316fa3990046ae57573f9a6c0b9a6665fff3b97a5d99a7ade0ce624b27",
+        "0x0153102d711f399da9deb90944f6ae3b0ae46bac8213a427a2184eb8a86dec25",
+        "0x01a4ed90f88a8068016e5b7bf3e1fdd948fb00142f6762ba773e6537271c2d7e",
+        "0x01153cf82698c4e56a4be579237b1e94c3d1f744af5ed014bb0837b6b38f86a8"
+      ]
+    },
+    {
+      "startSlot": 15506080,
+      "slot": 15506081,
+      "executionOptimistic": false,
+      "blockFinalized": true,
+      "commitments": 3,
+      "blobHTTP": 200,
+      "blobCount": 3,
+      "allKzgCommitmentsMatch": true,
+      "versionedHashes": [
+        "0x01216c481065d52e1bd143605d3000645ec91cd7efbc0634d7da171fd63a31e0",
+        "0x01a68941182b41e5da2e00dfa638663484f44204cdf8e87acd0c228c19b84093",
+        "0x016ae8290abf747d3bd451f6ebfe2c03f5830bfb1701d05c1084a0cee452ceac"
+      ]
+    },
+    {
+      "startSlot": 15508000,
+      "slot": 15508000,
+      "executionOptimistic": false,
+      "blockFinalized": true,
+      "commitments": 10,
+      "blobHTTP": 200,
+      "blobCount": 10,
+      "allKzgCommitmentsMatch": true,
+      "versionedHashes": [
+        "0x01a6ebf504fc9e3d0915cc379d2a1307917190fb5f6fb29c710021ba0e37faaa",
+        "0x0123134ec94dbe6915867571d3edd97407b78d25569e69d72223a42289f3131a",
+        "0x011a6b48eb5fe9c44de28e1de4f0c328faea915fc9e4f3ae4afe09793f4195b0",
+        "0x01b69f7c71e58c98234dda7a01c3b4929d805ed9a137eeb6ee49917a35f0dd65",
+        "0x0115874526aedff491b3c2843b7a30f90e2251bb3a5983e2fde96e407ad0664c",
+        "0x01bd2a78004b0d425ece097b0c1cfa9953e93056d4e4e0f1224fc836aca21723",
+        "0x01982466b53a112e0cb8b64ba4e1a7cd8ac08c9d3e0da10d44f57eac2501bb85",
+        "0x01aa7fc5cfd816facc8393e34805b782ce3fd9521c93d054dd225bf8996fcaa5",
+        "0x0186d2af6fc23c341c2ec9bc10f7e278d35c6b202022f6c9f684933231668b66",
+        "0x013a2b3ca7ea9bd4804c7d82be5ae5e96e593a8b6345df0bdd69d027998be54f"
+      ]
+    }
+  ],
+  "requests": 7
+}
+[memory-guard] exit=0 peakTreeRssMiB=39 minHostAvailableMiB=19888
+[memory-guard] at peak: python3:30 kzgcheck:9
+[queue] EXIT 0

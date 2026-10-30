@@ -1,0 +1,1 @@
+INERT browser qualification. Exact repaired product plus shipped SDK. Test fixture derives from preserved prod-root setup, exposes real view/controllers and IndexedDB under unique disposable test database. Four independent origin objects are mocks, not Base. No wallet connection/signature/network relay. No production journal read or write.

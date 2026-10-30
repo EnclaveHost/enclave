@@ -1,0 +1,41 @@
+{
+ "ok": true,
+ "entries": {
+  ".": {
+   "type": "d",
+   "mode": "0o700",
+   "size": null
+  },
+  "DERIVED-READER-IMAGE.json": {
+   "type": "f",
+   "mode": "0o644",
+   "size": 2896
+  },
+  "derived-reader": {
+   "type": "d",
+   "mode": "0o700",
+   "size": null
+  },
+  "derived-reader/derived-reader-v3.json": {
+   "type": "f",
+   "mode": "0o600",
+   "size": 2120
+  },
+  "derived-reader-v3": {
+   "type": "d",
+   "mode": "0o700",
+   "size": null
+  },
+  "derived-reader-v3/derived-state.lock": {
+   "type": "f",
+   "mode": "0o600",
+   "size": 0
+  },
+  "derived-reader-v3/runs": {
+   "type": "d",
+   "mode": "0o700",
+   "size": null
+  }
+ },
+ "violations": []
+}

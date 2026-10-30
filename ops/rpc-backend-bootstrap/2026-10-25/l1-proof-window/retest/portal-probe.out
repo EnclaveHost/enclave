@@ -1,0 +1,5 @@
+[queue] START available=19608MiB required=18688MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1792MiB
+{"startedAt": "2026-10-25T19:53:28.636217+00:00", "kind": "own-L1-Helios-verified-getter-probe", "A1Accepted": false, "productionActivated": false, "portal": "0x49048044d57e1c92a77f79988d21fa8faf74e97e", "getter": "anchorStateRegistry()", "selector": "0x5c0cba33", "note": "Getter is probed, not assumed implemented. All calls use the same light-client cached block hash; no public RPC fallback.", "block": {"number": "0x190e048", "hash": "0xdbbc052a4bb7bf6ca5f3993fc888bb14a6a82f0851faa8104b274bf56f099185", "stateRoot": "0x2b133b1396e46f16a03e4be06d144ccaa3e86d83049c4a7cd34d9da0b9b86732", "timestamp": "0x6ade59d7"}, "error": "TimeoutError: timed out", "processStopped": true, "finishedAt": "2026-10-25T19:53:43.679450+00:00"}
+[memory-guard] exit=1 peakTreeRssMiB=86 minHostAvailableMiB=19517
+[memory-guard] at peak: 3:58 python3:28
+[queue] EXIT 1

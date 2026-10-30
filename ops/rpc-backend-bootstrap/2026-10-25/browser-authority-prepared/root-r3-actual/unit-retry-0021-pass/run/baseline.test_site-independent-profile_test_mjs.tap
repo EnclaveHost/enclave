@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: a complete profile validates and normalizes; the CLI's contract-pin document is embedded unchanged
+ok 1 - a complete profile validates and normalizes; the CLI's contract-pin document is embedded unchanged
+  ---
+  duration_ms: 2.187717
+  type: 'test'
+  ...
+# Subtest: invalid profiles are refused with a reason
+ok 2 - invalid profiles are refused with a reason
+  ---
+  duration_ms: 1.392675
+  type: 'test'
+  ...
+# Subtest: saved profiles need this tab's confirmation; built-in ones do not; broken ones never load
+ok 3 - saved profiles need this tab's confirmation; built-in ones do not; broken ones never load
+  ---
+  duration_ms: 2.206027
+  type: 'test'
+  ...
+# Subtest: config.js: an active profile pins every binding and never consults the book or the hosted upload service
+ok 4 - config.js: an active profile pins every binding and never consults the book or the hosted upload service
+  ---
+  duration_ms: 1.572583
+  type: 'test'
+  ...
+# Subtest: config.js: an unconfirmed or invalid profile pins nothing and does not fall back to the hosted defaults
+ok 5 - config.js: an unconfirmed or invalid profile pins nothing and does not fall back to the hosted defaults
+  ---
+  duration_ms: 2.884079
+  type: 'test'
+  ...
+# Subtest: an explicit platform book allows admin updates while fixed profiles keep their original trust
+ok 6 - an explicit platform book allows admin updates while fixed profiles keep their original trust
+  ---
+  duration_ms: 1.204727
+  type: 'test'
+  ...
+# Subtest: api.js: independent mode refuses every central call without network access, with a plain reason
+ok 7 - api.js: independent mode refuses every central call without network access, with a plain reason
+  ---
+  duration_ms: 16.725433
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 76.083274

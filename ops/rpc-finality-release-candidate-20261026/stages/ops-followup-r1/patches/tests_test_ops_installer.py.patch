@@ -1,0 +1,84 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/tests/test_ops_installer.py	2026-10-25 23:56:12.844146091 -0700
++++ tests/test_ops_installer.py	2026-10-26 00:06:55.952263997 -0700
+@@ -194,5 +194,81 @@
+                 IV.qualified(q, rc, 'abc')
+ 
+ 
++    # ---- r10-ops-followup: private runtime directories; configs are never replaced; nothing is written over a path that appeared ----
++    def tree(self):
++        return {k: v for k, v in self.snapshot().items() if 'install-journal' not in k}
++
++    def var_lib(self):
++        base = IV.ROOT / 'var/lib/enclave-rpc'; base.mkdir(parents=True)
++        for p in (IV.ROOT / 'var', IV.ROOT / 'var/lib', base):
++            os.chmod(p, 0o755)
++        return base
++
++    def test_runtime_dirs_are_created_root_0700_idempotently_and_checked(self):
++        ops, plan = IV.runtime_dir_ops()
++        self.assertEqual([p['result'] for p in plan], ['mkdir 0700'] * len(IV.RUNTIME_DIRS))
++        self.assertEqual(IV.commit(ops, 'rd1'), 'committed')
++        for d in IV.RUNTIME_DIRS:
++            st = os.lstat(IV.R(d)); self.assertEqual((stat.S_ISDIR(st.st_mode), st.st_uid, stat.S_IMODE(st.st_mode)), (True, IV.UID, 0o700), d)
++        ops, plan = IV.runtime_dir_ops(); self.assertEqual((ops, {p['result'] for p in plan}), ([], {'present'}))   # idempotent: --check passes
++
++    def test_runtime_dirs_refuse_a_symlink_wrong_mode_or_owner_and_change_nothing(self):
++        base = self.var_lib(); away = self.t / 'away'; away.mkdir(mode=0o700); os.symlink(away, base / 'finality-captures')
++        before = self.tree()
++        with self.assertRaisesRegex(IV.Refused, 'finality-captures exists but is not a real root-owned 0700 directory'):
++            IV.runtime_dir_ops()
++        (base / 'finality-captures').unlink(); (base / 'finality-captures').mkdir(); os.chmod(base / 'finality-captures', 0o755)
++        with self.assertRaisesRegex(IV.Refused, 'not a real root-owned 0700'):
++            IV.runtime_dir_ops()
++        self.assertEqual(stat.S_IMODE(os.lstat(base / 'finality-captures').st_mode), 0o755)                # never chmod'ed
++        os.chmod(base / 'finality-captures', 0o700); uid = IV.UID; IV.UID = uid + 1
++        try:
++            with self.assertRaisesRegex(IV.Refused, 'not a real root-owned'):
++                IV.runtime_dir_ops()
++        finally:
++            IV.UID = uid
++        self.assertFalse(os.path.lexists(IV.R(IV.JOURNAL_DIR)))
++
++    def test_runtime_dirs_failure_and_crash_roll_back_only_what_was_created(self):
++        base = self.var_lib(); work = base / 'finality-work'; work.mkdir(); os.chmod(work, 0o700); (work / 'keep').write_bytes(b'pre-existing\n')
++        before = self.tree(); ops, plan = IV.runtime_dir_ops()
++        self.assertIn({'dest': '/var/lib/enclave-rpc/finality-work', 'result': 'present'}, plan)
++        with self.assertRaisesRegex(IV.Refused, 'rolled back'):
++            IV.commit(ops, 'rd-fail', fail_at=2)
++        self.assertEqual(self.tree(), before)
++        ops, _ = IV.runtime_dir_ops(); self.assertEqual(IV.commit(ops, 'rd-crash', crash_at=1), 'crashed (test)')
++        with self.assertRaisesRegex(IV.Refused, 'still open'):
++            IV.runtime_dir_ops()
++        IV.recover(); self.assertEqual(self.tree(), before)
++        ops, _ = IV.runtime_dir_ops(); self.assertEqual(IV.commit(ops, 'rd-ok'), 'committed')
++        self.assertEqual(((work / 'keep').read_bytes(), stat.S_IMODE(os.lstat(work).st_mode)), (b'pre-existing\n', 0o700))
++
++    def config_manifest(self, *dests):
++        b = b'{"template": true}\n'; (self.stage / 't.json').write_bytes(b)
++        (IV.ROOT / 'etc').mkdir(exist_ok=True); os.chmod(IV.ROOT / 'etc', 0o755)
++        return b, {**self.m, 'files': self.m['files'] + [{'src': 't.json', 'dest': d, 'mode': '0644', 'config': True, 'sha256': sha(b)} for d in dests]}
++
++    def test_an_existing_config_is_never_replaced_even_with_replace(self):
++        b, m = self.config_manifest('/etc/filled.json', '/etc/absent.json')
++        filled = IV.ROOT / 'etc/filled.json'; filled.write_bytes(b'{"root": "filled"}\n'); os.chmod(filled, 0o600)
++        ops, plan = IV.preflight(m, replace=True, include_wrapper=False, include_units=False, include_configs=True, stage=self.stage)
++        self.assertIn({'dest': '/etc/filled.json', 'result': 'kept (an existing config is never replaced, even with --replace)'}, plan)
++        self.assertNotIn('/etc/filled.json', [op['dest'] for op, _ in ops])
++        self.assertEqual(IV.commit(ops, 'cfg'), 'committed')
++        self.assertEqual((filled.read_bytes(), stat.S_IMODE(os.lstat(filled).st_mode)), (b'{"root": "filled"}\n', 0o600))
++        self.assertEqual((IV.ROOT / 'etc/absent.json').read_bytes(), b)                           # an absent template is installed
++        filled.unlink(); os.symlink(self.t / 'elsewhere', filled)
++        with self.assertRaisesRegex(IV.Refused, '/etc/filled.json exists and is not a regular file'):
++            IV.preflight(m, replace=True, include_wrapper=False, include_units=False, include_configs=True, stage=self.stage)
++
++    def test_a_config_appearing_after_preflight_is_not_written_over(self):
++        b, m = self.config_manifest('/etc/late.json'); before = self.tree()
++        ops, _ = IV.preflight(m, replace=True, include_wrapper=False, include_units=False, include_configs=True, stage=self.stage)
++        late = IV.ROOT / 'etc/late.json'; late.write_bytes(b'root wrote this\n')
++        with self.assertRaisesRegex(IV.Refused, 'appeared during the install'):
++            IV.commit(ops, 'late')
++        late.unlink(); self.assertEqual(self.tree(), before)                                  # everything else rolled back exactly
++
++
+ if __name__ == '__main__':
+     unittest.main(verbosity=2)

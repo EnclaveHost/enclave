@@ -1,0 +1,14 @@
+[queue] START available=29869MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+{
+ "dest": "/home/steven/.cold-archive/codex-archive/2026-10-24/home/gvs5h",
+ "rc": 0
+}
+{
+ "dest_identity": "a6a564402d9cd6f8a3cc1ed1ca92442b69b21ccdcf1c2b693cf6532dc1662e1d",
+ "logical": "566784a08712e71eae9f6484e08f1a0f5392ba0f3355abdb651b23c19e4b76d2",
+ "source_identity": "42a3cc900eb133982b90191f86788abb1e912f17498a9cc4f7bd6c2318d4a77d",
+ "t": 1793040790.7963436
+}
+[memory-guard] exit=0 peakTreeRssMiB=37 minHostAvailableMiB=27387
+[memory-guard] at peak: python3:25 bash:4 rsync:3 rsync:3 rsync:2
+[queue] EXIT 0

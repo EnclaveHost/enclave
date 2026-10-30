@@ -1,0 +1,178 @@
+--- r3/tests/test_reanchor_recovery.py
++++ r4/tests/test_reanchor_recovery.py
+@@ -1,4 +1,8 @@
+-"""Offline tests of the R-A re-anchor recovery, r3 (base-reanchor-recovery-stage/r3). Root runs these; Claude did not.
++"""Offline tests of the R-A re-anchor recovery, r4 (base-reanchor-recovery-stage/r4). Root runs these; Claude did not.
++
++r4: the r3 tests unchanged, plus `Ledger` (5): the admission ledger under its own lock - real multi-process races on the SAME
++capture from DIFFERENT workdirs, real interrupted appends (SIGKILL mid-write / after fsync / before write), busy lock, strict
++schema/chain/duplicate/tail and file-safety refusals.
+ 
+ r3: a NEWER anchor goes through the REAL capture module (a1-capture-binding-stage/r2 src/a1_capture.py, loaded by the harness
+ from its pinned bytes) over pinned STUB A1 sources: real capture/verify/runtime/binding checks and the REAL pinned A1 gate, with
+@@ -23,7 +27,7 @@
+     A1_CAPTURE_TEST_PINS = that module's Pins over STUB A1 sources (two read stubs in tests/capture-stubs emit harness-fixture
+     receipts) and THIS host's observed node/python/libpython - test-reviewed pins exactly as that stage's own tests use them.
+     No capture here is an independent fresh capture of mainnet; nothing is activated."""
+-import contextlib, importlib.util, json, os, pathlib, shutil, subprocess, sys, unittest
++import contextlib, fcntl, hashlib, importlib.util, json, os, pathlib, shutil, signal, subprocess, sys, unittest
+ from unittest.mock import patch
+ 
+ HERE = pathlib.Path(__file__).resolve().parent
+@@ -523,5 +527,156 @@
+         self.step_refused('a3', 'marker')
+ 
+ 
++class Ledger(unittest.TestCase):
++    """admit_captures() alone, with the REAL capture module's admit() rule; no capture needed (summaries are the three ids)."""
++    def setUp(self):
++        self.tmp = pathlib.Path(__import__('tempfile').mkdtemp(prefix='ledger-')); (self.tmp / 'etc').mkdir(mode=0o755)
++        self.p = self.tmp / 'etc/a1-admission.jsonl'; self.lock = self.tmp / 'etc/a1-admission.jsonl.lock'
++        st = contextlib.ExitStack(); self.addCleanup(st.close); self.addCleanup(shutil.rmtree, self.tmp, True)
++        st.enter_context(patch.object(R, 'A1_CAPTURE_REVIEWED', True)); st.enter_context(patch.object(R, 'A1_CAPTURE_SOURCE', CAP_SRC))
++        self.n = 0
++
++    def c(self, workdir='w0'):
++        return {'workdir': str(self.tmp / workdir), 'reanchor': {'admissionLedger': str(self.p)}}
++
++    def summary(self):
++        self.n += 1; h = lambda t: hashlib.sha256(f'{t}{self.n}'.encode()).hexdigest()
++        return {'captureId': h('id')[:32], 'captureSha256': h('rec'), 'evidenceSha256': h('ev')}
++
++    def code(self, fn):
++        with self.assertRaises(R.Refused) as e:
++            fn()
++        return str(e.exception).split(':')[0]
++
++    def recs(self):
++        return R.ledger_records(self.p)[0]
++
++    def child(self, fn, go=None):
++        """A REAL separate process; exit 0 = admitted, 3 = refused (code written), 4 = other error."""
++        r, w = os.pipe(); sys.stdout.flush(); sys.stderr.flush(); pid = os.fork()
++        if pid == 0:
++            try:
++                os.close(r)
++                if go is not None:
++                    os.read(go, 1)
++                fn(); os.write(w, b'admitted'); os._exit(0)
++            except R.Refused as e:
++                os.write(w, str(e).encode()); os._exit(3)
++            except BaseException as e:                   # noqa: BLE001
++                os.write(w, f'error {type(e).__name__}: {e}'.encode()); os._exit(4)
++        os.close(w)
++        return pid, r
++
++    def reap(self, pid, r):
++        out = b''
++        while (b := os.read(r, 65536)):
++            out += b
++        os.close(r); _, st = os.waitpid(pid, 0); return st, out.decode()
++
++    def test_once_only_strict_canonical_chain(self):
++        s1, s2 = self.summary(), self.summary()
++        R.admit_captures(self.c(), [s1]); self.assertEqual(self.code(lambda: R.admit_captures(self.c('w1'), [s1])), 'a1_replayed')
++        R.admit_captures(self.c(), [s2]); recs = self.recs()
++        self.assertEqual([r['seq'] for _, r in recs], [1, 2]); self.assertEqual(recs[1][1]['prevSha256'], recs[0][0])
++        self.assertEqual(self.p.read_bytes(), b''.join(R.ledger_line(r) for _, r in recs))
++        self.assertEqual(oct(self.lock.stat().st_mode & 0o777), '0o600'); self.assertEqual(oct(self.p.stat().st_mode & 0o777), '0o600')
++        self.assertEqual(self.code(lambda: R.admit_captures(self.c(), [s1, self.summary()])), 'a1_replayed')   # all-or-nothing
++        self.assertEqual(len(self.recs()), 2)
++
++    def test_same_capture_race_from_different_workdirs_admits_exactly_once(self):
++        """There is NO per-workdir lock in the harness: different workdirs serialize only on the ledger lock. Six processes
++        start together while the parent holds that lock, then race."""
++        s = self.summary(); R.admit_captures(self.c(), [self.summary()])                     # an existing ledger
++        hold = os.open(self.lock, os.O_RDWR); fcntl.flock(hold, fcntl.LOCK_EX)
++        go_r, go_w = os.pipe()
++        kids = [self.child(lambda i=i: R.admit_captures(self.c(f'workdir-{i}'), [s]), go=go_r) for i in range(6)]
++        os.write(go_w, b'G' * 6); __import__('time').sleep(0.3); fcntl.flock(hold, fcntl.LOCK_UN); os.close(hold)
++        res = [self.reap(*k) for k in kids]
++        codes = sorted(os.WEXITSTATUS(st) for st, _ in res)
++        self.assertEqual(codes, [0, 3, 3, 3, 3, 3], res)
++        self.assertTrue(all(o.startswith('a1_replayed:') for st, o in res if os.WEXITSTATUS(st) == 3), res)
++        recs = self.recs(); self.assertEqual(len(recs), 2)
++        self.assertEqual(len([k for _, r in recs for k in r['keys'] if k == 'capture:' + s['captureId']]), 1)
++
++    def test_a_held_lock_refuses_busy_without_writing(self):
++        R.admit_captures(self.c(), [self.summary()]); before = self.p.read_bytes()
++        hold = os.open(self.lock, os.O_RDWR); fcntl.flock(hold, fcntl.LOCK_EX)
++        try:
++            with patch.object(R, 'LEDGER_LOCK_TIMEOUT_SEC', 0.3):
++                self.assertEqual(self.code(lambda: R.admit_captures(self.c('other'), [self.summary()])), 'a1_ledger_busy')
++        finally:
++            os.close(hold)
++        self.assertEqual(self.p.read_bytes(), before)
++
++    def test_interrupted_appends_fail_closed_and_never_duplicate(self):
++        R.admit_captures(self.c(), [self.summary()])
++        real_write, real_fsync, real_open = os.write, os.fsync, os.open
++        def kill():
++            os.kill(os.getpid(), signal.SIGKILL)
++        # (1) SIGKILL after HALF the record bytes: an incomplete tail -> ambiguous -> nothing admitted, by anyone, until root resolves
++        s = self.summary()
++        def half_then_die():
++            with patch.object(R.os, 'write', lambda fd, data: (real_write(fd, bytes(data)[:len(data) // 2]), kill())):
++                R.admit_captures(self.c('k1'), [s])
++        st, out = self.reap(*self.child(half_then_die)); self.assertTrue(os.WIFSIGNALED(st), out)
++        self.assertFalse(self.p.read_bytes().endswith(b'\n'))
++        for x in (s, self.summary()):
++            self.assertEqual(self.code(lambda: R.admit_captures(self.c(), [x])), 'a1_ledger')
++        good = self.p.read_bytes().rsplit(b'\n', 1)[0] + b'\n'; self.p.write_bytes(good)        # (root's explicit repair)
++        # (2) SIGKILL right AFTER the fsync: the record is complete -> admitted exactly once
++        s2 = self.summary()
++        def die_after_fsync():
++            with patch.object(R.os, 'fsync', lambda fd: (real_fsync(fd), kill())):
++                R.admit_captures(self.c('k2'), [s2])
++        st, out = self.reap(*self.child(die_after_fsync)); self.assertTrue(os.WIFSIGNALED(st), out)
++        self.assertEqual(self.code(lambda: R.admit_captures(self.c(), [s2])), 'a1_replayed')
++        # (3) SIGKILL after C.admit() in memory but BEFORE the append: nothing durable -> the capture is admitted once, later
++        s3 = self.summary(); n = len(self.recs())
++        def die_before_write():
++            with patch.object(R.os, 'open', lambda path, flags, *a: kill() if flags & os.O_APPEND else real_open(path, flags, *a)):
++                R.admit_captures(self.c('k3'), [s3])
++        st, out = self.reap(*self.child(die_before_write)); self.assertTrue(os.WIFSIGNALED(st), out)
++        self.assertEqual(len(self.recs()), n, 'the in-memory admission of the killed process left nothing')
++        R.admit_captures(self.c(), [s3]); self.assertEqual(self.code(lambda: R.admit_captures(self.c(), [s3])), 'a1_replayed')
++        R.admit_captures(self.c(), [self.summary()])                                         # the lock was never left held
++
++    def test_tampered_or_unsafe_ledger_refuses_without_writing(self):
++        R.admit_captures(self.c(), [self.summary()]); R.admit_captures(self.c(), [self.summary()])
++        good = self.p.read_bytes(); l1, l2 = good.split(b'\n')[:2]; r1, r2 = json.loads(l1), json.loads(l2)
++        line = lambda r: R.ledger_line(r)
++        crafted = {
++            'duplicate key': line(r1) + line(dict(r2, keys=sorted(set(r2['keys']) | {r1['keys'][0]}))),
++            'seq gap': line(r1) + line(dict(r2, seq=3)),
++            'chain': line(r1) + line(dict(r2, prevSha256='00' * 32)),
++            'extra field': line(r1) + line(dict(r2, note='x')),
++            'unsorted keys': line(r1) + line(dict(r2, keys=list(reversed(r2['keys'])))),
++            'empty keys': line(r1) + line(dict(r2, keys=[])),
++            'bad key': line(r1) + line(dict(r2, keys=['capture:XYZ'])),
++            'format': line(dict(r1, format='other')) + line(r2),
++            'non-canonical': json.dumps(r1).encode() + b'\n' + l2 + b'\n',
++            'not json': line(r1) + b'{nope\n',
++            'blank line': line(r1) + b'\n' + line(r2),
++        }
++        for why, b in crafted.items():
++            with self.subTest(why):
++                self.p.write_bytes(b); self.assertEqual(self.code(lambda: R.admit_captures(self.c(), [self.summary()])), 'a1_ledger')
++                self.assertEqual(self.p.read_bytes(), b)
++        self.p.write_bytes(good)
++        unsafe = [(lambda: self.p.chmod(0o666), lambda: self.p.chmod(0o600)),
++                  (lambda: self.lock.chmod(0o644), lambda: self.lock.chmod(0o600)),
++                  (lambda: (self.tmp / 'etc').chmod(0o777), lambda: (self.tmp / 'etc').chmod(0o755)),
++                  (lambda: (self.lock.rename(self.tmp / 'real.lock'), self.lock.symlink_to(self.tmp / 'real.lock')),
++                   lambda: (self.lock.unlink(), (self.tmp / 'real.lock').rename(self.lock))),
++                  (lambda: (self.p.rename(self.tmp / 'real.jsonl'), self.p.symlink_to(self.tmp / 'real.jsonl')),
++                   lambda: (self.p.unlink(), (self.tmp / 'real.jsonl').rename(self.p)))]
++        for do, undo in unsafe:
++            do()
++            try:
++                self.assertEqual(self.code(lambda: R.admit_captures(self.c(), [self.summary()])), 'untrusted_file')
++            finally:
++                undo()
++        self.assertEqual(self.p.read_bytes(), good); R.admit_captures(self.c(), [self.summary()])
++
++
+ if __name__ == '__main__':
+     unittest.main(verbosity=2)

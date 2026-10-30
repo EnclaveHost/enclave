@@ -1,0 +1,10 @@
+[queue] START available=26042MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+rsync diagnostic rc 0 (informational): /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r5/runs/run-20261026T130053Z-1764399/rsync-dir-mtime-diagnostic.jsonl
+----------------------------------------------------------------------
+Ran 22 tests in 2.880s
+
+OK
+## nvme-relocation tests: PASS (22/22)
+[memory-guard] exit=0 peakTreeRssMiB=43 minHostAvailableMiB=25982
+[memory-guard] at peak: python3:32 bash:4 rsync:3 rsync:2 timeout:2
+[queue] EXIT 0

@@ -1,0 +1,6 @@
+Root source qualification only; not deployed or full-image tested.
+Commit: aebf4c9321279c37afce863c2bd6144a96128cea
+Lease seams: root-lease-seams-r4-0133 PASS66/66 candidate, baseline exact9 intended failures, no skipped/cancelled/todo.
+Deep recovery ancestry: root-lease-deep-r2-0131 PASS26/26.
+Pending platform-api bundle and full composed production image remain unqualified.
+## rc=0

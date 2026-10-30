@@ -1,0 +1,138 @@
+e.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# Subtest: setup: three members, an anchored admin policy, genesis by the admin; one primary
+not ok 89 - setup: three members, an anchored admin policy, genesis by the admin; one primary
+  ---
+  duration_ms: 60653.033074
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:220:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting for a primary running the relay (undefined)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:57:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:241:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# Subtest: admin credentials with the native CA: the primary issues every bound member (itself over loopback); nothing leaks to the relay, files, logs or archives
+not ok 90 - admin credentials with the native CA: the primary issues every bound member (itself over loopback); nothing leaks to the relay, files, logs or archives
+  ---
+  duration_ms: 60084.601412
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:246:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting for a primary (undefined)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:57:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:247:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: servedLeaf: only a leaf the held CA signed over the presented key makes renewal unnecessary (forged, copied-CA, expired, wrong-key and CA leaves do not)
+ok 91 - servedLeaf: only a leaf the held CA signed over the presented key makes renewal unnecessary (forged, copied-CA, expired, wrong-key and CA leaves do not)
+  ---
+  duration_ms: 88.326134
+  type: 'test'
+  ...
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# Subtest: the admin's policy at issuance: operator ban, chip ban, unproven chip and an unregistered boot get no leaf; lifting them issues
+not ok 92 - the admin's policy at issuance: operator ban, chip ban, unproven chip and an unregistered boot get no leaf; lifting them issues
+  ---
+  duration_ms: 60095.566939
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:321:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting for a primary (undefined)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:57:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:322:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# Subtest: a ban published AFTER the leaf was signed and BEFORE its install stops the install (the admission is decided again at the barrier)
+not ok 93 - a ban published AFTER the leaf was signed and BEFORE its install stops the install (the admission is decided again at the barrier)
+  ---
+  duration_ms: 60089.403952
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:349:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting for a primary (undefined)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:57:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:350:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# Subtest: bound to another CA, another group, or lying about its config: no leaf
+not ok 94 - bound to another CA, another group, or lying about its config: no leaf
+  ---
+  duration_ms: 60088.266482
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:364:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting for a primary (undefined)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:57:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:365:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# Subtest: credential REPLACEMENT and REMOVAL stop the old run before its install; the new run uses only the new credentials
+not ok 95 - credential REPLACEMENT and REMOVAL stop the old run before its install; the new run uses only the new credentials
+  ---
+  duration_ms: 60085.716642
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:404:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting for a primary (undefined)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:57:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:405:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# [platform-api] Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/network-runtime.bundle.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/relay/api-relay.js
+# Subtest: a stopped run releases its connections at once (a member front that never answers)
+not ok 96 - a stopped run releases its connections at once (a member front that never answers)
+  ---
+  duration_ms: 60086.779632
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:432:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting for a primary (undefined)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:57:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-assets-stage/r2/runs/run-20261026T140645Z-check-1879117/repo/test/platform-api-native-issuer.test.mjs:433:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...

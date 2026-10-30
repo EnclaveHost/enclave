@@ -1,0 +1,260 @@
+{
+ "format": "enclave-reader-runtime-composition/v1",
+ "base": {
+  "commit": "64156dcd91ff1e769e74f9c26a846be19254c716",
+  "tree": "602c922125459fc847c8a047386efa48aaa8f358"
+ },
+ "readerCommit": "c66b087acca2bed00e0232f97f990a201852faea",
+ "chain": [
+  "64156dcd9",
+  "903f107b1",
+  "cc8c9bd4f",
+  "c66b087ac"
+ ],
+ "composedTree": "1df125598825fb5278fe6af96a50a69b46679a1c",
+ "files": [
+  {
+   "path": "network/derived-reader/README.md",
+   "blob": "0d8fade0391f20f336256e991db9fcc78c44b3b0",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/api.mjs",
+   "blob": "b9a81d19cb9f7b94dc277107197b9a3258117c2b",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/config.example.json",
+   "blob": "9e0cdb8db6096917188926660bdcdf622b202402",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/journal.mjs",
+   "blob": "4c46336b012ffc8b7b8cc1d710ea68b3b6346abb",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/l1-runtime.mjs",
+   "blob": "1fe5501589b8ea3326c08a752824aaaadde7fb99",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/libraries.mjs",
+   "blob": "30ec60b2125e355d0240c8a4a0b79017d09e5d20",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/lifecycle.mjs",
+   "blob": "d6de1afe455619afee95dfc0bfbf9800e970558d",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/main.mjs",
+   "blob": "e6a8dbb5d542584d36296111a5ec989589abc854",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/native.mjs",
+   "blob": "4fc320edd45b99504920b7cf98635b7e366ccda9",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/process.mjs",
+   "blob": "b1c4723df9ce044eef94f1fd0f9737a273414b8a",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/proof.mjs",
+   "blob": "32ecdd83c797481d72074c5ad787b12860276260",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/provider.mjs",
+   "blob": "37928011d86e951b804951527e69469b7bc31303",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/qualification.json",
+   "blob": "8839ae0126e5693aaa672cc1cb672e79a9bc938c",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/rpc.mjs",
+   "blob": "bef9491d302a34aa7d0d4d6d7194af907a5d9e23",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/a1-anchor.mjs",
+   "blob": "ff261b164bc9821c975fe2fd7a05116559aecf34",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/anchor-bootstrap.mjs",
+   "blob": "5473933dbd5c7411192dd99dcb20cd17483369c2",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/provenance.json",
+   "blob": "a19c8a522ab5e479f70b3063c1fbea42ef4e4662",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/schedule-input-r2.mjs",
+   "blob": "09f8d7a3c0f317fb65713585f9631cae7133f9b8",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/schedule_reader.mjs",
+   "blob": "caae47061d473412bc8f1212ee76d3ba7462838c",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader"
+  },
+  {
+   "path": "test/derived-reader.test.mjs",
+   "blob": "542c9ad680ceefddd33431fb3efc0df1d6a9989c",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader-test"
+  },
+  {
+   "path": "test/derived-reader/boundaries.test.mjs",
+   "blob": "e9f66b43598b354d64030771ba1bc8286519840e",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader-test"
+  },
+  {
+   "path": "test/derived-reader/helpers.mjs",
+   "blob": "3b86d4ff424295e854761e92eb8018c7f52b8780",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader-test"
+  },
+  {
+   "path": "test/derived-reader/provider.test.mjs",
+   "blob": "b514aa436286fadad43138cf825bf5ee8fc24508",
+   "mode": "100644",
+   "origin": "c66b087ac",
+   "role": "reader-test"
+  },
+  {
+   "path": "network/lifecycle-finality-bridge.mjs",
+   "blob": "916f24c0af2ae888641bd565e5bb2ac0bd024184",
+   "mode": "100644",
+   "origin": "cc8c9bd4f",
+   "role": "lifecycle-closure"
+  },
+  {
+   "path": "network/deployment-lifecycle-journal.mjs",
+   "blob": "9dbf0864e78c91529d92ef02c0d922fdbff5b7fb",
+   "mode": "100644",
+   "origin": "903f107b1 (content as of cc8c9bd4f)",
+   "role": "lifecycle-closure"
+  },
+  {
+   "path": "network/deployment-restart-policy.mjs",
+   "blob": "83f5c52a1cfec88ed5ef62ea50cc99fe6d8137e8",
+   "mode": "100644",
+   "origin": "903f107b1",
+   "role": "lifecycle-closure"
+  },
+  {
+   "path": "test/lifecycle-finality-bridge.test.mjs",
+   "blob": "b104fa39e48a5dc09b1e024586d45eaa5848a079",
+   "mode": "100644",
+   "origin": "cc8c9bd4f",
+   "role": "lifecycle-closure"
+  }
+ ],
+ "excludedFromC66Range": [
+  "contracts/EnclaveDeploymentLifecycle.sol",
+  "contracts/EnclaveSelfHostingIdentity.sol",
+  "deploy/lifecycle/AUTHORITY-ADAPTER.md",
+  "deploy/lifecycle/EnclaveDeployments.sol",
+  "deploy/lifecycle/README.md",
+  "deploy/lifecycle/artifacts/EnclaveDeploymentLifecycle.json",
+  "deploy/lifecycle/artifacts/EnclaveDeployments.json",
+  "deploy/lifecycle/artifacts/EnclaveSelfHostingIdentity.json",
+  "deploy/lifecycle/artifacts/manifest.json",
+  "deploy/lifecycle/refusals.json",
+  "network/deployment-authority-window.mjs",
+  "network/deployment-generation-certificate.mjs",
+  "network/deployment-isolation-runtime.mjs",
+  "network/deployment-journal-owner.mjs",
+  "network/deployment-lifecycle-runner.mjs",
+  "network/deployment-lifecycle-witness.mjs",
+  "network/deployment-permit-collector.mjs",
+  "network/deployment-permit-gate.mjs",
+  "network/deployment-serving-permit.mjs",
+  "network/deployment-transition-intent.mjs",
+  "network/deployment-witness-http.mjs",
+  "scripts/build-lifecycle-artifacts.mjs",
+  "scripts/test-deployment-lifecycle.sh",
+  "test/deployment-generation-certificate.test.mjs",
+  "test/deployment-isolation-runtime.test.mjs",
+  "test/deployment-journal-native.mjs",
+  "test/deployment-lifecycle-boundary.test.mjs",
+  "test/deployment-lifecycle-journal.test.mjs",
+  "test/deployment-lifecycle-policy.test.mjs",
+  "test/deployment-lifecycle-runner.test.mjs",
+  "test/lifecycle/forge/empty/.gitkeep",
+  "test/lifecycle/forge/test/Lifecycle.t.sol"
+ ],
+ "reusedFromBaseUnchanged": [
+  "network/lease-release-journal.mjs",
+  "network/runtime-lock.mjs",
+  "network/rpc-runtime.mjs",
+  "network/gossip-head-source.mjs",
+  "network/op-head-relay.mjs",
+  "network/verified-chain.mjs",
+  "package.json",
+  "package-lock.json"
+ ],
+ "tests": {
+  "expected": 20,
+  "reader": 16,
+  "bridge": 4,
+  "files": [
+   "test/derived-reader.test.mjs",
+   "test/lifecycle-finality-bridge.test.mjs"
+  ]
+ },
+ "notClaimed": "integration preparation only: no SNP, no positive derivation, no production activation"
+}

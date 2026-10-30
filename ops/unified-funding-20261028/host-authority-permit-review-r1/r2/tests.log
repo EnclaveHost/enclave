@@ -1,0 +1,80 @@
+TAP version 13
+# Subtest: 1 real v2 permit end to end: collector -> witness quorum -> gate -> runtime producer; positive fresh queued start
+ok 1 - 1 real v2 permit end to end: collector -> witness quorum -> gate -> runtime producer; positive fresh queued start
+  ---
+  duration_ms: 76.843793
+  type: 'test'
+  ...
+# Subtest: 2 same app generation: host gen1 -> Offline -> recovered gen2 (missed) drops tracked resources; old signatures refused; restart keeps the floor
+ok 2 - 2 same app generation: host gen1 -> Offline -> recovered gen2 (missed) drops tracked resources; old signatures refused; restart keeps the floor
+  ---
+  duration_ms: 163.338445
+  type: 'test'
+  ...
+# Subtest: 3 same host generation, legitimate owner revision increase: old grant withdrawn, explicit handoff then serve; lower/conflicting refuse
+ok 3 - 3 same host generation, legitimate owner revision increase: old grant withdrawn, explicit handoff then serve; lower/conflicting refuse
+  ---
+  duration_ms: 81.643488
+  type: 'test'
+  ...
+# Subtest: 4 tampering, omission, downgrade, unsafe uint64 and unqualified/nested-verified evidence never sign or grant
+ok 4 - 4 tampering, omission, downgrade, unsafe uint64 and unqualified/nested-verified evidence never sign or grant
+  ---
+  duration_ms: 19.518833
+  type: 'test'
+  ...
+# Subtest: 7a owner change DURING witness readiness/signing: no signature released, no grant
+ok 5 - 7a owner change DURING witness readiness/signing: no signature released, no grant
+  ---
+  duration_ms: 14.420252
+  type: 'test'
+  ...
+# Subtest: 7b host-wide advance, rollback handoff, latched persistence, malformed/lost sidecar: no grant or binding resurrection
+ok 6 - 7b host-wide advance, rollback handoff, latched persistence, malformed/lost sidecar: no grant or binding resurrection
+  ---
+  duration_ms: 74.04922
+  type: 'test'
+  ...
+# Subtest: 8 v1 default unchanged: no servingPermit pins -> v1 typed data, no host authority, servingContextOf undefined
+ok 7 - 8 v1 default unchanged: no servingPermit pins -> v1 typed data, no host authority, servingContextOf undefined
+  ---
+  duration_ms: 0.758892
+  type: 'test'
+  ...
+# Subtest: ROOT: accepted authority for another host cannot revoke this host grants
+ok 8 - ROOT: accepted authority for another host cannot revoke this host grants
+  ---
+  duration_ms: 37.725068
+  type: 'test'
+  ...
+# Subtest: ROOT: actual adapter verified field must reach the real permit context conversion
+ok 9 - ROOT: actual adapter verified field must reach the real permit context conversion
+  ---
+  duration_ms: 31.142461
+  type: 'test'
+  ...
+# Subtest: ROOT: same-generation Offline denial cannot be undone by an older Online context
+not ok 10 - ROOT: same-generation Offline denial cannot be undone by an older Online context
+  ---
+  duration_ms: 65.230625
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-permit-root-review-r2/protocol-tree/test/root-permit-integration.test.mjs:96:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: stale Online evidence cannot restore after authenticated Offline at same generation'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-authority-permit-root-review-r2/protocol-tree/test/root-permit-integration.test.mjs:102:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 9
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 818.321318

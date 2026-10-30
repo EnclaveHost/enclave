@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: owned journal: an older journal opens unchanged; floors are monotonic; holds release only after a later owner change
+ok 1 - owned journal: an older journal opens unchanged; floors are monotonic; holds release only after a later owner change
+  ---
+  duration_ms: 5.800487
+  type: 'test'
+  ...
+# Subtest: restart: the persisted floor refuses a lower still-fresh host revision
+ok 2 - restart: the persisted floor refuses a lower still-fresh host revision
+  ---
+  duration_ms: 5.124273
+  type: 'test'
+  ...
+# Subtest: restart: a local hold survives; a forced claim hint clears nothing; only a saved owner caps change releases it
+ok 3 - restart: a local hold survives; a forced claim hint clears nothing; only a saved owner caps change releases it
+  ---
+  duration_ms: 25.089437
+  type: 'test'
+  ...
+# Subtest: generated host: enforceOff persists the hold; consider(force) keeps it; setHostingCaps (owner API) releases it
+ok 4 - generated host: enforceOff persists the hold; consider(force) keeps it; setHostingCaps (owner API) releases it
+  ---
+  duration_ms: 442.634197
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 659.035226

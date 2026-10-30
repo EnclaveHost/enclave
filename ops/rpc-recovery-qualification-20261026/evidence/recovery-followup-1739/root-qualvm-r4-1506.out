@@ -1,0 +1,11 @@
+[queue] START available=30825MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+ "failures": [
+  "VM unit BindsTo/MemoryMax/MemorySwapMax are /10737418240/0"
+ ],
+ "ok": false
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-qualification-vm-stage/r4/runs/20261026T173850Z-2096201
+## qualvm-r4 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=33 minHostAvailableMiB=30812
+[memory-guard] at peak: python3:27 bash:4 timeout:2
+[queue] EXIT 0

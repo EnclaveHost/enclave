@@ -1,0 +1,1 @@
+Initial extraction correctly refused unexpected root entry source-manifest.json after114 control files. Explicitly inspected five root packaging entries and added finite allowlist; all114 existing bytes compared, remainingfive copied. No archive code ran in preparation.

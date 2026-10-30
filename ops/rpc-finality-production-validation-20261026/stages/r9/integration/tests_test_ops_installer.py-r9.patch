@@ -1,0 +1,13 @@
+--- a/tests/test_ops_installer.py
++++ b/tests/test_ops_installer.py
+@@ -187,8 +187,8 @@
+ 
+     def test_qualification_needs_the_exact_r6_lines(self):
+         q, rc = self.t / 'q.out', self.t / 'q.rc'; rc.write_text('0\n')
+-        q.write_text('## finality-r6 rc=0\n## r6 SHA256SUMS abc\n'); IV.qualified(q, rc, 'abc')
+-        q.write_text('## finality-r5 rc=0\n## r6 SHA256SUMS abc\n')
++        q.write_text('## finality-r9 rc=0\n## r9 SHA256SUMS abc\n'); IV.qualified(q, rc, 'abc')
++        q.write_text('## finality-r5 rc=0\n## r9 SHA256SUMS abc\n')
+         with self.assertRaises(IV.Refused):
+             IV.qualified(q, rc, 'abc')
+ 

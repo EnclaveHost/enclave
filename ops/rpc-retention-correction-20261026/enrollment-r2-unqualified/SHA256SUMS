@@ -1,0 +1,8 @@
+4f7b5fb20f9414e1369c7279dd3e18b880854168f7e53e9532db842271d51668  ./PROVENANCE.md
+f373e7f5e3c2c1e6aebbcc7c347d6f39b60cf6534ab840b3fa3a6192fcd2fcbf  ./inputs/claude-enrollment-security-review.md
+0e0bff999317fa08602284657cd7bdb5d070e8e8061358d2fd9df06d1e1e2c65  ./inputs/derived-state-ipc-contract-r2.md
+fed79143d0ae28c36ee798fe7b9c60dce2903f0de796e36e488a498756faee1a  ./inputs/image-enrollment-root-note.txt
+526a6c5cd3f28f8cce1561e7d24b8947a9e927dd249aa50ae7352158f0629a9b  ./jobs/kvm-overlay.py
+9013bd8b3fc605c20b2055889feca436cd4788257d613687ca356768820fc054  ./jobs/root-accepted-image-enrollment-r2.sh
+876a3daa8a9a1b54036381bdfac1493dc5743ff6aa74f1953943c032694526d8  ./patches/accepted-image-enrollment-r2-vs-r1.patch
+8cf8e1cfc21e0b56368a0e712df7b47d9f1d81bc7f412081f7256478ab52df15  ./proposed/derived-reader-runtime.exports.patch

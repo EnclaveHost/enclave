@@ -1,0 +1,124 @@
+TAP version 13
+# Subtest: one service circuit per pinned exit, through a different guard, asking for exactly this host's names and routes
+ok 1 - one service circuit per pinned exit, through a different guard, asking for exactly this host's names and routes
+  ---
+  duration_ms: 8.728174
+  type: 'test'
+  ...
+# Subtest: a failed revoke still closes (the grant expires on its own); a down circuit is rebuilt next round
+ok 2 - a failed revoke still closes (the grant expires on its own); a down circuit is rebuilt next round
+  ---
+  duration_ms: 0.639241
+  type: 'test'
+  ...
+# Subtest: B1: https is advertised only from VERIFIED G3 readiness; a configured port, a wrong name, an untrusted CA or a closed port is http
+ok 3 - B1: https is advertised only from VERIFIED G3 readiness; a configured port, a wrong name, an untrusted CA or a closed port is http
+  ---
+  duration_ms: 64.29885
+  type: 'test'
+  ...
+# Subtest: G3 front mapping (605's interface): port 80 of every name to httpPort, 443 only to listed tlsPorts
+ok 4 - G3 front mapping (605's interface): port 80 of every name to httpPort, 443 only to listed tlsPorts
+  ---
+  duration_ms: 0.530323
+  type: 'test'
+  ...
+# Subtest: validation is idempotent: the agent's normalized block constructs the transport (absent tls/dns stay absent)
+ok 5 - validation is idempotent: the agent's normalized block constructs the transport (absent tls/dns stay absent)
+  ---
+  duration_ms: 0.670391
+  type: 'test'
+  ...
+# Subtest: the host config is validated before anything starts
+ok 6 - the host config is validated before anything starts
+  ---
+  duration_ms: 0.670551
+  type: 'test'
+  ...
+# Subtest: transport profile: host services with the platform host policy are transport; "off" or a malformed block refuses
+ok 7 - transport profile: host services with the platform host policy are transport; "off" or a malformed block refuses
+  ---
+  duration_ms: 0.972517
+  type: 'test'
+  ...
+# Subtest: enrollment keeps the operator's hostServices opt-in and only then names the service worker; N passes restart nothing
+not ok 8 - enrollment keeps the operator's hostServices opt-in and only then names the service worker; N passes restart nothing
+  ---
+  duration_ms: 5.822092
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/host-service-transport.test.mjs:159:1'
+  failureType: 'testCodeFailure'
+  error: 'rpcs is not defined'
+  code: 'ERR_TEST_FAILURE'
+  name: 'ReferenceError'
+  stack: |-
+    Object.pass (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/windows/node/network-enroll.mjs:238:26)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/host-service-transport.test.mjs:164:19)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: B2 counterexample: an INVALID or newer-release hostServices block is never deleted - kept byte-for-byte and reported every pass
+not ok 9 - B2 counterexample: an INVALID or newer-release hostServices block is never deleted - kept byte-for-byte and reported every pass
+  ---
+  duration_ms: 3.102218
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/host-service-transport.test.mjs:176:1'
+  failureType: 'testCodeFailure'
+  error: 'rpcs is not defined'
+  code: 'ERR_TEST_FAILURE'
+  name: 'ReferenceError'
+  stack: |-
+    Object.pass (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/windows/node/network-enroll.mjs:238:26)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/host-service-transport.test.mjs:183:19)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: the privacy agent preflight refuses host services only (apps unaffected): invalid block, missing worker, runner != keccak(endpoint)
+ok 10 - the privacy agent preflight refuses host services only (apps unaffected): invalid block, missing worker, runner != keccak(endpoint)
+  ---
+  duration_ms: 1.927534
+  type: 'test'
+  ...
+# Subtest: B3: the Windows bundle stages every network binary enrollment names, and build.mjs produces each
+ok 11 - B3: the Windows bundle stages every network binary enrollment names, and build.mjs produces each
+  ---
+  duration_ms: 0.599562
+  type: 'test'
+  ...
+# Subtest: Windows sandbox: a host-service circuit WITH DNS yields policies enclave-circuit-firewall accepts (no loopback UDP)
+ok 12 - Windows sandbox: a host-service circuit WITH DNS yields policies enclave-circuit-firewall accepts (no loopback UDP)
+  ---
+  duration_ms: 1.142135
+  type: 'test'
+  ...
+# Subtest: N3: start() of host services AND of control circuits does not reject when every directory is unreachable
+ok 13 - N3: start() of host services AND of control circuits does not reject when every directory is unreachable
+  ---
+  duration_ms: 0.989877
+  type: 'test'
+  ...
+# Subtest: G4 composition: enrollment preserves the reviewed challenge replica and serves its challenge TLS port
+not ok 14 - G4 composition: enrollment preserves the reviewed challenge replica and serves its challenge TLS port
+  ---
+  duration_ms: 3.231696
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/host-service-transport.test.mjs:273:1'
+  failureType: 'testCodeFailure'
+  error: 'rpcs is not defined'
+  code: 'ERR_TEST_FAILURE'
+  name: 'ReferenceError'
+  stack: |-
+    Object.pass (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/windows/node/network-enroll.mjs:238:26)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/host-service-transport.test.mjs:281:20)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 11
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 441.961489

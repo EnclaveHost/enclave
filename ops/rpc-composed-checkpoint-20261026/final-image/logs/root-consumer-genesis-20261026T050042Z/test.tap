@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: relay mode: the supervisor claims, adopts on the VERIFIED claim receipt, and renews, every write through the own backend only; no provider or public origin is ever attempted
+ok 1 - relay mode: the supervisor claims, adopts on the VERIFIED claim receipt, and renews, every write through the own backend only; no provider or public origin is ever attempted
+  ---
+  duration_ms: 132191.136356
+  type: 'test'
+  ...
+# Subtest: proof-source outage: new claims refuse (nothing submitted), the running app keeps serving; a restart during the outage keeps it; claims resume when proofs return
+ok 2 - proof-source outage: new claims refuse (nothing submitted), the running app keeps serving; a restart during the outage keeps it; claims resume when proofs return
+  ---
+  duration_ms: 69963.872994
+  type: 'test'
+  ...
+# Subtest: a lost submission answer, then a restart: the release is decided from the VERIFIED receipt and nonce; nothing is sent twice
+ok 3 - a lost submission answer, then a restart: the release is decided from the VERIFIED receipt and nonce; nothing is sent twice
+  ---
+  duration_ms: 17326.69906
+  type: 'test'
+  ...
+# Subtest: owner veto and admin delisting, decided through the verifier: a denied deployment is never claimed; a delisted app is stopped
+ok 4 - owner veto and admin delisting, decided through the verifier: a denied deployment is never claimed; a delisted app is stopped
+  ---
+  duration_ms: 53569.667453
+  type: 'test'
+  ...
+# Subtest: the admin AddressBook migration reaches a verifier host with no provider (book polling, never frozen pins)
+ok 5 - the admin AddressBook migration reaches a verifier host with no provider (book polling, never frozen pins)
+  ---
+  duration_ms: 6448.111178
+  type: 'test'
+  ...
+# Subtest: positive control: the same recorder sees the public defaults a LEGACY host attempts (so the empty lists above mean something)
+ok 6 - positive control: the same recorder sees the public defaults a LEGACY host attempts (so the empty lists above mean something)
+  ---
+  duration_ms: 25459.183273
+  type: 'test'
+  ...
+# Subtest: direct mode: the supervisor started with planDirectBoot's environment for a bound chainVerifier reads only through the verifier
+ok 7 - direct mode: the supervisor started with planDirectBoot's environment for a bound chainVerifier reads only through the verifier
+  ---
+  duration_ms: 24840.310331
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 350037.222137

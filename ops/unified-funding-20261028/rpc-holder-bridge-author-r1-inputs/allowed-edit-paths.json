@@ -1,0 +1,32 @@
+{
+  "existing": [],
+  "newFiles": [
+    "holder_protocol.py",
+    "install_holder.py",
+    "holder_launcher.py",
+    "holder_effects.py",
+    "run_offline_observed.py",
+    "test_holder_bridge.py",
+    "qualify_holder_bridge.py",
+    "README-HOLDER.md",
+    "BRIDGE-CLOSURE.json"
+  ],
+  "immutable": [
+    "inspect_os_disk.py",
+    "inspect_units.py",
+    "guest_mask.py",
+    "fixture_reference.py",
+    "UNIT-PINS.json",
+    "offline_mask.py",
+    "test_offline_mask.py",
+    "test_exporter_cleanup.py",
+    "test_offline_revalidation.py",
+    "observe.py",
+    "test_observe.py",
+    "test_root_cleanup.py",
+    "test_root_integration.py",
+    "all files outside candidate"
+  ],
+  "scope": "Functional fixed privileged read-only holder bridge only",
+  "note": "Tool allowlist is not an OS sandbox; collector audits exact paths, immutable seed hashes and mutation replay."
+}

@@ -1,0 +1,14 @@
+[queue] START available=23156MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+{
+ "requiredKilled": "12/12",
+ "requiredNotKilled": [],
+ "informationalNeverCounted": {
+  "I1-cache-filter-only-removed": "NOT KILLED",
+  "I2-cache-unindex-only-removed": "NOT KILLED",
+  "I3-gate-no-above-head-check": "NOT KILLED"
+ }
+}
+## receipt /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-controls-repair/r2/logs/reevaluation-mutants-20261026T001203Z.json sha256 93c65ee9e21f2c984bc1c822d182b43a5c0e3efe5fd95c36cfc5219219e1f491
+[memory-guard] exit=0 peakTreeRssMiB=37 minHostAvailableMiB=23123
+[memory-guard] at peak: python3:22 python3:15
+[queue] EXIT 0

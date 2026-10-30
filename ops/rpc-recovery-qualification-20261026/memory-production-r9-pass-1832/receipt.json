@@ -1,0 +1,21 @@
+{
+ "badMarkers": [],
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "expectedTests": 15,
+ "format": "composite-production-memory-gate-test-receipt/r9",
+ "gateSha256": "1103a509ca1657f93f0b1623f55a2220f4e70a56fe2c89982e86f5fd40bbc4d1",
+ "pass": true,
+ "ran": [
+  "15"
+ ],
+ "rc": 0,
+ "scope": "gate/runtime unit tests only; no mount, no scope change, no production",
+ "stageSums": "9337f1359ec43cff2bc718e7d6262677548e32fa08ab6a00e7b6a37e1ea36185",
+ "testsSha256": "1555b67a5d4773d2509cf25e1f73725f9365f7767b5a9e7939ee8fb02ef58756"
+}

@@ -1,0 +1,10 @@
+{
+ "note": "Coordination with da0 (production-bootstrap-wiring-stage), filled ONLY from his FROZEN first-bootstrap consumer (never guessed). Any null refuses. consumer = '<stage path>:<file> sha256 <...>' of the code that runs the capture module's `recheck` mode for first bootstrap. initialReceiptSupply = how that consumer gives the pinned initial receipt to the module: 'sources-key' (the composed SOURCES_KEYS has initialReceipt) or 'replace-after-from_settings' (dataclasses.replace on the from_settings result). initialReceiptInstallPath = the MANIFEST dest of the b9a90847 receipt. captureKwargs = the exact capture() keyword arguments the consumer passes (the canary only raises helios_timeout to >= 900 for its cold-started Helios). Re-freeze this stage after filling.",
+ "consumer": "base-finality-proof-stage/r13-manifest-final:bootstrap/a1_capture_original.py sha256 2f7656b8fc58f4a9d987fe16819a27b83c917e11c9945f88040ff33f149c5420",
+ "initialReceiptSupply": "replace-after-from_settings",
+ "initialReceiptInstallPath": "/opt/enclave-rpc/bootstrap/a1-initial-evidence.json",
+ "captureKwargs": {
+  "helios_timeout": 900,
+  "a1_timeout": 240
+ }
+}

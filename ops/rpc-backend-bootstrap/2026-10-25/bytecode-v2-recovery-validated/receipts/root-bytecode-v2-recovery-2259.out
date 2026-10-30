@@ -1,0 +1,118 @@
+[queue] START available=23070MiB required=18688MiB cap=1792MiB floor=16384MiB concurrentSmall=256MiB
+## toolchain rustc 1.96.0 (ac68faa20 2026-05-25) | cargo 1.96.0 (30a34c682 2026-05-25) | jobs=1
+== original v2 stage (read-only) and its failure
+[ok] STAGE-SHA256SUMS 051e8fcc
+[ok] original stage files == its STAGE-SHA256SUMS
+[ok] root-bytecode-v2-native-2249.out 2a5aca4e
+[ok] original outer rc 143
+[ok] original: test binary 29df9018 built, queue EXIT -15, no aggregate result
+[ok] no guard receipt (cgroup OOM, as recorded)
+[ok] patched.test.out ea787c2b
+[ok] original: 20 tests ok, no test result line
+[ok] original fixture mdbx.dat is 4294967296 bytes (sparse default geometry)
+[ok] root-oom-scope-lines.txt 71c0e661
+[ok] root journal: run-p49545-i37834870.scope oom-kill
+[ok] original job has ended (no process)
+[ok] original target present (to be COPIED, never written)
+== recovery inputs == original (product unchanged)
+[ok] crate/Cargo.toml identical to the original
+[ok] crate/src/lib.rs identical to the original
+[ok] crate/src/main.rs identical to the original
+[ok] control/disable_check.py identical to the original
+[ok] inputs/closure-manifest.json identical to the original
+[ok] jobs/artifact.py identical to the original
+[ok] jobs/insert_lock_entry.py identical to the original
+[ok] jobs/verify_inputs.py identical to the original
+[ok] lib.rs ed9870e7
+[ok] main.rs 05dd717e
+[ok] Cargo.toml e398c4f9
+[ok] tests.rs == make-tests-fix.py(original 072a23a8): fixture-only
+[ok] resume job == make-recovery-job.py(original 7c95ec5b)
+[ok] recovery build dir is new
+## recovery precheck rc=0
+inserted base-bytecode-check before base-challenger (6 deps)
+{"lockSha256": "91a9e7626b5f361faed8f5226268ffae177970575e8ecd243d09cb077bd23bab", "closurePackages": 648, "registry": 632, "git": 16, "gitSources": ["git+https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b51cf9d9504f988bff3266a23085f0bd9"]} problems=0
+## RECOVERY: reusing a COPY of the ended original target for dependencies only (original untouched); the member test binary must still be REBUILT
+## [0] resolution only (no compile): cargo tree --locked
+## compiled graph: 367 packages, all inside the verified closure of 648
+## [1] patched (RECOVERY: product lib.rs/main.rs/Cargo.toml unchanged; fixture-only tests.rs f1bd5c1c): build + run all tests
+## patched test binary sha256 dae90e387d925e40f15befe2bf1ea599b6221f6fdbb28b4cb2f664d950ee4a07
+test tests::client_panics_exactly_where_the_checker_predicts ... ok
+test tests::client_cross_check_independently_refuses_harmful_rows ... ok
+test tests::completeness_counts_missing_code_and_ignores_empty ... ok
+test tests::client_written_rows_are_canonical_and_agree ... ok
+test tests::extra_table_bytes_and_bits_past_bit_len_are_non_canonical_not_failures ... ok
+test tests::forged_jump_bits_are_executed_by_the_client ... ok
+test tests::framed_digest_is_stable_and_length_and_count_framed ... ok
+test tests::mdbx_scan_end_to_end_reports_failures_missing_code_and_is_read_only ... ok
+test tests::digests_change_with_one_row_one_byte_or_one_reference ... ok
+test tests::missing_or_partial_checkpoints_are_not_ok ... ok
+test tests::missing_code_bad_row_and_empty_accounts_are_not_ok ... ok
+test tests::nonzero_padding_is_executed_by_the_client ... ok
+test tests::padding_shorter_than_revm42_is_refused_and_dupn_is_classified ... ok
+test tests::mutation_between_scans_changes_txn_id_entries_and_digests ... ok
+test tests::raw_tag0_rows_follow_new_raw ... ok
+test tests::read_errors_and_absent_databases_are_never_ok ... ok
+test tests::report_ok_requires_every_v2_binding ... ok
+test tests::rows_the_client_misreads_silently_are_refused ... ok
+test tests::size_key_and_length_guards ... ok
+test tests::v2_json_has_exactly_the_a2_schema ... ok
+test tests::v2_scan_leaves_every_byte_of_mdbx_dat_unchanged ... ok
+test tests::v2_scan_valid_fixture_is_ok_with_exact_counts_digests_and_checkpoints ... ok
+test tests::pseudo_random_client_rows_pass_and_every_read_jump_bit_flip_fails ... ok
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.74s
+## [2] CONTROL jumpbit (one rule disabled)
+## control jumpbit rc=101 failing: tests::forged_jump_bits_are_executed_by_the_client tests::mdbx_scan_end_to_end_reports_failures_missing_code_and_is_read_only tests::pseudo_random_client_rows_pass_and_every_read_jump_bit_flip_fails
+## control jumpbit failed exactly as expected
+## [2] CONTROL padding (one rule disabled)
+## control padding rc=101 failing: tests::padding_shorter_than_revm42_is_refused_and_dupn_is_classified
+## control padding failed exactly as expected
+## [2] CONTROL client (one rule disabled)
+## control client rc=101 failing: tests::client_cross_check_independently_refuses_harmful_rows
+## control client failed exactly as expected
+## [2] CONTROL completeness (one rule disabled)
+## control completeness rc=101 failing: tests::completeness_counts_missing_code_and_ignores_empty tests::mdbx_scan_end_to_end_reports_failures_missing_code_and_is_read_only tests::missing_code_bad_row_and_empty_accounts_are_not_ok
+## control completeness failed exactly as expected
+## [2] CONTROL eip7702 (one rule disabled)
+## control eip7702 rc=101 failing: tests::rows_the_client_misreads_silently_are_refused
+## control eip7702 failed exactly as expected
+## [2] CONTROL entries (one rule disabled)
+## control entries rc=101 failing: tests::report_ok_requires_every_v2_binding
+## control entries failed exactly as expected
+## [2] CONTROL accounts (one rule disabled)
+## control accounts rc=101 failing: tests::report_ok_requires_every_v2_binding
+## control accounts failed exactly as expected
+## [2] CONTROL codele (one rule disabled)
+## control codele rc=101 failing: tests::report_ok_requires_every_v2_binding
+## control codele failed exactly as expected
+## [2] CONTROL withcode (one rule disabled)
+## control withcode rc=101 failing: tests::missing_code_bad_row_and_empty_accounts_are_not_ok
+## control withcode failed exactly as expected
+## [2] CONTROL txnid (one rule disabled)
+## control txnid rc=101 failing: tests::report_ok_requires_every_v2_binding
+## control txnid failed exactly as expected
+## [2] CONTROL checkpoints (one rule disabled)
+## control checkpoints rc=101 failing: tests::missing_or_partial_checkpoints_are_not_ok tests::report_ok_requires_every_v2_binding
+## control checkpoints failed exactly as expected
+## [2] CONTROL datadir (one rule disabled)
+## control datadir rc=101 failing: tests::report_ok_requires_every_v2_binding
+## control datadir failed exactly as expected
+## [2] CONTROL rowsdigest (one rule disabled)
+## control rowsdigest rc=101 failing: tests::digests_change_with_one_row_one_byte_or_one_reference tests::mutation_between_scans_changes_txn_id_entries_and_digests tests::v2_scan_valid_fixture_is_ok_with_exact_counts_digests_and_checkpoints
+## control rowsdigest failed exactly as expected
+## [2] CONTROL refsdigest (one rule disabled)
+## control refsdigest rc=101 failing: tests::digests_change_with_one_row_one_byte_or_one_reference tests::mutation_between_scans_changes_txn_id_entries_and_digests tests::v2_scan_valid_fixture_is_ok_with_exact_counts_digests_and_checkpoints
+## control refsdigest failed exactly as expected
+## [2] CONTROL framing (one rule disabled)
+## control framing rc=101 failing: tests::framed_digest_is_stable_and_length_and_count_framed
+## control framing failed exactly as expected
+## [2] CONTROL count (one rule disabled)
+## control count rc=101 failing: tests::framed_digest_is_stable_and_length_and_count_framed
+## control count failed exactly as expected
+## [2] CONTROL scanned (one rule disabled)
+## control scanned rc=101 failing: tests::mdbx_scan_end_to_end_reports_failures_missing_code_and_is_read_only tests::missing_code_bad_row_and_empty_accounts_are_not_ok tests::mutation_between_scans_changes_txn_id_entries_and_digests tests::v2_scan_leaves_every_byte_of_mdbx_dat_unchanged tests::v2_scan_valid_fixture_is_ok_with_exact_counts_digests_and_checkpoints
+## control scanned failed exactly as expected
+## aggregate rc=0
+[memory-guard] exit=0 peakTreeRssMiB=702 minHostAvailableMiB=21796
+[memory-guard] at peak: rust-lld:309 cargo:220 rustc:163 bash:4 cc:3 collect2:3
+[queue] EXIT 0

@@ -1,0 +1,13 @@
+# live identities observed read-only 2026-10-26T03:00-03:02Z (live-control-guest-inventory-20261026; sha256 first 16 hex)
+file /opt/nan-relay/api-relay.js 481f00410b87f30e
+file /opt/enclave-rpc/gateway.mjs 3b23200d8e77565d
+file /opt/enclave-dns/dns-relay.js 4f6bd80dab575183
+file /opt/enclave-recovery/discovery.mjs 67c7b39a9e79374a
+file /usr/bin/node 93956de2e5948047
+file /usr/bin/caddy b7105518e3ed1c07
+file /etc/enclave-control-tls/caddy.json e080ca28646a4374
+unit enclave-api-relay.service 8100
+unit enclave-rpc-gateway.service 8190
+unit enclave-dns.service 1053
+unit enclave-native-discovery.service 8187
+unit enclave-control-tls.service 30443

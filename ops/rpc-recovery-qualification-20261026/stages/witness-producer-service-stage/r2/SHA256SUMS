@@ -1,0 +1,9 @@
+19abd1d75e7fbe0f327cd73be2001068f6213876e32609f8c17626d18c83fb79  ./README.md
+7a6f7ac994b738b5cd6ad5f21236c2a2ef7bc267c4c0501336e434b8b7acca00  ./jobs/tests.sh
+d7760b21724028fb30e8c91ab7d6842742afc9d98a4812d56246694c4a0e0641  ./patches/RESULT-FILES.sha256
+f2fd9ed4b1979bc216cf2aca86238a42ff34a893b7385041efecfdde92064f00  ./patches/RESULT-TREE.txt
+5459ebe853887b4271318e3cb21f3f36bc0cd443678ae7e1d8db70898bfec04a  ./patches/witness-placement-r2-vs-writer-integrated-r1.patch
+a2e4dd2f68b072bf8705a4ea8d8cfbcd81f4cdd4de50aefa6948ff7d486bc8a2  ./proposal/witness-route.json
+16e19fe2df46c6153c12ba611d83d58eb2f12aeee29ba1e71b06d7846b73ee3f  ./systemd/enclave-witness-forward.service
+1f77cfd4c53b0912c8568d5bb9b1dbd0ceb3b85a1bc2aa9dd1104a0c3e566ea1  ./systemd/enclave-witness-forward.socket
+a818ce1072e453b9eddab002f6b094cdfa82b640df7a02a6597c4e8a273bfaa9  ./tests/test_forward_chain.py

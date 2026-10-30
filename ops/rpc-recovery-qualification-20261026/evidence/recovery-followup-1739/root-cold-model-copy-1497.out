@@ -1,0 +1,21 @@
+[queue] START available=30125MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+{
+ "source": "/vm/enclave-volumes/.src/fable-fusion-27b-mtp-gguf/Fable-Fusion-27B-MTP-Q5_K_M.gguf",
+ "destination": "/mnt/usb/enclave-cold-model-sources/fable-fusion-27b-mtp-gguf/Fable-Fusion-27B-MTP-Q5_K_M.gguf",
+ "size": 21182275040,
+ "sha256": "c0f73caef72a1f546092f93f0d8db6f4939ad121ac5e6e3665f0829657b86d7d",
+ "sourceIdentity": [
+  64769,
+  84934663,
+  21182275040,
+  1785178765544760044,
+  1785178765544760044
+ ],
+ "sourceMode": 420,
+ "copiedVerified": true,
+ "sourceStillOriginal": true,
+ "elapsed": 492.7116903208662
+}
+[memory-guard] exit=0 peakTreeRssMiB=33 minHostAvailableMiB=28524
+[memory-guard] at peak: python3:33
+[queue] EXIT 0

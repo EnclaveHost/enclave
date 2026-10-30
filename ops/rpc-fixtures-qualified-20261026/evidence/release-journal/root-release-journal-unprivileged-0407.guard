@@ -1,0 +1,1 @@
+[memory-guard] exit=SIGTERM peakTreeRssMiB=524 minHostAvailableMiB=22598 STOPPED: process tree RSS 524 MiB > 512 MiB

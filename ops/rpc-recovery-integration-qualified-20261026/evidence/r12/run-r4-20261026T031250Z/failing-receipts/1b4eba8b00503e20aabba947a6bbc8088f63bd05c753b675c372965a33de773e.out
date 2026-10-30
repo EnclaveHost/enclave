@@ -1,0 +1,62 @@
+TAP version 13
+# Subtest: the relay is the packaged host role serving the MOVED key's payee, with its signed statement
+ok 1 - the relay is the packaged host role serving the MOVED key's payee, with its signed statement
+  ---
+  duration_ms: 966.989421
+  type: 'test'
+  ...
+# Subtest: Linux and Windows factories: claim, renew and release through ONLY the pinned relay, app-paid, zero host ETH, DigitalOcean unreachable
+not ok 2 - Linux and Windows factories: claim, renew and release through ONLY the pinned relay, app-paid, zero host ETH, DigitalOcean unreachable
+  ---
+  duration_ms: 136.942212
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-pinned-relay.test.mjs:193:1'
+  failureType: 'testCodeFailure'
+  error: "The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'"
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    async loadWindows (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-pinned-relay.test.mjs:118:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-pinned-relay.test.mjs:195:19)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: refused BEFORE ANY SIGNATURE: another payee, forged/stale/other-chain/other-executor statements, a fresh ban, an unreadable or missing policy, policy off, a redirect
+not ok 3 - refused BEFORE ANY SIGNATURE: another payee, forged/stale/other-chain/other-executor statements, a fresh ban, an unreadable or missing policy, policy off, a redirect
+  ---
+  duration_ms: 819.106907
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-pinned-relay.test.mjs:224:1'
+  failureType: 'testCodeFailure'
+  error: "The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'"
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    async loadWindows (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-pinned-relay.test.mjs:118:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-pinned-relay.test.mjs:251:17)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: after signing: an unverifiable relay receipt is not success and its durable journal entry is held; a lost answer is settled from the chain
+ok 4 - after signing: an unverifiable relay receipt is not success and its durable journal entry is held; a lost answer is settled from the chain
+  ---
+  duration_ms: 4482.48504
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 2
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6609.356637

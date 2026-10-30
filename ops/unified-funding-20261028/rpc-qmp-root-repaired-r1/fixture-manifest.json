@@ -1,0 +1,233 @@
+{
+ "backings": {
+  "hdd": {
+   "dir": "/mnt/usb/enclave-rpc-production",
+   "discard": "ignore",
+   "fsUuid": "489ED12D9ED11472",
+   "fstype": "ntfs3",
+   "growth": "full",
+   "guestRotationRate": 7200,
+   "kind": "hdd",
+   "leafDisks": [
+    {
+     "model": "TR-004 DISK00",
+     "name": "sda",
+     "rotational": true
+    }
+   ],
+   "mount": "/mnt/usb",
+   "source": "/dev/sda2"
+  },
+  "nvme": {
+   "capacity": {
+    "floorBytes": 300000000000,
+    "pauseMarginBytes": 68719476736,
+    "pollSeconds": 1,
+    "shutdownLeadSeconds": 2400,
+    "shutdownMarginBytes": 100000000000,
+    "startHeadroomBytes": 20000000000
+   },
+   "dir": "/vm/enclave-volumes/rpc-production",
+   "discard": "unmap",
+   "fsUuid": "aaae081c-f829-4484-a50f-a9bbb87d31f9",
+   "fstype": "ext4",
+   "growth": "bounded",
+   "guestRotationRate": 1,
+   "kind": "nvme",
+   "leafDisks": [
+    {
+     "model": "CT4000T710SSD8",
+     "name": "nvme0n1",
+     "rotational": false
+    }
+   ],
+   "mount": "/vm",
+   "source": "/dev/mapper/cryptvm"
+  }
+ },
+ "baseImage": {
+  "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/storage-vm/image/noble-server-cloudimg-amd64.img",
+  "sha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94"
+ },
+ "createdAt": "2026-10-25T10:58:58Z",
+ "disks": {
+  "base": {
+   "backing": "hdd",
+   "bytes": 4000000000000,
+   "format": "qcow2",
+   "ino": 3221,
+   "label": "enc-base-origin",
+   "mount": "/srv/enclave-base-holder",
+   "path": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+   "role": "base",
+   "serial": "ERPC-BASE-740457FE",
+   "uuid": "11c6bbac-f823-4052-a87a-066eed6ad590"
+  },
+  "l1": {
+   "backing": "nvme",
+   "bytes": 4000000000000,
+   "format": "qcow2",
+   "ino": 147981798,
+   "label": "enc-l1-origin",
+   "mount": "/srv/enclave-l1-pair",
+   "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+   "role": "l1",
+   "serial": "ERPC-L1-6DA15A8D",
+   "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0"
+  },
+  "os": {
+   "backing": "nvme",
+   "bytes": 34359738368,
+   "format": "qcow2",
+   "ino": 147981797,
+   "path": "/vm/enclave-volumes/rpc-production/os.qcow2",
+   "serial": "ERPC-OS-C0D16DA3"
+  }
+ },
+ "files": {
+  "launcher": "38f8dc891bfa9f5f74fcd8eb4ba50ea6f5f70342c49e3c7e2944a10c504436d7",
+  "qemuArgv": "a6da118b3a8ef83d2f0fbb17a404db1087e0ee11cf4f119744ef80f1f291f2f4",
+  "seed/meta-data": "4153708e6220fbcbb45edfd70c0d99cfff04236ac00c2b7aeb54bfa2c811cba8",
+  "seed/network-config": "d807f6d0086b488c7a9edbe6b643665c043fd0d04063eeb14a4a3aea47625399",
+  "seed/user-data": "463559e2b379859807a2502c087af99afd57e53aac190ae8e2850025d9d8693a",
+  "seedIso": "f8d7c12465541bc2d0b4fb19f9803676a9d7e1fe643f3de3221b8cf1b1f6a840",
+  "sshConfig": "8c3c43efad51a2cd6b1834eb8ee16cabd8a24fa12fadefc249e45489b3ada488"
+ },
+ "format": "enclave-rpc-backend-vm/v2",
+ "hostAtPrepare": {
+  "hdd": {
+   "disk": "sda",
+   "freeBytes": 35998606082048,
+   "fstype": "ntfs3",
+   "mount": "/mnt/usb",
+   "rotational": true,
+   "source": "/dev/sda2",
+   "superOpts": [
+    "rw",
+    "uid=1000",
+    "gid=1000",
+    "dmask=0022",
+    "fmask=0022",
+    "acl",
+    "iocharset=utf8",
+    "prealloc"
+   ]
+  },
+  "memAvailable": 92454051840
+ },
+ "instanceId": "enclave-rpc-production-f4907b32",
+ "mac": "52:54:00:ae:f9:7e",
+ "migration": {
+  "copyMethod": "root-reviewed nvme_copy.py byte-for-byte copy (receipts)",
+  "disks": {
+   "l1": {
+    "from": {
+     "ino": 3220,
+     "path": "/mnt/usb/enclave-rpc-production/l1-origin.qcow2"
+    },
+    "to": {
+     "allocated": 494481891328,
+     "copy": {
+      "finished": "2026-10-25T17:38:36Z",
+      "helperSha256": "e48a7cb8b954059e6530a3cca56b03e688f8239d0c42c68d658126fd8dfc6561",
+      "receipt": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/nvme-migration/copy-l1.receipt.json",
+      "receiptSha256": "bb6902a53100f603047c4f815b21037c197f8483d403050126bac6991c75b49b"
+     },
+     "identity": "receipt inode+size+mtime/ctime<=finished",
+     "ino": 147981798,
+     "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+     "qemuImgCheck": {
+      "allocated-clusters": 7558992,
+      "check-errors": 0,
+      "image-end-offset": 495572353024
+     },
+     "sha256": "93b7d677d405a80b44feb18947ea8f3120b396c76dfe5bcb335dd2e2fe2f3b0d"
+    }
+   },
+   "os": {
+    "from": {
+     "ino": 3219,
+     "path": "/mnt/usb/enclave-rpc-production/os.qcow2"
+    },
+    "to": {
+     "allocated": 3102281728,
+     "copy": {
+      "finished": "2026-10-25T16:53:10Z",
+      "helperSha256": "e48a7cb8b954059e6530a3cca56b03e688f8239d0c42c68d658126fd8dfc6561",
+      "receipt": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/nvme-migration/copy-os.receipt.json",
+      "receiptSha256": "6437bb56b3d66835e78bbf102c725725ef8d75523f6cea2b64df65cc9cf59270"
+     },
+     "identity": "receipt inode+size+mtime/ctime<=finished",
+     "ino": 147981797,
+     "path": "/vm/enclave-volumes/rpc-production/os.qcow2",
+     "qemuImgCheck": {
+      "allocated-clusters": 47435,
+      "check-errors": 0,
+      "image-end-offset": 3110666240
+     },
+     "sha256": "9a71081601d2a9820e422d6347736c93b98526d74a715a4a48074bdb79f33b2f"
+    }
+   }
+  },
+  "format": "enclave-rpc-nvme-migration/v1",
+  "fromManifestSha256": "ecbe7b65452b592742eb72f622bf9ea0dd52d51c825085e933f32a68d2f5f3ed"
+ },
+ "name": "enclave-rpc-production",
+ "nvme": {
+  "cacheBytes": 0,
+  "capBytes": null,
+  "chainStorageAuthorized": true,
+  "freeFloorPolicy": "operator policy (not a user cap): keep >= 300 GB free on the NVMe filesystem",
+  "override": "2026-10-25 user: fastest NVMe chain storage authorized; the former 250 GB cap removed"
+ },
+ "paths": {
+  "console": "/run/user/1000/enclave-rpc-production/console.sock",
+  "consoleLog": "/home/steven/.local/state/enclave-rpc-production/console.log",
+  "guardMode": "/home/steven/.local/state/enclave-rpc-production/guard-mode.json",
+  "guardQmp": "/run/user/1000/enclave-rpc-production/guard-qmp.sock",
+  "guardStatus": "/home/steven/.local/state/enclave-rpc-production/guard-status.json",
+  "guardUnitPath": "/home/steven/.config/systemd/user/enclave-rpc-production-guard.service",
+  "hddDir": "/mnt/usb/enclave-rpc-production",
+  "key": "/home/steven/.local/state/enclave-rpc-production/id_ed25519",
+  "knownHosts": "/home/steven/.local/state/enclave-rpc-production/known_hosts",
+  "launcher": "/home/steven/.local/state/enclave-rpc-production/provision_vm.py",
+  "manifest": "/home/steven/.local/state/enclave-rpc-production/manifest.json",
+  "osDisk": "/vm/enclave-volumes/rpc-production/os.qcow2",
+  "qmp": "/run/user/1000/enclave-rpc-production/qmp.sock",
+  "runtimeDir": "/run/user/1000/enclave-rpc-production",
+  "seedDir": "/home/steven/.local/state/enclave-rpc-production/seed",
+  "seedIso": "/home/steven/.local/state/enclave-rpc-production/seed.iso",
+  "sshConfig": "/home/steven/.local/state/enclave-rpc-production/ssh_config",
+  "stateDir": "/home/steven/.local/state/enclave-rpc-production",
+  "unitPath": "/home/steven/.config/systemd/user/enclave-rpc-production-vm.service"
+ },
+ "ports": {
+  "forwards": [
+   {
+    "name": "base-rpc",
+    "port": 28545,
+    "target": 18545
+   },
+   {
+    "name": "l1-el",
+    "port": 28645,
+    "target": 18645
+   },
+   {
+    "name": "l1-cl",
+    "port": 25052,
+    "target": 15052
+   }
+  ],
+  "ssh": 22850
+ },
+ "sshKeyFingerprint": "SHA256:e5CRQIDQQj3kejvZqe4+p3lLWSxdXgWaPUm3AKQW/9w",
+ "sshPublicKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBrrPjQdPBYUZtITbVChJal7P1B2DDTlUfTOWUgNimlM enclave-rpc-production-admin",
+ "uid": 1000,
+ "vm": {
+  "guestMemBytes": 68719476736,
+  "hostReserveBytes": 17179869184,
+  "memoryMaxBytes": 70866960384,
+  "vcpus": 8
+ }
+}

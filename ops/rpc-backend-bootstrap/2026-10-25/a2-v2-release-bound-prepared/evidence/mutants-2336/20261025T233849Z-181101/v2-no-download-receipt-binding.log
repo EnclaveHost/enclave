@@ -1,0 +1,34 @@
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "bytecode_receipt_stale: the bytecode verification was for another DB state, A4 result, download receipt or mutation journal"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "bytecode_receipt_stale: the bytecode verification was for another DB state, A4 result, download receipt or mutation journal"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+test_stale_db_download_receipt_or_stored_receipt_refuse_release (test_a2a4.BytecodeGate.test_stale_db_download_receipt_or_stored_receipt_refuse_release) ... FAIL
+
+======================================================================
+FAIL: test_stale_db_download_receipt_or_stored_receipt_refuse_release (test_a2a4.BytecodeGate.test_stale_db_download_receipt_or_stored_receipt_refuse_release)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.a6IJsCDG0M/test/test_a2a4.py", line 635, in test_stale_db_download_receipt_or_stored_receipt_refuse_release
+    bound(); self.receipt['note'] = 'rewritten'; self.refused('release', 'bytecode_receipt_stale')   # passes gate_download, other bytes
+                                                 ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.a6IJsCDG0M/test/test_a2a4.py", line 131, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: 0 != 1 : {'step': 'release', 'startedAt': '2026-10-25T23:50:33.692429+00:00', 'result': None, 'ok': True, 'commands': [{'argv': ['/tmp/tmprz_ry188/bin/base', 'reth', 'stage', 'unwind', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.068, 'stdoutBytes': 60, 'stdoutLog': '/tmp/tmprz_ry188/work/cmd/20261025T235033769079Z-0001.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmprz_ry188/bin/base', 'reth', 'stage', 'run', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.066, 'stdoutBytes': 58, 'stdoutLog': '/tmp/tmprz_ry188/work/cmd/20261025T235033837287Z-0002.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmprz_ry188/bin/base', 'reth', 'stage', 'drop', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.068, 'stdoutBytes': 24, 'stdoutLog': '/tmp/tmprz_ry188/work/cmd/20261025T235033903902Z-0003.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmprz_ry188/bin/base', 'reth', 'db', 'get', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.067, 'stdoutBytes': 25, 'stdoutLog': '/tmp/tmprz_ry188/work/cmd/20261025T235033972423Z-0004.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmprz_ry188/bin/base', 'reth', 'db', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.067, 'stdoutBytes': 36, 'stdoutLog': '/tmp/tmprz_ry188/work/cmd/20261025T235034039794Z-0005.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmprz_ry188/bin/base', 'reth', 'db', '--datadir', '/tmp/tmprz_ry188/datadir', '--config', '/tmp/tmprz_ry188/reth.toml', 'settings', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.067, 'stdoutBytes': 37, 'stdoutLog': '/tmp/tmprz_ry188/work/cmd/20261025T235034107330Z-0006.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmprz_ry188/bin/base', 'reth', 'db', '--datadir', '/tmp/tmprz_ry188/datadir', '--config', '/tmp/tmprz_ry188/reth.toml', 'stage-checkpoints', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.066, 'stdoutBytes': 417, 'stdoutLog': '/tmp/tmprz_ry188/work/cmd/20261025T235034174543Z-0007.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmprz_ry188/bin/base', 'reth', 'db', '--datadir', '/tmp/tmprz_ry188/datadir', '--config', '/tmp/tmprz_ry188/reth.toml', 'get', 'static-file', 'headers', '52866960'], 'class': 'read', 'rc': 0, 'sec': 0.066, 'stdoutBytes': 1681, 'stdoutLog': '/tmp/tmprz_ry188/work/cmd/20261025T235034240784Z-0008.out', 'stderrTail': '', 'stopped': None}], 'finishedAt': '2026-10-25T23:50:34.349103+00:00'}
+
+----------------------------------------------------------------------
+Ran 1 test in 14.367s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}

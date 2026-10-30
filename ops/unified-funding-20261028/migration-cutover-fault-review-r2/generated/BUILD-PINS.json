@@ -1,0 +1,19 @@
+{
+  "schema": "cutover-fault-r2-root-pins",
+  "inputs": {
+    "migration-cutover-site-review-r1/candidate/site/js/pages/funding.js": "635cdcc1737f827badd2c7b5fcd878df7af0080a2a487f19f2fc6644fbab3fc1",
+    "migration-cutover-site-review-r1/candidate/site/js/funding/state.js": "010d864fc4947c2a46961a6011ff8cba2fce29d6097fa8f64e65d2c8ab5e2825",
+    "migration-cutover-site-review-r1/candidate/site/js/funding/flows.js": "88d2e23a8990858546c306d3249483822d9ea14f77846d8007c721fbd6b70ab2",
+    "../source/site/js/core/util.js": "71a896f187d4577c7cf615daf72dac22f705a45dc9058d994d6983f83358d830",
+    "migration-cutover-fault-r2/shell/main.mjs": "cb1d24fb8d05a51e056fb2cfa6dfc5f7785606852359fdfe9fd2542662810e36",
+    "migration-cutover-fault-r2/shell/harness-state.js": "9d9f547b0f7c95526dd26081899fa74e37149175b805744624dd43a1f80c39b8",
+    "migration-cutover-fault-r2/shell/facade/api.js": "a704f02e696c307e931d4ab85a3173f8d32e51d1db6be171731d8de1a9c73365",
+    "migration-cutover-fault-r2/shell/facade/wallet.js": "be3b53264988e611f93084fc14c9ce3e63ac54383abd5dc5fa29725199712ff1",
+    "migration-cutover-fault-r2/shell/facade/empty.js": "5dceb4c0198f225d3fe68e3558dd569e7645bddb165ef6656b2be14277d4e3fc",
+    "migration-cutover-fault-r2/shell/facade/config.js": "204f1922e17f9e96907ac31eae8a3a70471e1a4b16a1e2c9f2a24a8e963c2930",
+    "migration-cutover-fault-r2/shell/facade/sessions.js": "6740608869692f092cbad180c3566f480a80d27f86e7c9a38675fb6564415a77",
+    "migration-cutover-fault-r2/shell/facade/vendor-funding.js": "836f3a710a1a602f59351def81bc3c9e18e99bad21337f5a5b3c7f0e57ce6090",
+    "migration-cutover-site-review-r1/candidate/site/vendor/funding.js": "f23ba2d79661ade43ed484e186d0347b95756dbe70a9735c4b3152da653dd957",
+    "../source/sdk/sessions/dist/browser.mjs": "9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997"
+  }
+}

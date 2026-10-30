@@ -1,0 +1,9 @@
+// The GNU Make 4.4.1
+// TIP: Use `make V=1` for verbose.
+// TIP: Clone and build the https://abf.io/erthink/ioarena.git within a neighbouring directory for availability of benchmarking.
+  TOUCH @buildflags.tag to force re-build with the (new) specified flags...
+  MAKE config-gnumake.h
+  CC mdbx-static.o
+  CC+LD mdbx_chk
+  CC+LD mdbx_stat
+  CC+LD mdbx_dump

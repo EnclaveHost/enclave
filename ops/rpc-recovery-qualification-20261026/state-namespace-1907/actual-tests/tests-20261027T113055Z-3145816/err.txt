@@ -1,0 +1,29 @@
+....F.......
+======================================================================
+FAIL: test_2_build_routes_dispatch_exactly_the_pinned_entry (__main__.T.test_2_build_routes_dispatch_exactly_the_pinned_entry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/namespace-launch-guard-stage/r2/tests/test_guard.py", line 80, in test_2_build_routes_dispatch_exactly_the_pinned_entry
+    self.assertEqual([r["check"] for r in recs], [{"roots": ["/home/steven", "/tmp"], "cloneHazards": [], "clear": True}] * 2)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [{'allNamespaceHazards': [], 'clear': True, [149 chars]p']}] != [{'roots': ['/home/steven', '/tmp'], 'cloneH[95 chars]rue}]
+
+First differing element 0:
+{'allNamespaceHazards': [], 'clear': True, [49 chars]mp']}
+{'roots': ['/home/steven', '/tmp'], 'cloneH[22 chars]True}
+
++ [{'clear': True, 'cloneHazards': [], 'roots': ['/home/steven', '/tmp']},
++  {'clear': True, 'cloneHazards': [], 'roots': ['/home/steven', '/tmp']}]
+- [{'allNamespaceHazards': [],
+-   'clear': True,
+-   'cloneHazards': [],
+-   'roots': ['/home/steven', '/tmp']},
+-  {'allNamespaceHazards': [],
+-   'clear': True,
+-   'cloneHazards': [],
+-   'roots': ['/home/steven', '/tmp']}]
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.453s
+
+FAILED (failures=1)

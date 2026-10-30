@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: ROOT installer refuses service-writable migrationEvidence trust input
+not ok 1 - ROOT installer refuses service-writable migrationEvidence trust input
+  ---
+  duration_ms: 19.467937
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/root-trust-inputs.test.mjs:5:58'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/root-trust-inputs.test.mjs:8:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: ROOT installer refuses service-writable releaseManifest trust input
+not ok 2 - ROOT installer refuses service-writable releaseManifest trust input
+  ---
+  duration_ms: 9.266928
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/root-trust-inputs.test.mjs:5:58'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/operator-windows-wiring-root-review-r2/root-trust-inputs.test.mjs:8:2)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 128.83888

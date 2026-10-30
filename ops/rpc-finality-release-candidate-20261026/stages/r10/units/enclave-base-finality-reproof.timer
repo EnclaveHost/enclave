@@ -1,0 +1,8 @@
+# base-finality-proof-stage/r7 (SOURCE ONLY): retry every 10 min (a post-restart proof needs a strictly newer anchor game; exit 75 waits)
+[Unit]
+Description=Base post-anchor finality re-proof
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=10min
+[Install]
+WantedBy=timers.target

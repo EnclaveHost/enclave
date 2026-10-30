@@ -1,0 +1,42 @@
+{
+  "author": "wallet-owned-session-repair-r2",
+  "executed": { "tests": false, "builds": false, "compiles": false, "rpc": false, "signatures": false, "deployments": false },
+  "priorSizePassAppliesTo": "prior source only; WalletSessionVault.sol changed, WalletSessionProfile.sol new: requalify",
+  "positivePaths": [
+    "resolver: Created log + receipt order + manifest-verified vault chain + CREATE/CREATE2 -> bound/detached/void/stale",
+    "resolver: wallet's own create (code-less sender) -> legacy-unbound; import without verified ancestry -> legacy-unbound",
+    "custody gate custodyDecision -> secrets.js / secrets-release / shield final policy-key checks",
+    "relay api-relay.js + supervisor.js + windows/node/agent.mjs construct the shared resolver",
+    "SDK Session.call wallet-v1 digest + versioned quote/execute body; openWalletSession; completeSession stores version"
+  ],
+  "changedFiles": [
+    "enclave/relay/wallet-session-policy.mjs", "enclave/relay/wallet-session-manifest.mjs (new)", "enclave/relay/wallet-session-protocol.mjs (new, null placeholder)",
+    "enclave/relay/sessions.mjs", "enclave/relay/api-relay.js", "enclave/relay/secrets-release.mjs", "enclave/relay/secrets.js", "enclave/relay/shield-secrets.mjs",
+    "enclave/windows/node/session-api-auth.mjs", "enclave/windows/node/agent.mjs", "enclave/supervisor.js", "enclave/Dockerfile",
+    "enclave/contracts/WalletSessionVault.sol", "enclave/contracts/WalletSessionProfile.sol (new)",
+    "enclave/contracts/foundry/test/WalletSessionVault.t.sol (2 tests appended)",
+    "enclave/sdk/sessions/src/wallet.ts", "enclave/sdk/sessions/src/client.ts", "enclave/sdk/sessions/src/index.ts",
+    "enclave/tools/build-wallet-session-manifest.mjs (new, source-only)",
+    "enclave/test/wallet-session/fixture-protocol.mjs (new)", "enclave/test/wallet-session/discovery-r2.test.mjs (new)",
+    "enclave/test/wallet-session/consumers.test.mjs (fixture only)", "enclave/test/wallet-session/root-discovery.test.mjs (fixture only)"
+  ],
+  "assertionMapping": {
+    "authored7": "unchanged bodies in consumers.test.mjs and root-discovery.test.mjs (same 7, overlapping, counted once)",
+    "root3": { "ROOT1": "refused (discovery, pins irrelevant)", "ROOT2": "invalid via creatorOf disagreement", "ROOT3": "throws /wrong chain/" },
+    "fixtureDiff": ["VAULT A(0xa17) -> P.vaultFor(WALLET)", "FACTORY_CODE 0x60016002 -> synthetic template", "getCode -> code map",
+      "+getBlock/getLogs/getTransactionReceipt", "births registered", "resolver helper + manifest"],
+    "solidity": { "test_ledgerMovedInBookRefusesEverything": "kept, fails by design", "replacements": ["test_r2_foreignBookChangeHasNoEffect", "test_r2_wrongLocalLedgerBindingRefused"] }
+  },
+  "activationBlockers": [
+    "relay/wallet-session-protocol.mjs not generated (root compile + builder)",
+    "relay /open /quote /execute handlers do not branch on version (wallet-v1 open not relayed)",
+    "CLI version/owner from stored handle not wired",
+    "handler-level secret read/seal/send spy tests not written",
+    "contract-wallet (Safe) created rows are invalid unless a legacy-vault reader recognises them",
+    "imported rows are griefable by Bound(id) spam only when no manifest is loaded",
+    "on-chain transfer-away/back continuity not enforceable (legacy ledger); off-chain 'stale' only",
+    "legacy broad setDelegate still reaches new rows on chain",
+    "existing suites constructing gate/session rules without a resolver now refuse (intended)",
+    "old deployed contracts/grants/balances/funded-app migration unchanged and unresolved"
+  ]
+}

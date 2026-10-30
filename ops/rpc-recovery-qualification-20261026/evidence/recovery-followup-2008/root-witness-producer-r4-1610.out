@@ -1,0 +1,13 @@
+[queue] START available=26124MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+Ran 10 tests in 3.671s
+
+FAILED (failures=2, errors=3)
+## test_witness_producer_r3 FAIL (rc 1)
+Ran 7 tests in 10.241s
+
+FAILED (failures=3)
+## test_forward_chain_r4 FAIL (rc 1)
+## witness-producer-r4 rc=1
+[memory-guard] exit=1 peakTreeRssMiB=47 minHostAvailableMiB=25464
+[memory-guard] at peak: python3:29 witness_fetch:12 bash:4 timeout:2
+[queue] EXIT 1

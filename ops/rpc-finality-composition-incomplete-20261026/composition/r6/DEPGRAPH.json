@@ -1,0 +1,39 @@
+{
+ "ref": "c4de37a3f97a3350b6e6a30fbc1f9ada66e2c91f",
+ "staticEdges": [
+  "host-admission -> mcp-guest (via windows/node/host-admission.bundle.mjs)",
+  "host-admission -> network-runtime (via windows/node/host-admission.bundle.mjs)",
+  "metal-lease-gas -> platform-api-guest (via metal/guest/lease-gas-conduit.bundle.mjs)",
+  "network-runtime -> host-service-packages (via relay/network-runtime.bundle.mjs)",
+  "network-runtime -> platform-api-guest (via relay/network-runtime.bundle.mjs)"
+ ],
+ "manifestEdges": [
+  "host-admission -> host-service-packages",
+  "host-admission -> mcp-guest",
+  "host-admission -> platform-api-guest",
+  "metal-lease-gas -> platform-api-guest",
+  "network-runtime -> host-service-packages",
+  "network-runtime -> platform-api-guest"
+ ],
+ "manifestOnly": [
+  "host-admission -> host-service-packages",
+  "host-admission -> platform-api-guest"
+ ],
+ "unresolved": [],
+ "cycle": false,
+ "order": [
+  "host-admission",
+  "windows-lease-runtime",
+  "metal-lease-gas",
+  "vendor-host-policy",
+  "vendor-management",
+  "vendor-aa",
+  "vendor-custody",
+  "vendor-credit-vault",
+  "vendor-host-capacity",
+  "network-runtime",
+  "mcp-guest",
+  "host-service-packages",
+  "platform-api-guest"
+ ]
+}

@@ -1,0 +1,18 @@
+{
+ "checks": {
+  "lastLineOK": false,
+  "noBadMarkers": false,
+  "ranExactly": true,
+  "rc0": false,
+  "stdoutEmpty": true
+ },
+ "expected": 14,
+ "format": "state-fixture-capture-test-receipt/r2",
+ "pass": false,
+ "ran": [
+  "14"
+ ],
+ "rc": 1,
+ "scope": "pure wrapper logic only: not a compiled-fixture run, not a fixture receipt",
+ "stageSums": "f07bd6da5f0c4be3ed092a6318fcd3ec10a2fd87767469a838e2853c25030836"
+}

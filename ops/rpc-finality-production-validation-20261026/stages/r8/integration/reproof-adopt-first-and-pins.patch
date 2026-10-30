@@ -1,0 +1,52 @@
+--- a/src/reproof.py
++++ b/src/reproof.py
+@@ -3,6 +3,9 @@
+ source units drive (enclave-base-finality-reproof.timer). After a launch's first start or any ordinary restart the readiness gates refuse
+ until a NEW proof for the running process is durably recorded; this runs exactly the reviewed steps, nothing else:
+   1. finality_state status: already qualified AND recorded for the running process -> nothing to do (status republished)
++  1a. r8: a DURABLE pending proof (an interrupted record: watermark landed, journal event not) is ADOPTED first (producer
++      adopt_pending); a CURRENT qualified-but-unrecorded proof is RECORDED (record_finality). Only then, if still not current
++      for this process, a NEW proof - so a newer proof is never recorded on top of an unadopted one (no journal mismatch)
+   2. the harness's pinned capture module (load_capture: HOLD until A1_CAPTURE_REVIEWED) - an `initial` capture of the current
+      anchor game, then a `recheck-capture` of exactly it, with the module's own reviewed Sources and pins (never a stub or receipt)
+   3. finality_state qualify(write=True): harness gate_a1 + the shared admission ledger + the pinned core over the bound node
+@@ -14,8 +17,8 @@
+ 
+ FORMAT = 'enclave-base-finality-reproof/v1'
+ CONFIG_KEYS = {'format', 'launchDir', 'chainJson', 'rpcUrl', 'statusOut', 'node', 'depsRoot', 'workdir', 'capturesRoot'}
+-FINALITY_STATE = (pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py'), 'b2ed0aaa27786615b66d4c4b644f79e461e87c5de2c4e807eb78323fd9d38327')
+-PRODUCER = (pathlib.Path('/opt/enclave-rpc/base-launch/base_launch.py'), '06b93401a4274ca0bf7c4003834ba533d7b99e5cf9a5933f8d76d68c7097fe4b')
++FINALITY_STATE = (pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py'), 'ecfe11ba3df1b834e43726d2e023640b170440dcea451aa15cc252e1764efeb5')
++PRODUCER = (pathlib.Path('/opt/enclave-rpc/base-launch/base_launch.py'), 'e01a8694b6d021ce4ba0b01d9ed9bd6c9c32e21e3d60dd9c626eaf51b824cecd')
+ KEEP, TEMPFAIL, HOLD = 4, 75, 78
+ HOLD_CODES = {'hold_prototype', 'a1_capture_pending', 'hold_finality'}
+ RETRY_CODES = {'not_newer', 'same_game', 'stale_l1', 'not_post_anchor', 'capture', 'a1_stale', 'a1_stale_at_append', 'not_synced',
+@@ -70,6 +73,16 @@
+         s = _status(F, W, c, top, proc)
+         if s.get('qualified') is True and s.get('recordedAs'):
+             return {'action': 'none', 'state': s['state'], 'published': F.publish_status(s, c['statusOut'], top=top)}
++        fdir = pathlib.Path(c['launchDir']) / 'finality'
++        Fp = types.SimpleNamespace(OWNER=F.OWNER, Refused=F.Refused, load_launch=F.load_launch, entries=F.entries,
++                                   status=functools.partial(F.status, proc=proc))
++        adopted = P.adopt_pending(c['launchDir'], fdir, W=W, F=Fp, owner=F.OWNER, top=top, watermark=W.BOOTSTRAP_WATERMARK)
++        if adopted or s.get('qualified') is True:
++            if not adopted:                                                        # current for THIS process, never recorded
++                P.record_finality(c['launchDir'], c['chainJson'], fdir, c['rpcUrl'], W=W, F=Fp, owner=F.OWNER, top=top, watermark=W.BOOTSTRAP_WATERMARK)
++            s = _status(F, W, c, top, proc)
++            if s.get('qualified') is True and s.get('recordedAs'):
++                return {'action': 'adopted' if adopted else 'recorded', 'state': s['state'], 'published': F.publish_status(s, c['statusOut'], top=top)}
+         C = R.load_capture()                                                       # HOLD until the capture module is reviewed
+         cap = capture_fn or (lambda mode, out, initial=None: C.capture(mode, str(out), src=C.Sources(initial_capture=pathlib.Path(initial) if initial else None)))
+         d = root / now.strftime('%Y%m%dT%H%M%S%fZ'); os.mkdir(d, 0o700)
+@@ -77,11 +90,8 @@
+             ok, res = cap(mode, out, initial)
+             if not ok:
+                 raise Refused('capture', f'{mode} capture failed: {str((res or {}).get("error") or res)[:200]}')
+-        fdir = pathlib.Path(c['launchDir']) / 'finality'
+         q = F.qualify(c['launchDir'], c['chainJson'], fdir, {'initialOut': str(d / 'initial'), 'recheckOut': str(d / 'recheck')}, c['rpcUrl'],
+                       W=W, R=R, node=c['node'], deps_root=c['depsRoot'], workdir=c['workdir'], write=True, top=top, proc=proc)
+-        Fp = types.SimpleNamespace(OWNER=F.OWNER, Refused=F.Refused, load_launch=F.load_launch, entries=F.entries,
+-                                   status=functools.partial(F.status, proc=proc))
+         r = P.record_finality(c['launchDir'], c['chainJson'], fdir, c['rpcUrl'], W=W, F=Fp, owner=F.OWNER, top=top, watermark=W.BOOTSTRAP_WATERMARK)
+         pub = F.publish_status(_status(F, W, c, top, proc), c['statusOut'], top=top)
+         _prune(root)

@@ -1,0 +1,67 @@
+TAP version 13
+# Subtest: the local relay setting is loopback-only, explicit, and the host's own relay comes FIRST; remote relays become optional
+not ok 1 - the local relay setting is loopback-only, explicit, and the host's own relay comes FIRST; remote relays become optional
+  ---
+  duration_ms: 780.2083
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-host-relay.test.mjs:111:1'
+  failureType: 'hookFailed'
+  error: "The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'"
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    async loadHost (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-host-relay.test.mjs:58:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-host-relay.test.mjs:100:11)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: a ZERO-ETH host claims, renews and releases through its OWN relay (the release artifact), with every other relay unreachable
+not ok 2 - a ZERO-ETH host claims, renews and releases through its OWN relay (the release artifact), with every other relay unreachable
+  ---
+  duration_ms: 0.599603
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-host-relay.test.mjs:127:1'
+  failureType: 'hookFailed'
+  error: "The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'"
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    async loadHost (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-host-relay.test.mjs:58:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-host-relay.test.mjs:100:11)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: the host relay restarts on its own send record and key: same payee, nothing unresolved, serving again
+not ok 3 - the host relay restarts on its own send record and key: same payee, nothing unresolved, serving again
+  ---
+  duration_ms: 0.073299
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-host-relay.test.mjs:155:1'
+  failureType: 'hookFailed'
+  error: "The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'"
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    async loadHost (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-host-relay.test.mjs:58:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/lease-host-relay.test.mjs:100:11)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 0
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1096.836234

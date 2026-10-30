@@ -1,0 +1,15 @@
+{
+  "_candidate": "RFC 7396 merge patch for /home/steven/enclave-prod/enclave-network/metal0/config.json (observed sha256 f9818fa4b43f5541..). null = remove. Every other member (10 apps, checkers, guestd, linux, dns, enclaveNetwork incl. egressProbeUrls, addressBook, authorityPins) stays byte-identical.",
+  "_preconditions": [
+    "Base own node synced; A2-A4 release passed; readiness READY (none true at 22:15Z)",
+    "a privacy-agent RELEASE from the route lineage that implements chainAuthority/chainVerifier (the RUNNING relay-free-0b326889 has 0 occurrences: applying this to it would be ignored or refused, never a cutover)",
+    "host-local verifier runtime (route-stage/examples/host-rpc-runtime.metal0.json) running on 127.0.0.1:28590 with ONLY the own node (loopback 28545) as proof source; this is an UNMEASURED local helper, not an SNP-attested verifier"
+  ],
+  "_noFallbackCheck": "lease-reader chainAuthorityOptions refuses chainVerifier without verifier and verifier without URL; chain.rpc is removed so no provider client exists (addendum A2: enclave-network-host.mjs builds provider clients whenever chain.rpc is set)",
+  "_notChanged": "enclaveNetwork.egressProbeUrls keeps the 3 public hosts: they are reachability probes, not chain reads (explicitly set, so removing chain.rpc does not change them)",
+  "chain": {
+    "rpc": null,
+    "chainAuthority": "verifier",
+    "chainVerifier": "http://127.0.0.1:28590/"
+  }
+}

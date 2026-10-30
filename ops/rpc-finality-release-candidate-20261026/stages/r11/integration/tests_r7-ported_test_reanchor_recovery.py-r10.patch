@@ -1,0 +1,11 @@
+--- a/tests/r7-ported/test_reanchor_recovery.py
++++ b/tests/r7-ported/test_reanchor_recovery.py
+@@ -45,7 +45,7 @@
+ assert pathlib.Path(P.__file__).resolve() == (ROOT / 'producer/base_launch.py').resolve()
+ sha = L3.sha
+ CAP_STAGE = L3.WORK / 'a1-capture-binding-stage/r4'   # r6: r4 = r3 limits + the verified-bytes l1 loader
+-CAP_SRC = WORK / 'production-capture-closure-stage/src/a1_capture.py'   # r9: the closure module (harness pin fc16b26c); stubs still from capture r4
++CAP_SRC = pathlib.Path(os.environ['CAPTURE_MODULE'])   # r10: the EXACT capture bytes under test (the job names r10/capture/a1_capture.py)
+ N1 = TA.N                                             # the original launch anchor 52,866,960
+ N2 = TA.N + 3_000                                     # a newer anchor height (the observed latest anchor 52,869,960)
+ HEAD = TA.N + 5_000                                   # where the consumed node had run before it crashed

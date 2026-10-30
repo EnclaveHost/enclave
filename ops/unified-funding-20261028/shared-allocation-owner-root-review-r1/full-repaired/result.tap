@@ -1,0 +1,981 @@
+TAP version 13
+# Subtest: positive: direct POST /vms -> shared reservation -> actual WMI define/start -> reflection; Stop settles; the other role then allocates
+ok 1 - positive: direct POST /vms -> shared reservation -> actual WMI define/start -> reflection; Stop settles; the other role then allocates
+  ---
+  duration_ms: 203.54843
+  type: 'test'
+  ...
+# Subtest: concurrent cross-role direct requests cannot oversubscribe the one owner
+ok 2 - concurrent cross-role direct requests cannot oversubscribe the one owner
+  ---
+  duration_ms: 47.854103
+  type: 'test'
+  ...
+# Subtest: protected raw stage (spawnProtectedInternal) reaches the same shared checks
+ok 3 - protected raw stage (spawnProtectedInternal) reaches the same shared checks
+  ---
+  duration_ms: 52.863206
+  type: 'test'
+  ...
+# Subtest: no bypass: launch is non-writable, replacing backend.launcher does not reach start, a direct launcher.start is refused before define
+ok 4 - no bypass: launch is non-writable, replacing backend.launcher does not reach start, a direct launcher.start is refused before define
+  ---
+  duration_ms: 39.676514
+  type: 'test'
+  ...
+# Subtest: expiry with an in-flight start keeps the reservation counted; the start completes and reflects
+ok 5 - expiry with an in-flight start keeps the reservation counted; the start completes and reflects
+  ---
+  duration_ms: 40.001022
+  type: 'test'
+  ...
+# Subtest: in-place installation on a serving manager with an in-flight start: same objects, no PowerShell, no stop/teardown/recover/reclaim
+ok 6 - in-place installation on a serving manager with an in-flight start: same objects, no PowerShell, no stop/teardown/recover/reclaim
+  ---
+  duration_ms: 56.577838
+  type: 'test'
+  ...
+# Subtest: runtime owner loss closes new admissions only; serving records and explicit Stop continue; the settlement is retained for retry
+ok 7 - runtime owner loss closes new admissions only; serving records and explicit Stop continue; the settlement is retained for retry
+  ---
+  duration_ms: 40.014111
+  type: 'test'
+  ...
+# Subtest: owner restart: stale clients are refused until reconcile re-registers; retained reservations still settle exactly
+ok 8 - owner restart: stale clients are refused until reconcile re-registers; retained reservations still settle exactly
+  ---
+  duration_ms: 80.265691
+  type: 'test'
+  ...
+# Subtest: legacy unconfigured mode is unchanged and claims no shared coverage
+ok 9 - legacy unconfigured mode is unchanged and claims no shared coverage
+  ---
+  duration_ms: 6.221834
+  type: 'test'
+  ...
+# Subtest: od-r1: no configured store -> no write (fail closed)
+ok 10 - od-r1: no configured store -> no write (fail closed)
+  ---
+  duration_ms: 6.390092
+  type: 'test'
+  ...
+# Subtest: od-r1: a configured but never-initialized store is NOT first use: refused, nothing created, no write
+ok 11 - od-r1: a configured but never-initialized store is NOT first use: refused, nothing created, no write
+  ---
+  duration_ms: 22.294074
+  type: 'test'
+  ...
+# Subtest: od-r1: uncertain write -> same module refuses; a SECOND owner is refused; fresh process after restart refuses; mined fence -> new nonce
+ok 12 - od-r1: uncertain write -> same module refuses; a SECOND owner is refused; fresh process after restart refuses; mined fence -> new nonce
+  ---
+  duration_ms: 83.997903
+  type: 'test'
+  ...
+# Subtest: od-r1 ROOT gap 1: an established store DELETED after an uncertain write -> a fresh process refuses; no second write
+ok 13 - od-r1 ROOT gap 1: an established store DELETED after an uncertain write -> a fresh process refuses; no second write
+  ---
+  duration_ms: 45.45235
+  type: 'test'
+  ...
+# Subtest: od-r1 ROOT gap 2: final post-persist refusal -> 0 writes, exact discharge (durable), later unchanged-permission positive at the SAME nonce
+ok 14 - od-r1 ROOT gap 2: final post-persist refusal -> 0 writes, exact discharge (durable), later unchanged-permission positive at the SAME nonce
+  ---
+  duration_ms: 65.830728
+  type: 'test'
+  ...
+# Subtest: od-r1: a later refused attempt never discharges an earlier unresolved write (discharge is exact to its own attempt)
+ok 15 - od-r1: a later refused attempt never discharges an earlier unresolved write (discharge is exact to its own attempt)
+  ---
+  duration_ms: 47.812893
+  type: 'test'
+  ...
+# Subtest: od-r1: owner loss (lock file replaced) latches refusal; the recorded obligation stays on disk
+ok 16 - od-r1: owner loss (lock file replaced) latches refusal; the recorded obligation stays on disk
+  ---
+  duration_ms: 36.572707
+  type: 'test'
+  ...
+# Subtest: od-r1: a foreign-domain store and a storage failure before the effect leave no unauthorized write
+ok 17 - od-r1: a foreign-domain store and a storage failure before the effect leave no unauthorized write
+  ---
+  duration_ms: 65.091473
+  type: 'test'
+  ...
+# Subtest: win-log: explicit init, one owner, put/remove survive reopen; status never claims production for the TEST exclusion
+ok 18 - win-log: explicit init, one owner, put/remove survive reopen; status never claims production for the TEST exclusion
+  ---
+  duration_ms: 20.217659
+  type: 'test'
+  ...
+# Subtest: win-log: foreign domain, foreign record, torn tail and legacy records all refuse
+ok 19 - win-log: foreign domain, foreign record, torn tail and legacy records all refuse
+  ---
+  duration_ms: 22.351113
+  type: 'test'
+  ...
+# Subtest: win-log: a short write latches the store (outcome unknown); every later read/change refuses
+ok 20 - win-log: a short write latches the store (outcome unknown); every later read/change refuses
+  ---
+  duration_ms: 7.882401
+  type: 'test'
+  ...
+# Subtest: win-log: bounded - a full store refuses NEW records, settlement stays possible; an oversized request is refused, never truncated
+ok 21 - win-log: bounded - a full store refuses NEW records, settlement stays possible; an oversized request is refused, never truncated
+  ---
+  duration_ms: 90.064527
+  type: 'test'
+  ...
+# Subtest: linux: genuine flock - a second in-process owner AND a separate process are refused while held; after release the child owns it
+ok 22 - linux: genuine flock - a second in-process owner AND a separate process are refused while held; after release the child owns it
+  ---
+  duration_ms: 223.400551
+  type: 'test'
+  ...
+# Subtest: linux: deletion of an established store, a foreign domain and an fsync failure all refuse; never re-created as empty
+ok 23 - linux: deletion of an established store, a foreign domain and an fsync failure all refuse; never re-created as empty
+  ---
+  duration_ms: 35.814662
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored (root r12 fixtureclosure FAIL, intended behaviour): release signature-time refusal -> pending from the OWNED record; legacy entry kept, not settled unsent; deadline fence settles both
+ok 24 - od-r1 sponsored (root r12 fixtureclosure FAIL, intended behaviour): release signature-time refusal -> pending from the OWNED record; legacy entry kept, not settled unsent; deadline fence settles both
+  ---
+  duration_ms: 82.806241
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored: supersession is LATCHED - a restored Boolean permission does not revive the operation
+ok 25 - od-r1 sponsored: supersession is LATCHED - a restored Boolean permission does not revive the operation
+  ---
+  duration_ms: 72.932476
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored: refusal after an earlier POST is an unknown outcome; the posted record survives restart and holds the id
+ok 26 - od-r1 sponsored: refusal after an earlier POST is an unknown outcome; the posted record survives restart and holds the id
+  ---
+  duration_ms: 97.100425
+  type: 'test'
+  ...
+# Subtest: od-r1 sponsored: queue-entry refusal signs nothing; positive renew settles its record; an uninitialized store refuses before signing
+ok 27 - od-r1 sponsored: queue-entry refusal signs nothing; positive renew settles its record; an uninitialized store refuses before signing
+  ---
+  duration_ms: 92.580348
+  type: 'test'
+  ...
+# Subtest: od-r2 ROOT boundary-v2: the final gate sees the established state removed after the intent persisted -> 0 inert writes, latched, retained; restart refuses
+ok 28 - od-r2 ROOT boundary-v2: the final gate sees the established state removed after the intent persisted -> 0 inert writes, latched, retained; restart refuses
+  ---
+  duration_ms: 45.708678
+  type: 'test'
+  ...
+# Subtest: od-r2 ROOT boundary-v2: the final gate sees the established .established removed after the intent persisted -> 0 inert writes, latched, retained; restart refuses
+ok 29 - od-r2 ROOT boundary-v2: the final gate sees the established .established removed after the intent persisted -> 0 inert writes, latched, retained; restart refuses
+  ---
+  duration_ms: 31.759233
+  type: 'test'
+  ...
+# Subtest: od-r2 continuity: a REPLACED state file (same bytes, new inode) after persistence -> 0 writes; the cached records refuse
+ok 30 - od-r2 continuity: a REPLACED state file (same bytes, new inode) after persistence -> 0 writes; the cached records refuse
+  ---
+  duration_ms: 28.988193
+  type: 'test'
+  ...
+# Subtest: od-r2 continuity: store-level cached reads (records/get/assertLive) refuse after the marker or state is lost while the lock is held
+ok 31 - od-r2 continuity: store-level cached reads (records/get/assertLive) refuse after the marker or state is lost while the lock is held
+  ---
+  duration_ms: 46.84865
+  type: 'test'
+  ...
+# Subtest: od-r2 continuity: exact known-unsent discharge stays available with intact storage; unchanged positive at the SAME nonce
+ok 32 - od-r2 continuity: exact known-unsent discharge stays available with intact storage; unchanged positive at the SAME nonce
+  ---
+  duration_ms: 67.371517
+  type: 'test'
+  ...
+# Subtest: od-r2 ROOT boundary-v2 case 3: an established unresolved authorization (account nonce 70) fences the direct sender after owner release + fresh process; pending is not a fence; exact mined fence -> unchanged positive
+ok 33 - od-r2 ROOT boundary-v2 case 3: an established unresolved authorization (account nonce 70) fences the direct sender after owner release + fresh process; pending is not a fence; exact mined fence -> unchanged positive
+  ---
+  duration_ms: 74.899591
+  type: 'test'
+  ...
+# Subtest: od-r2 account nonce: an authorization naming another chain or another signer is UNKNOWN -> held even past its nonce; a sign-threw/unsent one is no exposure
+ok 34 - od-r2 account nonce: an authorization naming another chain or another signer is UNKNOWN -> held even past its nonce; a sign-threw/unsent one is no exposure
+  ---
+  duration_ms: 174.681005
+  type: 'test'
+  ...
+# Subtest: A1 positive: the exact pinned config bytes become exactly these Host options (TEST: production false)
+ok 35 - A1 positive: the exact pinned config bytes become exactly these Host options (TEST: production false)
+  ---
+  duration_ms: 9.695117
+  type: 'test'
+  ...
+# Subtest: A2 refused: no config named -> REFUSING options, no probe, no file access at open
+ok 36 - A2 refused: no config named -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 3.456375
+  type: 'test'
+  ...
+# Subtest: A2 refused: no pin -> REFUSING options, no probe, no file access at open
+ok 37 - A2 refused: no pin -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.278571
+  type: 'test'
+  ...
+# Subtest: A2 refused: tampered config byte -> REFUSING options, no probe, no file access at open
+ok 38 - A2 refused: tampered config byte -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.328631
+  type: 'test'
+  ...
+# Subtest: A2 refused: malformed config (re-pinned) -> REFUSING options, no probe, no file access at open
+ok 39 - A2 refused: malformed config (re-pinned) -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.40765
+  type: 'test'
+  ...
+# Subtest: A2 refused: unknown config field -> REFUSING options, no probe, no file access at open
+ok 40 - A2 refused: unknown config field -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.34734
+  type: 'test'
+  ...
+# Subtest: A2 refused: missing config field -> REFUSING options, no probe, no file access at open
+ok 41 - A2 refused: missing config field -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.952915
+  type: 'test'
+  ...
+# Subtest: A2 refused: config widens the runtime pin -> REFUSING options, no probe, no file access at open
+ok 42 - A2 refused: config widens the runtime pin -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.34299
+  type: 'test'
+  ...
+# Subtest: A2 refused: actual executable differs -> REFUSING options, no probe, no file access at open
+ok 43 - A2 refused: actual executable differs -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.757296
+  type: 'test'
+  ...
+# Subtest: A2 refused: actual Node version differs -> REFUSING options, no probe, no file access at open
+ok 44 - A2 refused: actual Node version differs -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 2.372692
+  type: 'test'
+  ...
+# Subtest: A2 refused: named constant with another value -> REFUSING options, no probe, no file access at open
+ok 45 - A2 refused: named constant with another value -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.581828
+  type: 'test'
+  ...
+# Subtest: A2 refused: named-constant kind selected -> REFUSING options, no probe, no file access at open
+ok 46 - A2 refused: named-constant kind selected -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.147181
+  type: 'test'
+  ...
+# Subtest: A2 refused: unqualified numeric flag -> REFUSING options, no probe, no file access at open
+ok 47 - A2 refused: unqualified numeric flag -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.170991
+  type: 'test'
+  ...
+# Subtest: A2 refused: tampered qualification bytes -> REFUSING options, no probe, no file access at open
+ok 48 - A2 refused: tampered qualification bytes -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.741007
+  type: 'test'
+  ...
+# Subtest: A2 refused: qualification with a false observation -> REFUSING options, no probe, no file access at open
+ok 49 - A2 refused: qualification with a false observation -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.35755
+  type: 'test'
+  ...
+# Subtest: A2 refused: qualification names other evidence -> REFUSING options, no probe, no file access at open
+ok 50 - A2 refused: qualification names other evidence -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.3807
+  type: 'test'
+  ...
+# Subtest: A2 refused: named evidence absent -> REFUSING options, no probe, no file access at open
+ok 51 - A2 refused: named evidence absent -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.212761
+  type: 'test'
+  ...
+# Subtest: A2 refused: cross-build probe artifact as qualification -> REFUSING options, no probe, no file access at open
+ok 52 - A2 refused: cross-build probe artifact as qualification -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 2.207143
+  type: 'test'
+  ...
+# Subtest: A2 refused: missing SDDL -> REFUSING options, no probe, no file access at open
+ok 53 - A2 refused: missing SDDL -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 3.399185
+  type: 'test'
+  ...
+# Subtest: A2 refused: unprotected directory DACL -> REFUSING options, no probe, no file access at open
+ok 54 - A2 refused: unprotected directory DACL -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.087402
+  type: 'test'
+  ...
+# Subtest: A2 refused: Everyone in the journal ACL -> REFUSING options, no probe, no file access at open
+ok 55 - A2 refused: Everyone in the journal ACL -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 0.992883
+  type: 'test'
+  ...
+# Subtest: A2 refused: another store name -> REFUSING options, no probe, no file access at open
+ok 56 - A2 refused: another store name -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 0.926603
+  type: 'test'
+  ...
+# Subtest: A2 refused: relative / dotted store path -> REFUSING options, no probe, no file access at open
+ok 57 - A2 refused: relative / dotted store path -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 3.316605
+  type: 'test'
+  ...
+# Subtest: A2 refused: config inside the writable state directory -> REFUSING options, no probe, no file access at open
+ok 58 - A2 refused: config inside the writable state directory -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 1.108572
+  type: 'test'
+  ...
+# Subtest: A2 refused: config through a symbolic link -> REFUSING options, no probe, no file access at open
+ok 59 - A2 refused: config through a symbolic link -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 0.853583
+  type: 'test'
+  ...
+# Subtest: A2 refused: hard-linked config (link ambiguity) -> REFUSING options, no probe, no file access at open
+ok 60 - A2 refused: hard-linked config (link ambiguity) -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 2.224864
+  type: 'test'
+  ...
+# Subtest: A2 refused: non-canonical (uppercase) account -> REFUSING options, no probe, no file access at open
+ok 61 - A2 refused: non-canonical (uppercase) account -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 0.939073
+  type: 'test'
+  ...
+# Subtest: A2 refused: string chain id -> REFUSING options, no probe, no file access at open
+ok 62 - A2 refused: string chain id -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 2.62717
+  type: 'test'
+  ...
+# Subtest: A2 refused: unsupported platform with a config named -> REFUSING options, no probe, no file access at open
+ok 63 - A2 refused: unsupported platform with a config named -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 0.758154
+  type: 'test'
+  ...
+# Subtest: A2 refused: unlabelled TEST injection -> REFUSING options, no probe, no file access at open
+ok 64 - A2 refused: unlabelled TEST injection -> REFUSING options, no probe, no file access at open
+  ---
+  duration_ms: 0.739385
+  type: 'test'
+  ...
+# Subtest: A3 Windows path rules: UNC, device, relative, stream, dot, short-name, reserved and separator forms refused
+ok 65 - A3 Windows path rules: UNC, device, relative, stream, dot, short-name, reserved and separator forms refused
+  ---
+  duration_ms: 0.550486
+  type: 'test'
+  ...
+# Subtest: A4 identity: the loaded key's ACTUAL account/chain must equal the config domain before any probe; configuration never selects the signer
+ok 66 - A4 identity: the loaded key's ACTUAL account/chain must equal the config domain before any probe; configuration never selects the signer
+  ---
+  duration_ms: 2.244073
+  type: 'test'
+  ...
+# Subtest: A5 Linux honesty: the real numeric exclusion refuses (flag ignored -> second open succeeded); no unlocked fallback, store bytes unchanged
+ok 67 - A5 Linux honesty: the real numeric exclusion refuses (flag ignored -> second open succeeded); no unlocked fallback, store bytes unchanged
+  ---
+  duration_ms: 7.553754
+  type: 'test'
+  ...
+# Subtest: A6 missing established journal: refused, never created
+ok 68 - A6 missing established journal: refused, never created
+  ---
+  duration_ms: 1.601418
+  type: 'test'
+  ...
+# Subtest: B0 agent.mjs builds Host with exactly the seam's option (static source check; agent is never imported)
+ok 69 - B0 agent.mjs builds Host with exactly the seam's option (static source check; agent is never imported)
+  ---
+  duration_ms: 0.625376
+  type: 'test'
+  ...
+# Subtest: B1 configured seam through the actual Host/chain: storage probe of EXACTLY the pinned store first, then the platform refuses; no write
+ok 70 - B1 configured seam through the actual Host/chain: storage probe of EXACTLY the pinned store first, then the platform refuses; no write
+  ---
+  duration_ms: 226.28536
+  type: 'test'
+  ...
+# Subtest: B2 refused seam through the actual Host/chain: zero initialization/writes/signatures/probes; readiness says why; read-only paths stay
+ok 71 - B2 refused seam through the actual Host/chain: zero initialization/writes/signatures/probes; readiness says why; read-only paths stay
+  ---
+  duration_ms: 14.442272
+  type: 'test'
+  ...
+# Subtest: C1 plan (default) is read-only: every preflight check, sanitized plan, nothing created
+ok 72 - C1 plan (default) is read-only: every preflight check, sanitized plan, nothing created
+  ---
+  duration_ms: 36.483477
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: legacy r12 records; nothing created
+ok 73 - C2 plan refuses: legacy r12 records; nothing created
+  ---
+  duration_ms: 14.229443
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: store evidence at the legacy default; nothing created
+ok 74 - C2 plan refuses: store evidence at the legacy default; nothing created
+  ---
+  duration_ms: 30.579092
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: release manifest omits a chain file; nothing created
+ok 75 - C2 plan refuses: release manifest omits a chain file; nothing created
+  ---
+  duration_ms: 5.172422
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: release file differs from its pin; nothing created
+ok 76 - C2 plan refuses: release file differs from its pin; nothing created
+  ---
+  duration_ms: 4.204529
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: runtime drift; nothing created
+ok 77 - C2 plan refuses: runtime drift; nothing created
+  ---
+  duration_ms: 8.810364
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: missing qualification; nothing created
+ok 78 - C2 plan refuses: missing qualification; nothing created
+  ---
+  duration_ms: 8.368127
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: cross-build launcher as qualification; nothing created
+ok 79 - C2 plan refuses: cross-build launcher as qualification; nothing created
+  ---
+  duration_ms: 2.053285
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: config inside the state directory; nothing created
+ok 80 - C2 plan refuses: config inside the state directory; nothing created
+  ---
+  duration_ms: 5.193872
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: a group as the service account; nothing created
+ok 81 - C2 plan refuses: a group as the service account; nothing created
+  ---
+  duration_ms: 5.836197
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: a key-shaped account; nothing created
+ok 82 - C2 plan refuses: a key-shaped account; nothing created
+  ---
+  duration_ms: 2.308152
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: unknown input (e.g. a key); nothing created
+ok 83 - C2 plan refuses: unknown input (e.g. a key); nothing created
+  ---
+  duration_ms: 2.008045
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: non-Windows runtime; nothing created
+ok 84 - C2 plan refuses: non-Windows runtime; nothing created
+  ---
+  duration_ms: 6.198794
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: broad config directory ACL; nothing created
+ok 85 - C2 plan refuses: broad config directory ACL; nothing created
+  ---
+  duration_ms: 25.380951
+  type: 'test'
+  ...
+# Subtest: C2 plan refuses: storage probe timeout; nothing created
+ok 86 - C2 plan refuses: storage probe timeout; nothing created
+  ---
+  duration_ms: 8.921124
+  type: 'test'
+  ...
+# Subtest: C3 apply needs the explicit confirmation; without it nothing is created
+ok 87 - C3 apply needs the explicit confirmation; without it nothing is created
+  ---
+  duration_ms: 2.094995
+  type: 'test'
+  ...
+# Subtest: C4 TEST apply in disposable storage: exact config bytes the runtime loader accepts, established domain, one owner; rerun is non-destructive
+ok 88 - C4 TEST apply in disposable storage: exact config bytes the runtime loader accepts, established domain, one owner; rerun is non-destructive
+  ---
+  duration_ms: 27.621043
+  type: 'test'
+  ...
+# Subtest: C5 partial install: a failed journal probe stops apply, PRESERVES the created state, and every rerun refuses as incomplete
+ok 89 - C5 partial install: a failed journal probe stops apply, PRESERVES the created state, and every rerun refuses as incomplete
+  ---
+  duration_ms: 14.090245
+  type: 'test'
+  ...
+# Subtest: C6 CLI parsing: plan by default; unknown, repeated or valueless arguments refuse
+ok 90 - C6 CLI parsing: plan by default; unknown, repeated or valueless arguments refuse
+  ---
+  duration_ms: 0.255198
+  type: 'test'
+  ...
+# Subtest: S1 explicit SYSTEM identity: canonical account + S-1-5-18 + a separately specified launcher; the SID is never taken from the task
+ok 91 - S1 explicit SYSTEM identity: canonical account + S-1-5-18 + a separately specified launcher; the SID is never taken from the task
+  ---
+  duration_ms: 2.942489
+  type: 'test'
+  ...
+# Subtest: S2 wrong account/SID and malformed launcher data are refused with their own codes
+ok 92 - S2 wrong account/SID and malformed launcher data are refused with their own codes
+  ---
+  duration_ms: 0.777194
+  type: 'test'
+  ...
+# Subtest: S3 SYSTEM state ACL: exactly the SYSTEM + Administrators full-control entries; duplicate SYSTEM, extra service or broad entries refused
+ok 93 - S3 SYSTEM state ACL: exactly the SYSTEM + Administrators full-control entries; duplicate SYSTEM, extra service or broad entries refused
+  ---
+  duration_ms: 1.169011
+  type: 'test'
+  ...
+# Subtest: S4 SYSTEM reads: grants to SYSTEM or a group its token carries count; broad or non-trusted write stays refused
+ok 94 - S4 SYSTEM reads: grants to SYSTEM or a group its token carries count; broad or non-trusted write stays refused
+  ---
+  duration_ms: 0.694755
+  type: 'test'
+  ...
+# Subtest: S5 NT SERVICE semantics retained: own Read+Write state entry, no-write trust inputs, BA/SY-only stays unreadable for the service
+ok 95 - S5 NT SERVICE semantics retained: own Read+Write state entry, no-write trust inputs, BA/SY-only stays unreadable for the service
+  ---
+  duration_ms: 4.440007
+  type: 'test'
+  ...
+# Subtest: S6 config /2 SYSTEM instance through the actual loader: observed \\Enclave\\Node and a second non-Enclave owner task
+ok 96 - S6 config /2 SYSTEM instance through the actual loader: observed \\Enclave\\Node and a second non-Enclave owner task
+  ---
+  duration_ms: 3.385005
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: service and SYSTEM keys mixed -> Malformed
+ok 97 - S7 SYSTEM config refused: service and SYSTEM keys mixed -> Malformed
+  ---
+  duration_ms: 1.910206
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: NT SERVICE form carrying a launcher -> Malformed
+ok 98 - S7 SYSTEM config refused: NT SERVICE form carrying a launcher -> Malformed
+  ---
+  duration_ms: 0.938533
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: non-canonical account spelling -> BadProcessIdentity
+ok 99 - S7 SYSTEM config refused: non-canonical account spelling -> BadProcessIdentity
+  ---
+  duration_ms: 0.956063
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: an NT SERVICE account in the SYSTEM form -> BadProcessIdentity
+ok 100 - S7 SYSTEM config refused: an NT SERVICE account in the SYSTEM form -> BadProcessIdentity
+  ---
+  duration_ms: 1.083132
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: a group in the SYSTEM form -> BadProcessIdentity
+ok 101 - S7 SYSTEM config refused: a group in the SYSTEM form -> BadProcessIdentity
+  ---
+  duration_ms: 1.260641
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: the service SID -> BadProcessIdentity
+ok 102 - S7 SYSTEM config refused: the service SID -> BadProcessIdentity
+  ---
+  duration_ms: 0.955792
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: LocalService SID -> BadProcessIdentity
+ok 103 - S7 SYSTEM config refused: LocalService SID -> BadProcessIdentity
+  ---
+  duration_ms: 0.778144
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: relative task path -> BadLauncherIdentity
+ok 104 - S7 SYSTEM config refused: relative task path -> BadLauncherIdentity
+  ---
+  duration_ms: 0.784494
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: no launcher -> BadLauncherIdentity
+ok 105 - S7 SYSTEM config refused: no launcher -> BadLauncherIdentity
+  ---
+  duration_ms: 0.815504
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: an approval field -> BadLauncherIdentity
+ok 106 - S7 SYSTEM config refused: an approval field -> BadLauncherIdentity
+  ---
+  duration_ms: 0.743094
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: duplicate SYSTEM state entry -> StorageUnqualified
+ok 107 - S7 SYSTEM config refused: duplicate SYSTEM state entry -> StorageUnqualified
+  ---
+  duration_ms: 0.805974
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: NT SERVICE three-entry state ACL -> StorageUnqualified
+ok 108 - S7 SYSTEM config refused: NT SERVICE three-entry state ACL -> StorageUnqualified
+  ---
+  duration_ms: 1.220081
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: Everyone in the journal ACL -> StorageUnqualified
+ok 109 - S7 SYSTEM config refused: Everyone in the journal ACL -> StorageUnqualified
+  ---
+  duration_ms: 0.932193
+  type: 'test'
+  ...
+# Subtest: S7 SYSTEM config refused: unprotected state directory -> StorageUnqualified
+ok 110 - S7 SYSTEM config refused: unprotected state directory -> StorageUnqualified
+  ---
+  duration_ms: 0.891524
+  type: 'test'
+  ...
+# Subtest: S8 runtime seam: a well-formed SYSTEM config is recognised, then refused CutoverUnqualified before NODE_DIR, legacy, exclusion or any probe
+ok 111 - S8 runtime seam: a well-formed SYSTEM config is recognised, then refused CutoverUnqualified before NODE_DIR, legacy, exclusion or any probe
+  ---
+  duration_ms: 5.598299
+  type: 'test'
+  ...
+# Subtest: S9 runtime seam: malformed SYSTEM bindings refuse with their own codes; a SYSTEM process cannot use an NT SERVICE config
+ok 112 - S9 runtime seam: malformed SYSTEM bindings refuse with their own codes; a SYSTEM process cannot use an NT SERVICE config
+  ---
+  duration_ms: 3.923321
+  type: 'test'
+  ...
+# Subtest: S10 installer: SYSTEM plan and apply refuse CutoverUnqualified right after input validation; no probe, marker, state, journal, config or receipt
+ok 113 - S10 installer: SYSTEM plan and apply refuse CutoverUnqualified right after input validation; no probe, marker, state, journal, config or receipt
+  ---
+  duration_ms: 9.085642
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: wrong process SID -> BadInput; nothing probed or created
+ok 114 - S11 installer refuses SYSTEM input: wrong process SID -> BadInput; nothing probed or created
+  ---
+  duration_ms: 2.440752
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: the service SID as process SID -> BadInput; nothing probed or created
+ok 115 - S11 installer refuses SYSTEM input: the service SID as process SID -> BadInput; nothing probed or created
+  ---
+  duration_ms: 4.653826
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: bare SYSTEM -> BadInput; nothing probed or created
+ok 116 - S11 installer refuses SYSTEM input: bare SYSTEM -> BadInput; nothing probed or created
+  ---
+  duration_ms: 2.78479
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: a user -> BadInput; nothing probed or created
+ok 117 - S11 installer refuses SYSTEM input: a user -> BadInput; nothing probed or created
+  ---
+  duration_ms: 2.280763
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: a group -> BadInput; nothing probed or created
+ok 118 - S11 installer refuses SYSTEM input: a group -> BadInput; nothing probed or created
+  ---
+  duration_ms: 3.441314
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: NT SERVICE in the SYSTEM form -> BadInput; nothing probed or created
+ok 119 - S11 installer refuses SYSTEM input: NT SERVICE in the SYSTEM form -> BadInput; nothing probed or created
+  ---
+  duration_ms: 3.276516
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: relative task path -> BadInput; nothing probed or created
+ok 120 - S11 installer refuses SYSTEM input: relative task path -> BadInput; nothing probed or created
+  ---
+  duration_ms: 2.504002
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: dot task folder -> BadInput; nothing probed or created
+ok 121 - S11 installer refuses SYSTEM input: dot task folder -> BadInput; nothing probed or created
+  ---
+  duration_ms: 1.807526
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: task name with a separator -> BadInput; nothing probed or created
+ok 122 - S11 installer refuses SYSTEM input: task name with a separator -> BadInput; nothing probed or created
+  ---
+  duration_ms: 1.869596
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: over-long task name -> BadInput; nothing probed or created
+ok 123 - S11 installer refuses SYSTEM input: over-long task name -> BadInput; nothing probed or created
+  ---
+  duration_ms: 1.774496
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: missing task name -> BadInput; nothing probed or created
+ok 124 - S11 installer refuses SYSTEM input: missing task name -> BadInput; nothing probed or created
+  ---
+  duration_ms: 1.765107
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: serviceAccount beside the SYSTEM form -> BadInput; nothing probed or created
+ok 125 - S11 installer refuses SYSTEM input: serviceAccount beside the SYSTEM form -> BadInput; nothing probed or created
+  ---
+  duration_ms: 1.736097
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: NT SERVICE form with launcher inputs -> BadInput; nothing probed or created
+ok 126 - S11 installer refuses SYSTEM input: NT SERVICE form with launcher inputs -> BadInput; nothing probed or created
+  ---
+  duration_ms: 2.071884
+  type: 'test'
+  ...
+# Subtest: S11 installer refuses SYSTEM input: a qualification flag as input -> BadInput; nothing probed or created
+ok 127 - S11 installer refuses SYSTEM input: a qualification flag as input -> BadInput; nothing probed or created
+  ---
+  duration_ms: 1.699507
+  type: 'test'
+  ...
+# Subtest: S12 NT SERVICE installer path and CLI retained; the SYSTEM flags parse as plain strings
+ok 128 - S12 NT SERVICE installer path and CLI retained; the SYSTEM flags parse as plain strings
+  ---
+  duration_ms: 12.819194
+  type: 'test'
+  ...
+# Subtest: ROOT final gate removes established state: no inert write
+ok 129 - ROOT final gate removes established state: no inert write
+  ---
+  duration_ms: 38.423203
+  type: 'test'
+  ...
+# Subtest: ROOT final gate removes established.established: no inert write
+ok 130 - ROOT final gate removes established.established: no inert write
+  ---
+  duration_ms: 27.186557
+  type: 'test'
+  ...
+# Subtest: ROOT pending sponsored authorization fences the actual direct sender on the same account/chain
+ok 131 - ROOT pending sponsored authorization fences the actual direct sender on the same account/chain
+  ---
+  duration_ms: 29.760927
+  type: 'test'
+  ...
+# Subtest: ROOT cross-deployment identical authorization stays quarantined: withheld
+ok 132 - ROOT cross-deployment identical authorization stays quarantined: withheld
+  ---
+  duration_ms: 414.613374
+  type: 'test'
+  ...
+# Subtest: ROOT cross-deployment identical authorization stays quarantined: posted-unknown
+ok 133 - ROOT cross-deployment identical authorization stays quarantined: posted-unknown
+  ---
+  duration_ms: 241.443666
+  type: 'test'
+  ...
+# Subtest: od-r2 shipped client: UNCHANGED POSITIVE renew - authorization + lease signed once, onSigned durable BEFORE the POST, verified receipt, record settled by receipt AND mined account nonce
+ok 134 - od-r2 shipped client: UNCHANGED POSITIVE renew - authorization + lease signed once, onSigned durable BEFORE the POST, verified receipt, record settled by receipt AND mined account nonce
+  ---
+  duration_ms: 255.291683
+  type: 'test'
+  ...
+# Subtest: od-r2 shipped client: permission REVOKED DURING the POST plan's persistence -> 0 POSTs, exactly that planned POST discharged, signature retained (pending), latched; direct send then held by the authorization
+ok 135 - od-r2 shipped client: permission REVOKED DURING the POST plan's persistence -> 0 POSTs, exactly that planned POST discharged, signature retained (pending), latched; direct send then held by the authorization
+  ---
+  duration_ms: 180.082065
+  type: 'test'
+  ...
+# Subtest: od-r2 shipped client: owner/continuity LOST DURING the POST plan's persistence -> 0 POSTs, latched, retained (unsentRetained); restart refuses every effect, nothing re-created
+ok 136 - od-r2 shipped client: owner/continuity LOST DURING the POST plan's persistence -> 0 POSTs, latched, retained (unsentRetained); restart refuses every effect, nothing re-created
+  ---
+  duration_ms: 139.33833
+  type: 'test'
+  ...
+# Subtest: od-r2 shipped client: RETURNED lease signature withheld when permission ends during its result's persistence; restart; another deployment is refused until an independently observed mined fence; direct send then unchanged positive; deadline settles the withheld lease
+ok 137 - od-r2 shipped client: RETURNED lease signature withheld when permission ends during its result's persistence; restart; another deployment is refused until an independently observed mined fence; direct send then unchanged positive; deadline settles the withheld lease
+  ---
+  duration_ms: 247.214094
+  type: 'test'
+  ...
+# Subtest: od-r2 shipped client: an earlier POST (answer lost) then refusal -> unknown outcome, 0 further signatures/POSTs; direct held; restart reconciles BY RECORDED IDENTITY (resolveSigned) once included
+ok 138 - od-r2 shipped client: an earlier POST (answer lost) then refusal -> unknown outcome, 0 further signatures/POSTs; direct held; restart reconciles BY RECORDED IDENTITY (resolveSigned) once included
+  ---
+  duration_ms: 215.857418
+  type: 'test'
+  ...
+# Subtest: od-r2 shipped client: an unresolved DIRECT write refuses a sponsored claim of another deployment before any signature or relay contact, also after restart; the exact mined fence then admits it
+ok 139 - od-r2 shipped client: an unresolved DIRECT write refuses a sponsored claim of another deployment before any signature or relay contact, also after restart; the exact mined fence then admits it
+  ---
+  duration_ms: 148.200503
+  type: 'test'
+  ...
+# Subtest: establishment is explicit; normal open refuses missing, foreign, unestablished, torn and other-domain ledgers
+ok 140 - establishment is explicit; normal open refuses missing, foreign, unestablished, torn and other-domain ledgers
+  ---
+  duration_ms: 23.888231
+  type: 'test'
+  ...
+# Subtest: ONE owner serializes two authenticated roles: coverage gates, full physical+commit persisted, no oversubscription
+ok 141 - ONE owner serializes two authenticated roles: coverage gates, full physical+commit persisted, no oversubscription
+  ---
+  duration_ms: 137.087417
+  type: 'test'
+  ...
+# Subtest: unknown/stale sample, missing coverage term and a higher live floor refuse; nothing defaults to zero
+ok 142 - unknown/stale sample, missing coverage term and a higher live floor refuse; nothing defaults to zero
+  ---
+  duration_ms: 65.830868
+  type: 'test'
+  ...
+# Subtest: restart keeps every unresolved reservation exactly; stale incarnations refuse; continuity ends new boundary entries
+not ok 143 - restart keeps every unresolved reservation exactly; stale incarnations refuse; continuity ends new boundary entries
+  ---
+  duration_ms: 50.948549
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/shared-allocation-owner-root-review-r1/full-repaired/root-corrected-allocation-owner.test.mjs:82:1'
+  failureType: 'testCodeFailure'
+  error: 'allocation owner register: guestd asked for a new handshake on POST /allocation/register; an unsigned 401 does not prove the request did not run, so it is not repeated - reconcile first'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    #call (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/shared-allocation-owner-root-review-r1/full-repaired/candidate/control/windows/vbslike/manager/allocation-service.mjs:87:37)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async AllocationClient.register (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/shared-allocation-owner-root-review-r1/full-repaired/candidate/control/windows/vbslike/manager/allocation-service.mjs:93:15)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/shared-allocation-owner-root-review-r1/full-repaired/root-corrected-allocation-owner.test.mjs:97:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: authenticated path: per-role keys, unauthenticated/oversize/role-mismatch refused
+ok 144 - authenticated path: per-role keys, unauthenticated/oversize/role-mismatch refused
+  ---
+  duration_ms: 44.2498
+  type: 'test'
+  ...
+# Subtest: a qualification hold consumes real capacity until its holder ends it
+ok 145 - a qualification hold consumes real capacity until its holder ends it
+  ---
+  duration_ms: 32.714036
+  type: 'test'
+  ...
+# Subtest: expiry refuses new boundary entries but never releases an entered reservation
+ok 146 - expiry refuses new boundary entries but never releases an entered reservation
+  ---
+  duration_ms: 122.295566
+  type: 'test'
+  ...
+# Subtest: ledger persistence failure closes the owner for every new admission (owner loss)
+ok 147 - ledger persistence failure closes the owner for every new admission (owner loss)
+  ---
+  duration_ms: 54.748641
+  type: 'test'
+  ...
+# Subtest: Linux owned-durable-state store (real flock; NOT Windows): explicit establishment, retained reservations, refused missing
+ok 148 - Linux owned-durable-state store (real flock; NOT Windows): explicit establishment, retained reservations, refused missing
+  ---
+  duration_ms: 70.268115
+  type: 'test'
+  ...
+# Subtest: ROOT positive TEST preflight reaches migration evidence without writes
+ok 149 - ROOT positive TEST preflight reaches migration evidence without writes
+  ---
+  duration_ms: 18.76289
+  type: 'test'
+  ...
+# Subtest: ROOT installer must reject service-writable configuration directory
+ok 150 - ROOT installer must reject service-writable configuration directory
+  ---
+  duration_ms: 7.922211
+  type: 'test'
+  ...
+# Subtest: ROOT installer must reject config inaccessible to selected service account
+ok 151 - ROOT installer must reject config inaccessible to selected service account
+  ---
+  duration_ms: 6.251263
+  type: 'test'
+  ...
+# Subtest: ROOT release verification must include actual owned-durable-state dependency
+ok 152 - ROOT release verification must include actual owned-durable-state dependency
+  ---
+  duration_ms: 4.619205
+  type: 'test'
+  ...
+# Subtest: ROOT existing oversized config is refused before unbounded readFileSync
+ok 153 - ROOT existing oversized config is refused before unbounded readFileSync
+  ---
+  duration_ms: 4.988623
+  type: 'test'
+  ...
+# Subtest: ROOT production configuration must use absolute PowerShell executable
+ok 154 - ROOT production configuration must use absolute PowerShell executable
+  ---
+  duration_ms: 1.469729
+  type: 'test'
+  ...
+# Subtest: ROOT PowerShell output cap is combined UTF8 bytes even for oversized multibyte chunk
+ok 155 - ROOT PowerShell output cap is combined UTF8 bytes even for oversized multibyte chunk
+  ---
+  duration_ms: 3.309585
+  type: 'test'
+  ...
+# Subtest: ROOT timeout settles even when child ignores kill and never emits close
+ok 156 - ROOT timeout settles even when child ignores kill and never emits close
+  ---
+  duration_ms: 30.200604
+  type: 'test'
+  ...
+# Subtest: ROOT qualification hold survives ttl-expiry until exact end; second allocation must be refused
+ok 157 - ROOT qualification hold survives ttl-expiry until exact end; second allocation must be refused
+  ---
+  duration_ms: 71.339617
+  type: 'test'
+  ...
+# Subtest: ROOT qualification hold survives owner-restart until exact end; second allocation must be refused
+ok 158 - ROOT qualification hold survives owner-restart until exact end; second allocation must be refused
+  ---
+  duration_ms: 100.295011
+  type: 'test'
+  ...
+# Subtest: ROOT installer refuses service-writable migrationEvidence trust input
+ok 159 - ROOT installer refuses service-writable migrationEvidence trust input
+  ---
+  duration_ms: 18.108785
+  type: 'test'
+  ...
+# Subtest: ROOT installer refuses service-writable releaseManifest trust input
+ok 160 - ROOT installer refuses service-writable releaseManifest trust input
+  ---
+  duration_ms: 8.967233
+  type: 'test'
+  ...
+1..160
+# tests 160
+# suites 0
+# pass 159
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7645.427177

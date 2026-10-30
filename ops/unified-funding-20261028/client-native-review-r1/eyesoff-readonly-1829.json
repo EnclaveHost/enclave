@@ -1,0 +1,36 @@
+{
+  "value": {
+    "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "active": true,
+    "runner": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+    "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
+    "leaseUntil": "1793211691",
+    "blockTimestamp": "1793212139",
+    "reserve": {
+      "balanceWei": "353748810912",
+      "maxPerOpWei": "31092172031561",
+      "epochCapWei": "310921720315610",
+      "enabled": true,
+      "claimPolicy": 1,
+      "sponsorRelease": true,
+      "renewWindow": 300,
+      "minExtension": 600,
+      "claimCooldown": 1800,
+      "epochSec": 3600,
+      "maxGasPrice": "50000000",
+      "maxClaimsPerEpoch": 4,
+      "epochIndex": 498113,
+      "epochSpentWei": "2467726056180",
+      "epochClaims": 0,
+      "lastClaimAt": "1793186373",
+      "lastClaimOperator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB"
+    }
+  },
+  "blockNumber": "53211396",
+  "blockHash": "0x5eecedde52992623e8a806aee39d681eb45569f6b9b1d32f51f55494a5604955",
+  "timestamp": 1793212139000,
+  "agreeing": 3,
+  "peers": 3,
+  "failures": []
+}

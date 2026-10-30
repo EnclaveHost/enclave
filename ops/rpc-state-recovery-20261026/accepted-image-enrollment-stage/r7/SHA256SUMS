@@ -1,0 +1,10 @@
+3454a7292bf2321aedfd2025c349ac342c4c0bf8e2eb3871f5e0266ea49b5943  ./PROVENANCE.md
+0c666c4aae0210d8b73a26bd5a370f3ca49048ecff48d94166f2d7c84eb3dacf  ./inputs/root-1447/composition.tap
+99b253c5a86f293b9085add0bc3030218db1ac3c075890e0ed95466f0ead9647  ./inputs/root-1447/enrollment-role-0.log
+f8cc3b11253b606012ccf79d0d107441ec50b3f95fe403baceda3098520d293f  ./inputs/root-1447/enrollment-role-1.log
+c1ca709f43113610389889bcd0d5b534e85d434b5c1e78486ffd0b07fe278833  ./inputs/root-1447/enrollment-role-2.log
+7afe8bf78687ef1d513d5fc812ca10c666976d967d83863ebe0896d5373ad1a9  ./inputs/root-1447/enrollment.tap
+21318c688036e4dc187801517882c04974a5ffc03762d83afc3527f2dd128af2  ./inputs/root-1447/verdict.json
+90c579ab62bb9ffe7389e049fc5743b2fe67e55688ae202561517e88c8bf8875  ./jobs/kvm-overlay.py
+61e0d2394afc1f14f5135bf6f2ea031efd111cdd772e558ae8c285ecd4aa6215  ./jobs/root-accepted-image-enrollment-r7.sh
+76d8f23275229b87be048b103f57a495c7e80855e8e00d7fb096d897b3a3b7e4  ./patches/accepted-image-enrollment-r7-vs-r6.patch

@@ -1,0 +1,17 @@
+[
+  "retained-root-boundary-v2.test.mjs",
+  "retained-root-quarantine.test.mjs",
+  "retained-shipped-client.test.mjs",
+  "root-installer-boundaries.test.mjs",
+  "root-powershell-bounds.test.mjs",
+  "root-trust-inputs.test.mjs",
+  "candidate/test/windows-permit/od-r1-operator-effects-store.test.mjs",
+  "candidate/test/windows-permit/od-r1-direct-sender.test.mjs",
+  "candidate/test/windows-permit/od-r1-sponsored.test.mjs",
+  "candidate/test/windows-permit/od-r2-direct-continuity.test.mjs",
+  "candidate/test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+  "candidate/test/windows-permit/ow-r4-system-identity.test.mjs",
+  "root-corrected-allocation-owner.test.mjs",
+  "candidate/test/windows-permit/allocation-integration.test.mjs",
+  "root-qualification-retention.test.mjs"
+]

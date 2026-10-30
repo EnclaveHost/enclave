@@ -1,0 +1,13 @@
+{
+  "ROOT-REVIEW.md": "6b54f9d3fdaac72e7444a318f7c5d2bc6add89c5b4c7dea6d905d03e9e01bbfb",
+  "quorum/quorum-queue.log": "d85229a0c573a8e9ce40a9557442b25ae3022857ecff880ae594748d8d1629f3",
+  "quorum/quorum.log": "10b56126f52e38d421aa27d2e672efb7aa95390c506e844f59ff922d9fdbd8e0",
+  "quorum/quorum-inner.log": "d07413894d6e6449dc0a6dfe8b841212fcebef2daea49e967dc268cfba274588",
+  "quorum/read.mjs": "cf6f0221053a64b9cf8ff3af980c201813acdeb738ab147432c7d7bca5ecf229",
+  "quorum/quorum-result.json": "42ad700d8edf1f65c503ecc19aceede6bf17af6f7338c2ba59e2e90e70ebfa9c",
+  "failed-book-reader/quorum-queue.log": "6d6a0c44b4023e72a76d5c8da3eb804db06fc599395bc507a64eb7c671cef237",
+  "failed-book-reader/quorum.log": "93176f60eed7a48981f4824eef97f2501f87a271fdb904d8db59132c444ffc4d",
+  "failed-book-reader/quorum-inner.log": "bbd4cfec6107e65cdccc41c53d2beb1a03da4dc9ea659b3280434b86fc1fe8bf",
+  "failed-book-reader/read.mjs": "5ca33f8ade921225895aacd8a7ad9d3178df139739f3564c3e0486c35e1402ef",
+  "failed-book-reader/quorum-result.json": "b5dd4eea396c65d85205f8d2ddea5516b2d87a64eb6ae276dba2d1bbce1d3492"
+}

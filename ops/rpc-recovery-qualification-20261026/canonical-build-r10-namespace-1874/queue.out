@@ -1,0 +1,160 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 9 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 10 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 11 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 12 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 13 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 14 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 15 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 16 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 17 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 18 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 19 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 20 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 21 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 22 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 23 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 24 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 25 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 26 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 27 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 28 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 29 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 30 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 31 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 32 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 33 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 34 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 35 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 36 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 37 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 38 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 39 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 40 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 41 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 42 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 43 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 44 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 45 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 46 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 47 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 48 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 49 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 50 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 51 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 52 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 53 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 54 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 55 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 56 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 57 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 58 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 59 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 60 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 61 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 62 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 63 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 64 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 65 not started; sleep 30
+[queue] START available=24437MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+
+OK
+{
+ "format": "bsro-ns-test-receipt/r10",
+ "pass": true,
+ "stageSums": "0034b392709ec2142ab465b4a50a993e47738a99cecd620d17876560218c36df",
+ "suites": {
+  "test_ns": {
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expected": 5,
+   "pass": true,
+   "ran": [
+    "5"
+   ],
+   "rc": 0
+  }
+ }
+}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-state-readonly-stage/r10/runs/ns-tests-20261027T091000Z-3005830
+## bsro-r10-ns-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

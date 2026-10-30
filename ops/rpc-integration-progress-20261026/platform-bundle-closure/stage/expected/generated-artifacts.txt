@@ -1,0 +1,19 @@
+# builder-id  kind  path   (dependency order; the runner's BUILDERS table is the executable copy, checked against this list)
+# kind: always = untracked/gitignored, ALWAYS regenerated; tracked = committed, regenerated only if its --check fails;
+#       check-only = committed, --check must pass, never regenerated here (sources outside the composition)
+network-runtime always relay/network-runtime.bundle.mjs
+network-runtime always relay/network-runtime.bundle.mjs.manifest.json
+windows-lease-runtime tracked windows/node/lease-gas-runtime.bundle.mjs
+windows-lease-runtime tracked windows/node/lease-gas-runtime.bundle.mjs.manifest.json
+metal-lease-conduit tracked metal/guest/lease-gas-conduit.bundle.mjs
+metal-lease-conduit tracked metal/guest/lease-gas-conduit.bundle.mjs.manifest.json
+host-admission tracked windows/node/host-admission.bundle.mjs
+host-admission tracked metal/guest/host-policy.bundle.mjs
+mcp-server tracked metal/guest/mcp-server.bundle.mjs
+mcp-server tracked metal/guest/mcp-server.bundle.mjs.manifest.json
+platform-api tracked metal/guest/platform-api.bundle.mjs
+platform-api tracked metal/guest/platform-api.bundle.mjs.manifest.json
+site-host-policy check-only site/vendor/host-policy.js
+site-host-policy check-only site/vendor/host-policy.MANIFEST.json
+site-management check-only site/vendor/management.js
+site-management check-only site/vendor/management.MANIFEST.json

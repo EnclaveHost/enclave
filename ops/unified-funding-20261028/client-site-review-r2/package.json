@@ -1,0 +1,6 @@
+{
+  "name": "client-site-repair-r2-tests",
+  "private": true,
+  "type": "module",
+  "description": "Only so node --test can import the authored site ES modules (.js) from this directory. Not deployed."
+}

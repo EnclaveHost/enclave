@@ -1,0 +1,9 @@
+Usage: helios linea [OPTIONS]
+
+Options:
+  -n, --network <NETWORK>              [default: linea]
+  -b, --rpc-bind-ip <RPC_BIND_IP>      [env: RPC_BIND_IP=]
+  -p, --rpc-port <RPC_PORT>            [env: RPC_PORT=]
+  -e, --execution-rpc <EXECUTION_RPC>  [env: EXECUTION_RPC=]
+      --tui                            Enable terminal user interface
+  -h, --help                           Print help

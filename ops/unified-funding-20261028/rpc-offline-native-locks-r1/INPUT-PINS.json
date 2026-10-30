@@ -1,0 +1,42 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-native-locks-r1/run.py",
+    "sha256": "0eb0fbfb7d8aab8703338f016edb6ab8cf4b6ae3cb6e037518965a3080f08ef1"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-native-locks-r1/PEER-PLAN.md",
+    "sha256": "550614eb21f15d94e992088e73cf59f6369a046118a72e792d7a22ca89d7ff7f"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-native-locks-r1/PEER-PINS.json",
+    "sha256": "b8b5a581b8fdbaace5ecef837496b9614477ce7d6cae5d5c65af21235940f943"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-writer-root-repaired-r1/candidate/offline_mask.py",
+    "sha256": "1aa482cf4ba4f4724de7dd1d8fccd08908a5f8f856e231d5b12780747e1fa504"
+  },
+  {
+    "path": "/usr/bin/qemu-img",
+    "sha256": "3a57bce6765bfb73a75591dba2ac40d985cccde97d371e95537ecbf16d949d30"
+  },
+  {
+    "path": "/usr/bin/qemu-nbd",
+    "sha256": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934"
+  },
+  {
+    "path": "/usr/sbin/qemu-storage-daemon",
+    "sha256": "76e81784faec1be26479758f0e77503a5d7c687f25a783fa9034400d4ada093b"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+    "sha256": "969d9273e53c79abf8604c363daa58b41a462bc4b7f3d03d813980edb771f6f4"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+    "sha256": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6"
+  },
+  {
+    "path": "/usr/bin/python3.14",
+    "sha256": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b"
+  }
+]

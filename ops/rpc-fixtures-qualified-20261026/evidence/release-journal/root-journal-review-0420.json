@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "counts": {
+    "tests": 7,
+    "pass": 7,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "executedNewTests": false,
+  "originalRootJobExit": 1,
+  "testExit": 0,
+  "reason": "Original runner completed seven tests, then its Python summary parser had a reserved-keyword SyntaxError. This parses the existing TAP and rc; does not rerun or change tests. Permission negative ran with DAC override/read-search capabilities removed.",
+  "sourceFixtureBlob": "fbdcfd281d3540eedf6c7ae2cc49faa0712577d8",
+  "receipts": {
+    "journal.tap": "93abac3bedfb77a7e0c38024147439a429f592f22a900f37fcd2165c72459301",
+    "journal.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+  }
+}

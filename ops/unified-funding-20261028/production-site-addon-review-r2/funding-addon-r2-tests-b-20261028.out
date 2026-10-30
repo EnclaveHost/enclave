@@ -1,0 +1,130 @@
+[queue] START available=89229MiB required=17664MiB cap=768MiB floor=16384MiB concurrentSmall=256MiB
+TAP version 13
+# Subtest: addon build: additions only, pinned, closed, reversible, null config
+ok 1 - addon build: additions only, pinned, closed, reversible, null config
+  ---
+  duration_ms: 148.585216
+  type: 'test'
+  ...
+# Subtest: applyExact replaces once and reverses to the original bytes
+ok 2 - applyExact replaces once and reverses to the original bytes
+  ---
+  duration_ms: 1.000102
+  type: 'test'
+  ...
+# Subtest: applyExact refuses absent, duplicated or pre-existing targets
+ok 3 - applyExact refuses absent, duplicated or pre-existing targets
+  ---
+  duration_ms: 0.472796
+  type: 'test'
+  ...
+# Subtest: router imports become the addon hard navigation, nothing else
+ok 4 - router imports become the addon hard navigation, nothing else
+  ---
+  duration_ms: 0.676694
+  type: 'test'
+  ...
+# Subtest: disabled config keeps FUNDING_* null and changes nothing
+ok 5 - disabled config keeps FUNDING_* null and changes nothing
+  ---
+  duration_ms: 0.984032
+  type: 'test'
+  ...
+# Subtest: config refusals
+ok 6 - config refusals
+  ---
+  duration_ms: 0.600325
+  type: 'test'
+  ...
+# Subtest: enabled config replaces only the supplied FUNDING_* values, exactly
+ok 7 - enabled config replaces only the supplied FUNDING_* values, exactly
+  ---
+  duration_ms: 0.298187
+  type: 'test'
+  ...
+# Subtest: legacy config literals must be in live evidence, accepted, or overridden
+ok 8 - legacy config literals must be in live evidence, accepted, or overridden
+  ---
+  duration_ms: 0.592815
+  type: 'test'
+  ...
+# Subtest: planAdditions refuses collisions, traversal, duplicates and file/dir clashes
+ok 9 - planAdditions refuses collisions, traversal, duplicates and file/dir clashes
+  ---
+  duration_ms: 0.649485
+  type: 'test'
+  ...
+# Subtest: readRegular refuses symlinks and symlinked directories
+ok 10 - readRegular refuses symlinks and symlinked directories
+  ---
+  duration_ms: 0.851713
+  type: 'test'
+  ...
+# Subtest: closure requires the funding graph and refuses router, other pages, tests
+ok 11 - closure requires the funding graph and refuses router, other pages, tests
+  ---
+  duration_ms: 1.093641
+  type: 'test'
+  ...
+# Subtest: externals: only versioned SDKs or unchanged listed global vendors
+ok 12 - externals: only versioned SDKs or unchanged listed global vendors
+  ---
+  duration_ms: 0.754763
+  type: 'test'
+  ...
+# Subtest: transformHtml: exact head edits, no inline script, components baked + nested
+ok 13 - transformHtml: exact head edits, no inline script, components baked + nested
+  ---
+  duration_ms: 2.43222
+  type: 'test'
+  ...
+# Subtest: existsIn: pretty URLs, .html, directory index; no traversal
+ok 14 - existsIn: pretty URLs, .html, directory index; no traversal
+  ---
+  duration_ms: 0.307138
+  type: 'test'
+  ...
+# Subtest: inlineTemplate inlines the paired template, refuses unexpected shapes
+ok 15 - inlineTemplate inlines the paired template, refuses unexpected shapes
+  ---
+  duration_ms: 0.200919
+  type: 'test'
+  ...
+# Subtest: css references resolve inside the site
+ok 16 - css references resolve inside the site
+  ---
+  duration_ms: 0.435846
+  type: 'test'
+  ...
+# Subtest: entry boots the page once and imports only the two addon sentinels
+ok 17 - entry boots the page once and imports only the two addon sentinels
+  ---
+  duration_ms: 0.229378
+  type: 'test'
+  ...
+# Subtest: hard-nav: full document load of an existing page; unknown views refused
+ok 18 - hard-nav: full document load of an existing page; unknown views refused
+  ---
+  duration_ms: 0.887542
+  type: 'test'
+  ...
+# Subtest: pins: null / unreviewed / non-qualified sessions SDK refused
+ok 19 - pins: null / unreviewed / non-qualified sessions SDK refused
+  ---
+  duration_ms: 0.463466
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 19
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 258.131171
+[memory-guard] exit=0 peakTreeRssMiB=107 minHostAvailableMiB=89131
+[memory-guard] at peak: node:54 node:53
+[memory-guard] exit=0 peakTreeRssMiB=153 minHostAvailableMiB=89138
+[memory-guard] at peak: node:53 node:50 node:50
+[queue] EXIT 0

@@ -1,0 +1,22 @@
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a2", "ok": false, "refused": "a2_mismatch: header N does not reproduce the A1 output root (output_root: header N does not reproduce the game's output root (state root, message-passer root or block hash differs))"}
+{"step": "a2", "ok": false, "refused": "unparsed: no JSON object in db output"}
+test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing (test_a2a4.Steps.test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing) ... FAIL
+
+======================================================================
+FAIL: test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing (test_a2a4.Steps.test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.aw4ggFvVFY/test/test_a2a4.py", line 309, in test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing
+    self.setUp(); self.state['headers'] = {}; self.refused('a2', 'empty_read')
+                                              ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.aw4ggFvVFY/test/test_a2a4.py", line 124, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : unparsed: no JSON object in db output
+
+----------------------------------------------------------------------
+Ran 1 test in 1.639s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}

@@ -1,0 +1,14 @@
+[queue] START available=83777MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+Running as unit: enclave-shield-bench-init-check-20261028.service
+# _/home/steven
+package .: no Go files in /home/steven
+FAIL	_/home/steven [setup failed]
+FAIL
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 13ms
+             CPU time consumed: 7ms
+                   Memory peak: 2.4M (swap: 0B)
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

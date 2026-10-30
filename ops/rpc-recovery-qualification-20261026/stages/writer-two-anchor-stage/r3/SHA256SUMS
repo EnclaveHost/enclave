@@ -1,0 +1,5 @@
+a70f607dba423169c0717676a7effcb240b9db036c447ce73c1518a108ea6e9d  ./PROVENANCE.md
+2d038038929058ec8a8eb7726590f2d7495f67e3246b9ad573cdd8aa13332020  ./inputs/r2-slice-1545-two-anchor-reader-r2.tap
+8bc0c867fdf6a63122a1d4316b28d0cf2547b04326814808caaf39fd14e086d4  ./inputs/r2-slice-1545-verdict.json
+8a04b6f77cae4f0a3a4956cc59ae5e012d415995e68f920b7019e5f1e47e8508  ./jobs/root-writer-two-anchor-r3.sh
+ac9ecaf5c5b7ac993b2a0c296a85c9146b58b03e4d7e1c35196607d1f47577a9  ./patches/writer-two-anchor-r3-vs-r2.patch

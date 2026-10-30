@@ -1,0 +1,13 @@
+{
+  "schema": "enclave-funding-addon-config-r2",
+  "release": "disabled",
+  "reviewed": false,
+  "note": "Root-reviewed public config input. FUNDING_* stay null until separately reviewed concrete values exist (release:enabled + reviewed:true). overrides: {literal, value, reason} replace an exact legacy config.js literal with the current peer value. acceptLegacy: legacy literals root confirms current although absent from the captured live chunks. Any config.js endpoint/address literal that is in none of live evidence / overrides / acceptLegacy is refused.",
+  "overrides": [],
+  "acceptLegacy": [],
+  "funding": {
+    "FUNDING_RUNTIME": null,
+    "FUNDING_MIGRATION_PROPOSAL": null,
+    "FUNDING_MIGRATION_APPROVAL": null
+  }
+}

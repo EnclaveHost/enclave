@@ -1,0 +1,14 @@
+{
+  "complete": false,
+  "enumerated": 827,
+  "processes": 256,
+  "descriptors": 0,
+  "exited": 0,
+  "elapsedSeconds": 0.008594117127358913,
+  "errors": 258,
+  "errorKinds": [
+    "Incomplete",
+    "PermissionError"
+  ],
+  "scanIncomplete": true
+}

@@ -1,0 +1,24 @@
+[profile.default]
+src = "contracts"
+test = "contracts/foundry/test"
+out = "out"
+cache_path = "cache"
+libs = ["lib"]
+remappings = ["forge-std/=lib/forge-std/src/"]
+solc = "/home/steven/.local/share/svm/0.8.35/solc-0.8.35"
+auto_detect_solc = false
+offline = true
+optimizer = true
+optimizer_runs = 1
+via_ir = true
+evm_version = "osaka"
+ffi = false
+fs_permissions = [{ access = "read", path = "contracts/foundry/test/fixtures" }]
+
+[fuzz]
+runs = 32
+
+[invariant]
+runs = 16
+depth = 16
+fail_on_revert = false

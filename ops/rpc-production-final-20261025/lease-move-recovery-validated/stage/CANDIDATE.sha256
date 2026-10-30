@@ -1,0 +1,3 @@
+35878448ad8a539236ecd0e3abae7d76c336162fd77795ef99b7edde1cba5d31  cli/enclave.mjs
+559ca2d81e19229a5e1f6ea2a100a7b076e44346df4462bcfde3f7eafcf8bcd1  cli/move-release-confirm.mjs
+23aa051be0df079f9f887dd2668a5a3e212356e2ce585c1d7c195bc506de182a  test/move-release-confirm.test.mjs

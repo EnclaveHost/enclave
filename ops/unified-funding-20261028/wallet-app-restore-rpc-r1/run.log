@@ -1,0 +1,13 @@
+[queue] START available=34019MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+  "readOnly": true,
+  "sshExit": 1,
+  "stdoutBytes": 0,
+  "stderrBytes": 881,
+  "diagnosis": "Observer failed; raw output withheld"
+}
+[memory-guard] exit=0 peakTreeRssMiB=23 minHostAvailableMiB=33987
+[memory-guard] at peak: python3:13 ssh:10
+[memory-guard] exit=0 peakTreeRssMiB=82 minHostAvailableMiB=33985
+[memory-guard] at peak: node:59 python3:13 ssh:10
+[queue] EXIT 0

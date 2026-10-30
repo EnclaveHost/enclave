@@ -1,0 +1,2 @@
+## tree pre: 8481 tracked (9 symlinks) verified by content/target; overlaid 2, added 2, links 1, generated 0; execBitMismatch 0; failures 1
+## TREE FAIL: unexpected file network/node_modules

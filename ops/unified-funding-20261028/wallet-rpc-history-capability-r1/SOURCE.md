@@ -1,0 +1,1 @@
+Public endpoints from ethereum-lists chain8453 registry, read2026-10-30: https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/chains/eip155-8453.json. Diagnostic only; results must agree with independently pinned history and current identity before use.

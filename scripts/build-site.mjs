@@ -242,6 +242,7 @@ const bootOut = Object.keys(outs).find(f => outs[f].entryPoint && outs[f].entryP
 // URL to these bytes so fresh HTML always imports this build's chunk graph.
 const bootVersion = createHash("sha256").update(fs.readFileSync(path.join(DIST, "js/boot.js"))).digest("hex").slice(0, 16);
 const PAGE_HTML = { overview: "index.html", apps: "apps.html", develop: "develop.html", dashboard: "dashboard.html", admin: "admin.html", terms: "terms.html", checkout: "checkout.html", link: "link.html", host: "host.html", architecture: "architecture.html", authorize: "authorize.html", "sso-authorize": "sso/authorize.html", grant: "grant.html", sessions: "sessions.html" };   // deploy.html is a redirect stub now
+const PAGE_HTML = { overview: "index.html", apps: "apps.html", develop: "develop.html", dashboard: "dashboard.html", admin: "admin.html", terms: "terms.html", checkout: "checkout.html", link: "link.html", host: "host.html", architecture: "architecture.html", authorize: "authorize.html", "sso-authorize": "sso/authorize.html", grant: "grant.html", sessions: "sessions.html", funding: "funding.html" };   // deploy.html is a redirect stub now
 const preloads = {};
 for (const [outFile, o] of Object.entries(outs)) {
   const page = o.entryPoint && /js[\\/]pages[\\/]([\w-]+)\.js$/.exec(o.entryPoint)?.[1];
@@ -251,7 +252,7 @@ for (const [outFile, o] of Object.entries(outs)) {
   preloads[PAGE_HTML[page]] = [...files]
     .map(c => `<link rel="modulepreload" href="${path.relative(DIST, path.resolve(ROOT, c)).replace(/\\/g, "/")}" />`).join("\n");
 }
-for (const f of ["index.html", "deploy.html", "apps.html", "develop.html", "dashboard.html", "admin.html", "terms.html", "privacy.html", "checkout.html", "link.html", "host.html", "architecture.html", "authorize.html", "sso/authorize.html", "grant.html", "sessions.html", "404.html", "openapi.json"]) {
+for (const f of ["index.html", "deploy.html", "apps.html", "develop.html", "dashboard.html", "admin.html", "terms.html", "privacy.html", "checkout.html", "link.html", "host.html", "architecture.html", "authorize.html", "sso/authorize.html", "grant.html", "sessions.html", "funding.html", "404.html", "openapi.json"]) {
   let s = fs.readFileSync(path.join(SITE, f), "utf8");
   if (f.endsWith(".html")) {
     s = bake(s);
@@ -274,6 +275,14 @@ for (const [name, result] of [["recover/recover.js", recoverResult], ["credit/cr
     for (const imp of o.imports || [])
       if (imp.external && !fs.existsSync(path.join(DIST, imp.path)))
         throw new Error(name + " imports " + imp.path + ", which this build does not ship");
+// /funding needs site/vendor/funding.js built from THIS sdk/funding core (scripts/build-funding-vendor.mjs; client-site-repair-r2)
+{
+  const { createHash } = await import("node:crypto");
+  const h = (p) => createHash("sha256").update(fs.readFileSync(p)).digest("hex");
+  const side = JSON.parse(fs.readFileSync(path.join(SITE, "vendor", "funding.manifest.json"), "utf8"));
+  if (h(path.join(SITE, "vendor", "funding.js")) !== side.bundleSha256) throw new Error("site/vendor/funding.js differs from funding.manifest.json; run node scripts/build-funding-vendor.mjs");
+  if (h(path.join(ROOT, "sdk", "funding", "MANIFEST.json")) !== side.coreManifestSha256) throw new Error("site/vendor/funding.js was built from another sdk/funding core; run node scripts/build-funding-vendor.mjs");
+}
 // pretty URLs: the gateway's rewrite rules ride the pin itself
 fs.copyFileSync(path.join(SITE, "_redirects"), path.join(DIST, "_redirects"));
 fs.copyFileSync(path.join(SITE, "robots.txt"), path.join(DIST, "robots.txt"));

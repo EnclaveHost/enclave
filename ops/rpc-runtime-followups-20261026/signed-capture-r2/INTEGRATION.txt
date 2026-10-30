@@ -1,0 +1,51 @@
+Qualified caller / parent / L1 / branch integration design
+
+Keep the existing finalized reader and floor as the durable prefix. Do not
+register the candidate format as native v2/v3 or wrap its JSON as readAnchor.
+
+1. A new owned in-domain caller holds the current finalized header/output root
+   and validated complete history, plus a provisional branch epoch. It issues
+   a short-lived one-use execution ticket containing the exact parent hash/root,
+   selected signed tip/envelope hash, caller-authenticated L1 head and schedule,
+   signer policy/version and expected child. In-process branded capability only;
+   never accept an HTTP caller's claims about qualification.
+2. Recent L1 root provenance comes from the separately qualified owned light
+   client. It must bind actual verified update/root/slot/participation and the
+   caller's explicit pre-finality policy. Current finalized-only schedule-reader
+   predicates are not weakened; a separate branch-bound schedule path is needed.
+3. Host capture is untrusted input acquisition. Invoke copied pinned native
+   bytes under existing owned-process/resource controls. On success, recheck
+   ticket/epoch/parent/L1 branch identity. Any concurrent change discards the
+   result. Persist provisional header/outputRoot/coverage atomically before
+   publication. Saved host JSON never restores authority by itself.
+4. Select branches according to reviewed pinned Base rollup semantics, with
+   authenticated L1 reconciliation taking precedence. Observed equivocation
+   invalidates pending capabilities; highest-number-wins is not sufficient.
+   Document the difference from legacy majority-observed RPC agreement. If that
+   guarantee is mandatory, add independent accepted observations rather than
+   counting several aliases of one signer/host as a quorum.
+5. Expose a distinct branch-bound snapshot capability. A fresh row at selected
+   executed head minus2 must remain <=120s old at final authorization; both
+   descendants must belong to the same validated branch. State/contract calls
+   use the exact block hash and real requireCanonical semantics within that view.
+   Never translate hash reads to block numbers or reset age to observedAt.
+6. Writer generation requires a finalized Claimed identity plus complete
+   branch-consistent history from it through the fresh snapshot. Keep existing
+   lease16 fact format/finalized claim rule. Provisional reclaim cannot mint a
+   new stable fact. Missing historical coverage remains refusal, never auto-claim.
+7. Keep current owner, pause, host ownership, administrator bans, ERC1271/session
+   and balance/lease checks in the same snapshot. Custody v2 needs an explicit
+   qualified authority adapter and recovery review; its verifier-brand refusal
+   and quorum policy cannot be bypassed by relabeling clients.
+8. Reconciliation promotes only matching segments independently authenticated
+   by L1 derivation/finality. On branch replacement, fence permits/callbacks
+   before an atomic epoch switch. Never lower the finalized floor. Handle
+   provisional consumer high-water marks explicitly; a restart revalidates
+   persisted segments and protected recovery floors before serving authority.
+   A secret already released on a discarded branch cannot be recalled.
+
+Qualification gates remain real positive execution, sustained throughput at
+actual Base cadence, <=120s service duty cycle, malicious/reorg/restart cases,
+full feature/admin-control tests, public-RPC blackout and accepted SNP image.
+No node readiness/status/pool acknowledgement or capture receipt substitutes
+for those gates. This document proposes integration; none is activated here.

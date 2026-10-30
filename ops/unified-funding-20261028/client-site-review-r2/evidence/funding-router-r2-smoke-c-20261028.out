@@ -1,0 +1,19 @@
+[queue] START available=90073MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+▲ [WARNING] The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected [commonjs-variable-in-esm]
+
+    site/js/lib/qr.js:2300:6:
+      2300 │       module.exports = factory();
+           ╵       ~~~~~~
+
+  This file is considered to be an ECMAScript module because of the "export" keyword here:
+
+    site/js/lib/qr.js:2306:0:
+      2306 │ export function qrSvg(text, opts){
+           ╵ ~~~~~~
+
+{"outputs":47,"inputs":111,"fundingPage":true,"scope":"router module graph only; not full production site build"}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

@@ -1,0 +1,11 @@
+--- a/segments.py
++++ b/segments.py
+@@ -23,7 +23,7 @@
+ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+ import anchored_origin as AO  # noqa: E402
+ 
+-GATE = (f'{AO.W}/source/ops/rpc-backend-bootstrap/2026-10-25/coverage/coverage_gate.py',
++GATE = (f'{AO.ROOT}/vendor/coverage/coverage_gate.py',
+         'b4f6d639c3f9b12f73938d5993ce0897fe56dcbec1ada3123c4ad80d0ff3854b')
+ SEQ_WINDOW = AO.SEQ_WINDOW
+ PLAN_FORMAT = 'enclave-base-l1-coverage-segment-plan/v1'

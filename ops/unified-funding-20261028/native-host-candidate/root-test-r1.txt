@@ -1,0 +1,6 @@
+RUN ['/home/steven/.foundry/bin/forge', 'build', '--offline']
+Compiling 1 files with Solc 0.8.35
+Solc 0.8.35 finished in 27.14ms
+Compiler run successful!
+RUN ['python3', 'prepare.py']
+prepare.py: REFUSED: ambiguous artifact EnclaveDeployments for ledger: session-r1/out/EnclaveDeployments.sol/EnclaveDeployments.json [/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/contracts/EnclaveDeployments.sol], session-r1/out/contracts/EnclaveDeployments.sol/EnclaveDeployments.json [../../../enclave/contracts/EnclaveDeployments.sol]

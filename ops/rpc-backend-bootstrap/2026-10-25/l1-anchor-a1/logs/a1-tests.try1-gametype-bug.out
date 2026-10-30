@@ -1,0 +1,178 @@
+[queue] START available=19282MiB required=18688MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1792MiB
+TAP version 13
+# Subtest: real mainnet proof: account and storage verify against the header's stateRoot; header hash recomputes
+ok 1 - real mainnet proof: account and storage verify against the header's stateRoot; header hash recomputes
+  ---
+  duration_ms: 10.520725
+  type: 'test'
+  ...
+# Subtest: proof forgeries are refused
+ok 2 - proof forgeries are refused
+  ---
+  duration_ms: 6.285674
+  type: 'test'
+  ...
+# Subtest: ABI decoding is strict
+ok 3 - ABI decoding is strict
+  ---
+  duration_ms: 0.470704
+  type: 'test'
+  ...
+# Subtest: runA1: authenticated verdict, source labels, candidates resolved only by the authenticated read
+not ok 4 - runA1: authenticated verdict, source labels, candidates resolved only by the authenticated read
+  ---
+  duration_ms: 4.050555
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/l1-anchor-a1/test/a1-anchor.test.mjs:99:1'
+  failureType: 'testCodeFailure'
+  error: 'gameType is not an authenticated read (source missing)'
+  code: 'unauthenticated'
+  stack: |-
+    fail (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/l1-anchor-a1/a1-anchor.mjs:13:41)
+    need (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/l1-anchor-a1/a1-anchor.mjs:174:115)
+    evaluateA1 (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/l1-anchor-a1/a1-anchor.mjs:188:7)
+    runA1 (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/l1-anchor-a1/a1-anchor.mjs:235:19)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/l1-anchor-a1/test/a1-anchor.test.mjs:100:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: runA1 refuses: asr_mismatch
+ok 5 - runA1 refuses: asr_mismatch
+  ---
+  duration_ms: 2.11178
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: asr_paused
+ok 6 - runA1 refuses: asr_paused
+  ---
+  duration_ms: 1.901014
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_not_finalized
+ok 7 - runA1 refuses: game_not_finalized
+  ---
+  duration_ms: 1.764106
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_not_respected
+ok 8 - runA1 refuses: game_not_respected
+  ---
+  duration_ms: 1.713977
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_blacklisted
+ok 9 - runA1 refuses: game_blacklisted
+  ---
+  duration_ms: 1.775766
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_retired
+ok 10 - runA1 refuses: game_retired
+  ---
+  duration_ms: 1.868534
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_not_defender_wins
+ok 11 - runA1 refuses: game_not_defender_wins
+  ---
+  duration_ms: 1.653547
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: root_mismatch
+ok 12 - runA1 refuses: root_mismatch
+  ---
+  duration_ms: 1.843224
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: number_mismatch
+ok 13 - runA1 refuses: number_mismatch
+  ---
+  duration_ms: 1.647197
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_asr_mismatch
+ok 14 - runA1 refuses: game_asr_mismatch
+  ---
+  duration_ms: 1.605768
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_type_mismatch
+not ok 15 - runA1 refuses: game_type_mismatch
+  ---
+  duration_ms: 1.980642
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/l1-anchor-a1/test/a1-anchor.test.mjs:133:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    The validation function is expected to return "true". Received false
+    
+    Caught error:
+    
+    Error: gameType is not an authenticated read (source missing)
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/l1-anchor-a1/test/a1-anchor.test.mjs:140:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: runA1 refuses: helios_call_failed
+ok 16 - runA1 refuses: helios_call_failed
+  ---
+  duration_ms: 0.689251
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: bad_return
+ok 17 - runA1 refuses: bad_return
+  ---
+  duration_ms: 0.447794
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: no_finality
+ok 18 - runA1 refuses: no_finality
+  ---
+  duration_ms: 0.186997
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: wrong_chain
+ok 19 - runA1 refuses: wrong_chain
+  ---
+  duration_ms: 0.166988
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: header_mismatch
+ok 20 - runA1 refuses: header_mismatch
+  ---
+  duration_ms: 0.282436
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: proof_slots
+ok 21 - runA1 refuses: proof_slots
+  ---
+  duration_ms: 0.837598
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: proof_json_mismatch
+ok 22 - runA1 refuses: proof_json_mismatch
+  ---
+  duration_ms: 1.42502
+  type: 'test'
+  ...
+# Subtest: policy refuses plain-rpc or missing sources; config must be explicit
+ok 23 - policy refuses plain-rpc or missing sources; config must be explicit
+  ---
+  duration_ms: 0.879987
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 21
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 191.068511
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

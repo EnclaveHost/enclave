@@ -1,0 +1,30 @@
+TAP version 13
+# Subtest: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-full-regression-harness-r3/test/root-incarnation-acceptance.test.mjs
+not ok 1 - /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-full-regression-harness-r3/test/root-incarnation-acceptance.test.mjs
+  ---
+  duration_ms: 1.208311
+  type: 'test'
+  url: 'file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-full-regression-harness-r3/src/network/runtime-lock.mjs'
+  error: "Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-full-regression-harness-r3/src/network/runtime-lock.mjs' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-full-regression-harness-r3/src/network/owned-durable-state.mjs"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    moduleResolve (node:internal/modules/esm/resolve:865:10)
+    defaultResolve (node:internal/modules/esm/resolve:989:11)
+    #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:783:38)
+    nextStep (node:internal/modules/customization_hooks:189:26)
+    resolve (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-full-regression-harness-r3/test/helpers/baseline.mjs:79:12)
+    nextStep (node:internal/modules/customization_hooks:189:26)
+    resolveWithHooks (node:internal/modules/customization_hooks:417:10)
+    ModuleLoader.resolveSync (node:internal/modules/esm/loader:803:14)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 192.387634

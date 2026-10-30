@@ -1,0 +1,1518 @@
+diff --git a/network/derived-reader/api.mjs b/network/derived-reader/api.mjs
+index b9a81d1..eb8d790 100644
+--- a/network/derived-reader/api.mjs
++++ b/network/derived-reader/api.mjs
+@@ -14,12 +14,15 @@ export async function serveDerivedReader(reader, { port = 0, maxWitnessBytes = 6
+       res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-enclave-authority-scope': 'local-process-only' });
+       res.end(JSON.stringify(body));
+     };
+-    const witness = /^\/witness\/([0-9a-f]{64})$/.exec(req.url || '');
++    // /provisional/*: the same orchestration for the RAM-only attested-L1 track; the
++    // reader refuses it unless its signed binding enables it. No anchor JSON is served.
++    const route = /^(\/provisional)?(\/prepare|\/witness\/([0-9a-f]{64}))$/.exec(req.url || '');
++    const witness = route?.[3] ? [null, route[3]] : null, provisional = !!route?.[1];
+     if (req.method === 'GET' && req.url === '/status') {
+       try { return reply(200, { ...reader.status(), remotelyVerified: false }); }
+       catch { return reply(503, { error: 'reader status unavailable', remotelyVerified: false }); }
+     }
+-    if (!(req.method === 'GET' && req.url === '/anchor') && !(req.method === 'POST' && (req.url === '/prepare' || witness))) return reply(404, { error: 'not found' });
++    if (!(req.method === 'GET' && req.url === '/anchor') && !(req.method === 'POST' && route)) return reply(404, { error: 'not found' });
+     if (active) return reply(503, { error: 'reader busy' });
+     active = true;
+     const ac = new AbortController(); controllers.add(ac);
+@@ -43,11 +46,11 @@ export async function serveDerivedReader(reader, { port = 0, maxWitnessBytes = 6
+       }
+       ac.signal.throwIfAborted();
+       if (req.url === '/anchor') reply(200, await reader.readAnchor({ signal: ac.signal }));
+-      else if (witness) reply(200, await reader.submit({ ticket: witness[1], witness: body, signal: ac.signal }));
++      else if (witness) reply(200, await (provisional ? reader.submitProvisional : reader.submit)({ ticket: witness[1], witness: body, signal: ac.signal }));
+       else {
+         const input = JSON.parse(body.toString('utf8'));
+         if (!input || Object.keys(input).sort().join(',') !== 'blockNumber,rollupConfigTemplate') throw Error('exact prepare input required');
+-        reply(200, await reader.prepare({ ...input, signal: ac.signal }));
++        reply(200, await (provisional ? reader.prepareProvisional : reader.prepare)({ ...input, signal: ac.signal }));
+       }
+     } catch (e) { reply(409, { error: String(e.message).slice(0, 300) }); }
+     finally { clearTimeout(timer); controllers.delete(ac); active = false; req.removeListener('aborted', disconnected); res.removeListener('close', disconnected); }
+diff --git a/network/derived-reader/coverage-store.mjs b/network/derived-reader/coverage-store.mjs
+index e727856..f560420 100644
+--- a/network/derived-reader/coverage-store.mjs
++++ b/network/derived-reader/coverage-store.mjs
+@@ -11,6 +11,7 @@ import { validateAnchor } from './journal.mjs';
+ import { assertCheckedCoverage, validateLogQuery, COVERAGE_FORMAT, FILTER_ID, MAX_COVERAGE_BYTES } from './coverage.mjs';
+ 
+ export const MAX_HISTORY_BYTES = 4 * 1024 ** 3;
++export const MAX_OVERLAY_SEGMENTS = 64;
+ const MANIFEST_BYTES = 16 << 20, MAX_SEGMENTS = 16384;
+ const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+ const HASH = /^[0-9a-f]{64}$/;
+@@ -34,6 +35,22 @@ function checkedFloor(old, anchor) {
+   }
+   return old; // catch-up is private until both durable floors have been reached
+ }
++// The provider's RAM-only provisional coverage (B_f, S] for an ATTESTED anchor S:
++// this process's validated native segments, contiguous from exactly after the last
++// persisted segment and ending at S. Read-only: never written, staged or verified.
++function checkedOverlay(overlay, last, anchor) {
++  if (anchor.tier !== 'l1-attested-derived' || !last || !Array.isArray(overlay) || !overlay.length || overlay.length > MAX_OVERLAY_SEGMENTS)
++    throw Error('provisional coverage needs persisted coverage and an attested anchor');
++  let next = last.toBlock + 1;
++  for (const c of overlay) {
++    assertCheckedCoverage(c);
++    if (c.fromBlock !== next) throw Error('provisional coverage gap or overlap');
++    next = c.toBlock + 1;
++  }
++  const tail = overlay.at(-1).blocks.at(-1);
++  if (tail.number !== anchor.base.number || tail.hash !== anchor.base.hash) throw Error('provisional coverage does not end at the attested anchor');
++  return overlay;
++}
+ 
+ export async function openCoverageStore(directory, { binding, initialize = false, maximumBytes = MAX_HISTORY_BYTES } = {}) {
+   if (!path.isAbsolute(directory) || !HASH.test(binding || '') || !Number.isSafeInteger(maximumBytes) ||
+@@ -115,17 +132,27 @@ export async function openCoverageStore(directory, { binding, initialize = false
+           published = true; pending = false; verified.push(entry); };
+       } catch (e) { failed = true; throw e; }
+     },
+-    async read(query, anchor, { signal, maxBytes = MAX_COVERAGE_BYTES } = {}) {
++    async read(query, anchor, { signal, maxBytes = MAX_COVERAGE_BYTES, overlay = null } = {}) {
+       alive(); signal?.throwIfAborted();
+       if (pending) throw Error('coverage publication pending; recovery required');
+       if (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > MAX_COVERAGE_BYTES) throw Error('invalid derived log response cap');
+       const filter = validateLogQuery(query, anchor), first = verified[0], last = verified.at(-1);
+-      if (!first || filter.fromBlock < first.fromBlock || filter.toBlock > last.toBlock) throw Error('requested history is outside runtime-verified coverage');
++      if (overlay === null && anchor.tier !== 'l1-finalized-derived') throw Error('a provisional anchor is served only with its provisional coverage');
++      const memory = overlay === null ? [] : checkedOverlay(overlay, last, anchor), end = memory.at(-1)?.toBlock ?? last?.toBlock;
++      if (!first || filter.fromBlock < first.fromBlock || filter.toBlock > end) throw Error('requested history is outside runtime-verified coverage');
+       const result = { format: 'enclave-derived-logs/v1', logs: [], anchor: structuredClone(anchor), filter,
+         coverage: { format: COVERAGE_FORMAT, filterId: FILTER_ID, fromBlock: filter.fromBlock, toBlock: filter.toBlock,
+-          complete: true, availableFromBlock: first.fromBlock, availableToBlock: last.toBlock } };
++          complete: true, availableFromBlock: first.fromBlock, availableToBlock: end } };
+       let responseBytes = Buffer.byteLength(JSON.stringify(result)), cursor = filter.fromBlock;
+       if (responseBytes > maxBytes) throw Error('derived log response too large; request a smaller complete block range');
++      const take = logs => {
++        for (const log of logs) if (log.blockNumber >= filter.fromBlock && log.blockNumber <= filter.toBlock &&
++            log.address === filter.address && filter.topic0s.includes(log.topics[0]) && log.topics[1] === filter.topic1) {
++          responseBytes += Buffer.byteLength(JSON.stringify(log)) + 1;
++          if (responseBytes > maxBytes) throw Error('derived log response too large; request a smaller complete block range');
++          result.logs.push(log);
++        }
++      };
+       for (const entry of verified) {
+         if (entry.toBlock < cursor) continue;
+         if (cursor > filter.toBlock) break;
+@@ -137,12 +164,7 @@ export async function openCoverageStore(directory, { binding, initialize = false
+           const raw = await fsp.readFile(chunk, { signal });
+           if (raw.length !== entry.bytes || digest(raw) !== entry.chunkHash) throw Error('coverage chunk hash changed');
+           const value = JSON.parse(raw);
+-          for (const log of value.logs) if (log.blockNumber >= filter.fromBlock && log.blockNumber <= filter.toBlock &&
+-              log.address === filter.address && filter.topic0s.includes(log.topics[0]) && log.topics[1] === filter.topic1) {
+-            responseBytes += Buffer.byteLength(JSON.stringify(log)) + 1;
+-            if (responseBytes > maxBytes) throw Error('derived log response too large; request a smaller complete block range');
+-            result.logs.push(log);
+-          }
++          take(value.logs);
+         } catch (e) {
+           if (!signal?.aborted && !/response too large/.test(e.message)) failed = true;
+           throw e;
+@@ -150,6 +172,14 @@ export async function openCoverageStore(directory, { binding, initialize = false
+         cursor = Math.min(entry.toBlock, filter.toBlock) + 1;
+         await yieldIO(); // allow cancellation/deadlines between bounded chunks
+       }
++      for (const c of memory) {
++        if (c.toBlock < cursor) continue;
++        if (cursor > filter.toBlock) break;
++        if (c.fromBlock > cursor) throw Error('provisional coverage gap or overlap');
++        signal?.throwIfAborted(); alive();
++        take(c.logs);
++        cursor = Math.min(c.toBlock, filter.toBlock) + 1;
++      }
+       signal?.throwIfAborted(); alive();
+       if (cursor !== filter.toBlock + 1) throw Error('runtime coverage incomplete');
+       return result;
+diff --git a/network/derived-reader/l1-runtime.mjs b/network/derived-reader/l1-runtime.mjs
+index 1fe5501..802bf75 100644
+--- a/network/derived-reader/l1-runtime.mjs
++++ b/network/derived-reader/l1-runtime.mjs
+@@ -13,6 +13,12 @@ export const CHECKPOINT_RECORDS = Object.freeze({
+     'mainnet slot 15511008, five-source checkpoint recorded 2026-10-25; maximum age seven days',
+ });
+ const OWNED = new WeakSet();
++// Which owned-runtime call produced an L1 head. Only these frozen objects carry a
++// trust tier; a JSON copy or a hand-built header has none (l1HeadTier -> null).
++export const L1_HEAD_TIERS = Object.freeze({ finalized: 'helios-finalized', attested: 'helios-attested-latest' });
++export const MAX_ATTESTED_AGE_SEC = 60;
++const HEAD_TIER = new WeakMap();
++export const l1HeadTier = head => (head && typeof head === 'object' && HEAD_TIER.get(head)) || null;
+ export function assertL1Runtime(runtime) {
+   if (!OWNED.has(runtime)) throw Error('L1 authority must be an owned local light-client runtime');
+   runtime.assertOwned();
+@@ -85,7 +91,18 @@ export async function startL1Runtime(config, { runDir, signal, now = Date.now,
+     const runtime = Object.freeze({ request, assertOwned, checkpoint, pid: child.pid,
+       async finalized({ signal: requestSignal, maxAgeSec = 1800 } = {}) {
+         if (!Number.isInteger(maxAgeSec) || maxAgeSec < 1 || maxAgeSec > 3600) throw Error('invalid L1 freshness bound');
+-        return finalizedHeader(await request('eth_getBlockByNumber', ['finalized', false], { signal: requestSignal }), Math.floor(now() / 1000), maxAgeSec);
++        const head = finalizedHeader(await request('eth_getBlockByNumber', ['finalized', false], { signal: requestSignal }), Math.floor(now() / 1000), maxAgeSec);
++        HEAD_TIER.set(head, L1_HEAD_TIERS.finalized); return head;
++      },
++      // PROVISIONAL tier: the pinned Helios's `latest` is the attested header of its
++      // latest verified finality update (sync-committee signed, > 1/2 of recent maximum
++      // participation, no finality branch). Not finalized: L1 fork choice may still
++      // replace it, so callers re-check canonicality on every use and never persist it.
++      async attested({ signal: requestSignal, maxAgeSec = MAX_ATTESTED_AGE_SEC } = {}) {
++        if (!Number.isInteger(maxAgeSec) || maxAgeSec < 1 || maxAgeSec > MAX_ATTESTED_AGE_SEC) throw Error('invalid attested L1 freshness bound');
++        if (await request('eth_chainId', [], { signal: requestSignal }) !== '0x1') throw Error('L1 client is on another chain');
++        const head = finalizedHeader(await request('eth_getBlockByNumber', ['latest', false], { signal: requestSignal }), Math.floor(now() / 1000), maxAgeSec);
++        HEAD_TIER.set(head, L1_HEAD_TIERS.attested); return head;
+       },
+       async close() { closed = true; signal?.removeEventListener('abort', onAbort); await close(); },
+     });
+diff --git a/network/derived-reader/lifecycle.mjs b/network/derived-reader/lifecycle.mjs
+index d6de1af..2802fb1 100644
+--- a/network/derived-reader/lifecycle.mjs
++++ b/network/derived-reader/lifecycle.mjs
+@@ -6,8 +6,12 @@ import { createLifecycleFinalitySnapshot } from '../lifecycle-finality-bridge.mj
+ export async function startDerivedLifecycleReader(config, { verifier, journal, ...options }) {
+   const reader = await startDerivedReader(config, options);
+   try {
++    // The provisional state anchor only when the reader's SIGNED binding carries its
++    // policy (startDerivedReader validated it into that binding); never otherwise.
++    const provisional = config.provisional !== undefined;
+     const snapshot = createLifecycleFinalitySnapshot({ readAnchor: reader.readAnchor, verifier, journal,
+-      maxAnchorAgeSec: config.maxAnchorAgeSec ?? 1800, now: options.now || Date.now });
+-    return { reader, snapshot, close: reader.close };
++      maxAnchorAgeSec: config.maxAnchorAgeSec ?? 1800, now: options.now || Date.now,
++      ...(provisional ? { readStateAnchor: reader.readStateAnchor, maxStateAgeSec: config.provisional.maxStateAgeSec } : {}) });
++    return { reader, snapshot, ...(provisional ? { stateSnapshot: snapshot.twoAnchor } : {}), close: reader.close };
+   } catch (e) { await reader.close(); throw e; }
+ }
+diff --git a/network/derived-reader/proof.mjs b/network/derived-reader/proof.mjs
+index 548efeb..a4a0816 100644
+--- a/network/derived-reader/proof.mjs
++++ b/network/derived-reader/proof.mjs
+@@ -3,11 +3,14 @@ import { authenticateAnchor, headerHash } from './vendor/anchor-bootstrap.mjs';
+ import { runA1 } from './vendor/a1-anchor.mjs';
+ import { readSchedule, CONFIG_HASH_PIN_CANDIDATE } from './vendor/schedule_reader.mjs';
+ import { buildTrustedInput } from './vendor/schedule-input-r2.mjs';
+-import { assertL1Runtime } from './l1-runtime.mjs';
++import { assertL1Runtime, l1HeadTier, L1_HEAD_TIERS } from './l1-runtime.mjs';
+ import { finalizedHeader } from './rpc.mjs';
+ import { validateCoverage } from './coverage.mjs';
+ export const keccak = bytes => toBytes(keccak256(bytes));
+ const HASH = /^0x[0-9a-f]{64}$/;
++// Derived-anchor tiers. Only provider code passes one, according to which owned L1
++// call produced l1Head; it is never read from input, JSON or a caller.
++export const DERIVED_TIERS = Object.freeze({ finalized: 'l1-finalized-derived', attested: 'l1-attested-derived' });
+ 
+ export async function authenticateBootstrap({ l1, execution, base, a1Config, signal, now = Date.now }) {
+   assertL1Runtime(l1); signal?.throwIfAborted();
+@@ -27,8 +30,10 @@ export async function authenticateBootstrap({ l1, execution, base, a1Config, sig
+       messagePasserStorageRoot: verified.messagePasserStorageRoot, outputRoot: result.outputRoot, timestamp }),
+     l1: Object.freeze({ number: Number(result.l1.number), hash: result.l1.hash, stateRoot: result.l1.stateRoot, timestamp: Number(result.l1.timestamp) }) });
+ }
+-export async function prepareProof({ l1, l1Head, agreed, header, rollupConfigTemplate, intermediateBlockInterval, signal, now = Date.now }) {
++export async function prepareProof({ l1, l1Head, agreed, header, rollupConfigTemplate, intermediateBlockInterval, signal, now = Date.now, mode = 'finalized' }) {
+   assertL1Runtime(l1);
++  if (mode !== 'finalized' && (mode !== 'provisional' || l1HeadTier(l1Head) !== L1_HEAD_TIERS.attested))
++    throw Error('a provisional derivation needs the owned attested L1 head');
+   const number = Number(BigInt(header.number));
+   if (!Number.isSafeInteger(number) || number <= agreed.base.number) throw Error('candidate does not advance agreed root');
+   // This is an untrusted candidate root. Only the native derivation may accept it.
+@@ -46,7 +51,9 @@ export async function prepareProof({ l1, l1Head, agreed, header, rollupConfigTem
+   const accepted = await readSchedule({ l1: {
+     finalized: () => block('finalized'), blockByNumber: n => block(`0x${n.toString(16)}`),
+     call: (to, data, n) => request('eth_call', [{ to, data }, `0x${n.toString(16)}`]),
+-  }, keccak, anchor: { hash: l1Head.hash, number: BigInt(l1Head.number) }, claimedL2Block: BigInt(number) });
++    ...(mode === 'provisional' ? { attested: () => block('latest') } : {}),
++  }, keccak, anchor: { hash: l1Head.hash, number: BigInt(l1Head.number) }, claimedL2Block: BigInt(number),
++    ...(mode === 'provisional' ? { mode } : {}) });
+   signal?.throwIfAborted();
+   return buildTrustedInput({ accepted, anchor: l1Head, agreedL2OutputRoot: agreed.base.outputRoot, agreedL2BlockNumber: agreed.base.number,
+     claim: { l2OutputRoot: root, l2BlockNumber: number }, rollupConfigTemplate,
+@@ -55,11 +62,15 @@ export async function prepareProof({ l1, l1Head, agreed, header, rollupConfigTem
+ export function bindNativeV2(result, input, header, l1Head) {
+   return bindNative(result, input, header, l1Head, 'enclave-base-derivation-result/v2');
+ }
+-export function bindNativeV3(result, input, header, l1Head) {
+-  const anchor = bindNative(result, input, header, l1Head, 'enclave-base-derivation-result/v3');
++export function bindNativeV3(result, input, header, l1Head, tier = DERIVED_TIERS.finalized) {
++  if (tier !== DERIVED_TIERS.finalized && (tier !== DERIVED_TIERS.attested || l1HeadTier(l1Head) !== L1_HEAD_TIERS.attested))
++    throw Error('the attested derived tier needs the owned attested L1 head');
++  const anchor = bindNative(result, input, header, l1Head, 'enclave-base-derivation-result/v3', tier);
+   return { anchor, coverage: validateCoverage(result, input, anchor) };
+ }
+-function bindNative(result, input, header, l1Head, format) {
++function bindNative(result, input, header, l1Head, format, tier = DERIVED_TIERS.finalized) {
++  // an attested (not finalized) L1 head is never relabelled as a finalized derivation
++  if (tier === DERIVED_TIERS.finalized && l1HeadTier(l1Head) === L1_HEAD_TIERS.attested) throw Error('an attested L1 head cannot bind the finalized tier');
+   if (result?.format !== format || Object.hasOwn(result, 'refused')) throw Error(`combined native derivation ${format} result required`);
+   const t = input.trusted;
+   const fields = { chainId: 8453, l1Head: t.l1Head, l1HeadNumber: t.l1HeadNumber, agreedL2OutputRoot: t.agreedL2OutputRoot,
+@@ -76,5 +87,5 @@ function bindNative(result, input, header, l1Head, format) {
+   if (!Number.isSafeInteger(base.timestamp)) throw Error('native result timestamp overflow');
+   for (const [key, value] of Object.entries(base)) if (result.base?.[key] !== value) throw Error(`native executed header differs at ${key}`);
+   if (l1Head.hash !== t.l1Head || l1Head.number !== t.l1HeadNumber || !HASH.test(l1Head.stateRoot)) throw Error('native L1 context differs');
+-  return Object.freeze({ tier: 'l1-finalized-derived', base: Object.freeze(base), l1: Object.freeze({ ...l1Head }) });
++  return Object.freeze({ tier, base: Object.freeze(base), l1: Object.freeze({ ...l1Head }) });
+ }
+diff --git a/network/derived-reader/provider.mjs b/network/derived-reader/provider.mjs
+index 9b423e1..a71d5dc 100644
+--- a/network/derived-reader/provider.mjs
++++ b/network/derived-reader/provider.mjs
+@@ -8,10 +8,10 @@ import { openDerivedJournal, validateAnchor } from './journal.mjs';
+ import { READER_FILE, BRIDGE_FILE, proposedEnrollmentFloor, planEnrollment, derivedEnrollmentFloorDigest } from './enrollment.mjs';
+ export { derivedEnrollmentFloorDigest } from './enrollment.mjs';
+ import { stageBinary, reapRun } from './process.mjs';
+-import { startL1Runtime, assertL1Runtime, readCheckpoint } from './l1-runtime.mjs';
++import { startL1Runtime, assertL1Runtime, readCheckpoint, L1_HEAD_TIERS, MAX_ATTESTED_AGE_SEC } from './l1-runtime.mjs';
+ import { stageLibraries } from './libraries.mjs';
+ import { boundedRpc, finalizedHeader } from './rpc.mjs';
+-import { authenticateBootstrap, prepareProof, bindNativeV2, bindNativeV3 } from './proof.mjs';
++import { authenticateBootstrap, prepareProof, bindNativeV2, bindNativeV3, DERIVED_TIERS } from './proof.mjs';
+ import { invokeDerivation, DERIVATION_BUILDS, DERIVATION_V3_BUILDS } from './native.mjs';
+ import { openCoverageStore, MAX_HISTORY_BYTES } from './coverage-store.mjs';
+ import { MAX_COVERAGE_BYTES } from './coverage.mjs';
+@@ -22,14 +22,34 @@ export const DERIVED_STATE_API = 'enclave-derived-state/v1';
+ export const BOOTSTRAP_POLICY = Object.freeze({ expectedChainId: 1, pinBy: 'hash',
+   portal: '0x49048044d57e1c92a77f79988d21fa8faf74e97e', asr: '0x909f6cf47ed12f010a796527f562bfc26c7f4e72',
+   portalAsrGetter: 'anchorStateRegistry()', maxFinalizedAgeSec: 1800 });
++// The PROVISIONAL (attested-L1) tier. Disabled unless the reader config carries
++// exactly this policy, which is then part of the signed reader binding (no env,
++// caller or default enables it). The state anchor S it yields is RAM only: never
++// agreed, journaled, staged, replicated or a floor; rooted at the served finalized
++// anchor; dropped on any L1 non-canonicality; at most maxStateAgeSec (<= 120) old.
++export const PROVISIONAL_POLICY_FORMAT = 'enclave-derived-provisional/v1';
++export const MAX_STATE_AGE_SEC = 120;
++const PROVISIONAL_BOUNDS = Object.freeze({ l1MaxAgeSec: [1, MAX_ATTESTED_AGE_SEC], maxStateAgeSec: [1, MAX_STATE_AGE_SEC],
++  maxBlocks: [1, 1800], maxSpanBlocks: [1, 32768], maxSegments: [1, 64], maxOverlayBytes: [1 << 20, 128 << 20],
++  maxWitnessBytes: [1, 128 << 20], nativeTimeoutMs: [1, 120000], maxMemoryMiB: [128, 4096] });
++export function provisionalPolicy(p) {
++  const keys = ['format', 'l1Head', ...Object.keys(PROVISIONAL_BOUNDS)];
++  if (!p || typeof p !== 'object' || Array.isArray(p) || Object.keys(p).length !== keys.length || keys.some(k => !Object.hasOwn(p, k)) ||
++      p.format !== PROVISIONAL_POLICY_FORMAT || p.l1Head !== L1_HEAD_TIERS.attested ||
++      Object.entries(PROVISIONAL_BOUNDS).some(([k, [lo, hi]]) => !Number.isInteger(p[k]) || p[k] < lo || p[k] > hi) || p.maxSpanBlocks < p.maxBlocks)
++    throw Error('invalid provisional reader policy');
++  return Object.freeze(Object.fromEntries(keys.map(k => [k, p[k]])));
++}
+ 
+ export async function createDerivedProvider({ l1, journal, executable, runtime = null, workDir, bootstrap, base,
+-  resultVersion = 2, coverageStore = null,
++  resultVersion = 2, coverageStore = null, provisional = null,
+   maxBlocks = 1800, intermediateBlockInterval = 1, maxAnchorAgeSec = 1800, nativeTimeoutMs = 180000,
+   maxWitnessBytes = 64 << 20, maxMemoryMiB = 1536, now = Date.now }) {
+   assertL1Runtime(l1);
+   if (![2, 3].includes(resultVersion) || resultVersion === 3 && (!coverageStore || intermediateBlockInterval !== 1) ||
+       resultVersion === 2 && coverageStore) throw Error('v3 coverage needs explicit version, store, and interval one');
++  const policy = provisional === null ? null : provisionalPolicy(provisional);
++  if (policy && resultVersion !== 3) throw Error('the provisional tier needs the v3 coverage reader');
+   if (!Number.isInteger(maxBlocks) || maxBlocks < 1 || maxBlocks > 1800 ||
+       !Number.isInteger(intermediateBlockInterval) || intermediateBlockInterval < 1 || intermediateBlockInterval > maxBlocks ||
+       !Number.isInteger(maxAnchorAgeSec) || maxAnchorAgeSec < 20 || maxAnchorAgeSec > 3600 ||
+@@ -70,6 +90,56 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+     if (Math.floor(now() / 1000) - value.base.timestamp > maxAnchorAgeSec) throw Error('derived Base anchor aged out while reading');
+     return structuredClone(value);
+   }
++  // ---- provisional track (RAM only; see PROVISIONAL_POLICY_FORMAT) ----
++  let prov = null, provPending = null, attestedHigh = null, provFence = null;
++  const dropProvisional = () => { prov = null; provPending = null; };
++  const provisionalEnabled = () => {
++    if (!policy) throw Error('the provisional tier is not enabled by the signed reader binding');
++    if (provFence) throw Error('provisional track fenced: finalized derivation contradicted it; restart and investigate');
++  };
++  // Finalized progress supersedes provisional segments: blocks the finalized result
++  // also derived must be identical (else the provisional track is fenced and the
++  // contradiction kept for the operator); only an exact-boundary suffix survives.
++  function rebaseProvisional(final, finalCoverage) {
++    if (!prov) return;
++    const known = new Map((finalCoverage?.blocks || []).map(b => [b.number, b]));
++    known.set(final.base.number, final.base);
++    for (const s of prov.segments) for (const b of s.coverage.blocks) {
++      const f = known.get(b.number);
++      if (f && (f.hash !== b.hash || f.outputRoot !== b.outputRoot)) {
++        provFence = Object.freeze({ block: b.number, provisionalHash: b.hash, finalizedHash: f.hash,
++          provisionalThrough: prov.segments.at(-1).anchor.base.number, provisionalL1: { ...s.anchor.l1 } });
++        dropProvisional(); return;
++      }
++    }
++    const keep = prov.segments.filter(s => s.anchor.base.number > final.base.number);
++    prov = keep.length && keep[0].agreed.base.number === final.base.number && keep[0].agreed.base.hash === final.base.hash
++      ? { root: final, segments: keep } : null;
++  }
++  // Every provisional L1 head must still be the owned light client's block at its
++  // number, on every use; any difference (or failure to show it) discards them all.
++  async function provisionalCanonical(signal) {
++    const seen = new Set();
++    for (const { anchor } of prov.segments) {
++      if (seen.has(anchor.l1.number)) continue;
++      seen.add(anchor.l1.number);
++      try { await consistentL1(anchor.l1, signal); } catch (e) {
++        if (signal?.aborted) throw e;
++        dropProvisional(); throw Error(`provisional L1 head is no longer canonical; provisional state discarded (${e.message})`);
++      }
++    }
++  }
++  async function currentProvisional(signal) {
++    provisionalEnabled();
++    const root = await currentAnchor(signal);
++    if (!prov || prov.root.base.hash !== root.base.hash || !prov.segments.length) throw Error('no provisional state anchor beyond the served finalized anchor');
++    const state = prov.segments.at(-1).anchor, seconds = Math.floor(now() / 1000);
++    if (seconds - state.base.timestamp > policy.maxStateAgeSec || state.base.timestamp > seconds + 2) throw Error('provisional state anchor is stale');
++    await provisionalCanonical(signal); signal?.throwIfAborted(); alive(); provisionalEnabled();
++    if (!prov || prov.segments.at(-1).anchor !== state) throw Error('provisional state changed while reading');
++    if (Math.floor(now() / 1000) - state.base.timestamp > policy.maxStateAgeSec) throw Error('provisional state anchor aged out while reading');
++    return { root, state, segments: prov.segments.map(s => s.coverage) };
++  }
+   return Object.freeze({
+     // Public fields are proposed inputs for the untrusted witness builder.
+     // The ticket's authoritative copy remains private to this process.
+@@ -114,7 +184,7 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+         try {
+           if (floor && accepted.base.number < floor.base.number) {
+             publishCoverage?.();
+-            agreed = accepted;
++            agreed = accepted; dropProvisional();
+             return { status: 'recovering', verifiedThrough: accepted.base.number, requiredFloor: floor.base.number };
+           }
+           // Both durable writes precede publication. A partially committed pair
+@@ -125,8 +195,9 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+           await consistentL1(proof.head, proofSignal); proofSignal.throwIfAborted();
+           if (closed) throw Error('derived provider closed');
+           publishCoverage?.();
+-        } catch (e) { closed = true; latest = null; throw e; }
++        } catch (e) { closed = true; latest = null; dropProvisional(); throw e; }
+         agreed = accepted;
++        rebaseProvisional(accepted, bound?.coverage);
+         // Catch-up can advance durable progress without publishing a serving
+         // anchor. Replication latency must not turn an aged result into fresh authority.
+         const age = Math.floor(now() / 1000) - accepted.base.timestamp;
+@@ -138,13 +209,80 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+         return { status: 'verified', anchor: structuredClone(accepted) };
+       });
+     },
++    // Provisional derivation of (tip, blockNumber] at the owned Helios attested head.
++    // Its own one-shot ticket and budgets; the tier is this code's, never the caller's.
++    async prepareProvisional({ blockNumber, rollupConfigTemplate, signal } = {}) {
++      return exclusive(signal, async proofSignal => {
++        provisionalEnabled();
++        if (provPending && provPending.expiresAt > now()) throw Error('one provisional witness ticket is already outstanding');
++        provPending = null;
++        const root = await currentAnchor(proofSignal);
++        if (prov && prov.root.base.hash !== root.base.hash) rebaseProvisional(root, null);
++        provisionalEnabled();
++        if (!prov) prov = { root, segments: [] };
++        if (prov.segments.length) await provisionalCanonical(proofSignal);
++        const tip = prov.segments.at(-1)?.anchor ?? root;
++        if (!Number.isSafeInteger(blockNumber) || blockNumber <= tip.base.number || blockNumber - tip.base.number > policy.maxBlocks ||
++            blockNumber - root.base.number > policy.maxSpanBlocks || prov.segments.length >= policy.maxSegments)
++          throw Error('provisional candidate range exceeds reader bounds');
++        const head = await l1.attested({ signal: proofSignal, maxAgeSec: policy.l1MaxAgeSec });
++        if (attestedHigh && (head.number < attestedHigh.number || head.number === attestedHigh.number && head.hash !== attestedHigh.hash)) {
++          dropProvisional(); throw Error('L1 attested head regressed; provisional state discarded');
++        }
++        if (head.number < tip.l1.number) throw Error('L1 attested head is below the provisional chain');
++        attestedHigh = { number: head.number, hash: head.hash };
++        const header = await base('eth_getBlockByNumber', [`0x${blockNumber.toString(16)}`, false], { signal: proofSignal });
++        if (!header || BigInt(header.number) !== BigInt(blockNumber)) throw Error('candidate source returned another block number');
++        const input = await prepareProof({ l1, l1Head: head, agreed: tip, header, rollupConfigTemplate, intermediateBlockInterval: 1,
++          signal: proofSignal, now, mode: 'provisional' });
++        proofSignal.throwIfAborted(); alive();
++        const token = randomBytes(32).toString('hex');
++        provPending = { token, input, header: structuredClone(header), head, expiresAt: now() + policy.nativeTimeoutMs, agreed: tip, root };
++        return Object.freeze({ ticket: token, expiresAt: provPending.expiresAt, trusted: structuredClone(input.trusted),
++          agreedL2BlockNumber: tip.base.number, maximumWitnessBytes: policy.maxWitnessBytes, tier: DERIVED_TIERS.attested });
++      });
++    },
++    async submitProvisional({ ticket, witness, signal } = {}) {
++      return exclusive(signal, async proofSignal => {
++        provisionalEnabled();
++        if (!provPending || ticket !== provPending.token || provPending.expiresAt <= now()) throw Error('unknown or expired provisional proof ticket');
++        const proof = provPending; provPending = null; // one-shot; no concurrent replay
++        const result = await invokeDerivation({ executable, runtime, trusted: proof.input.trusted, witness, workDir, signal: proofSignal,
++          timeoutMs: Math.min(policy.nativeTimeoutMs, proof.expiresAt - now()), maxWitnessBytes: policy.maxWitnessBytes,
++          maxMemoryMiB: policy.maxMemoryMiB, outputBytes: MAX_COVERAGE_BYTES });
++        const bound = bindNativeV3(result, proof.input, proof.header, proof.head, DERIVED_TIERS.attested), accepted = bound.anchor;
++        if (accepted.base.timestamp < proof.agreed.base.timestamp || accepted.base.timestamp > Math.floor(now() / 1000) + 2) throw Error('derived block timestamp regressed or is from the future');
++        await consistentL1(proof.head, proofSignal); proofSignal.throwIfAborted(); alive(); provisionalEnabled();
++        // the chain this ticket extends must still be the current one: finalized
++        // progress, a discard or a fence in between voids it (nothing is merged)
++        const tip = prov?.segments.at(-1)?.anchor ?? prov?.root;
++        if (!prov || !latest || latest.base.hash !== proof.root.base.hash || prov.root.base.hash !== proof.root.base.hash || tip.base.hash !== proof.agreed.base.hash)
++          throw Error('the provisional chain changed while deriving; ticket void');
++        const bytes = Buffer.byteLength(JSON.stringify(bound.coverage));
++        if (prov.segments.reduce((n, s) => n + s.bytes, bytes) > policy.maxOverlayBytes) throw Error('provisional coverage memory budget exhausted');
++        prov.segments.push(Object.freeze({ agreed: proof.agreed, anchor: accepted, coverage: bound.coverage, bytes }));
++        return { status: 'provisional', anchor: structuredClone(accepted) };
++      });
++    },
+     async readAnchor({ signal } = {}) {
+       return exclusive(signal, currentAnchor);
+     },
++    // The provisional state anchor S (tier l1-attested-derived): never the default.
++    async readStateAnchor({ signal } = {}) {
++      return exclusive(signal, async s => structuredClone((await currentProvisional(s)).state));
++    },
+     async readDerivedLogs(query = {}) {
+       return exclusive(query.signal, async proofSignal => {
+         if (!coverageStore) throw Error('derived logs require the explicit v3 reader');
+         const signal = AbortSignal.any([proofSignal, AbortSignal.timeout(30000)]);
++        const s = prov?.segments.at(-1)?.anchor;
++        if (s && query.anchor?.number === s.base.number && query.anchor?.hash === s.base.hash) {
++          // persisted [availableFrom, B_f] + this process's RAM (B_f, S]; read-only
++          const current = await currentProvisional(signal);
++          const result = await coverageStore.read(query, current.state, { signal, overlay: current.segments });
++          if ((await currentProvisional(signal)).state !== current.state) throw Error('provisional state changed while reading');
++          return result;
++        }
+         const anchor = await currentAnchor(signal);
+         const result = await coverageStore.read(query, anchor, { signal });
+         await currentAnchor(signal); // same exclusive snapshot, including freshness after disk IO
+@@ -157,8 +295,10 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+       withinBaseAgeBound: !!latest && Math.floor(now() / 1000) - latest.base.timestamp <= maxAnchorAgeSec,
+       verifiedThrough: agreed?.base.number ?? null,
+       hasPendingWitness: !!pending && pending.expiresAt > now(), savedFloor: savedFloor()?.base.number ?? null,
+-      resultVersion, coverage: coverageStore?.status() ?? null }; },
+-    async close() { closed = true; pending = null; latest = null; active?.abort(Error('derived provider closed')); await activeDone; },
++      resultVersion, coverage: coverageStore?.status() ?? null,
++      provisional: policy ? { segments: prov?.segments.length ?? 0, stateThrough: prov?.segments.at(-1)?.anchor.base.number ?? null,
++        hasPendingWitness: !!provPending && provPending.expiresAt > now(), fenced: provFence } : null }; },
++    async close() { closed = true; pending = null; latest = null; dropProvisional(); active?.abort(Error('derived provider closed')); await activeDone; },
+   });
+ }
+ 
+@@ -187,11 +327,15 @@ function readerConfiguration(config, options) {
+   const builds = options.acceptedDerivationBuilds || (resultVersion === 3 ? DERIVATION_V3_BUILDS : DERIVATION_BUILDS);
+   if (!builds[native?.sha256]) throw Error('no qualified native derivation build configured');
+   const checkpoint = readCheckpoint(l1Config.checkpointFile, { accepted: options.l1Options?.acceptedCheckpoints, now: options.now || Date.now });
++  // Present only when configured: the default binding is byte-for-byte unchanged.
++  const provisional = config.provisional === undefined ? null : provisionalPolicy(config.provisional);
++  if (provisional && resultVersion !== 3) throw Error('the provisional tier needs the v3 coverage reader');
+   const binding = createHash('sha256').update(JSON.stringify({ chain: 8453, native: native.sha256,
+     nativeRuntime: native.runtime?.build ?? null, l1Runtime: l1Config.runtime?.build ?? null,
+     l1: l1Config.binary.sha256, checkpoint: checkpoint.digest, a1: a1Config, interval: config.intermediateBlockInterval ?? 1,
+-    ...(resultVersion === 3 ? { resultVersion, historyMaximumBytes: config.historyMaximumBytes ?? MAX_HISTORY_BYTES } : {}) })).digest('hex');
+-  return { ...layout, native, l1Config, a1Config, baseUrl, resultVersion, builds, binding };
++    ...(resultVersion === 3 ? { resultVersion, historyMaximumBytes: config.historyMaximumBytes ?? MAX_HISTORY_BYTES } : {}),
++    ...(provisional ? { provisional } : {}) })).digest('hex');
++  return { ...layout, native, l1Config, a1Config, baseUrl, resultVersion, builds, binding, provisional };
+ }
+ function privateDirectory(directory) {
+   const stat = fs.lstatSync(directory);
+@@ -281,7 +425,7 @@ export async function enrollDerivedState(config, { anchorJournal, verifyEnrollme
+   }
+ }
+ export async function startDerivedReader(config, options = {}) {
+-  const { journalDir, coverageDir, runsDir: runs, split, native, l1Config, a1Config, baseUrl, resultVersion, builds, binding } = readerConfiguration(config, options);
++  const { journalDir, coverageDir, runsDir: runs, split, native, l1Config, a1Config, baseUrl, resultVersion, builds, binding, provisional } = readerConfiguration(config, options);
+   const initializeState = config.initializeState ?? false;
+   for (const dir of [journalDir, runs]) { fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); privateDirectory(dir); }
+   const journal = await openDerivedJournal(journalDir, { binding, initialize: initializeState,
+@@ -321,7 +465,7 @@ export async function startDerivedReader(config, options = {}) {
+       runDir: l1Dir, signal: options.signal, now: options.now || Date.now });
+     const base = boundedRpc(baseUrl);
+     const execution = boundedRpc(l1Config.executionUrl);
+-    provider = await createDerivedProvider({ l1, journal, executable, runtime, workDir: nativeDir, base, resultVersion, coverageStore,
++    provider = await createDerivedProvider({ l1, journal, executable, runtime, workDir: nativeDir, base, resultVersion, coverageStore, provisional,
+       bootstrap: params => authenticateBootstrap({ l1, execution, base, a1Config, ...params, now: options.now || Date.now }),
+       maxBlocks: config.maxBlocks, intermediateBlockInterval: config.intermediateBlockInterval, maxAnchorAgeSec: config.maxAnchorAgeSec,
+       nativeTimeoutMs: config.nativeTimeoutMs, maxWitnessBytes: config.maxWitnessBytes, maxMemoryMiB: config.maxMemoryMiB, now: options.now || Date.now });
+diff --git a/network/derived-reader/vendor/provenance.json b/network/derived-reader/vendor/provenance.json
+index a19c8a5..9b81d75 100644
+--- a/network/derived-reader/vendor/provenance.json
++++ b/network/derived-reader/vendor/provenance.json
+@@ -1,7 +1,9 @@
+ {
+   "schedule_reader.mjs": {
+-    "sha256": "688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0",
+-    "source": "derivation-schedule-auth-stage/reader/schedule_reader.mjs"
++    "sha256": "694f1297286ff2ecf6d1b0e6b37153203963f7893eb2607f7d53c2f03f2eea0c",
++    "source": "derivation-schedule-auth-stage/reader/schedule_reader.mjs",
++    "sourceSha256": "688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0",
++    "adaptation": "writer-two-anchor-stage/r1: explicit readSchedule mode 'provisional' (finalized <= anchor <= attested, both heads non-regressing, hash pinned before and after); the default finalized mode keeps its checks and result."
+   },
+   "anchor-bootstrap.mjs": {
+     "sha256": "90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8",
+@@ -14,7 +16,7 @@
+   "schedule-input-r2.mjs": {
+     "source": "derivation-schedule-auth-stage/integration-r2/bridge.mjs",
+     "sourceSha256": "d2837885697456a6610f3a3b276fe070a0ddf4623d4c649c18ac0b3096a27edc",
+-    "sha256": "b3b814d0816685bb1ad8e4aadad73028d48648cc119a2f7b9aba3750749c04c0",
+-    "adaptation": "Only reader import location changed; native v1 result validator is not used for combined v2."
++    "sha256": "4cf445118e2655585803c7514a14b988fe7b1ee3b9a5990acb4f6348e1a4dfb3",
++    "adaptation": "Only reader import location changed; native v1 result validator is not used for combined v2. writer-two-anchor-stage/r1: READER_SHA256 re-pinned to the reviewed provisional-mode reader (previous file sha256 b3b814d0816685bb1ad8e4aadad73028d48648cc119a2f7b9aba3750749c04c0)."
+   }
+ }
+diff --git a/network/derived-reader/vendor/schedule-input-r2.mjs b/network/derived-reader/vendor/schedule-input-r2.mjs
+index 09f8d7a..ecef4b6 100644
+--- a/network/derived-reader/vendor/schedule-input-r2.mjs
++++ b/network/derived-reader/vendor/schedule-input-r2.mjs
+@@ -23,7 +23,7 @@ import crypto from 'node:crypto';
+ import { fileURLToPath } from 'node:url';
+ 
+ export const READER_PATH = fileURLToPath(new URL('./schedule_reader.mjs', import.meta.url));
+-export const READER_SHA256 = '688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0';     // reader/SHA256SUMS (frozen)
++export const READER_SHA256 = '694f1297286ff2ecf6d1b0e6b37153203963f7893eb2607f7d53c2f03f2eea0c';     // writer-two-anchor-stage/r1 reviewed provisional mode (was 688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0, reader/SHA256SUMS)
+ export function verifyReaderPin(p = READER_PATH) {
+   const s = crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+   if (s !== READER_SHA256) throw Object.assign(new Error(`reader_pin: ${p} is not the frozen reader ${READER_SHA256.slice(0, 12)}`), { code: 'reader_pin' });
+diff --git a/network/derived-reader/vendor/schedule_reader.mjs b/network/derived-reader/vendor/schedule_reader.mjs
+index caae470..733624c 100644
+--- a/network/derived-reader/vendor/schedule_reader.mjs
++++ b/network/derived-reader/vendor/schedule_reader.mjs
+@@ -15,6 +15,11 @@
+ // The reader itself checks: anchor <= Helios finalized number (before AND after), Helios block(anchor.number).hash == anchor.hash
+ // (before AND after both calls; any change refuses), exact ABI shape/bounds, contract minimum protocol version, and the algorithm.
+ // Accepted results are frozen and branded (module-private WeakSet): a JSON copy or a hand-built object is never `isAccepted`.
++// PROVISIONAL MODE (writer-two-anchor-stage/r1; explicit `mode: 'provisional'`, never a default): the anchor is an ATTESTED, not
++// yet finalized, L1 block (the caller's l1Head from the owned Helios `latest`, the attested header of its latest verified finality
++// update). Then the reader checks, before AND after both calls: Helios finalized <= anchor <= Helios attested `latest`, attested >=
++// finalized, block(anchor.number).hash == anchor.hash, and neither head goes backwards. The result records `l1Mode`. The default
++// mode ('finalized') applies exactly the checks above and records no mode field (its accepted result is unchanged).
+ import fs from 'node:fs';
+ import crypto from 'node:crypto';
+ import path from 'node:path';
+@@ -149,15 +154,27 @@ export const isAccepted = (r) => typeof r === 'object' && r !== null && ACCEPTED
+ export function assertAccepted(r) { if (!isAccepted(r)) refuse('forged', 'not a result accepted by this reader'); return r; }
+ const HASH = /^0x[0-9a-f]{64}$/;
+ 
+-/** l1: { finalized() -> {number: bigint, hash}, blockByNumber(bigint) -> {number, hash}, call(to, data, number: bigint) -> hex }
+- *  (production: helios_l1.mjs heliosL1(url)). Any contradiction refuses; nothing is cached across calls. */
+-export async function readSchedule({ l1, keccak, anchor, claimedL2Block, scheduleL2Block }) {
++export const ANCHOR_MODES = Object.freeze(['finalized', 'provisional']);
++/** l1: { finalized() -> {number: bigint, hash}, blockByNumber(bigint) -> {number, hash}, call(to, data, number: bigint) -> hex,
++ *  attested() -> {number: bigint, hash} (provisional mode only) } (production: helios_l1.mjs heliosL1(url)). Any contradiction
++ *  refuses; nothing is cached across calls. */
++export async function readSchedule({ l1, keccak, anchor, claimedL2Block, scheduleL2Block, mode = 'finalized' }) {
++  if (!ANCHOR_MODES.includes(mode)) refuse('mode', `unknown anchor mode ${String(mode).slice(0, 20)}`);
+   if (!anchor || !HASH.test(anchor.hash) || typeof anchor.number !== 'bigint') refuse('anchor', 'anchor must be {hash: 0x64-hex, number: bigint}');
+   checkedU64(anchor.number, 'anchor number');
++  let attestedBefore = null;
+   const pinBlock = async (when) => {
+     const f = await l1.finalized();
+     if (typeof f?.number !== 'bigint' || !HASH.test(f?.hash)) refuse('l1', `${when}: malformed finalized block`);
+-    if (anchor.number > f.number) refuse('not_finalized', `${when}: anchor ${anchor.number} is above the verified finalized ${f.number}`);
++    if (mode === 'provisional') {
++      const a = await l1.attested();
++      if (typeof a?.number !== 'bigint' || !HASH.test(a?.hash)) refuse('l1', `${when}: malformed attested block`);
++      if (a.number < f.number) refuse('contradiction', `${when}: the verified attested ${a.number} is below the verified finalized ${f.number}`);
++      if (attestedBefore !== null && a.number < attestedBefore) refuse('contradiction', 'the verified attested block went backwards during the read');
++      attestedBefore = a.number;
++      if (anchor.number > a.number) refuse('not_attested', `${when}: anchor ${anchor.number} is above the verified attested ${a.number}`);
++      if (anchor.number < f.number) refuse('finalized_floor', `${when}: provisional anchor ${anchor.number} is below the verified finalized ${f.number}`);
++    } else if (anchor.number > f.number) refuse('not_finalized', `${when}: anchor ${anchor.number} is above the verified finalized ${f.number}`);
+     const b = await l1.blockByNumber(anchor.number);
+     if (b?.number !== anchor.number || b?.hash !== anchor.hash) refuse('anchor_mismatch', `${when}: L1 block ${anchor.number} is not the anchor hash`);
+     return f.number;
+@@ -180,7 +197,8 @@ export async function readSchedule({ l1, keccak, anchor, claimedL2Block, schedul
+     contractLength: schedule.length,
+     minimumProtocolVersion: { major: Number(mv.major), minor: Number(mv.minor), patch: Number(mv.patch), prerelease: Number(mv.prerelease) },
+     claimedL2Block: hz.claim.toString(), scheduleL2Block: hz.sched.toString(), horizonTimestamp: hz.timestamp.toString(),
+-    pinnedCount, expectedScheduleId: id, configHashPinCandidate: CONFIG_HASH_PIN_CANDIDATE });
++    pinnedCount, expectedScheduleId: id, configHashPinCandidate: CONFIG_HASH_PIN_CANDIDATE,
++    ...(mode === 'provisional' ? { l1Mode: 'provisional' } : {}) });
+   ACCEPTED.add(r);
+   return r;
+ }
+diff --git a/network/lifecycle-finality-bridge.mjs b/network/lifecycle-finality-bridge.mjs
+index 89e365c..f89930f 100644
+--- a/network/lifecycle-finality-bridge.mjs
++++ b/network/lifecycle-finality-bridge.mjs
+@@ -6,16 +6,32 @@ import { performance } from 'node:perf_hooks';
+ import { verifierEndpoint, verifiedHeader, pinnedClient } from './verified-chain.mjs';
+ const HASH = /^0x[0-9a-f]{64}$/;
+ const integer = n => Number.isSafeInteger(n) && n >= 0;
++const shaped = (anchor, tier) => {
++  const b = anchor?.base, l1 = anchor?.l1;
++  return anchor?.tier === tier && b && integer(b.number) && integer(b.timestamp) &&
++    [b.hash, b.stateRoot, b.outputRoot].every(x => HASH.test(x || '')) &&
++    l1 && integer(l1.number) && integer(l1.timestamp) && HASH.test(l1.hash || '');
++};
++/** The provisional state anchor's own ceiling: the writer authority's 120 s, never raised. */
++export const MAX_STATE_ANCHOR_AGE_SEC = 120;
+ 
++// readStateAnchor (optional): the reader's PROVISIONAL state anchor S (tier
++// l1-attested-derived). Given only when the reader's signed binding enables that
++// tier; then snapshot.twoAnchor(read) also exists. Plain snapshot(read) is unchanged.
+ export function createLifecycleFinalitySnapshot({ readAnchor, verifier, chainId = 8453,
+-  maxAnchorAgeSec = 3600, deadlineMs = 200000, now = Date.now, journal } = {}) {
++  maxAnchorAgeSec = 3600, deadlineMs = 200000, now = Date.now, journal, readStateAnchor = null,
++  maxStateAgeSec = MAX_STATE_ANCHOR_AGE_SEC } = {}) {
+   if (typeof readAnchor !== 'function') throw Error('qualified in-domain finality reader is required');
+   if (typeof journal?.readAnchor !== 'function' || typeof journal?.acceptAnchor !== 'function') throw Error('durable anchor journal is required');
+   if (chainId !== 8453 || !Number.isInteger(maxAnchorAgeSec) || maxAnchorAgeSec < 20 || maxAnchorAgeSec > 3600 ||
+       !Number.isInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 200000) throw Error('invalid finality bridge bounds');
++  if (readStateAnchor !== null && (typeof readStateAnchor !== 'function' || !Number.isInteger(maxStateAgeSec) ||
++      maxStateAgeSec < 1 || maxStateAgeSec > MAX_STATE_ANCHOR_AGE_SEC)) throw Error('invalid provisional state anchor bounds');
+   const endpoint = verifierEndpoint(verifier);
+   let busy = false;
+-  return async function snapshot(read) {
++  // One bounded operation: the finalized anchor B (claim side; floor-checked and
++  // journaled) and, for twoAnchor, the provisional S (state side; never journaled).
++  async function run(read, two) {
+     if (typeof read !== 'function') throw Error('snapshot callback required');
+     if (busy) throw Error('finality snapshot busy');
+     busy = true;
+@@ -28,9 +44,7 @@ export function createLifecycleFinalitySnapshot({ readAnchor, verifier, chainId
+     const work = (async () => {
+       const anchor = await readAnchor({ signal: ac.signal }); alive();
+       const b = anchor?.base, l1 = anchor?.l1;
+-      if (anchor?.tier !== 'l1-finalized-derived' || !b || !integer(b.number) || !integer(b.timestamp) ||
+-          ![b.hash, b.stateRoot, b.outputRoot].every(x => HASH.test(x || '')) ||
+-          !l1 || !integer(l1.number) || !integer(l1.timestamp) || !HASH.test(l1.hash || ''))
++      if (!shaped(anchor, 'l1-finalized-derived'))
+         throw Error('authenticated derivation anchor required; ASR and RPC labels are insufficient');
+       const fresh = () => {
+         const seconds = Math.floor(now() / 1000);
+@@ -42,27 +56,54 @@ export function createLifecycleFinalitySnapshot({ readAnchor, verifier, chainId
+       if (floor && [ ['base', b], ['l1', l1] ].some(([k, block]) =>
+         block.number < floor[k].number || block.number === floor[k].number && block.hash !== floor[k].hash))
+         throw Error('derived anchor rollback or contradiction');
+-      if (Number(BigInt(await request('eth_chainId', []))) !== chainId) throw Error('verifier on another chain');
+-      const number = BigInt(b.number), tag = `0x${number.toString(16)}`;
+-      async function match() {
+-        const h = verifiedHeader(await request('eth_getBlockByNumber', [tag, false]), number);
+-        if (h.hash !== b.hash || h.stateRoot !== b.stateRoot || h.timestamp !== b.timestamp * 1000)
+-          throw Error('local proof root does not match authenticated derived anchor');
+-        return h;
++      let state = null;
++      if (two) {
++        state = await readStateAnchor({ signal: ac.signal }); alive();
++        if (!shaped(state, 'l1-attested-derived')) throw Error('provisional state anchor required; finalized, ASR and RPC labels are not one');
++        if (state.base.number <= b.number || state.base.timestamp < b.timestamp || state.l1.number < l1.number)
++          throw Error('provisional state anchor does not extend the finalized anchor');
+       }
+-      const header = await match();
+-      const client = pinnedClient({ b: number, hash: b.hash, request, chainId, alive });
+-      const value = await read(client, number, header); alive();
+-      await match(); fresh(); alive();
++      const stateFresh = () => {
++        if (!state) return;
++        const seconds = Math.floor(now() / 1000);
++        if (state.base.timestamp > seconds + 2 || state.l1.timestamp > seconds + 2 || seconds - state.base.timestamp > maxStateAgeSec)
++          throw Error('provisional state anchor outside its age bound');
++      };
++      stateFresh();
++      if (Number(BigInt(await request('eth_chainId', []))) !== chainId) throw Error('verifier on another chain');
++      const pinned = async a => {
++        const number = BigInt(a.base.number), tag = `0x${number.toString(16)}`;
++        const match = async () => {
++          const h = verifiedHeader(await request('eth_getBlockByNumber', [tag, false]), number);
++          if (h.hash !== a.base.hash || h.stateRoot !== a.base.stateRoot || h.timestamp !== a.base.timestamp * 1000)
++            throw Error('local proof root does not match authenticated derived anchor');
++          return h;
++        };
++        const header = await match();
++        return { number, header, match, client: pinnedClient({ b: number, hash: a.base.hash, request, chainId, alive }) };
++      };
++      const claim = await pinned(anchor), current = state ? await pinned(state) : null;
++      const value = current
++        ? await read({ claim: { client: claim.client, number: claim.number, header: claim.header },
++          state: { client: current.client, number: current.number, header: current.header } })
++        : await read(claim.client, claim.number, claim.header);
++      alive();
++      await claim.match(); await current?.match(); fresh(); stateFresh(); alive();
+       // Commit the exact journal bytes, with rollback checking, before publishing.
+-      await journal.acceptAnchor(chainId, { base: b, l1, tier: anchor.tier }, { signal: ac.signal }); alive(); fresh();
+-      return { blockNumber: number, blockHash: b.hash, stateRoot: b.stateRoot,
++      // Only the FINALIZED anchor is ever journaled; S is never a floor.
++      await journal.acceptAnchor(chainId, { base: b, l1, tier: anchor.tier }, { signal: ac.signal }); alive(); fresh(); stateFresh();
++      const evidence = { authority: 'consumer-domain-derivation', tier: anchor.tier, proofVerified: true,
++        base: { ...b }, l1: { ...l1 }, verifier: endpoint.label };
++      return { blockNumber: claim.number, blockHash: b.hash, stateRoot: b.stateRoot,
+         timestamp: b.timestamp * 1000, observedAt: now(), value,
+-        evidence: { authority: 'consumer-domain-derivation', tier: anchor.tier, proofVerified: true,
+-          base: { ...b }, l1: { ...l1 }, verifier: endpoint.label } };
++        ...(state ? { state: { blockNumber: current.number, blockHash: state.base.hash, stateRoot: state.base.stateRoot, timestamp: state.base.timestamp * 1000 } } : {}),
++        evidence: state ? { ...evidence, tier: state.tier, claimTier: anchor.tier, state: { base: { ...state.base }, l1: { ...state.l1 } } } : evidence };
+     })();
+     const timeout = new Promise((_, reject) => { timer = setTimeout(() => { ac.abort(); reject(Error('finality snapshot deadline')); }, deadlineMs); });
+     try { return await Promise.race([work, timeout]); }
+     finally { closed = true; busy = false; clearTimeout(timer); ac.abort(); work.catch(() => {}); }
+-  };
++  }
++  const snapshot = read => run(read, false);
++  if (readStateAnchor) snapshot.twoAnchor = read => run(read, true);
++  return snapshot;
+ }
+diff --git a/network/wg-provider/derived-runtime.mjs b/network/wg-provider/derived-runtime.mjs
+index f80f4bf..da72b27 100644
+--- a/network/wg-provider/derived-runtime.mjs
++++ b/network/wg-provider/derived-runtime.mjs
+@@ -4,7 +4,7 @@
+ // packaged, never load it - so they need none of its resources.
+ //
+ // Its one module-relative resource: network/derived-reader/vendor/schedule-input-r2.mjs checks at load that
+-// ./schedule_reader.mjs NEXT TO IT (import.meta.url) is the frozen reader (sha256 688b7a1f…, verifyReaderPin) and imports
++// ./schedule_reader.mjs NEXT TO IT (import.meta.url) is the frozen reader (sha256 694f1297…, verifyReaderPin) and imports
+ // it. In the source tree that is the vendor copy; in a release it is the pinned copy build-consumers.mjs writes beside this
+ // bundle. A missing or different file refuses at load ("reader_pin" / ENOENT): no unpinned reader ever runs.
+ //
+diff --git a/relay/derived-writer-authority.mjs b/relay/derived-writer-authority.mjs
+index 4e19e52..cea92cf 100644
+--- a/relay/derived-writer-authority.mjs
++++ b/relay/derived-writer-authority.mjs
+@@ -20,6 +20,15 @@
+ // failure of that check). Its silence proves nothing: it never establishes absence of a release, re-claim or admin change.
+ // The capability is the in-process derived reader built by derivedWriterAuthorityFromEnv from the reviewed network runtime
+ // module; nothing is taken from configuration as a capability, and no HTTP/JSON endpoint is ever one.
++// TWO ANCHORS (writer-two-anchor-stage/r1; only when the reader's SIGNED binding carries the provisional policy, so the runtime
++// hands over capability.stateSnapshot; never from env or a caller): the legacy two-part shape with derived trust.
++//   - the CLAIM is final: the row at the L1-finalized derived anchor B_f, and the last Claimed of the complete coverage must be at
++//     or below B_f (a claim in (B_f, S] - including a same-runner release + re-claim, which only the coverage shows - is
++//     claim_not_final, retried once final; the fact's generation is never of a provisional block). B_f has its own liveness bound.
++//   - CURRENT-NESS is at the provisional state anchor S (natively derived at the owned Helios attested L1 head, tier
++//     l1-attested-derived, RAM only in the reader): the row at S's derivation-authenticated hash and the complete coverage
++//     [availableFrom, S] (persisted through B_f + the reader's RAM segments after it). The 120 s ceiling applies to S, unchanged.
++//   - the local verifier stays deny-only, after S. Custody is not decided here (relay/custody-state.mjs keeps its own gates).
+ import { CHAIN_BASE, CLAIMED, RENEWED, RELEASED, LEDGER16D_FROM_BLOCK, LeaseGenerationError } from "./lease-generation.mjs";
+ import fs from "node:fs";
+ import path from "node:path";
+@@ -31,6 +40,9 @@ export const FILTER_ID = "lease16-events/v1";
+ export const LEASE_TOPIC0S = Object.freeze([CLAIMED, RENEWED, RELEASED]);
+ /** The original lease authority's freshness ceiling (relay/lease-generation.mjs maxBlockAgeSec default, the relay's setting). */
+ export const MAX_ANCHOR_AGE_SEC = 120;
++/** Two anchors: the finalized (claim) anchor's liveness bound - the derived reader's own maximum; it never refreshes S. */
++export const MAX_FINALIZED_AGE_SEC = 3600;
++export const STATE_TIER = "l1-attested-derived", CLAIM_TIER = "l1-finalized-derived";
+ export const SOURCE_ENV = "ENCLAVE_WRITER_AUTHORITY_SOURCE", CONFIG_ENV = "ENCLAVE_DERIVED_READER_CONFIG",
+   JOURNAL_ENV = "ENCLAVE_DERIVED_ANCHOR_JOURNAL", API_PORT_ENV = "ENCLAVE_DERIVED_READER_API_PORT",
+   STATE_ENV = "ENCLAVE_DERIVED_STATE", COMMIT_BOOT_ENV = "ENCLAVE_DERIVED_COMMIT_BOOT";
+@@ -181,9 +193,13 @@ export function replayToRow(logs, row) {
+  * -> { writerAuthority(id, { runner, signal }) -> { fact, factJson, block, claim, evidence } } throws LeaseGenerationError
+  */
+ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = "", addressBook = "", chainId = CHAIN_BASE, fromBlock = LEDGER16D_FROM_BLOCK,
+-                                                maxAnchorAgeSec = MAX_ANCHOR_AGE_SEC, now = () => Date.now() } = {}) {
++                                                maxAnchorAgeSec = MAX_ANCHOR_AGE_SEC, maxFinalizedAgeSec = 1800, now = () => Date.now() } = {}) {
+   if (typeof capability?.snapshot !== "function" || typeof capability?.readDerivedLogs !== "function")
+     throw new Error("derived writer authority needs the in-process derived reader capability (snapshot + readDerivedLogs)");
++  const twoAnchors = capability.stateSnapshot !== undefined;
++  if (twoAnchors && typeof capability.stateSnapshot !== "function") throw new Error("the derived reader's state snapshot is not a capability");
++  if (!Number.isInteger(maxFinalizedAgeSec) || maxFinalizedAgeSec < 1 || maxFinalizedAgeSec > MAX_FINALIZED_AGE_SEC)
++    throw new Error(`maxFinalizedAgeSec must be 1..${MAX_FINALIZED_AGE_SEC} s`);
+   if (!fresh || typeof fresh.getBlockNumber !== "function" || typeof fresh.request !== "function" || typeof fresh.readContract !== "function")
+     throw new Error("derived writer authority needs the relay's local verifier for its additional deny-only check");
+   const pin = lc(ledgerPin), book = lc(addressBook);
+@@ -232,6 +248,50 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+     return v;
+   }
+ 
++  // the ledger, schema and row at one pinned anchor (two-anchor reads)
++  async function rowAt(side, id) {
++    const blk = await side.client.getBlock();
++    const B = Number(side.number), hash = lc(blk.hash), time = Number(blk.timestamp);
++    if (!uint(B) || !H32.test(hash) || !uint(time) || Number(blk.number) !== B) fail("bad_answer", "the derived snapshot's block is malformed", true);
++    const ledger = pin || lc(await side.client.readContract({ address: book, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_DEPLOYMENTS] }));
++    if (!ADDR.test(ledger) || ZERO.test(ledger)) fail("no_ledger", "the address book names no deployments ledger at the derived block", true);
++    const schema = Number(await side.client.readContract({ address: ledger, abi: LEDGER_ABI, functionName: "deploymentsSchema" }));
++    const row = normalizeRow(await side.client.readContract({ address: ledger, abi: LEDGER_ABI, functionName: "get", args: [id] }), id);
++    return { B, hash, time, ledger, schema, row };
++  }
++  // ONE two-anchor snapshot: the claim side at B_f, the state side and the complete coverage [availableFrom, S] at S
++  async function stateRead(id, signal) {
++    let snap;
++    try {
++      snap = await capability.stateSnapshot(async ({ claim, state }) => {
++        const final = await rowAt(claim, id), s = await rowAt(state, id);
++        if (s.B <= final.B) fail("anchor_mismatch", "the state anchor does not follow the finalized anchor", true);
++        if (s.ledger !== final.ledger) fail("ledger_moved", "the address book's deployments ledger changed after the finalized anchor", true);
++        if (s.schema !== 16 || !s.row) return { ...s, final, logs: null };
++        const anchor = { number: s.B, hash: s.hash };
++        const base = { address: s.ledger, topic0s: [...LEASE_TOPIC0S], topic1: id, anchor, signal };
++        const probeAsk = { ...base, fromBlock: s.B, toBlock: s.B }, probe = await capability.readDerivedLogs(probeAsk);
++        checkDerivedLogs(probe, probeAsk);
++        const from = Math.max(fromBlock, probe.coverage.availableFromBlock);
++        if (from > final.B) fail("claim_not_covered", "the derived reader's coverage starts after the finalized anchor");
++        const ask = { ...base, fromBlock: from, toBlock: s.B };
++        return { ...s, final, logs: checkDerivedLogs(await capability.readDerivedLogs(ask), ask), from };
++      });
++    } catch (e) {
++      if (signal?.aborted) throw aborted(signal);
++      if (e instanceof LeaseGenerationError) throw e;
++      const m = String(e?.message || e);
++      if (/provisional coverage|coverage gap|outside runtime-verified coverage|coverage incomplete/.test(m))
++        fail("coverage_incomplete", `the derived reader has no complete coverage through the state anchor (${m.slice(0, 120)})`, true);
++      fail("derived_unavailable", `the derived reader could not answer (${m.slice(0, 120)})`, true);
++    }
++    const v = snap?.value, st = snap?.state;
++    if (!v || snap.blockNumber === undefined || Number(snap.blockNumber) !== v.final.B || lc(snap.blockHash) !== v.final.hash ||
++        !st || Number(st.blockNumber) !== v.B || lc(st.blockHash) !== v.hash || snap.evidence?.tier !== STATE_TIER || snap.evidence?.claimTier !== CLAIM_TIER)
++      fail("anchor_mismatch", "the snapshot's result is not of the blocks its reads were pinned to", true);
++    return v;
++  }
++
+   async function denyIfStale(id, v, row, signal) {
+     let head, later, headRow, headLedger;
+     try {
+@@ -260,11 +320,15 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+     id = lc(id);
+     if (!H32.test(id) || ZERO.test(id)) fail("bad_id", "a bytes32 deployment id is required");
+     return serial(async () => {
+-      const v = await derivedRead(id, signal);
++      // two anchors: v is the STATE anchor S (v.B, v.hash, v.time, v.row, v.logs through S) and v.final the finalized B_f
++      const v = await (twoAnchors ? stateRead : derivedRead)(id, signal);
+       const t = Math.floor(now() / 1000);
+       // exactly lease-generation.mjs: refused if more than 5 s in the future or older than the ceiling (age == ceiling is accepted)
+       if (v.time > t + 5 || v.time < t - maxAnchorAgeSec)
+         fail("stale_snapshot", `the derived anchor ${v.B} is ${t - v.time} s old (ceiling ${maxAnchorAgeSec} s)`, true);
++      // the finalized (claim) anchor's own liveness bound: a fresh S never makes an old B_f acceptable
++      if (v.final && (v.final.time > t + 5 || v.final.time < t - maxFinalizedAgeSec))
++        fail("stale_finalized", `the finalized derived anchor ${v.final.B} is ${t - v.final.time} s old (bound ${maxFinalizedAgeSec} s)`, true);
+       if (v.schema !== 16) fail("unsupported_schema", `the ledger reports schema ${v.schema}; only the live rev 16d (schema 16) is read here`);
+       const row = v.row;
+       if (!row) fail("no_deployment", "the ledger holds no such deployment");
+@@ -272,12 +336,27 @@ export function createDerivedWriterAuthority({ capability, fresh, ledgerPin = ""
+         fail("lease_not_current", "the deployment has no current lease at the derived anchor", true);
+       if (runner !== undefined && lc(runner) !== row.runner) fail("runner_mismatch", "the current lease is held by another runner");
+       const C = replayToRow(v.logs, row);
++      if (v.final) {
++        // legacy step 5: the claim must be FINAL. The complete coverage through S shows every Claimed after B_f, so a
++        // provisional claim (another runner's, or the same runner's release + re-claim) can never become the fact
++        if (C.blockNumber > v.final.B) fail("claim_not_final", `the lease's current claim (block ${C.blockNumber}) is after the finalized anchor ${v.final.B}; retry once it is final`, true);
++        // and the finalized state agrees: the same claim replays to the row AT B_f
++        const fr = v.final.row;
++        if (v.final.schema !== 16 || !fr || !fr.active || fr.runner !== row.runner || fr.runnerOperator !== row.runnerOperator)
++          fail("claim_not_final", "at the finalized anchor the lease is not yet this runner's; retry once it is final", true);
++        const atFinal = replayToRow(v.logs.filter((l) => l.blockNumber <= v.final.B), fr);
++        if (atFinal.blockNumber !== C.blockNumber || atFinal.logIndex !== C.logIndex)
++          fail("inconsistent_logs", "the finalized and the state anchor replay to different claims", true);
++      }
+       await denyIfStale(id, v, row, signal);
+       if (signal?.aborted) throw aborted(signal);
+       const fact = { source: "lease16", chainId, ledger: v.ledger, deployment: id, claimBlock: C.blockNumber, claimLogIndex: C.logIndex };
+-      return { fact, factJson: JSON.stringify(fact), block: { number: v.B, hash: v.hash, time: v.time, finalized: v.B },
++      return { fact, factJson: JSON.stringify(fact), block: { number: v.B, hash: v.hash, time: v.time, finalized: v.final ? v.final.B : v.B },
+                claim: { blockNumber: C.blockNumber, blockHash: C.blockHash, logIndex: C.logIndex, transactionHash: C.transactionHash, runner: row.runner },
+-               evidence: { authority: "consumer-domain-derivation", tier: "l1-finalized-derived", coverageFromBlock: v.from } };
++               evidence: v.final
++                 ? { authority: "consumer-domain-derivation", tier: STATE_TIER, claimTier: CLAIM_TIER, coverageFromBlock: v.from,
++                     finalized: { number: v.final.B, hash: v.final.hash, time: v.final.time }, state: { number: v.B, hash: v.hash, time: v.time } }
++                 : { authority: "consumer-domain-derivation", tier: "l1-finalized-derived", coverageFromBlock: v.from } };
+     }, signal);
+   }
+   return { writerAuthority };
+@@ -356,9 +435,14 @@ export async function derivedWriterAuthorityFromEnv(env, { relayChain, loadRunti
+     if (!Number.isInteger(port) || port < 1 || port > 65535 || typeof runtime.serveDerivedReader !== "function") throw new Error(`${API_PORT_ENV} is invalid or unsupported`);
+     api = await runtime.serveDerivedReader(service.reader, { port });
+   }
+-  const capability = { snapshot: service.snapshot, readDerivedLogs: (q) => service.reader.readDerivedLogs(q) };
++  // the two-anchor state snapshot exists only when the reader's signed binding carries the provisional policy (the runtime
++  // decides from the enrolled config; no env, flag or caller here can add it)
++  const twoAnchors = typeof service.stateSnapshot === "function";
++  const capability = { snapshot: service.snapshot, readDerivedLogs: (q) => service.reader.readDerivedLogs(q), ...(twoAnchors ? { stateSnapshot: service.stateSnapshot } : {}) };
+   // the reader config's own maxAnchorAgeSec bounds KVM's reader only; the writer authority keeps its fixed 120 s ceiling
+-  const authority = createDerivedWriterAuthority({ capability, fresh: relayChain.client, ledgerPin, addressBook, ...(now ? { now } : {}) });
+-  return { ...authority, describe: () => ({ source: "derived", tier: "l1-finalized-derived", witnessApi: api ? `127.0.0.1:${api.port}` : null }),
++  const authority = createDerivedWriterAuthority({ capability, fresh: relayChain.client, ledgerPin, addressBook, ...(now ? { now } : {}),
++    ...(twoAnchors && Number.isInteger(config.maxAnchorAgeSec) ? { maxFinalizedAgeSec: Math.min(config.maxAnchorAgeSec, MAX_FINALIZED_AGE_SEC) } : {}) });
++  return { ...authority, describe: () => ({ source: "derived", tier: twoAnchors ? STATE_TIER : "l1-finalized-derived", ...(twoAnchors ? { claimTier: CLAIM_TIER } : {}),
++                                            witnessApi: api ? `127.0.0.1:${api.port}` : null }),
+            close: async () => { await api?.close(); await service.close(); } };
+ }
+diff --git a/test/derived-reader/two-anchor.test.mjs b/test/derived-reader/two-anchor.test.mjs
+new file mode 100644
+index 0000000..c42fada
+--- /dev/null
++++ b/test/derived-reader/two-anchor.test.mjs
+@@ -0,0 +1,397 @@
++// writer-two-anchor-stage/r1: the READER side of Option B (attested-L1 provisional state anchor S beside the finalized B_f).
++// Transport/composition FIXTURES only, exactly as helpers.mjs: the fake L1 process (it serves distinct `finalized` and `latest`
++// headers) and the echo native executable are NEVER evidence of consensus verification, of the real Helios attested-head lag, of
++// native derivation or of its timing (M1-M6 stay unmeasured). What is shown: who may produce the attested tier, that S stays in
++// RAM and is never a floor, that L1 canonicality is rechecked on every use, finalized supersession/fencing, the read-only coverage
++// overlay, the default-disabled signed-binding policy, the bridge's two-anchor snapshot and the loopback orchestration routes.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import net from 'node:net';
++import { once } from 'node:events';
++import { createHash } from 'node:crypto';
++import { keccak256, toBytes } from 'viem';
++import { startL1Runtime, readCheckpoint, l1HeadTier, L1_HEAD_TIERS } from '../../network/derived-reader/l1-runtime.mjs';
++import { createDerivedProvider, derivedReaderBinding, provisionalPolicy, BOOTSTRAP_POLICY } from '../../network/derived-reader/provider.mjs';
++import { openDerivedJournal } from '../../network/derived-reader/journal.mjs';
++import { openCoverageStore, MAX_HISTORY_BYTES } from '../../network/derived-reader/coverage-store.mjs';
++import { LEASE_TOPICS, COVERAGE_FORMAT, FILTER_ID } from '../../network/derived-reader/coverage.mjs';
++import { bindNativeV3, prepareProof, keccak, DERIVED_TIERS } from '../../network/derived-reader/proof.mjs';
++import { readSchedule } from '../../network/derived-reader/vendor/schedule_reader.mjs';
++import { sha256File } from '../../network/derived-reader/process.mjs';
++import { serveDerivedReader } from '../../network/derived-reader/api.mjs';
++import { startDerivedLifecycleReader } from '../../network/derived-reader/lifecycle.mjs';
++import { createLifecycleFinalitySnapshot } from '../../network/lifecycle-finality-bridge.mjs';
++import { openLifecycleJournal } from '../../network/deployment-lifecycle-journal.mjs';
++import { header, anchorOf, nativeResult } from './helpers.mjs';
++
++const hash = s => keccak256(toBytes(s));
++const word = n => BigInt(n).toString(16).padStart(64, '0');
++const hex = n => `0x${n.toString(16)}`;
++const SCHEDULE = `0x${word(32)}${word(15)}${Array.from({ length: 15 }, (_, i) => word(i < 13 ? 1686789347 : 0)).join('')}`;
++const VERSION = `0x${word((1n << 96n) | (5n << 64n) | (1n << 32n))}`;
++const SELECTOR = keccak256(toBytes('getSchedule()')).slice(0, 10);
++const A = `0x${'aa'.repeat(20)}`, ID = `0x${'cc'.repeat(32)}`, binding = 'e'.repeat(64);
++const POLICY = Object.freeze({ format: 'enclave-derived-provisional/v1', l1Head: 'helios-attested-latest', l1MaxAgeSec: 60, maxStateAgeSec: 120,
++  maxBlocks: 1800, maxSpanBlocks: 3600, maxSegments: 64, maxOverlayBytes: 64 << 20, maxWitnessBytes: 64 << 20, nativeTimeoutMs: 120000, maxMemoryMiB: 1536 });
++const TEMPLATE = { l2_chain_id: 8453 };
++const l1Header = (number, timestamp) => ({ number: hex(number), hash: hash(`l1-${number}`), stateRoot: hash(`l1state-${number}`), timestamp: hex(timestamp) });
++const log = (h, index = 0) => ({ address: A, blockNumber: Number(BigInt(h.number)), blockHash: h.hash, logIndex: index, topics: [LEASE_TOPICS[0], ID], data: '0x',
++  txHash: `0x${'dd'.repeat(32)}` });
++function result(ticket, headers, logs = []) {
++  const blocks = headers.map(h => ({ ...anchorOf(h, {}).base, receiptsRoot: h.receiptsRoot, transactionsRoot: h.transactionsRoot }));
++  return { ...nativeResult(ticket, headers.at(-1)), format: 'enclave-base-derivation-result/v3',
++    intermediateRoots: '0x' + blocks.map(b => b.outputRoot.slice(2)).join(''),
++    coverage: { format: COVERAGE_FORMAT, filterId: FILTER_ID, fromBlock: blocks[0].number, toBlock: blocks.at(-1).number, blocks, logs } };
++}
++
++/** The owned L1 runtime over a fixture process that serves `finalized` (900 s old) and `latest` (attested, 20 s old) separately. */
++async function l1Fixture(t) {
++  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'two-anchor-test-'));
++  const f = { directory, now: Date.now(), l1: null };
++  t.after(async () => { await f.l1?.close(); fs.rmSync(directory, { recursive: true, force: true }); });
++  const server = net.createServer(); server.listen(0, '127.0.0.1'); await once(server, 'listening');
++  const port = server.address().port; await new Promise(resolve => server.close(resolve));
++  const seconds = Math.floor(f.now / 1000);
++  f.finalizedL1 = l1Header(10000, seconds - 900); f.attestedL1 = l1Header(10070, seconds - 20); f.chainId = '0x1';
++  const values = path.join(directory, 'l1-fixture.json');
++  f.save = () => fs.writeFileSync(values, JSON.stringify({ chainId: f.chainId, tags: { finalized: f.finalizedL1, latest: f.attestedL1 },
++    numbers: Object.fromEntries([f.finalizedL1, f.attestedL1].map(h => [h.number, h])), schedule: SCHEDULE, version: VERSION }));
++  f.save();
++  const script = path.join(directory, 'l1-fixture.mjs');
++  fs.writeFileSync(script, `import http from 'node:http'; import fs from 'node:fs';
++const [file,port]=process.argv.slice(2); http.createServer(async(q,s)=>{const a=[];for await(const c of q)a.push(c);
++const b=JSON.parse(Buffer.concat(a)),v=JSON.parse(fs.readFileSync(file));
++const result=b.method==='eth_chainId'?v.chainId:b.method==='eth_getBlockByNumber'?(v.tags[b.params[0]]??v.numbers[b.params[0]]??null):b.method==='eth_call'?(b.params[0].data==='${SELECTOR}'?v.schedule:v.version):null;
++s.writeHead(200,{'content-type':'application/json'});s.end(JSON.stringify({jsonrpc:'2.0',id:b.id,result}));}).listen(Number(port),'127.0.0.1');`);
++  const checkpointFile = path.join(directory, 'checkpoint.json');
++  const record = JSON.stringify({ format: 'enclave-l1-checkpoint/v1', network: 'mainnet', slot: Math.floor((seconds - 1606824023) / 12) - 64, root: hash('fixture checkpoint') });
++  fs.writeFileSync(checkpointFile, record);
++  const cp = createHash('sha256').update(record).digest('hex'), binaryHash = await sha256File(process.execPath);
++  const runDir = path.join(directory, 'l1'); fs.mkdirSync(runDir);
++  f.l1Config = { port, binary: { path: process.execPath, sha256: binaryHash }, checkpointFile,
++    consensusUrl: 'http://127.0.0.1:1', executionUrl: 'http://127.0.0.1:2', readyTimeoutMs: 3000 };
++  f.l1Options = { runDir, now: () => f.now, acceptedBuilds: { [binaryHash]: 'transport fixture' }, acceptedCheckpoints: { [cp]: 'fixture' },
++    buildArgs: ({ port }) => ['--max-old-space-size=64', script, values, String(port)] };
++  f.l1 = await startL1Runtime(f.l1Config, f.l1Options);
++  f.native = path.join(directory, 'echo-native'); fs.writeFileSync(f.native, '#!/bin/sh\nexec /bin/cat "$2"\n', { mode: 0o700 });
++  return f;
++}
++/** A v3 provider (journal + coverage store) with the provisional policy unless policy: null. B_f = 101 (950 s old), S up to 103/104. */
++async function readerFixture(t, { policy = POLICY } = {}) {
++  const f = await l1Fixture(t), seconds = Math.floor(f.now / 1000);
++  f.agreed = anchorOf(header(100, seconds - 960), { number: 9990, hash: hash('l1-9990'), stateRoot: hash('l1state-9990'), timestamp: seconds - 1000 });
++  f.h101 = header(101, seconds - 950); f.h102 = header(102, seconds - 20); f.h103 = header(103, seconds - 10); f.h104 = header(104, seconds - 5);
++  f.journal = await openDerivedJournal(f.directory, { binding, initialize: true });
++  f.store = await openCoverageStore(path.join(f.directory, 'coverage'), { binding, initialize: true });
++  f.options = { l1: f.l1, journal: f.journal, executable: f.native, workDir: f.directory, now: () => f.now, resultVersion: 3, coverageStore: f.store,
++    bootstrap: async () => f.agreed, base: async () => f.candidate, ...(policy ? { provisional: policy } : {}) };
++  f.reader = await createDerivedProvider(f.options);
++  t.after(async () => { await f.reader.close(); f.store.close(); f.journal.close(); });
++  const run = async (prepare, submit, headers, logs) => {
++    f.candidate = headers.at(-1);
++    const ticket = await prepare({ blockNumber: Number(BigInt(f.candidate.number)), rollupConfigTemplate: TEMPLATE });
++    return submit({ ticket: ticket.ticket, witness: Buffer.from(JSON.stringify(result(ticket, headers, logs))) });
++  };
++  f.final = (headers, logs) => run(f.reader.prepare, f.reader.submit, headers, logs);
++  f.provisional = (headers, logs) => run(f.reader.prepareProvisional, f.reader.submitProvisional, headers, logs);
++  f.query = (anchor, extras = {}) => ({ address: A, topic0s: [...LEASE_TOPICS], topic1: ID, fromBlock: 101, toBlock: anchor.base.number,
++    anchor: { number: anchor.base.number, hash: anchor.base.hash }, ...extras });
++  f.chunks = () => fs.readdirSync(path.join(f.directory, 'coverage')).filter(n => /^[a-f0-9]{64}\.json$/.test(n)).length;
++  return f;
++}
++
++test('schedule reader: the default finalized mode is unchanged; the explicit provisional mode pins finalized <= anchor <= attested', async () => {
++  const H = n => hash(`anchor-${n}`);
++  const fake = ({ finalized = 100n, attested = 110n, attestedAfter = attested, finalizedAfter = finalized, hashes = {} } = {}) => {
++    let fCalls = 0, aCalls = 0;
++    return { finalized: async () => ({ number: fCalls++ ? finalizedAfter : finalized, hash: H('f') }),
++      attested: async () => ({ number: aCalls++ ? attestedAfter : attested, hash: H('a') }),
++      blockByNumber: async n => ({ number: n, hash: hashes[n] ?? H(Number(n)) }),
++      call: async (to, data) => data === SELECTOR ? SCHEDULE : VERSION };
++  };
++  const read = (l1, number, mode) => readSchedule({ l1, keccak, anchor: { hash: H(number), number: BigInt(number) }, claimedL2Block: 101n, ...(mode ? { mode } : {}) });
++  const fin = await read(fake(), 100);
++  assert.equal(fin.l1.number, '100'); assert.equal('l1Mode' in fin, false, 'the finalized result is unchanged');
++  await assert.rejects(read(fake(), 105), e => e.code === 'not_finalized');
++  await assert.rejects(read(fake(), 105, 'finalized'), e => e.code === 'not_finalized', 'an attested head is never consulted in finalized mode');
++  const prov = await read(fake(), 105, 'provisional');
++  assert.equal(prov.l1Mode, 'provisional'); assert.equal(prov.expectedScheduleId, fin.expectedScheduleId);
++  for (const [l1, number, code] of [[fake(), 111, 'not_attested'], [fake(), 99, 'finalized_floor'], [fake({ hashes: { 105: H('other') } }), 105, 'anchor_mismatch'],
++    [fake({ attested: 90n }), 95, 'contradiction'], [fake({ attestedAfter: 108n }), 105, 'contradiction'], [fake({ finalizedAfter: 106n }), 105, 'finalized_floor'],
++    [fake({ finalizedAfter: 99n }), 105, 'contradiction']])
++    await assert.rejects(read(l1, number, 'provisional'), e => e.code === code, code);
++  await assert.rejects(read(fake(), 100, 'latest'), e => e.code === 'mode');
++});
++
++test('disabled by default: no policy, no provisional calls; the policy is exact, bounded, v3-only and only then part of the signed binding', async t => {
++  const f = await readerFixture(t, { policy: null });
++  await f.final([f.h101]);
++  for (const call of [() => f.reader.prepareProvisional({ blockNumber: 102, rollupConfigTemplate: TEMPLATE }), () => f.reader.readStateAnchor(),
++    () => f.reader.submitProvisional({ ticket: '0'.repeat(64), witness: Buffer.from('{}') })]) await assert.rejects(call(), /not enabled/);
++  assert.equal(f.reader.status().provisional, null);
++  assert.deepEqual(provisionalPolicy(POLICY), POLICY);
++  const { maxSegments, ...missing } = POLICY;
++  for (const bad of [{ ...POLICY, extra: 1 }, missing, { ...POLICY, maxStateAgeSec: 121 }, { ...POLICY, l1MaxAgeSec: 61 }, { ...POLICY, l1Head: 'helios-finalized' },
++    { ...POLICY, format: 'x' }, { ...POLICY, nativeTimeoutMs: 120001 }, { ...POLICY, maxBlocks: 20, maxSpanBlocks: 10 }, { ...POLICY, maxSegments: 65 }, null, []])
++    assert.throws(() => provisionalPolicy(bad), /invalid provisional reader policy/);
++  await assert.rejects(createDerivedProvider({ ...f.options, resultVersion: 2, coverageStore: null, provisional: POLICY }), /v3/);
++  // the signed binding: the default is the r9 formula byte for byte; the policy enters it only when configured
++  const sha256 = await sha256File(f.native);
++  const config = { stateDir: path.join(f.directory, 'binding-state'), native: { path: f.native, sha256, resultVersion: 3 }, l1: f.l1Config, baseUrl: 'http://127.0.0.1:1' };
++  const options = { now: () => f.now, l1Options: f.l1Options, acceptedDerivationBuilds: { [sha256]: 'binding fixture' } };
++  const checkpoint = readCheckpoint(f.l1Config.checkpointFile, { accepted: f.l1Options.acceptedCheckpoints, now: () => f.now });
++  const fields = { chain: 8453, native: sha256, nativeRuntime: null, l1Runtime: null, l1: f.l1Config.binary.sha256, checkpoint: checkpoint.digest,
++    a1: BOOTSTRAP_POLICY, interval: 1, resultVersion: 3, historyMaximumBytes: MAX_HISTORY_BYTES };
++  const sha = v => createHash('sha256').update(JSON.stringify(v)).digest('hex');
++  assert.equal(derivedReaderBinding(config, options), sha(fields), 'default binding unchanged');
++  assert.equal(derivedReaderBinding({ ...config, provisional: POLICY }, options), sha({ ...fields, provisional: provisionalPolicy(POLICY) }));
++  assert.throws(() => derivedReaderBinding({ ...config, provisional: { ...POLICY, maxStateAgeSec: 600 } }, options), /invalid provisional/);
++  assert.throws(() => derivedReaderBinding({ ...config, native: { ...config.native, resultVersion: 2 }, provisional: POLICY }, options), /v3/);
++});
++
++test('provisional track: S natively derived at the owned attested L1 head beyond the served B_f; RAM-only overlay logs; persisted state untouched', async t => {
++  const f = await readerFixture(t);
++  assert.equal((await f.final([f.h101], [log(f.h101)])).status, 'verified');
++  const chunks = f.chunks(), floor = structuredClone(f.journal.read().floor), coverage = f.store.status();
++  f.candidate = f.h103;
++  const ticket = await f.reader.prepareProvisional({ blockNumber: 103, rollupConfigTemplate: TEMPLATE });
++  assert.equal(ticket.tier, 'l1-attested-derived'); assert.equal(ticket.trusted.l1Head, f.attestedL1.hash); assert.equal(ticket.agreedL2BlockNumber, 101);
++  await assert.rejects(f.reader.prepareProvisional({ blockNumber: 103, rollupConfigTemplate: TEMPLATE }), /already outstanding/);
++  await assert.rejects(f.reader.submitProvisional({ ticket: 'f'.repeat(64), witness: Buffer.from('{}') }), /unknown or expired provisional/);
++  const r = await f.reader.submitProvisional({ ticket: ticket.ticket, witness: Buffer.from(JSON.stringify(result(ticket, [f.h102, f.h103], [log(f.h102, 1)]))) });
++  assert.equal(r.status, 'provisional'); assert.equal(r.anchor.tier, 'l1-attested-derived');
++  await assert.rejects(f.reader.submitProvisional({ ticket: ticket.ticket, witness: Buffer.from('{}') }), /unknown or expired provisional/, 'one-shot');
++  const S = await f.reader.readStateAnchor();
++  assert.equal(S.tier, 'l1-attested-derived'); assert.equal(S.base.number, 103); assert.equal(S.base.hash, f.h103.hash);
++  assert.deepEqual(S.l1, { number: 10070, timestamp: Number(BigInt(f.attestedL1.timestamp)), hash: f.attestedL1.hash, stateRoot: f.attestedL1.stateRoot });
++  const Bf = await f.reader.readAnchor();
++  assert.equal(Bf.tier, 'l1-finalized-derived'); assert.equal(Bf.base.number, 101, 'readAnchor stays the finalized anchor');
++  const logs = await f.reader.readDerivedLogs(f.query(S));
++  assert.deepEqual(logs.logs.map(l => l.blockNumber), [101, 102]); assert.equal(logs.anchor.tier, 'l1-attested-derived');
++  assert.deepEqual(logs.coverage, { format: COVERAGE_FORMAT, filterId: FILTER_ID, fromBlock: 101, toBlock: 103, complete: true, availableFromBlock: 101, availableToBlock: 103 });
++  assert.equal((await f.reader.readDerivedLogs(f.query(Bf))).coverage.availableToBlock, 101, 'finalized reads never see the overlay');
++  await assert.rejects(f.reader.readDerivedLogs(f.query(Bf, { toBlock: 103 })), /snapshot/);
++  assert.deepEqual(f.journal.read().floor, floor); assert.equal(f.chunks(), chunks); assert.deepEqual(f.store.status(), coverage);
++  assert.deepEqual(f.reader.status().provisional, { segments: 1, stateThrough: 103, hasPendingWitness: false, fenced: null });
++});
++
++test('S is never persisted: both journals and the coverage stage refuse the attested tier; a restart has no provisional state', async t => {
++  const f = await readerFixture(t);
++  await f.final([f.h101], [log(f.h101)]); await f.provisional([f.h102, f.h103]);
++  const Bf = await f.reader.readAnchor(), S = await f.reader.readStateAnchor();
++  await assert.rejects(f.journal.accept(Bf, S), /tier/);
++  const lifecycle = openLifecycleJournal(path.join(f.directory, 'lifecycle.json'));
++  await assert.rejects(lifecycle.acceptAnchor(8453, { base: S.base, l1: S.l1, tier: S.tier }), /invalid durable authority anchor/);
++  assert.equal(lifecycle.readAnchor(8453), null);
++  // a validated attested segment (this process, owned attested head) still cannot be staged into durable coverage
++  f.candidate = f.h104;
++  const ticket = await f.reader.prepareProvisional({ blockNumber: 104, rollupConfigTemplate: TEMPLATE });
++  const bound = bindNativeV3(result(ticket, [f.h104]), { trusted: ticket.trusted, bound: { agreedL2BlockNumber: 103 } }, f.h104, await f.l1.attested(), DERIVED_TIERS.attested);
++  assert.throws(() => f.store.stage(bound.coverage, Bf, bound.anchor), /tier/);
++  await f.reader.close();
++  const again = await createDerivedProvider(f.options); t.after(() => again.close());
++  await assert.rejects(again.readStateAnchor(), /no locally derived anchor/);
++  assert.equal(again.status().provisional.segments, 0);
++  assert.equal(f.journal.read().floor.base.number, 101); assert.equal(f.journal.read().floor.tier, 'l1-finalized-derived');
++  assert.equal(f.store.status().verifiedToBlock, 101);
++});
++
++test('L1 canonicality is rechecked on every use: a changed attested L1 block discards S; an attested head regression refuses and discards', async t => {
++  const f = await readerFixture(t);
++  await f.final([f.h101]); await f.provisional([f.h102, f.h103]);
++  const S = await f.reader.readStateAnchor();
++  f.attestedL1 = { ...f.attestedL1, hash: hash('reorged l1') }; f.save();
++  await assert.rejects(f.reader.readDerivedLogs(f.query(S)), /no longer canonical/);
++  assert.equal(f.reader.status().provisional.segments, 0);
++  await assert.rejects(f.reader.readStateAnchor(), /no provisional state/);
++  assert.equal((await f.reader.readAnchor()).base.number, 101, 'the finalized anchor is untouched');
++  f.candidate = f.h103;
++  await assert.rejects(f.reader.prepareProvisional({ blockNumber: 103, rollupConfigTemplate: TEMPLATE }), /regressed/, 'same height, other hash');
++  f.attestedL1 = l1Header(10060, Math.floor(f.now / 1000) - 15); f.save();
++  await assert.rejects(f.reader.prepareProvisional({ blockNumber: 103, rollupConfigTemplate: TEMPLATE }), /regressed/, 'lower height');
++  await assert.rejects(f.reader.readStateAnchor(), /no provisional state/);
++});
++
++test('attested L1 bounds (age <= 60 s, not future, mainnet) and the S age: S older than 120 s is never served', async t => {
++  const f = await readerFixture(t);
++  await f.final([f.h101]);
++  const seconds = Math.floor(f.now / 1000), head = await f.l1.attested();
++  assert.equal(l1HeadTier(head), L1_HEAD_TIERS.attested); assert.equal(l1HeadTier(await f.l1.finalized()), L1_HEAD_TIERS.finalized);
++  assert.equal(l1HeadTier({ ...head }), null, 'a copy carries no tier');
++  await assert.rejects(f.l1.attested({ maxAgeSec: 61 }), /invalid attested/);
++  await assert.rejects(f.l1.attested({ maxAgeSec: 19 }), /freshness bound/);
++  const saved = f.attestedL1;
++  f.attestedL1 = l1Header(10070, seconds - 61); f.save();
++  await assert.rejects(f.l1.attested(), /freshness bound/);
++  f.candidate = f.h103;
++  await assert.rejects(f.reader.prepareProvisional({ blockNumber: 103, rollupConfigTemplate: TEMPLATE }), /freshness bound/);
++  f.attestedL1 = l1Header(10070, seconds + 3); f.save();
++  await assert.rejects(f.l1.attested(), /freshness bound/);
++  f.attestedL1 = saved; f.chainId = '0x2105'; f.save();
++  await assert.rejects(f.l1.attested(), /another chain/);
++  f.chainId = '0x1'; f.save();
++  await f.provisional([f.h102, f.h103]);
++  const S = await f.reader.readStateAnchor();
++  f.now += 110_000;                                           // S (10 s old when derived) is now exactly 120 s old
++  assert.equal((await f.reader.readStateAnchor()).base.number, 103);
++  f.now += 1000;
++  await assert.rejects(f.reader.readStateAnchor(), /stale/);
++  await assert.rejects(f.reader.readDerivedLogs(f.query(S)), /stale/);
++  assert.equal((await f.reader.readAnchor()).base.number, 101);
++});
++
++test('finalized progress supersedes S: identical blocks drop silently; an exact-boundary suffix survives and stays readable', async t => {
++  const f = await readerFixture(t);
++  await f.final([f.h101], [log(f.h101)]);
++  await f.provisional([f.h102], [log(f.h102)]); await f.provisional([f.h103], [log(f.h103)]);
++  assert.equal(f.reader.status().provisional.segments, 2);
++  await f.final([f.h102], [log(f.h102)]);
++  assert.deepEqual(f.reader.status().provisional, { segments: 1, stateThrough: 103, hasPendingWitness: false, fenced: null });
++  const S = await f.reader.readStateAnchor();
++  assert.equal(S.base.number, 103); assert.equal((await f.reader.readAnchor()).base.number, 102);
++  assert.deepEqual((await f.reader.readDerivedLogs(f.query(S))).logs.map(l => l.blockNumber), [101, 102, 103]);
++  await f.final([f.h103], [log(f.h103)]);
++  assert.deepEqual(f.reader.status().provisional, { segments: 0, stateThrough: null, hasPendingWitness: false, fenced: null });
++  await assert.rejects(f.reader.readStateAnchor(), /no provisional state/);
++});
++
++test('a finalized result contradicting S fences the provisional track and keeps the evidence; the finalized track keeps serving', async t => {
++  const f = await readerFixture(t);
++  await f.final([f.h101]); await f.provisional([f.h102]);
++  const other = header(102, Math.floor(f.now / 1000) - 19);
++  await f.final([other]);
++  const fence = f.reader.status().provisional.fenced;
++  assert.equal(fence.block, 102); assert.equal(fence.provisionalHash, f.h102.hash); assert.equal(fence.finalizedHash, other.hash);
++  assert.equal(fence.provisionalThrough, 102); assert.equal(fence.provisionalL1.hash, f.attestedL1.hash);
++  await assert.rejects(f.reader.readStateAnchor(), /fenced/);
++  f.candidate = f.h103;
++  await assert.rejects(f.reader.prepareProvisional({ blockNumber: 103, rollupConfigTemplate: TEMPLATE }), /fenced/);
++  assert.equal((await f.reader.readAnchor()).base.hash, other.hash);
++});
++
++test('tier provenance and the read-only overlay: only an owned attested head binds the attested tier; the store serves only an exact overlay', async t => {
++  const f = await readerFixture(t);
++  await f.final([f.h101], [log(f.h101)]);
++  f.candidate = f.h103;
++  const ticket = await f.reader.prepareProvisional({ blockNumber: 103, rollupConfigTemplate: TEMPLATE });
++  const head = await f.l1.attested(), finalHead = await f.l1.finalized(), r = result(ticket, [f.h103]); r.l2PreBlockNumber = 102;
++  const input = { trusted: ticket.trusted, bound: { agreedL2BlockNumber: 102 } };
++  assert.throws(() => bindNativeV3(r, input, f.h103, { ...head }, DERIVED_TIERS.attested), /owned attested L1 head/);
++  assert.throws(() => bindNativeV3(r, input, f.h103, finalHead, DERIVED_TIERS.attested), /owned attested L1 head/);
++  assert.throws(() => bindNativeV3(r, input, f.h103, head, 'l1-safe-derived'), /owned attested L1 head/);
++  assert.throws(() => bindNativeV3(r, input, f.h103, head), /cannot bind the finalized tier/, 'never relabelled as finalized');
++  await assert.rejects(prepareProof({ l1: f.l1, l1Head: { ...head }, agreed: f.agreed, header: f.h103, rollupConfigTemplate: TEMPLATE,
++    intermediateBlockInterval: 1, mode: 'provisional' }), /owned attested L1 head/);
++  await assert.rejects(prepareProof({ l1: f.l1, l1Head: head, agreed: f.agreed, header: f.h103, rollupConfigTemplate: TEMPLATE,
++    intermediateBlockInterval: 1, mode: 'safe' }), /owned attested L1 head/);
++  const gapped = bindNativeV3(r, input, f.h103, head, DERIVED_TIERS.attested), S = gapped.anchor, Bf = await f.reader.readAnchor();
++  assert.equal(S.tier, 'l1-attested-derived');
++  await assert.rejects(f.store.read(f.query(S), S, { overlay: [gapped.coverage] }), /gap or overlap/);
++  await assert.rejects(f.store.read(f.query(S), S), /provisional anchor is served only/);
++  await assert.rejects(f.store.read(f.query(Bf), Bf, { overlay: [gapped.coverage] }), /attested anchor/);
++  await assert.rejects(f.store.read(f.query(S), S, { overlay: [structuredClone(gapped.coverage)] }), /this process/);
++  await assert.rejects(f.store.read(f.query(S), S, { overlay: [] }), /attested anchor/);
++  assert.equal(f.store.status().verifiedToBlock, 101, 'nothing written; the store is not failed');
++});
++
++test('bridge twoAnchor: claim read pinned at B_f and state at S, both verifier-matched; only B_f is journaled; S <= 120 s and extends B_f', async t => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'two-anchor-bridge-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const sec = 2_000_000, f = { now: sec * 1000, calls: [] };
++  const F = { tier: 'l1-finalized-derived', base: { number: 100, hash: hash('bf'), stateRoot: hash('bf-state'), outputRoot: hash('bf-out'), timestamp: sec - 900 },
++    l1: { number: 30, hash: hash('l1-f'), timestamp: sec - 800 } };
++  const S0 = { tier: 'l1-attested-derived', base: { number: 130, hash: hash('s'), stateRoot: hash('s-state'), outputRoot: hash('s-out'), timestamp: sec - 30 },
++    l1: { number: 40, hash: hash('l1-s'), timestamp: sec - 20 } };
++  f.S = S0;
++  const verifier = { request: async (method, params) => {
++    f.calls.push({ method, params });
++    if (method === 'eth_chainId') return '0x2105';
++    if (method === 'eth_getBlockByNumber') {
++      const b = { 100: F.base, 130: f.S.base }[Number(BigInt(params[0]))];
++      return b && { number: params[0], hash: f.wrongS && b === f.S.base ? hash('other') : b.hash, stateRoot: b.stateRoot, timestamp: hex(b.timestamp) };
++    }
++    if (method === 'eth_getBalance') return '0x7';
++    throw Error('unconfigured fixture method');
++  } };
++  const journal = openLifecycleJournal(path.join(dir, 'journal.json'));
++  const create = extras => createLifecycleFinalitySnapshot({ readAnchor: async () => F, readStateAnchor: async () => f.S, verifier, journal,
++    maxAnchorAgeSec: 1800, now: () => f.now, ...extras });
++  assert.equal(createLifecycleFinalitySnapshot({ readAnchor: async () => F, verifier, journal, maxAnchorAgeSec: 1800, now: () => f.now }).twoAnchor, undefined,
++    'no state anchor without the signed provisional policy');
++  const snap = create(), ADDR = '0x0000000000000000000000000000000000000001';
++  const r = await snap.twoAnchor(async ({ claim, state }) => ({ claim: [claim.number, await claim.client.getBalance({ address: ADDR })],
++    state: [state.number, await state.client.getBalance({ address: ADDR })] }));
++  assert.deepEqual(r.value, { claim: [100n, 7n], state: [130n, 7n] });
++  assert.deepEqual(f.calls.filter(c => c.method === 'eth_getBalance').map(c => c.params[1]), [{ blockHash: F.base.hash }, { blockHash: S0.base.hash }]);
++  assert.equal(r.blockNumber, 100n); assert.equal(r.blockHash, F.base.hash);
++  assert.deepEqual(r.state, { blockNumber: 130n, blockHash: S0.base.hash, stateRoot: S0.base.stateRoot, timestamp: S0.base.timestamp * 1000 });
++  assert.equal(r.evidence.tier, 'l1-attested-derived'); assert.equal(r.evidence.claimTier, 'l1-finalized-derived');
++  assert.equal(journal.readAnchor(8453).base.number, 100); assert.equal(journal.readAnchor(8453).tier, 'l1-finalized-derived');
++  const plain = await snap(c => c.getBalance({ address: ADDR }));
++  assert.equal(plain.evidence.tier, 'l1-finalized-derived'); assert.equal(plain.state, undefined, 'the plain snapshot is unchanged');
++  const refused = async (patch, re) => { f.S = { ...S0, ...patch(S0) }; await assert.rejects(snap.twoAnchor(() => 1), re); f.S = S0; };
++  await refused(s => ({ tier: 'l1-finalized-derived' }), /provisional state anchor required/);
++  await refused(s => ({ base: { ...s.base, timestamp: sec - 121 } }), /outside its age bound/);
++  await refused(s => ({ base: { ...s.base, number: 100 } }), /does not extend/);
++  await refused(s => ({ l1: { ...s.l1, number: 29 } }), /does not extend/);
++  f.wrongS = true; await assert.rejects(snap.twoAnchor(() => 1), /does not match/); f.wrongS = false;
++  assert.throws(() => create({ maxStateAgeSec: 121 }), /invalid provisional state anchor bounds/);
++  assert.throws(() => create({ readStateAnchor: 'x' }), /invalid provisional state anchor bounds/);
++  assert.equal(journal.readAnchor(8453).base.number, 100); assert.equal(journal.readAnchor(8453).tier, 'l1-finalized-derived');
++});
++
++test('end to end (fixtures): the provider B_f and S through the bridge twoAnchor, complete logs through S in one callback; a reorg refuses', async t => {
++  const f = await readerFixture(t);
++  await f.final([f.h101], [log(f.h101)]); await f.provisional([f.h102, f.h103], [log(f.h103)]);
++  const byNumber = { 101: f.h101, 103: f.h103 };
++  const verifier = { request: async (method, params) => method === 'eth_chainId' ? '0x2105' : method === 'eth_getBlockByNumber' ? byNumber[Number(BigInt(params[0]))]
++    : method === 'eth_getBalance' ? '0x1' : null };
++  const snap = createLifecycleFinalitySnapshot({ readAnchor: f.reader.readAnchor, readStateAnchor: f.reader.readStateAnchor, verifier, now: () => f.now,
++    journal: openLifecycleJournal(path.join(f.directory, 'lifecycle.json')), maxAnchorAgeSec: 1800 });
++  const r = await snap.twoAnchor(async ({ claim, state }) => {
++    assert.equal(f.reader.status().busy, false, 'both anchors were read before the callback');
++    const q = { address: A, topic0s: [...LEASE_TOPICS], topic1: ID, fromBlock: 101, toBlock: Number(state.number), anchor: { number: Number(state.number), hash: state.header.hash } };
++    return { logs: (await f.reader.readDerivedLogs(q)).logs.map(l => l.blockNumber), claim: Number(claim.number) };
++  });
++  assert.deepEqual(r.value, { logs: [101, 103], claim: 101 });
++  assert.equal(r.evidence.state.l1.hash, f.attestedL1.hash);
++  f.attestedL1 = { ...f.attestedL1, hash: hash('reorg') }; f.save();
++  await assert.rejects(snap.twoAnchor(() => 1), /no longer canonical/);
++});
++
++test('lifecycle wiring: stateSnapshot exists only when the signed reader config carries the provisional policy', async t => {
++  const f = await l1Fixture(t); await f.l1.close(); f.l1 = null;
++  const sha256 = await sha256File(f.native);
++  const options = { now: () => f.now, l1Options: f.l1Options, acceptedDerivationBuilds: { [sha256]: 'wiring fixture' } };
++  const verifier = { request: async () => { throw Error('fixture: no proof transport'); } };
++  for (const [name, extra, want] of [['plain', {}, false], ['provisional', { provisional: POLICY }, true]]) {
++    const config = { stateDir: path.join(f.directory, name), initializeState: true, native: { path: f.native, sha256, resultVersion: 3 },
++      l1: f.l1Config, baseUrl: 'http://127.0.0.1:1', ...extra };
++    const service = await startDerivedLifecycleReader(config, { verifier, journal: openLifecycleJournal(path.join(f.directory, `${name}-lifecycle.json`)), ...options });
++    try {
++      assert.equal(typeof service.stateSnapshot === 'function', want, name);
++      assert.equal(service.reader.status().provisional === null, !want, name);
++      if (want) await assert.rejects(service.stateSnapshot(() => 1), /no locally derived/);
++    } finally { await service.close(); }
++  }
++});
++
++test('loopback orchestration: /provisional/prepare and /provisional/witness reach only the provisional track; no provisional anchor route', async t => {
++  const seen = [];
++  const reader = { status: () => ({}), readAnchor: async () => ({}),
++    prepare: async () => { seen.push('prepare'); return {}; }, submit: async () => { seen.push('submit'); return {}; },
++    prepareProvisional: async q => { seen.push(['prepareProvisional', q.blockNumber]); return { tier: 'l1-attested-derived' }; },
++    submitProvisional: async q => { seen.push(['submitProvisional', q.ticket, q.witness.length]); return { status: 'provisional' }; } };
++  const api = await serveDerivedReader(reader); t.after(() => api.close());
++  const url = `http://127.0.0.1:${api.port}`;
++  const json = { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"blockNumber":7,"rollupConfigTemplate":{}}' };
++  assert.equal((await fetch(url + '/provisional/prepare', json)).status, 200);
++  assert.equal((await fetch(url + '/provisional/witness/' + 'b'.repeat(64), { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: Buffer.alloc(3) })).status, 200);
++  assert.equal((await fetch(url + '/prepare', json)).status, 200);
++  for (const p of ['/provisional/anchor', '/provisional/status', '/provisional', '/state-anchor'])
++    assert.equal((await fetch(url + p)).status, 404, p);
++  assert.equal((await fetch(url + '/provisional/witness/xyz', { method: 'POST' })).status, 404);
++  assert.deepEqual(seen, [['prepareProvisional', 7], ['submitProvisional', 'b'.repeat(64), 3], 'prepare']);
++});
+diff --git a/test/derived-writer-two-anchor.test.mjs b/test/derived-writer-two-anchor.test.mjs
+new file mode 100644
+index 0000000..fafe564
+--- /dev/null
++++ b/test/derived-writer-two-anchor.test.mjs
+@@ -0,0 +1,188 @@
++// writer-two-anchor-stage/r1: relay/derived-writer-authority.mjs in TWO-ANCHOR mode (capability.stateSnapshot), ADAPTER LOGIC ONLY.
++// The capability is an in-test fake: its `complete: true` and its anchors prove nothing; these tests show what the adapter does WITH
++// a finalized claim anchor B_f and a provisional state anchor S (claim finality, 120 s on S, B_f liveness, complete coverage through
++// S, deny-only verifier, selector). The reader side (attested L1, RAM-only overlay, reorg discard) is test/derived-reader/two-anchor.test.mjs.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { CLAIMED, RENEWED, RELEASED, LeaseGenerationError } from "../relay/lease-generation.mjs";
++import { createDerivedWriterAuthority, derivedWriterAuthorityFromEnv, MAX_ANCHOR_AGE_SEC, MAX_FINALIZED_AGE_SEC, STATE_TIER, CLAIM_TIER } from "../relay/derived-writer-authority.mjs";
++
++const h = (b, n = 32) => "0x" + b.repeat(n);
++const ID = h("11"), RUNNER = h("22"), OTHER_RUNNER = h("33"), OP = "0x" + "44".repeat(20), OP2 = "0x" + "55".repeat(20);
++const LEDGER = "0x" + "66".repeat(20), LEDGER2 = "0x" + "67".repeat(20), BOOK = "0x" + "77".repeat(20);
++const O = 53_000_000, BF = O + 1_000, S = O + 1_300, HF = h("af"), HS = h("a5"), NOW = 1_700_000_000;
++const TF = NOW - 900, TS = NOW - 30;                     // a typical finalized lag, a provisional state anchor 30 s old
++const word = (n) => BigInt(n).toString(16).padStart(64, "0");
++const pad = (a) => "0x" + "0".repeat(24) + a.slice(2);
++let seq = 0;
++const tx = () => "0x" + (++seq).toString(16).padStart(64, "0");
++const bh = (n) => "0x" + n.toString(16).padStart(64, "c");
++const claimed = (n, i, until, { runner = RUNNER, op = OP } = {}) =>
++  ({ address: LEDGER, blockNumber: O + n, blockHash: bh(O + n), logIndex: i, topics: [CLAIMED, ID, runner, pad(op)], data: "0x" + word(until) + word(5), txHash: tx() });
++const renewed = (n, i, until, { runner = RUNNER } = {}) =>
++  ({ address: LEDGER, blockNumber: O + n, blockHash: bh(O + n), logIndex: i, topics: [RENEWED, ID, runner], data: "0x" + word(until) + word(5), txHash: tx() });
++const released = (n, i) => ({ address: LEDGER, blockNumber: O + n, blockHash: bh(O + n), logIndex: i, topics: [RELEASED, ID, RUNNER], data: "0x" + word(7), txHash: tx() });
++const row = (o = {}) => ({ id: ID, owner: OP, appRef: "", ports: "", configCid: "", gpuMilli: 0, cpuMilli: 1, appPort: 80, isPublic: false, active: true,
++  createdAt: 1n, rate: 1n, balance6: 1n, spent6: 1n, runner: RUNNER, runnerOperator: OP, leaseUntil: BigInt(NOW + 1200), ...o });
++const NONE = row({ id: h("00") });
++
++/** A fake two-anchor world: rows/book at B_f and at S, the complete lease logs through S, the deny-only verifier after S. */
++function world({ logs = [claimed(950, 3, NOW + 1200)], rowF = row(), rowS = row(), bookF = LEDGER, bookS = bookF, schema = 16, availableFrom = O + 900,
++                 availableTo = S, tf = TF, ts = TS, sNumber = S, snapState = {}, evidence = { tier: STATE_TIER, claimTier: CLAIM_TIER },
++                 later = [], headRow, headBook = bookS, head = S + 50, mutate = (r) => r, readerFails = null } = {}) {
++  const calls = [];
++  const side = (name, B, hash, time, book, r) => ({
++    number: BigInt(B),
++    client: {
++      getBlock: async () => ({ number: BigInt(B), hash, timestamp: BigInt(time) }),
++      readContract: async ({ address, functionName }) => {
++        calls.push([name, functionName, address]);
++        if (functionName === "addr") { assert.equal(address, BOOK); return book; }
++        if (functionName === "deploymentsSchema") return BigInt(schema);
++        if (functionName === "get") return address === LEDGER ? r : NONE;
++        throw new Error(functionName);
++      },
++    },
++  });
++  const capability = {
++    async snapshot() { calls.push(["legacy-snapshot"]); throw new Error("the single-anchor snapshot must not be used in two-anchor mode"); },
++    async stateSnapshot(read) {
++      calls.push(["stateSnapshot"]);
++      const value = await read({ claim: side("claim", BF, HF, tf, bookF, rowF), state: side("state", sNumber, HS, ts, bookS, rowS) });
++      return { blockNumber: BigInt(BF), blockHash: HF, value, state: { blockNumber: BigInt(sNumber), blockHash: HS, ...snapState }, evidence };
++    },
++    async readDerivedLogs(q) {
++      calls.push(["logs", q.fromBlock, q.toBlock, q.anchor.number]);
++      if (readerFails) throw new Error(readerFails);
++      if (q.anchor.number !== sNumber || q.anchor.hash !== HS) throw new Error("anchor is not current");
++      if (q.fromBlock < availableFrom) throw new Error("requested history is outside runtime-verified coverage");
++      const sel = logs.filter((l) => l.blockNumber >= q.fromBlock && l.blockNumber <= q.toBlock);
++      return mutate({ format: "enclave-derived-logs/v1", logs: sel, anchor: { tier: STATE_TIER, base: { number: sNumber, hash: HS } },
++        filter: { address: q.address, topic0s: q.topic0s, topic1: q.topic1, fromBlock: q.fromBlock, toBlock: q.toBlock },
++        coverage: { format: "enclave-lease16-coverage/v1", filterId: "lease16-events/v1", fromBlock: q.fromBlock, toBlock: q.toBlock, complete: true,
++                    availableFromBlock: availableFrom, availableToBlock: availableTo } }, q);
++    },
++  };
++  const fresh = {
++    getBlockNumber: async () => BigInt(head),
++    request: async ({ method, params }) => { calls.push(["fresh", method, params[0].fromBlock]); assert.equal(method, "eth_getLogs"); return later; },
++    readContract: async ({ functionName }) => functionName === "addr" ? headBook : (headRow ?? rowS),
++  };
++  return { capability, fresh, calls };
++}
++const authority = (w, o = {}) => createDerivedWriterAuthority({ capability: w.capability, fresh: w.fresh, addressBook: BOOK, now: () => NOW * 1000, ...o });
++const refuses = async (p, code) => {
++  await assert.rejects(p, (e) => { assert.ok(e instanceof LeaseGenerationError, String(e)); assert.equal(e.code, code, e.message); return true; });
++};
++
++test("two anchors: the FINAL claim's unchanged lease16 fact, current-ness at S, coverage asked at S, deny-only after S", async () => {
++  const w = world({ logs: [claimed(950, 3, NOW + 600), renewed(1200, 0, NOW + 1200)], rowF: row({ leaseUntil: BigInt(NOW + 600) }) });
++  const r = await authority(w).writerAuthority(ID, { runner: RUNNER });
++  assert.equal(r.factJson, JSON.stringify({ source: "lease16", chainId: 8453, ledger: LEDGER, deployment: ID, claimBlock: O + 950, claimLogIndex: 3 }));
++  assert.deepEqual(r.block, { number: S, hash: HS, time: TS, finalized: BF });
++  assert.deepEqual(r.evidence, { authority: "consumer-domain-derivation", tier: "l1-attested-derived", claimTier: "l1-finalized-derived", coverageFromBlock: O + 900,
++    finalized: { number: BF, hash: HF, time: TF }, state: { number: S, hash: HS, time: TS } });
++  assert.deepEqual(w.calls.filter((c) => c[0] === "logs"), [["logs", S, S, S], ["logs", O + 900, S, S]]);
++  assert.deepEqual(w.calls.filter((c) => c[0] === "fresh"), [["fresh", "eth_getLogs", "0x" + (S + 1).toString(16)]]);
++  assert.ok(!w.calls.some((c) => c[0] === "legacy-snapshot"));
++  assert.ok(w.calls.some((c) => c[0] === "claim" && c[1] === "get") && w.calls.some((c) => c[0] === "state" && c[1] === "get"), "the row is read at BOTH anchors");
++});
++
++test("the 120 s ceiling applies to S unchanged: 120 accepted, 121 refused, +5 accepted, +6 refused; never raised; refused before the verifier", async () => {
++  assert.equal(MAX_ANCHOR_AGE_SEC, 120);
++  assert.equal((await authority(world({ ts: NOW - 120 })).writerAuthority(ID)).block.time, NOW - 120);
++  await refuses(authority(world({ ts: NOW - 121 })).writerAuthority(ID), "stale_snapshot");
++  assert.ok(await authority(world({ ts: NOW + 5 })).writerAuthority(ID));
++  await refuses(authority(world({ ts: NOW + 6 })).writerAuthority(ID), "stale_snapshot");
++  for (const bad of [121, 600, 3600]) assert.throws(() => authority(world(), { maxAnchorAgeSec: bad }), /maxAnchorAgeSec must be 1\.\.120/);
++  const w = world({ ts: NOW - 121, head: S + 10_000 });          // a much newer unsafe head never refreshes S
++  await refuses(authority(w).writerAuthority(ID), "stale_snapshot");
++  assert.ok(!w.calls.some((c) => c[0] === "fresh"));
++});
++
++test("B_f has its own liveness bound: an old finalized anchor refuses even with a fresh S; S never refreshes it", async () => {
++  assert.ok(await authority(world({ tf: NOW - 1800 })).writerAuthority(ID));
++  await refuses(authority(world({ tf: NOW - 1801 })).writerAuthority(ID), "stale_finalized");
++  await refuses(authority(world({ tf: NOW - 900 }), { maxFinalizedAgeSec: 600 }).writerAuthority(ID), "stale_finalized");
++  await refuses(authority(world({ tf: NOW + 6 })).writerAuthority(ID), "stale_finalized");
++  for (const bad of [0, MAX_FINALIZED_AGE_SEC + 1, 1.5, "600"]) assert.throws(() => authority(world(), { maxFinalizedAgeSec: bad }), /maxFinalizedAgeSec/);
++});
++
++test("claim finality: a claim anywhere in (B_f, S] is claim_not_final, never a fact; a claim AT B_f is final", async () => {
++  for (const n of [1001, 1150, 1300]) {
++    const c = claimed(n, 0, NOW + 1200, { runner: OTHER_RUNNER, op: OP2 });
++    const w = world({ logs: [claimed(950, 3, NOW + 600), O + n === S ? { ...c, blockHash: HS } : c],
++                      rowS: row({ runner: OTHER_RUNNER, runnerOperator: OP2 }) });
++    await refuses(authority(w).writerAuthority(ID), "claim_not_final");
++    assert.ok(!w.calls.some((c) => c[0] === "fresh"), "refused before the deny-only check");
++  }
++  await refuses(authority(world({ logs: [claimed(1100, 0, NOW + 1200, { runner: OTHER_RUNNER, op: OP2 })], rowS: row({ runner: OTHER_RUNNER, runnerOperator: OP2 }) }))
++    .writerAuthority(ID, { runner: RUNNER }), "runner_mismatch");
++  assert.equal((await authority(world({ logs: [claimed(1000, 7, NOW + 1200)] })).writerAuthority(ID)).fact.claimBlock, BF);
++});
++
++test("same-runner release + re-claim in (B_f, S]: the rows at B_f and S look identical, only the complete coverage shows it -> claim_not_final", async () => {
++  const logs = [claimed(950, 3, NOW + 1200), released(1050, 0), claimed(1100, 1, NOW + 1200)];
++  const w = world({ logs, rowF: row(), rowS: row() });
++  await refuses(authority(w).writerAuthority(ID, { runner: RUNNER }), "claim_not_final");
++  // the row alone is never accepted: the coverage is always asked through S, never only up to B_f
++  assert.deepEqual(w.calls.filter((c) => c[0] === "logs").map((c) => c[2]), [S, S]);
++});
++
++test("positive coverage: a Released in (B_f, S] refuses (row released at S), and a replay through B_f must agree with the row at B_f", async () => {
++  await refuses(authority(world({ logs: [claimed(950, 3, NOW + 1200), released(1200, 0)], rowS: row({ active: false, runner: h("00"), runnerOperator: "0x" + "00".repeat(20) }) }))
++    .writerAuthority(ID), "lease_not_current");
++  await refuses(authority(world({ logs: [claimed(950, 3, NOW + 1200), released(1200, 0)] })).writerAuthority(ID), "inconsistent_logs");
++  await refuses(authority(world({ rowF: row({ runner: OTHER_RUNNER }) })).writerAuthority(ID), "claim_not_final");
++  await refuses(authority(world({ rowF: row({ active: false }) })).writerAuthority(ID), "claim_not_final");
++  await refuses(authority(world({ rowF: row({ leaseUntil: BigInt(NOW + 999) }) })).writerAuthority(ID), "inconsistent_logs");
++});
++
++test("incomplete coverage through S refuses (coverage_incomplete); coverage starting after B_f is claim_not_covered", async () => {
++  await refuses(authority(world({ readerFails: "provisional coverage gap or overlap" })).writerAuthority(ID), "coverage_incomplete");
++  await refuses(authority(world({ readerFails: "requested history is outside runtime-verified coverage" })).writerAuthority(ID), "coverage_incomplete");
++  await refuses(authority(world({ availableTo: S - 1 })).writerAuthority(ID), "coverage_incomplete");
++  await refuses(authority(world({ mutate: (r) => ({ ...r, coverage: { ...r.coverage, complete: false } }) })).writerAuthority(ID), "coverage_incomplete");
++  await refuses(authority(world({ availableFrom: BF + 1, logs: [renewed(1200, 0, NOW + 1200)] })).writerAuthority(ID), "claim_not_covered");
++  await refuses(authority(world({ readerFails: "derived provider busy" })).writerAuthority(ID), "derived_unavailable");
++});
++
++test("anchor binding: relabelled tiers, a state anchor not after B_f, mismatched snapshot blocks or a moved ledger refuse", async () => {
++  await refuses(authority(world({ evidence: { tier: CLAIM_TIER, claimTier: CLAIM_TIER } })).writerAuthority(ID), "anchor_mismatch");
++  await refuses(authority(world({ evidence: { tier: STATE_TIER } })).writerAuthority(ID), "anchor_mismatch");
++  await refuses(authority(world({ snapState: { blockHash: h("ee") } })).writerAuthority(ID), "anchor_mismatch");
++  await refuses(authority(world({ sNumber: BF })).writerAuthority(ID), "anchor_mismatch");
++  await refuses(authority(world({ bookS: LEDGER2, headBook: LEDGER2 })).writerAuthority(ID), "ledger_moved");
++  assert.throws(() => createDerivedWriterAuthority({ capability: { ...world().capability, stateSnapshot: "yes" }, fresh: world().fresh, addressBook: BOOK }), /not a capability/);
++});
++
++test("the unsafe verifier stays deny-only after S: later claim/release refuse, silence creates nothing, a newer head never refreshes S", async () => {
++  await refuses(authority(world({ later: [{ topics: [CLAIMED, ID] }] })).writerAuthority(ID), "claim_not_final");
++  await refuses(authority(world({ later: [{ topics: [RELEASED, ID] }] })).writerAuthority(ID), "lease_not_current");
++  await refuses(authority(world({ headRow: row({ runner: OTHER_RUNNER }) })).writerAuthority(ID), "lease_not_current");
++  await refuses(authority(world({ head: S - 1 })).writerAuthority(ID), "fresh_head_behind");
++  const w = world({ logs: [renewed(950, 0, NOW + 1200)] });          // a silent verifier cannot supply the missing claim
++  await refuses(authority(w).writerAuthority(ID), "claim_not_covered");
++  assert.ok(!w.calls.some((c) => c[0] === "fresh"));
++});
++
++test("selector: two anchors only when the runtime's service carries stateSnapshot (signed binding); no env enables it; legacy default unchanged", async () => {
++  const base = { ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived", ENCLAVE_DERIVED_READER_CONFIG: "/etc/r.json", ENCLAVE_DERIVED_ANCHOR_JOURNAL: "/var/j", ADDRESS_BOOK_ADDRESS: BOOK };
++  const w = world();
++  const start = (service) => ({ openLifecycleJournal: () => ({}), startDerivedLifecycleReader: async () => ({ close: async () => {}, ...service }) });
++  const two = await derivedWriterAuthorityFromEnv(base, { relayChain: { client: w.fresh }, readFile: async () => JSON.stringify({ maxAnchorAgeSec: 600 }),
++    loadRuntime: async () => start({ reader: { readDerivedLogs: w.capability.readDerivedLogs }, snapshot: w.capability.snapshot, stateSnapshot: w.capability.stateSnapshot }),
++    now: () => NOW * 1000 });
++  assert.deepEqual(two.describe(), { source: "derived", tier: STATE_TIER, claimTier: CLAIM_TIER, witnessApi: null });
++  await refuses(two.writerAuthority(ID), "stale_finalized");                     // the reader config's 600 s bounds B_f (900 s old)
++  // the same world without the runtime's stateSnapshot, plus any env knob: the legacy single finalized anchor, which stays refused
++  const legacy = world({ sNumber: BF });                                        // its logs answer at the single anchor (BF, hash HS)
++  const one = await derivedWriterAuthorityFromEnv({ ...base, ENCLAVE_DERIVED_PROVISIONAL: "1", ENCLAVE_WRITER_AUTHORITY_TIER: "l1-attested-derived" },
++    { relayChain: { client: legacy.fresh }, readFile: async () => JSON.stringify({ maxAnchorAgeSec: 1800, provisional: { format: "enclave-derived-provisional/v1" } }),
++      loadRuntime: async () => start({ reader: { readDerivedLogs: legacy.capability.readDerivedLogs }, snapshot: async (read) => {
++        const value = await read({ getBlock: async () => ({ number: BigInt(BF), hash: HS, timestamp: BigInt(NOW - 780) }),
++          readContract: async ({ functionName }) => functionName === "addr" ? LEDGER : functionName === "deploymentsSchema" ? 16n : row() }, BigInt(BF), {});
++        return { blockNumber: BigInt(BF), blockHash: HS, value }; } }), now: () => NOW * 1000 });
++  assert.equal(one.describe().tier, "l1-finalized-derived");
++  await refuses(one.writerAuthority(ID), "stale_snapshot");                      // a 13-min finalized anchor: still refused
++});
+diff --git a/test/paid-derived-packaging.test.mjs b/test/paid-derived-packaging.test.mjs
+index e1a76e2..357dcd3 100644
+--- a/test/paid-derived-packaging.test.mjs
++++ b/test/paid-derived-packaging.test.mjs
+@@ -85,7 +85,7 @@ test('packaged release WITH the derived files: --check-config loads the runtime
+   assert.equal(r.code, 0, r.out); assert.equal(last(r).paidFinality, 'derived'); assert.equal(last(r).derivedRuntime, path.join(rel, 'derived-runtime.mjs'));
+   r = await run([path.join(current, 'wg-provider.mjs'), '--check-config', QUORUM]); assert.equal(r.code, 0, r.out);
+   fs.appendFileSync(path.join(rel, 'schedule_reader.mjs'), '\n// altered\n');
+-  r = await run([path.join(current, 'wg-provider.mjs'), '--check-config', DERIVED]); assert.notEqual(r.code, 0); assert.match(r.out, /reader_pin: .*is not the frozen reader 688b7a1f09c8/);
++  r = await run([path.join(current, 'wg-provider.mjs'), '--check-config', DERIVED]); assert.notEqual(r.code, 0); assert.match(r.out, /reader_pin: .*is not the frozen reader 694f1297286f/);
+   fs.rmSync(path.join(rel, 'schedule_reader.mjs'));
+   r = await run([path.join(current, 'wg-provider.mjs'), '--check-config', DERIVED]); assert.notEqual(r.code, 0); assert.match(r.out, /did not load \(ENOENT/);
+   r = await run([path.join(current, 'wg-provider.mjs'), '--check-config', QUORUM]); assert.equal(r.code, 0, 'a quorum provider never needs the derived files');

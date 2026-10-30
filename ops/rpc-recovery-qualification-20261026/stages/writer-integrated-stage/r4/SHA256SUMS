@@ -1,0 +1,16 @@
+5286aa83548a40737390f6e404e59de4e54090e4fefbd15bfda48addad872e50  ./PROVENANCE.md
+3a2116b1629b85ea568870aff0a9a5fe5d008ef89a777b05d631ccb501f1b67c  ./inputs/claude-history-r5-retained-budget-1609.md
+3fa67ab1a94008243e1a564c3e6f03bba9bd1887e66af02b1d94bcb90b02c9ab  ./inputs/integrated-r3-known-failure-stop-1613.json
+c061d39e88f6b56898e6e73185c091ade2471c53293ec90fa5e20b11928f1a11  ./jobs/root-writer-integrated-r4.sh
+a826237d620cfae2b9b30f33fedea876aa62994bcbe32e808a6c188370bc38a0  ./patches/INFO-integrated-r4-vs-r3-delta.patch
+287b85414e9414d4bd8b4038ae6c1a46d3a8d77e6d895c4145493d911e813f61  ./patches/writer-integrated-r4-vs-cold-recovery-r4-plus-driver-r1.patch
+c02d60d62267e0da3831a8bd4c7d208325f8c07a2575577c2a2a7de027c98569  ./release.git/HEAD
+20fec44a2b60cb7ca43c9111a95ccc8e9d8bb89aaa57995cb58d2864f9926f4a  ./release.git/config
+85ab6c163d43a17ea9cf7788308bca1466f1b0a8d1cc92e26e9bf63da4062aee  ./release.git/description
+6671fe83b7a07c8932ee89164d1f2793b2318058eb8b98dc5c06ee0a5a3b0ec1  ./release.git/info/exclude
+f3d8ab4c0717b5be3e87f34e8eeaf8e9a9f7aa1b7a777947be27f03b73d6d5a9  ./release.git/objects/pack/pack-eac921ad6063ed3a234a3f2a474ef5c4ab38a0fb.idx
+79742e7c5400075bf5d235214db6ee33ce7c96038383df97bcd5b94aeabcd328  ./release.git/objects/pack/pack-eac921ad6063ed3a234a3f2a474ef5c4ab38a0fb.pack
+8edecfeedd3bb36f1e210ef733083798644206d231e57d870efd099421026858  ./release.git/objects/pack/pack-eac921ad6063ed3a234a3f2a474ef5c4ab38a0fb.rev
+b3ce45c8f45cf2422ea670c2d7fa1e42c39e9efe36d84535c16e3cb4f29cac9d  ./release.git/packed-refs
+ede64d4f2ef74a839920d819369a33353005c8f96bfe2fa77c289ff01e276b4d  ./release.git/refs/tags/base-r4d
+dcc0cb1ee526f8f0d408dd80cb05288f5ebd4fe44dd1a0dbd5a57642dd0ff43c  ./release.git/refs/tags/int-r2-on-r4

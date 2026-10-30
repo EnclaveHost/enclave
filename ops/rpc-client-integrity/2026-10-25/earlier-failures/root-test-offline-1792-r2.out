@@ -1,0 +1,66 @@
+[queue] START available=20433MiB required=18432MiB cap=1792MiB floor=16384MiB concurrentSmall=0MiB
+## patched providers
+    Finished `test` profile [unoptimized] target(s) in 1.07s
+     Running unittests src/lib.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/target/debug/deps/base_consensus_providers-36019c953d96440f)
+
+running 14 tests
+test chain_provider::tests::forged_header_cannot_vouch_for_forged_receipts ... ok
+test chain_provider::tests::altered_log_is_refused ... ok
+test chain_provider::tests::omitted_receipt_is_refused_and_not_cached ... ok
+test chain_provider::tests::test_from_alloy_chain_provider_error ... ok
+test chain_provider::tests::reordered_receipts_are_refused ... ok
+test chain_provider::tests::trusted_rpc_keeps_upstream_behaviour ... ok
+test chain_provider::tests::transactions_must_match_the_verified_transactions_root ... ok
+test chain_provider::tests::verified_receipts_are_returned_and_cached ... ok
+test l2_chain_provider::tests::test_block_by_number_exhausts_null_retry_budget ... ok
+test l2_chain_provider::tests::test_block_by_number_retries_nulls_then_succeeds ... ok
+test l2_chain_provider::tests::test_from_alloy_l2_chain_provider_error ... ok
+test l2_chain_provider::tests::test_block_by_number_transport_error_does_not_retry ... ok
+test l2_chain_provider::tests::test_l2_block_info_by_number_bypasses_number_cache ... ok
+test l2_chain_provider::tests::test_l2_chain_provider_callers_preserve_transport_errors ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.23s
+
+## rc=0
+## patched cli l1
+   Compiling base-consensus-cli v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/cli)
+    Finished `test` profile [unoptimized] target(s) in 5.36s
+     Running unittests src/lib.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/target/debug/deps/base_consensus_cli-a95f9bd3507f7b48)
+
+running 5 tests
+test l1::tests::defaults_l1_rpc_timeout_to_fifteen_seconds ... ok
+test l1::tests::finalized_poll_interval_defaults_to_none ... ok
+test l1::tests::l1_rpc_is_verified_unless_explicitly_trusted ... ok
+test l1::tests::parses_finalized_poll_interval_in_milliseconds ... ok
+test l1::tests::parses_l1_rpc_timeout_in_milliseconds ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 134 filtered out; finished in 0.00s
+
+## rc=0
+## CONTROL providers (verification disabled; failures expected)
+    Finished `test` profile [unoptimized] target(s) in 0.58s
+     Running unittests src/lib.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/target/debug/deps/base_consensus_providers-36019c953d96440f)
+
+running 14 tests
+test chain_provider::tests::forged_header_cannot_vouch_for_forged_receipts ... ok
+test chain_provider::tests::altered_log_is_refused ... ok
+test chain_provider::tests::omitted_receipt_is_refused_and_not_cached ... ok
+test chain_provider::tests::test_from_alloy_chain_provider_error ... ok
+test chain_provider::tests::reordered_receipts_are_refused ... ok
+test chain_provider::tests::trusted_rpc_keeps_upstream_behaviour ... ok
+test chain_provider::tests::transactions_must_match_the_verified_transactions_root ... ok
+test chain_provider::tests::verified_receipts_are_returned_and_cached ... ok
+test l2_chain_provider::tests::test_block_by_number_exhausts_null_retry_budget ... ok
+test l2_chain_provider::tests::test_block_by_number_retries_nulls_then_succeeds ... ok
+test l2_chain_provider::tests::test_from_alloy_l2_chain_provider_error ... ok
+test l2_chain_provider::tests::test_block_by_number_transport_error_does_not_retry ... ok
+test l2_chain_provider::tests::test_l2_block_info_by_number_bypasses_number_cache ... ok
+test l2_chain_provider::tests::test_l2_chain_provider_callers_preserve_transport_errors ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.22s
+## control rc=0 failing: 
+## CONTROL DID NOT FAIL AS EXPECTED
+## aggregate rc=1
+[memory-guard] exit=1 peakTreeRssMiB=1528 minHostAvailableMiB=19597
+[memory-guard] at peak: rust-lld:956 rustc:314 cargo:249 bash:4 cc:3 collect2:3
+[queue] EXIT 1

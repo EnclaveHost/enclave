@@ -1,0 +1,22 @@
+{
+  "qualified": false,
+  "reason": "successor runtime exceeds EIP170 by 183 bytes; tests do not enforce deployed-contract code-size",
+  "sizes": {
+    "FundingSessionVault": {
+      "runtimeBytes": 24759,
+      "creationBytes": 25456
+    },
+    "FundingSessionVaultFactory": {
+      "runtimeBytes": 2132,
+      "creationBytes": 27958
+    },
+    "FundingSessionVaultLib": {
+      "runtimeBytes": 10727,
+      "creationBytes": 10759
+    },
+    "FundingGasLib": {
+      "runtimeBytes": 7593,
+      "creationBytes": 7625
+    }
+  }
+}

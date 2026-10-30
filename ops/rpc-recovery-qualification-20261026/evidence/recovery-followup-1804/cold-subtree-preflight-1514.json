@@ -1,0 +1,93 @@
+{
+  "trees": {
+    "hf-convert": {
+      "matchesPriorMetadata": true,
+      "entries": 28,
+      "bytes": 158749500752,
+      "allocatedBytes": 158749671424,
+      "owners": [
+        1000
+      ],
+      "types": [
+        "d",
+        "f"
+      ]
+    },
+    "gvs5h": {
+      "matchesPriorMetadata": true,
+      "entries": 8,
+      "bytes": 125195719424,
+      "allocatedBytes": 125195780096,
+      "owners": [
+        1000
+      ],
+      "types": [
+        "d",
+        "f"
+      ]
+    },
+    "gguf-e2b": {
+      "matchesPriorMetadata": true,
+      "entries": 99,
+      "bytes": 43957352504,
+      "allocatedBytes": 43957686272,
+      "owners": [
+        1000
+      ],
+      "types": [
+        "d",
+        "f"
+      ]
+    }
+  },
+  "sameUidProcesses": 285,
+  "sameUidHits": [],
+  "sameUidUnreadable": [
+    1899,
+    1905,
+    5575,
+    168047,
+    2004673,
+    2005007,
+    2071318,
+    2071854,
+    2072206,
+    2072697,
+    2142125,
+    2147612,
+    2161000,
+    2164430,
+    2166557,
+    2166935,
+    2552896,
+    3516484,
+    3516651,
+    3517608,
+    3517685,
+    3520227,
+    3528300,
+    3528579,
+    3528731,
+    3556163,
+    3556469,
+    3557217,
+    3558537,
+    3558723,
+    3559434,
+    3560408,
+    3561237,
+    3604365,
+    3620016,
+    3620245,
+    3620521,
+    3620720,
+    3621121,
+    3621419,
+    4007171
+  ],
+  "scanComplete": false,
+  "reason": "limited to same uid; does not replace privileged writer-check",
+  "rootAvailable": 826278383616,
+  "vmAvailable": 79900258304,
+  "destinationExists": false
+}

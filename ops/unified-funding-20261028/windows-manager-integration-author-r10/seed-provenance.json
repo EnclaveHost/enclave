@@ -1,0 +1,12 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r9/candidate",
+  "sourceManifest": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r9/source-pins.json",
+  "sourceManifestSha256": "b10e05965ff4c9f3494427409679b773df4b4242849f678c7069e190b480f885",
+  "seedFiles": 219,
+  "seedManifestSha256": "ebf5b6a6fe485ab88fe5b92367d96ddfc9a7f5983ade967a367542bd399477f9",
+  "preAuthorProductEdits": [],
+  "rootProductChangesSinceAuthorR9": [],
+  "noCandidateCodeExecuted": true,
+  "externalFixtureCorrections": "Prior root r4/r5/r6 fixtures plus explicit TEST preactivated handoff and complete r7 entry.promise correction preserved readonly. Exact candidate fixtures untouched during preparation.",
+  "hostRegression": "Initial invalid one-digit port1 fixture retained. Corrected port41 run exercises actual Host and produces1PASS3FAIL; original was setup failure, not host-path proof."
+}

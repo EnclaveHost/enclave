@@ -1,0 +1,24 @@
+{
+ "checks": {},
+ "cleanupComplete": true,
+ "format": "composite-mdbx-validation-receipt/r2",
+ "interrupted": null,
+ "kind": "fixture",
+ "notClaimed": [
+  "chain verification",
+  "reth table semantics",
+  "state / trie / canonical-root validation",
+  "static_files segments",
+  "value bytes inside structurally valid pages (MDBX has no per-page checksums)",
+  "RPC readiness",
+  "SNP readiness",
+  "recovery acceptance"
+ ],
+ "outcome": "REFUSED",
+ "rc": 3,
+ "reasons": [
+  "Refused: run dir already used (holds ['mdbx-report.json']): one session per NEW run dir"
+ ],
+ "refused": "Refused: run dir already used (holds ['mdbx-report.json']): one session per NEW run dir",
+ "steps": []
+}

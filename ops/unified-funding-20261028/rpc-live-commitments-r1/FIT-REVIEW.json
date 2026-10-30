@@ -1,0 +1,8 @@
+{
+  "availableMiB": 33675,
+  "minimumSnapshotRequirementMiB": 33904,
+  "snapshotDeficitBeforeHelpersMiB": 229,
+  "futureBudgetEnvelopeRequirementMiB": 67159,
+  "maintenanceBootAdmitted": false,
+  "reason": "Even instantaneous10GiBcap exceeds live headroom; full future-budget envelope cannotfit; no atomic external reservation."
+}

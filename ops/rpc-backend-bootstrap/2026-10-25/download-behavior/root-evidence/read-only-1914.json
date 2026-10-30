@@ -1,0 +1,114 @@
+{
+ "connections": {
+  "aggregateRxBps": 11523963,
+  "concurrencyFlag": 16,
+  "established": 1,
+  "perConnMaxBps": 11523963,
+  "perConnMeanBps": 11523963,
+  "perConnMinBps": 11523963,
+  "persistedBothSamples": 1
+ },
+ "connectionsDetail": [
+  {
+   "cwnd": "10",
+   "delivery_rate": null,
+   "peer": "172.64.147.103:443",
+   "rateBps": 11523963,
+   "rtt": "0.079/0.014"
+  }
+ ],
+ "diskBusyFraction": 0.053,
+ "hints": [
+  "fewer active connections (1) than --download-concurrency (16): not request-limited"
+ ],
+ "linkRxBps": 16641099,
+ "parts": {
+  "headers-32000000-32499999.tar.zst.part": {
+   "allocated": 176381952,
+   "allocatedDeltaBps": 0,
+   "apparent": 209929648
+  },
+  "headers-34000000-34499999.tar.zst.part": {
+   "allocated": 134221824,
+   "allocatedDeltaBps": 0,
+   "apparent": 208880775
+  },
+  "headers-37500000-37999999.tar.zst.part": {
+   "allocated": 174759936,
+   "allocatedDeltaBps": 0,
+   "apparent": 208310171
+  },
+  "headers-38000000-38499999.tar.zst.part": {
+   "allocated": 170958848,
+   "allocatedDeltaBps": 0,
+   "apparent": 204506975
+  },
+  "headers-39000000-39499999.tar.zst.part": {
+   "allocated": 167776256,
+   "allocatedDeltaBps": 0,
+   "apparent": 206061329
+  },
+  "headers-4000000-4499999.tar.zst.part": {
+   "allocated": 121212928,
+   "allocatedDeltaBps": 0,
+   "apparent": 154762317
+  },
+  "headers-40000000-40499999.tar.zst.part": {
+   "allocated": 174678016,
+   "allocatedDeltaBps": 0,
+   "apparent": 208225711
+  },
+  "headers-41000000-41499999.tar.zst.part": {
+   "allocated": 141574144,
+   "allocatedDeltaBps": 0,
+   "apparent": 208681944
+  },
+  "headers-41500000-41999999.tar.zst.part": {
+   "allocated": 0,
+   "allocatedDeltaBps": 0,
+   "apparent": 209025369
+  },
+  "headers-42000000-42499999.tar.zst.part": {
+   "allocated": 100663296,
+   "allocatedDeltaBps": 0,
+   "apparent": 209105415
+  },
+  "headers-42500000-42999999.tar.zst.part": {
+   "allocated": 33554432,
+   "allocatedDeltaBps": 0,
+   "apparent": 209102819
+  },
+  "headers-43000000-43499999.tar.zst.part": {
+   "allocated": 100663296,
+   "allocatedDeltaBps": 0,
+   "apparent": 207834143
+  },
+  "headers-43500000-43999999.tar.zst.part": {
+   "allocated": 33554432,
+   "allocatedDeltaBps": 0,
+   "apparent": 210127638
+  },
+  "headers-44000000-44499999.tar.zst.part": {
+   "allocated": 0,
+   "allocatedDeltaBps": 0,
+   "apparent": 210130553
+  },
+  "headers-44500000-44999999.tar.zst.part": {
+   "allocated": 43483136,
+   "allocatedDeltaBps": 0,
+   "apparent": 211251604
+  },
+  "state.tar.zst.part": {
+   "allocated": 36951023616,
+   "allocatedDeltaBps": 11498506,
+   "apparent": 761228785915
+  }
+ },
+ "pieceSecondsAtMeanRate": 5.8,
+ "pieceTimeoutMargin": 20.61,
+ "processIo": {
+  "rcharBps": 0,
+  "wcharBps": 11499497
+ },
+ "seconds": 30.0
+}

@@ -1,0 +1,11 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/install/MANIFEST.json	2026-10-25 23:52:33.278622046 -0700
++++ install/MANIFEST.json	2026-10-26 00:06:55.957245387 -0700
+@@ -179,7 +179,7 @@
+    "src": "src/reproof.py",
+    "dest": "/opt/enclave-rpc/finality/src/reproof.py",
+    "mode": "0755",
+-   "sha256": "360f7234945c597d88c14441eaf86b593f89fb73b5d62dbbe9b9dac522a6c7bd"
++   "sha256": "984ef7ca37db9445c010871f7e3851f5947e054a9dcf25251cd2be24ba30763e"
+   },
+   {
+    "src": "units/enclave-base-finality-reproof.service",

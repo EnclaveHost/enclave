@@ -1,0 +1,149 @@
+{
+  "at": "2026-10-30T09:01:13.220610+00:00",
+  "memory": {
+    "MemTotalMiB": 127807,
+    "MemFreeMiB": 5307,
+    "MemAvailableMiB": 33453,
+    "BuffersMiB": 8002,
+    "CachedMiB": 91649,
+    "UnevictableMiB": 65953,
+    "MlockedMiB": 0,
+    "SwapTotalMiB": 4095,
+    "SwapFreeMiB": 0,
+    "AnonPagesMiB": 11729,
+    "ShmemMiB": 9956,
+    "SReclaimableMiB": 5615,
+    "SUnreclaimMiB": 1400
+  },
+  "largestProcesses": [
+    {
+      "pid": 2291143,
+      "startTicks": "163992354",
+      "name": "ChatGPT",
+      "uid": 1000,
+      "rssMiB": 796
+    },
+    {
+      "pid": 1384622,
+      "startTicks": "157862186",
+      "name": "qemu-system-x86",
+      "uid": 1000,
+      "rssMiB": 672
+    },
+    {
+      "pid": 2291196,
+      "startTicks": "163992371",
+      "name": "codex",
+      "uid": 1000,
+      "rssMiB": 670
+    },
+    {
+      "pid": 282141,
+      "startTicks": "149150771",
+      "name": "chromium",
+      "uid": 1000,
+      "rssMiB": 571
+    },
+    {
+      "pid": 4008527,
+      "startTicks": "146577828",
+      "name": "claude-desktop",
+      "uid": 1000,
+      "rssMiB": 565
+    },
+    {
+      "pid": 2353311,
+      "startTicks": "164396273",
+      "name": "chromium",
+      "uid": 1000,
+      "rssMiB": 512
+    },
+    {
+      "pid": 2293722,
+      "startTicks": "163994187",
+      "name": "ChatGPT",
+      "uid": 1000,
+      "rssMiB": 490
+    },
+    {
+      "pid": 3918027,
+      "startTicks": "146119056",
+      "name": "node",
+      "uid": 1000,
+      "rssMiB": 488
+    },
+    {
+      "pid": 2290848,
+      "startTicks": "163992103",
+      "name": "ChatGPT",
+      "uid": 1000,
+      "rssMiB": 472
+    },
+    {
+      "pid": 2369523,
+      "startTicks": "164534137",
+      "name": "chromium",
+      "uid": 1000,
+      "rssMiB": 443
+    },
+    {
+      "pid": 310786,
+      "startTicks": "149326544",
+      "name": "chromium",
+      "uid": 1000,
+      "rssMiB": 423
+    },
+    {
+      "pid": 282564,
+      "startTicks": "149150974",
+      "name": "chromium",
+      "uid": 1000,
+      "rssMiB": 417
+    },
+    {
+      "pid": 282017,
+      "startTicks": "149150739",
+      "name": "chromium",
+      "uid": 1000,
+      "rssMiB": 408
+    },
+    {
+      "pid": 2369548,
+      "startTicks": "164534353",
+      "name": "chromium",
+      "uid": 1000,
+      "rssMiB": 349
+    },
+    {
+      "pid": 2293332,
+      "startTicks": "163994095",
+      "name": "ChatGPT",
+      "uid": 1000,
+      "rssMiB": 341
+    },
+    {
+      "pid": 3967858,
+      "startTicks": "146386551",
+      "name": "qemu-system-x86",
+      "uid": 1000,
+      "rssMiB": 337
+    },
+    {
+      "pid": 282049,
+      "startTicks": "149150752",
+      "name": "chromium",
+      "uid": 1000,
+      "rssMiB": 330
+    },
+    {
+      "pid": 282603,
+      "startTicks": "149150982",
+      "name": "chromium",
+      "uid": 1000,
+      "rssMiB": 330
+    }
+  ],
+  "processesObserved": 822,
+  "unread": 0,
+  "limits": "RSS overlaps shared pages; do not sum as unique consumption. Process names/RSS only, no arguments/environment. Observation is not authority to terminate or reconfigure processes."
+}

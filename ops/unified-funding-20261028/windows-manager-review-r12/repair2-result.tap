@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: r12 REAL CONSUMER: Host -> owned factory/dispatch -> runtime/client -> router/manager: queued -> Running -> TCP -> off-chain refresh -> Stop
+ok 1 - r12 REAL CONSUMER: Host -> owned factory/dispatch -> runtime/client -> router/manager: queued -> Running -> TCP -> off-chain refresh -> Stop
+  ---
+  duration_ms: 950.610295
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1546.168356

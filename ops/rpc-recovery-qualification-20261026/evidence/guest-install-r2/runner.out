@@ -1,0 +1,19 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] START available=30705MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+
+----------------------------------------------------------------------
+Ran 16 tests in 9.767s
+
+OK
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-install-stage/r2/runs/20261026T164919Z-2053984
+## gsi-r2 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=64 minHostAvailableMiB=30509
+[memory-guard] at peak: python3:26 python3:22 b3sum.qualified:10 bash:4 timeout:2
+[queue] EXIT 0

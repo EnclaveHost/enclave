@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-28T22:16:18.793Z",
+  "readOnly": true,
+  "signed": false,
+  "broadcast": false,
+  "grantApproved": false,
+  "providers": [
+    "https://mainnet.base.org",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "sourceReserveBlock": "53218133",
+  "block": "53218215",
+  "blockHash": "0x2ac7628004687f9844e45b52a6ef83e3fb3987c5731c4c993c9331644b9a7c8d",
+  "error": "rpc: mainnet.base.org eth_call: HTTP 429"
+}

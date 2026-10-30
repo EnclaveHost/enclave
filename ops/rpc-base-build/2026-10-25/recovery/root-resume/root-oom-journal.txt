@@ -1,0 +1,3 @@
+Oct 25 12:57:03 warden-host systemd[1899]: run-p3891230-i37474689.scope: The kernel OOM killer killed some processes in this unit.
+Oct 25 12:57:03 warden-host systemd[1899]: run-p3891230-i37474689.scope: Failed with result 'oom-kill'.
+Oct 25 12:57:03 warden-host systemd[1899]: run-p3891230-i37474689.scope: Consumed 32min 54.093s CPU time over 34min 31.322s wall clock time, 1.7G memory peak.

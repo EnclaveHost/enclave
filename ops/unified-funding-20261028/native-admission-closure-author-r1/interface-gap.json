@@ -1,0 +1,67 @@
+{
+  "status": "CORRECTED_SOURCE_REVIEW_NOT_ADMISSION",
+  "sourcePins": "source-pins.json",
+  "queuedIsNotAdmitted": true,
+  "sourceFacts": [
+    {
+      "file": "evidence/installed-router-v13/control.mjs",
+      "lines": [
+        91,
+        188,
+        206,
+        218,
+        222,
+        226,
+        234
+      ],
+      "fact": "serial waiting closures have not passed snapshot/capacity/headroom admission. Only serial head writes durable journal.begin before forwarded POST. Successful response waits for actual response and same-epoch reservation observation. Queue length alone is not missing committed P."
+    },
+    {
+      "file": "evidence/installed-router-v13/io.mjs",
+      "lines": [
+        42,
+        43
+      ],
+      "fact": "HTTP handler awaits manager.handle before response; no early accepted-resource acknowledgement for waiting closures."
+    },
+    {
+      "file": "evidence/installed-router-v13/control.mjs",
+      "lines": [
+        239,
+        247
+      ],
+      "fact": "Pending record clears only after correlated same-epoch backend reservation with exact role/id/name/resources/identity. Failure/time/HTTP status alone leaves pending."
+    },
+    {
+      "file": "evidence/r4-manager/server.mjs",
+      "lines": [
+        440,
+        488,
+        515,
+        538,
+        540,
+        860
+      ],
+      "fact": "Component fetch precedes admission; no await between final local capacity checks and domains.set(starting reservation). Reservation precedes awaited backend.start. HTTP201 waits for spawn completion. Per-process concurrent fetches cannot interleave inside the synchronous reservation segment."
+    },
+    {
+      "file": "evidence/r4-manager/wmi-launcher.mjs",
+      "lines": [
+        1047,
+        1084,
+        1100,
+        414
+      ],
+      "fact": "Backend performs awaited preflight/image checks before actual New-CustomVM in defineType1; starting reservation covers that interval. Need current installed source/pins to apply reasoning to actual managers."
+    }
+  ],
+  "actualGap": "Fresh router/manager inventory is not one atomic snapshot or allocation lease. Different manager processes and direct callers can admit after it. Router17GiB sampled check does not prove current>=18GiB floor at actual allocation. Arbitrary other host work and early test/observer setup are not covered by domain rows. No global drain follows from queued requests.",
+  "PAccounting": "At a qualified common observation/admission boundary, count actual manager starting/uncertain held reservations in full and router durable pending head, conservatively double-count until exact epoch/id correlation permits deduplication. Waiting pre-admission requests are not committed P, but their possible later admission is an overlap to bound for the test interval. Running allocations already reflected in F should not be guessed-subtracted twice. Total P remains null without actual complete coverage.",
+  "currentP": null,
+  "smallestInterfaceIfNeeded": "A local owner test-capacity reservation/hold at the actual shared allocation boundary (or compatible per-manager admission boundaries including direct paths), with exact incarnation/sequence, held outstanding physical/commit upper bounds and finite test lifetime. New admissions must honor that reserved test budget; serving VMs/readers continue. A fresh read-only reservation-status view can report existing bounds, but queue metrics alone neither required nor sufficient. Do not introduce new production coordination until actual installed paths and existing mechanisms are verified.",
+  "nativeMechanismGap": "Pinned old launcher has17408 cutoff and self-assignment/watchdog after entry. No independently constrained pre-entry creator and bounded external death observer demonstrated. Author contract must refuse BootstrapUnqualified rather than fake a self-watchdog proof.",
+  "floorMiB": 18432,
+  "oldCutoffMiB": 17408,
+  "noCentralAuthority": true,
+  "noLaunch": true
+}

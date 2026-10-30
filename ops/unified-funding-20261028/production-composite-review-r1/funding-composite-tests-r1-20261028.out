@@ -1,0 +1,94 @@
+[queue] START available=88852MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: pyCanonical reproduces Python json.dumps(sort_keys, compact, ensure_ascii)
+ok 1 - pyCanonical reproduces Python json.dumps(sort_keys, compact, ensure_ascii)
+  ---
+  duration_ms: 0.878265
+  type: 'test'
+  ...
+# Subtest: the real captured inventory hashes to its stated canonical sha256
+ok 2 - the real captured inventory hashes to its stated canonical sha256
+  ---
+  duration_ms: 1.68355
+  type: 'test'
+  ...
+# Subtest: builds base + exactly five additions, preserving every old file and round-tripping the CAR
+ok 3 - builds base + exactly five additions, preserving every old file and round-tripping the CAR
+  ---
+  duration_ms: 39.054183
+  type: 'test'
+  ...
+# Subtest: a tampered CAR fails readCar
+ok 4 - a tampered CAR fails readCar
+  ---
+  duration_ms: 13.336369
+  type: 'test'
+  ...
+# Subtest: every option is required and unknown options are refused
+ok 5 - every option is required and unknown options are refused
+  ---
+  duration_ms: 3.507958
+  type: 'test'
+  ...
+# Subtest: out must be new and outside the inputs
+ok 6 - out must be new and outside the inputs
+  ---
+  duration_ms: 3.999856
+  type: 'test'
+  ...
+# Subtest: symlinks are refused in the base, the addon, and on input ancestors
+ok 7 - symlinks are refused in the base, the addon, and on input ancestors
+  ---
+  duration_ms: 12.116846
+  type: 'test'
+  ...
+# Subtest: hard-linked base files are refused
+ok 8 - hard-linked base files are refused
+  ---
+  duration_ms: 3.592248
+  type: 'test'
+  ...
+# Subtest: a tampered, unlisted or missing base entry is refused
+ok 9 - a tampered, unlisted or missing base entry is refused
+  ---
+  duration_ms: 14.352583
+  type: 'test'
+  ...
+# Subtest: stale or mismatched index identity is refused
+ok 10 - stale or mismatched index identity is refused
+  ---
+  duration_ms: 10.333807
+  type: 'test'
+  ...
+# Subtest: addon collisions are refused (exact, case-only, file-as-directory)
+ok 11 - addon collisions are refused (exact, case-only, file-as-directory)
+  ---
+  duration_ms: 14.643271
+  type: 'test'
+  ...
+# Subtest: addon tamper, closure and pin mismatches are refused
+ok 12 - addon tamper, closure and pin mismatches are refused
+  ---
+  duration_ms: 31.559898
+  type: 'test'
+  ...
+# Subtest: a failure after writing leaves out in place, marked NOT-QUALIFIED, without provenance
+ok 13 - a failure after writing leaves out in place, marked NOT-QUALIFIED, without provenance
+  ---
+  duration_ms: 129.448423
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 343.54045
+[memory-guard] exit=0 peakTreeRssMiB=137 minHostAvailableMiB=88765
+[memory-guard] at peak: node:76 node:61
+[memory-guard] exit=0 peakTreeRssMiB=185 minHostAvailableMiB=88770
+[memory-guard] at peak: node:74 node:61 node:50
+[queue] EXIT 0

@@ -1,0 +1,143 @@
+{
+  "at": "2026-10-28T16:05:09.874Z",
+  "readOnly": true,
+  "signable": false,
+  "nonceReserved": false,
+  "production": false,
+  "providers": [
+    "https://base-rpc.publicnode.com",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "block": "53207080",
+  "blockHash": "0x0b8d2864174fa67686b17d36c95c4659b21911adfe1a1fd604f52148441beb68",
+  "results": [
+    {
+      "nonce": "1175",
+      "pending": "1175",
+      "balance": "973231353551517",
+      "rows": [
+        {
+          "name": "FundingSessionVaultLib",
+          "gas": "2974920",
+          "maxFeePerGas": "20000000",
+          "maxPriorityFeePerGas": "2000000",
+          "signedSizeBound": 10834,
+          "l1Argument": 11046,
+          "l2CapWei": "59498400000000",
+          "l1ObservedUpperWei": "156567700488",
+          "operatorObservedWei": "0",
+          "totalObservedBoundWei": "59654967700488"
+        },
+        {
+          "name": "FundingGasLib",
+          "gas": "2188536",
+          "maxFeePerGas": "20000000",
+          "maxPriorityFeePerGas": "2000000",
+          "signedSizeBound": 7925,
+          "l1Argument": 8058,
+          "l2CapWei": "43770720000000",
+          "l1ObservedUpperWei": "114336153142",
+          "operatorObservedWei": "0",
+          "totalObservedBoundWei": "43885056153142"
+        },
+        {
+          "name": "LeaseGasDexAdapter",
+          "gas": "2229030",
+          "maxFeePerGas": "20000000",
+          "maxPriorityFeePerGas": "2000000",
+          "signedSizeBound": 9561,
+          "l1Argument": 9738,
+          "l2CapWei": "44580600000000",
+          "l1ObservedUpperWei": "138084359933",
+          "operatorObservedWei": "0",
+          "totalObservedBoundWei": "44718684359933"
+        },
+        {
+          "name": "FundingSessionVaultFactory",
+          "gas": "7403815",
+          "maxFeePerGas": "20000000",
+          "maxPriorityFeePerGas": "2000000",
+          "signedSizeBound": 28041,
+          "l1Argument": 28722,
+          "l2CapWei": "148076300000000",
+          "l1ObservedUpperWei": "406367303036",
+          "operatorObservedWei": "0",
+          "totalObservedBoundWei": "148482667303036"
+        }
+      ],
+      "totalObservedBoundWei": "296741375516599",
+      "usd6AtObservedFeed": "691265",
+      "ownerBalanceCoversObservation": true,
+      "feed": {
+        "answer": "232952000000",
+        "decimals": 8,
+        "updatedAt": "1793202759"
+      }
+    },
+    {
+      "nonce": "1175",
+      "pending": "1175",
+      "balance": "973231353551517",
+      "rows": [
+        {
+          "name": "FundingSessionVaultLib",
+          "gas": "2974920",
+          "maxFeePerGas": "20000000",
+          "maxPriorityFeePerGas": "2000000",
+          "signedSizeBound": 10834,
+          "l1Argument": 11046,
+          "l2CapWei": "59498400000000",
+          "l1ObservedUpperWei": "156567700488",
+          "operatorObservedWei": "0",
+          "totalObservedBoundWei": "59654967700488"
+        },
+        {
+          "name": "FundingGasLib",
+          "gas": "2188536",
+          "maxFeePerGas": "20000000",
+          "maxPriorityFeePerGas": "2000000",
+          "signedSizeBound": 7925,
+          "l1Argument": 8058,
+          "l2CapWei": "43770720000000",
+          "l1ObservedUpperWei": "114336153142",
+          "operatorObservedWei": "0",
+          "totalObservedBoundWei": "43885056153142"
+        },
+        {
+          "name": "LeaseGasDexAdapter",
+          "gas": "2229030",
+          "maxFeePerGas": "20000000",
+          "maxPriorityFeePerGas": "2000000",
+          "signedSizeBound": 9561,
+          "l1Argument": 9738,
+          "l2CapWei": "44580600000000",
+          "l1ObservedUpperWei": "138084359933",
+          "operatorObservedWei": "0",
+          "totalObservedBoundWei": "44718684359933"
+        },
+        {
+          "name": "FundingSessionVaultFactory",
+          "gas": "7403815",
+          "maxFeePerGas": "20000000",
+          "maxPriorityFeePerGas": "2000000",
+          "signedSizeBound": 28041,
+          "l1Argument": 28722,
+          "l2CapWei": "148076300000000",
+          "l1ObservedUpperWei": "406367303036",
+          "operatorObservedWei": "0",
+          "totalObservedBoundWei": "148482667303036"
+        }
+      ],
+      "totalObservedBoundWei": "296741375516599",
+      "usd6AtObservedFeed": "691265",
+      "ownerBalanceCoversObservation": true,
+      "feed": {
+        "answer": "232952000000",
+        "decimals": 8,
+        "updatedAt": "1793202759"
+      }
+    }
+  ],
+  "agreed": true,
+  "limitations": "L2 gas limits/caps derived from successful fork. L1/operator/ETHUSD are pinned observations, not inclusion-time guarantees. Recheck immediately before each signature; owner nonce is not reserved. Test signature encodings are size fixtures only. No wallet funding request or session charge."
+}

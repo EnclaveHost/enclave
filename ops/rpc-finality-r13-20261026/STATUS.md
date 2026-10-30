@@ -1,0 +1,11 @@
+# RPC release candidate — incomplete production qualification
+
+The v5 composer passed23 focused tests and composed the real qualified inputs into candidate f58b0b4f70cf830e3d5a9a2ec975a932143e79432d36660241b937701f73a347. It fixes a stale wrapper-equality assertion and receipt reuse, stable output paths and duplicated test output names. The operational handoff explicitly says productionReady:false. Platform administrator controls are preserved.
+
+Root full qualification attempt0923 verified composition, reader pins and bundle closure but was STOPPED by the memory guard at16200MiB host available (floor16384); peak own test tree115MiB. Exit99 is incomplete verification, not a test pass or product failure. Retry0926 is separately queued with2560MiB conservative reservation. Do not activate this candidate from these receipts.
+
+The prepared systemd canary passed10 offline tests; actual guest behavior has NOT been tested. FINAL-PINS.json remains null and refuses execution. It uses private transient units and paths, tests privilege drop/lock permissions/RuntimeDirectory/order, and preserves production PIDs. Real holder startup, datadir, node operation, reboot ordering and IPAddressDeny enforcement remain outside this canary's claims.
+
+The consumer-interface directory is PREPARED, UNTESTED and NOT integrated. Its accompanying audit records real security defects (forgeable anchor objects, missing requested proof slots, future signed-head acceptance). Never install it as authority. ASR anchors can be days old. Near-current authority requires verified derivation/execution inside the accepted consumer/SNP domain with an in-domain L1 light client, validated preimages and config/schedule binding; that implementation is separate ongoing work. The source proposal's named vendor-inspect path is an investigation lead, not independently proven source provenance.
+
+Still required: complete retained snapshots, authenticate bootstrap and historical blobs, synchronize safe/finalized chain, qualify this release, run actual original-game and sandbox canaries, integrate accepted-domain proof serving, verify mined lease/transaction receipts, and consumer cutover including public-RPC blackout and cold recovery. No production service, contract or downloader was changed by these steps.

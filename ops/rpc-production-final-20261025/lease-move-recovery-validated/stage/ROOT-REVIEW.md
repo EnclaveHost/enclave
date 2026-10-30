@@ -1,0 +1,1 @@
+Before first execution, root tightened TAP parser exit handling: any unrecognized nonzero parser exit fails the job. Product/test files unchanged; prior runner and manifest retained in prior-root-review. No live changes or finality claims.

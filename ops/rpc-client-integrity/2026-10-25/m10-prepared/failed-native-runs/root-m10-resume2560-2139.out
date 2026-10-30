@@ -1,0 +1,62 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: yielding to reserved small allocation
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: yielding to reserved small allocation
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: yielding to reserved small allocation
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: yielding to reserved small allocation
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: yielding to reserved small allocation
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: yielding to reserved small allocation
+[q.sh] try 7 not started; sleep 30
+[queue] START available=20612MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB
+== frozen input pins (root-input-pins.json ead48b1d)
+[ok] root-input-pins.json == ead48b1d
+    jobs/root-test-m10.sh 51ffbda2, jobs/selfcheck.sh f4d496d8, jobs/env.sh c627839b, jobs/artifact.py 06677dae, control/disable-anchor-checks.py 8c1b882f, m10-bootstrap-anchor.patch 0a10cf86, m10-bootstrap-anchor.patch.sha256 1391340a, inputs/base-l1-verify.patch e9dfb8c6
+[ok] every pinned frozen input unchanged
+[ok] root-test-m10.sh == 51ffbda2
+[ok] make-resume-body.py == 005e22d4
+[ok] resume-body.sh == 4064654e
+[ok] resume-body.sh == make-resume-body.py(root-test-m10.sh)
+[ok] from phase() onward resume-body.sh is byte-identical to the original job
+== failed attempt (kept, never rewritten)
+[ok] root-after4096-test-m10-1.rc == 99
+[ok] root-after4096-test-m10-1.out == 125ce2a1
+[ok] root-after4096-test-m10-1.guard == 02b66f4b
+[ok] attempt 1: cap 1792, guard stop 1818 > 1792, node phase not reached OK
+[ok] attempt 1: engine REBUILT b21d891a, 152 passed, engine OK
+[ok] engine.test.out == 1b3d5d6b
+[ok] node.build.err == 46c807e1
+[info] original engine test binary still present before re-run: b21d891ac2d82db5526ad6168a9c501ce0d090ab310cf30ad6676f77912ca214 (logged b21d891a)
+[ok] this attempt's logs are new (resume-1.rc absent)
+[ok] running under the 2560 MiB allocation (memory.max 2684354560)
+== resume body (root-test-m10.sh 51ffbda2 + counted step-0 substitutions)
+## toolchain rustc 1.96.0 (ac68faa20 2026-05-25) | cargo 1.96.0 (30a34c682 2026-05-25)
+## RESUME of the 4096-era attempt 1 (rc 99 in node build): CARGO_BUILD_JOBS=1 RUSTFLAGS='-C link-arg=-Wl,--threads=1'
+## RESUME: build/tree == regenerated 5476069f + M7 + M10
+## RESUME: build/control == regenerated control
+## RESUME: control differs by exactly the three disabled lines
+## RESUME: private cargo home crate archives == M7 cargo home
+## [1] engine lib (all tests: default paths unchanged + M10)
+## engine: REBUILT base_consensus_engine-22bbca68e14337e9 sha256 b21d891ac2d82db5526ad6168a9c501ce0d090ab310cf30ad6676f77912ca214
+test sync::anchor::tests::anchored_forkchoice_is_head_over_n_and_requires_n_canonical ... ok
+test sync::anchor::tests::parse_accepts_only_number_colon_hash ... ok
+test sync::anchor::tests::precondition_accepts_head_exactly_n_with_labels_at_or_below_n ... ok
+test sync::anchor::tests::precondition_propagates_execution_layer_errors ... ok
+test sync::anchor::tests::precondition_refuses_replayed_snapshot_labels_above_n ... ok
+test sync::anchor::tests::precondition_refuses_wrong_number_wrong_hash_and_rpc_claimed_hash ... ok
+test task_queue::core::tests::bootstrap_anchor::anchor_not_canonical_refuses_before_any_fcu ... ok
+test task_queue::core::tests::bootstrap_anchor::fcu_rpc_error_refuses_without_retry ... ok
+test task_queue::core::tests::bootstrap_anchor::valid_fcu_starts_from_head_over_anchor_with_safe_finalized_at_anchor ... ok
+test task_queue::core::tests::bootstrap_anchor::invalid_or_syncing_fcu_refuses_without_retry ... ok
+test result: ok. 152 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.11s
+## engine OK
+## [2] node lib (actors::engine:: incl. processor + validator anchor tests)
+
+[memory-guard] STOPPING own job: process tree RSS 2566 MiB > 2560 MiB
+[memory-guard] exit=SIGTERM peakTreeRssMiB=2566 minHostAvailableMiB=18803 STOPPED: process tree RSS 2566 MiB > 2560 MiB
+[memory-guard] at peak: rustc:2296 cargo:266 bash:4
+[queue] EXIT 99

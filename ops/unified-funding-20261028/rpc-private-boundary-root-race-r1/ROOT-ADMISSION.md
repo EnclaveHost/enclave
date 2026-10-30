@@ -1,0 +1,1 @@
+Original78 plus root actual default-ACL mutation between getxattr and second lstat. New disposable tempfile directory only, no production files. Same frozen product. Expected root failure if ctime omitted; preserve outcome.512hard450RSSfloor27648CPU1noswap/sharedqueue/networknamespace40child180outer.

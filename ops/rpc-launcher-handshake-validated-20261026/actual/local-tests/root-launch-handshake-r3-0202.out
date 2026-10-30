@@ -1,0 +1,9 @@
+[queue] START available=22825MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+PASS baseline-existing Ran 34 (expected 34)
+PASS r3-existing Ran 34 (expected 34)
+PASS r3-launcher Ran 27 (expected 27)
+## logs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r3/logs/root-r3-tests-20261026T020024Z
+## aggregate rc=0
+[memory-guard] exit=0 peakTreeRssMiB=111 minHostAvailableMiB=20868
+[memory-guard] at peak: node:68 python3:36 bash:4 timeout:2
+[queue] EXIT 0

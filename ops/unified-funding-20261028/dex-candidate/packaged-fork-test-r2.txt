@@ -1,0 +1,16 @@
+[queue] START available=30751MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+No files changed, compilation skipped
+
+Ran 4 tests for test/BaseFork.t.sol:BaseForkTest
+[PASS] test_fee100_exactOutputRefundAndReserveCredit() (gas: 331833)
+[PASS] test_fee3000_exactOutputRefundAndReserveCredit() (gas: 331942)
+[PASS] test_fee500_exactOutputRefundAndReserveCredit() (gas: 331804)
+[PASS] test_slippageFailurePreservesAllBalances() (gas: 310774)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 175.00ms (3.75ms CPU time)
+
+Ran 1 test suite in 181.46ms (175.00ms CPU time): 4 tests passed, 0 failed, 0 skipped (4 total tests)
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=30658
+[memory-guard] at peak:
+[memory-guard] exit=0 peakTreeRssMiB=133 minHostAvailableMiB=30658
+[memory-guard] at peak: forge:85 node:48
+[queue] EXIT 0

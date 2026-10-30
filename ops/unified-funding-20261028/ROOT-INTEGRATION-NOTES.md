@@ -1,0 +1,29 @@
+# Production integration constraints
+
+Current funded session verified on two Base providers at block 53199218: original factory 0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C, immutable implementation 0x66C76A47209f44612343dbEAb98b8Ef77AD01F65; live, balance 30000000 USDC base units, spent zero. Its enabled on-chain action bits are 0 through 7, and API scopes 128 through 134. No signing or transaction has been made by this work.
+
+User authorizes existing session signatures within its capabilities and prioritizes production rollout. This does not make the contract accept absent actions. Do not misuse the existing fee/payment path for swaps, alter old grants implicitly, or spend the session by pretending to fund compute. New factory/session support must preserve the user's existing 30 USDC: an owner-approved migration/new grant or independent compatible authority is needed. Terminating the old session returns its remaining balance to the owner, not a new vault. Do not terminate before the replacement is ready and approved; other recovery work may need this session.
+
+The original SessionVault contract is near the EIP-170 size limit; integration must measure deployed runtime and init code sizes under the exact release compiler/optimizer, and keep original factory/old deployments admitted. Dynamic address-book replacement is not a safe substitute for proving custody/delegation/owner compatibility. New contract deployments are not an existing session action.
+
+For closed-loop compute credit, the existing lease reserve permits owner withdrawals. Directly spending restricted credit into that withdrawable balance would introduce a cash-out route. Require segregated source-aware balances/non-cashout refund handling or an explicitly approved change in credit rights before this path. USDC sessions already refund USDC to their owner; their gas path is a separate first vertical slice.
+
+RFQ exchange is an actual exact-amount exchange, but a signed provider quote alone does not make a fair market price or authorize the payer's allowance. Pin the payer caller, source, nonce/domain, expected reserve owner, all amounts and deadline; client/session policy must cap costs and compare a fresh independent valuation. Provider liquidity and gas sponsorship are operational prerequisites, not satisfied by passing mock tests.
+
+Review/test the standalone router first, then integrate a new explicit gas-funding action and client/relay transaction path. Production activation requires a concrete reviewed build, canary plan and rollback plan. No active memory/GPU experiments while this priority is underway; leave padguard installed and coordinate with queued-app recovery owner.
+
+## Existing exchange route verified (11:52 UTC)
+
+Do not make new RFQ-provider ETH funding a prerequisite for initial production rollout. Root verified official Uniswap Base deployment addresses and exact router/factory/WETH bindings, code hashes, three USDC/WETH pools, and identical exact-output quotes on two providers at block 53199497. See dex-live-20261028.json. Obtaining 20000000000000 wei costs 47253 USDC base units at fee100, 47290 at500, 47428 at3000, excluding transaction gas. These are point-in-time read-only simulations, not fills or guaranteed future quotes. Mainnet.base.org initially returned429; publicnode+blast agreed.
+
+The r2 RFQ router remains an optional route candidate; it does not provide funded operational makers by itself. Prefer implementing a narrow DEX adapter for initial liquidity, preserving bounded output/input, exact asset accounting, deadline/owner binding, no arbitrary calls, zero residual allowances, source-aware refunds and session limits. Existing SwapRouter02 is immutable and documented but its repository is archived; verify exact deployed bytecode/ABI and adversarial/fork behavior, do not assert modern preferred router status. Uniswap docs prefer UniversalRouter, but its broader command surface must not become arbitrary session authority. Compare narrow fixed route options on evidence.
+
+Primary references: https://developers.uniswap.org/docs/protocols/v3/deployments/v3-base-deployments ; https://raw.githubusercontent.com/Uniswap/swap-router-contracts/main/contracts/interfaces/IV3SwapRouter.sol ; https://raw.githubusercontent.com/Uniswap/v3-periphery/main/contracts/interfaces/IQuoterV2.sol .
+
+## Session source and reimbursement reconciliation
+
+The checked-in historical deployed-source verification identifies the original session implementation as 23664 runtime bytes, compiled at commit 4aea7d8986681bb7ccfef27067e7222a8eafbcdf with solc 0.8.35, optimizer runs 1, via IR. The current SessionVault.sol SHA256 a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c matches its pinned source. The current live factory and implementation code hashes match that historical record. This is provenance reconciliation, not a fresh full rebuild; the runtime has only 912 bytes below EIP-170. Do not casually append a large action to it or replace existing ownership/custody factory bindings. A separate immutable library/helper or explicit successor design must be reviewed and measured.
+
+Existing SessionVault.execute sends its fee to PaymentRouter treasury. It does not pay an arbitrary submitter directly. A decentralized funding relayer reimbursement must be explicitly implemented, recipient-bound or paid to the actual successful submitter, capped by the signed call/grant and charged in the same budget. Never claim the current fee field already solves independent relayer reimbursement.
+
+Both the old mutable-book factory and a later pinned factory appear in deployment records. The funded browser session uses the original factory. Replacing its address-book entry can affect old vault release/custody owner resolution; no such replacement is authorized merely by deploying an adapter. Preserve existing factories and deployment ownership through an explicit migration design.

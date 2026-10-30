@@ -1,0 +1,8 @@
+{
+  "name": "enclave-funding-addon-r2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}

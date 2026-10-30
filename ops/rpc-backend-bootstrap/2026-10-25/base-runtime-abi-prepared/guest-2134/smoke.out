@@ -1,0 +1,46 @@
+== environment audit
+[ok] no LD_* variable in this environment
+[ok] /etc/ld.so.preload absent
+[info] Linux 6.8.0-147-generic x86_64; Ubuntu 24.04.5 LTS; system glibc 2.39; system OpenSSL 3.0.13 30 Jan 2024 (Library: OpenSSL 3.0.13 30 Jan 2024)
+[info] network interfaces up: 
+== pins
+[ok] abi.py 3c5edab1
+[ok] smoke.sh e3f14390
+[ok] bundle SHA256SUMS == 7c11d6a0433c37228c5894e36eb804b5090d8bd4b46d80facf39481efb0bab75
+    libraries: libbrotlicommon.so.1 4f895094b7b6 (brotli 1.2.0-1), libbrotlidec.so.1 0883fb05fa42 (brotli 1.2.0-1), libbrotlienc.so.1 8dbc539197d2 (brotli 1.2.0-1), libc.so.6 02c8c3d06180 (glibc 2.44+r50+g1848099f063e-1), libcrypto.so.3 a75a864dcda6 (openssl 3.6.5-1), libgcc_s.so.1 e618cb9c90c2 (libgcc 16.2.1+r23+gd564253eb6c8-1), libm.so.6 965106704753 (glibc 2.44+r50+g1848099f063e-1), libssl.so.3 f6409e9f083f (openssl 3.6.5-1), libstdc++.so.6 f5fc7380f2ae (libstdc++ 16.2.1+r23+gd564253eb6c8-1), libz.so.1 6c78c5e58c3b (zlib 1:1.3.2-4), libzstd.so.1 f023d49e85fb (zstd 1.5.7-3)
+[ok] MANIFEST binary pin + loader == verifier loader pin f5e11cc6
+== resolution: every library from the bundle
+    {
+     "rc": 0,
+     "resolved": [
+      "libstdc++.so.6 => /root/enclave-rpc-abi-20261025-2134/bundle-5aa7b2919870/lib/libstdc++.so.6 (0x00007f9177400000)",
+      "libc.so.6 => /root/enclave-rpc-abi-20261025-2134/bundle-5aa7b2919870/lib/libc.so.6 (0x00007f9177000000)",
+      "/lib64/ld-linux-x86-64.so.2 => /root/enclave-rpc-abi-20261025-2134/bundle-5aa7b2919870/lib/ld-linux-x86-64.so.2 (0x00007f9188e52000)",
+      "libssl.so.3 => /root/enclave-rpc-abi-20261025-2134/bundle-5aa7b2919870/lib/libssl.so.3 (0x00007f9177707000)",
+      "libcrypto.so.3 => /root/enclave-rpc-abi-20261025-2134/bundle-5aa7b2919870/lib/libcrypto.so.3 (0x00007f9176a00000)",
+      "libgcc_s.so.1 => /root/enclave-rpc-abi-20261025-2134/bundle-5aa7b2919870/lib/libgcc_s.so.1 (0x00007f9188e1b000)",
+      "libm.so.6 => /root/enclave-rpc-abi-20261025-2134/bundle-5aa7b2919870/lib/libm.so.6 (0x00007f91772c9000)",
+      "libz.so.1 => /root/enclave-rpc-abi-20261025-2134/bundle-5aa7b2919870/lib/libz.so.1 (0x00007f9188e00000)",
+      "libbrotlienc.so.1 => /root/enclave-rpc-abi-20261025-2134/bundle-5aa7b2919870/lib/libbrotlienc.so.1 (0x00007f9176940000)",
+      "libbrotlidec.so.1 => /root/enclave-rpc-abi-20261025-2134/bundle-5aa7b2919870/lib/libbrotlidec.so.1 (0x00007f9188df1000)",
+      "libzstd.so.1 => /root/enclave-rpc-abi-20261025-2134/bundle-5aa7b2919870/lib/libzstd.so.1 (0x00007f917685a000)",
+      "libbrotlicommon.so.1 => /root/enclave-rpc-abi-20261025-2134/bundle-5aa7b2919870/lib/libbrotlicommon.so.1 (0x00007f9188dcc000)"
+     ],
+     "outside": [],
+     "stderr": ""
+    }
+[ok] guard
+== informational: the same binary on the SYSTEM libraries (not the deployment path)
+[info] direct system-library run rc=0: base 1.5.1 
+== smoke through the bundle (smoke.sh)
+[ok] bundle files == SHA256SUMS
+[ok] bin/base == expected 5aa7b2919870950f1dd90249d3900730184e3ce6b5a54048b3dbca2a72ef430c
+[ok] every library resolves inside the bundle
+[info] host Linux 6.8.0-147-generic; system glibc glibc 2.39
+[ok] run --version
+    base 1.5.1
+[ok] run --help
+[ok] M7 flag present in: rpc follow sequencer
+[ok] self-update refused by the wrapper (64)
+## smoke rc=0
+## guest-smoke rc=0

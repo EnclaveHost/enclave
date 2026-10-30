@@ -1,0 +1,29 @@
+{
+  "at": "2026-10-28T11:43:14.047Z",
+  "providers": [
+    "https://mainnet.base.org",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "blockNumber": "53199218",
+  "blockHash": "0x5f8e2efcd5e26f18e34549e63fb28871aa8076e7ebe66c492141f39df034a558",
+  "timestamp": "1793187783",
+  "vault": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+  "sid": "0x3aaf56fd65c168ba3e99e204ede06e2f2e8f1ff544ecd28f9ef8a4a011312227",
+  "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+  "factory": "0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C",
+  "implementation": "0x66C76A47209f44612343dbEAb98b8Ef77AD01F65",
+  "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "vaultCode": "0x363d3d373d3d3d363d7366c76a47209f44612343dbeab98b8ef77ad01f655af43d82803e903d91602b57fd5bf3",
+  "factoryCodeHash": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
+  "implementationCodeHash": "0x3dd35d4c4bdf112e2ded90da36a16510bfe938a0c9b8b9ed4414698323efb76e",
+  "live": true,
+  "balance6": "30000000",
+  "spent6": "0",
+  "actions": "43215860598959184859848575143834562855167",
+  "envs": 3,
+  "expiresAt": "1793765924",
+  "perPeriod6": "100000000",
+  "maxFee6": "250000",
+  "periodSpent6": "0",
+  "apps": []
+}

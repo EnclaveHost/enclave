@@ -1,0 +1,3 @@
+Two test-only repairs: ignore shell comment lines when checking absence of network commands (the original matched the comment nothing is fetched), and normalize whitespace in the documentation disclaimer (the original expected a sentence across a hard line break). Product recipe/candidate unchanged. Original root0116 remains FAIL1; both real offline Cargo closure checks actually passed. Run all eleven corrected plumbing tests and bind the completed real closure outputs separately. No native compile, no independent reproduction.
+
+Root0118 at512MiB was killed before completing the suite (no pass). Its plumbing.out and root log are retained. Root0119 uses the original suite's1024MiB queue size and separate plumbing-1024.out; code and test assertions unchanged.

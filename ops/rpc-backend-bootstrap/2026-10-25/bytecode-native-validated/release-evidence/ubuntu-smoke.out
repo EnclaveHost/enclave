@@ -1,0 +1,11 @@
+42d692d432fb7a1303d47a592f5439c8a9439fd84e8622277be646779c03ba6d  base-bytecode-check
+Error: "usage: base-bytecode-check <datadir>"
+Error: Could not open database at path: /root/enclave-rpc-bytecode-abi-20261025-2232/absent-datadir/db
+
+Caused by:
+    failed to open the database: No such file or directory (2)
+
+Location:
+    /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-native-validation/build/cargo-home/git/checkouts/reth-babcd6134566c621/7134be3/crates/storage/db/src/mdbx.rs:146:10
+usage_rc=1 missing_rc=1
+ABI launch/refusal smoke PASS; no live database accessed

@@ -1,0 +1,5 @@
+metal/guest/platform-api.bundle.mjs
+metal/guest/platform-api.bundle.mjs.manifest.json
+relay/derived-reader-runtime.bundle.mjs
+relay/derived-reader-runtime.bundle.mjs.manifest.json
+relay/schedule_reader.mjs

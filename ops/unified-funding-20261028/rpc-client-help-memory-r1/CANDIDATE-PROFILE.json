@@ -1,0 +1,69 @@
+{
+  "status": "CANDIDATE_NOT_INSTALLED_NOT_QUALIFIED",
+  "purpose": "Reduce caches for bounded per-role measurement before combined sizing",
+  "exactPayloadBinaryHashes": {
+    "base": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+    "reth": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250",
+    "lighthouse": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96"
+  },
+  "base": {
+    "cli": [
+      "--engine.cross-block-cache-size",
+      "512",
+      "--rpc-cache.max-blocks",
+      "128",
+      "--rpc-cache.max-receipts",
+      "128",
+      "--rpc-cache.max-headers",
+      "256",
+      "--rpc-cache.max-concurrent-db-requests",
+      "8",
+      "--rpc.max-blocking-io-requests",
+      "4"
+    ]
+  },
+  "reth": {
+    "cli": [
+      "--engine.cross-block-cache-size",
+      "256",
+      "--rpc-cache.max-blocks",
+      "128",
+      "--rpc-cache.max-receipts",
+      "128",
+      "--rpc-cache.max-blocks-bytes",
+      "64MB",
+      "--rpc-cache.max-receipts-bytes",
+      "64MB",
+      "--rpc-cache.max-bals-bytes",
+      "32MB",
+      "--rpc-cache.max-concurrent-db-requests",
+      "8",
+      "--rpc.max-blocking-io-requests",
+      "4"
+    ]
+  },
+  "lighthouse": {
+    "cli": [
+      "--state-cache-size",
+      "16"
+    ]
+  },
+  "preserve": [
+    "validation/chain identity",
+    "local EL/CL verification",
+    "semi-supernode/custody >=64/blob serving",
+    "existing history; no pruning",
+    "database durability",
+    "host reserve and pending commitments",
+    "owner/secret controls"
+  ],
+  "requiresBeforeUse": [
+    "current installed identities/config",
+    "controlled startup",
+    "exact resource admission",
+    "effective argument/parser verification",
+    "per-role and combined startup/catchup/steady-state metrics and graceful stop",
+    "production read/proof/finality qualification"
+  ],
+  "noMeasuredSavingsClaim": true
+}

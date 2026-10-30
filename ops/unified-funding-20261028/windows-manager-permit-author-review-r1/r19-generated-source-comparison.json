@@ -1,0 +1,217 @@
+{
+  "sourceProductCommit": "e0bb205598f6230c7544dec4fff3a8a4bee73101",
+  "scratchRemoved": true,
+  "retainedReference": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol",
+  "networkOverlayMatches": [
+    {
+      "relative": "network/canonical.mjs",
+      "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/canonical.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-authority-window.mjs",
+      "sha256": "b852076f53e6ed357b9731f2c2eca6f15f6de32ae7c84e83081bbec1e0ab2c96",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-authority-window.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-chain-adapter.mjs",
+      "sha256": "805cad12078d9cca7a24ce3a64f2debab4051d156bd59c0849158b00e42ff328",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-chain-adapter.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-generation-certificate.mjs",
+      "sha256": "f998ea7e208631fa2594fe2543627d236b3307f3d3d94cead25eb1f450830c7f",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-generation-certificate.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-host-authority-journal.mjs",
+      "sha256": "dba7e3a31abcccf5fbc42526147af8ae822f6c50a2bf50d42bea93661ccc31db",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-host-authority-journal.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-host-authority.mjs",
+      "sha256": "c9edf50ce1bd0b21973728693c23623e3597467f6e0abc644444170f7f7a7a92",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-host-authority.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-isolation-runtime.mjs",
+      "sha256": "6309c386deefaec230045f0dadad30a1fb86b384be7693f68ce7bbc0a1e8e8f7",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-isolation-runtime.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-journal-owner.mjs",
+      "sha256": "fca217eef1e45b32fb4540a2e4f8391beff6915b02c0ac3ebd3508f6326c601c",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-journal-owner.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-lifecycle-journal.mjs",
+      "sha256": "3258481cbf178668c315e88f5184f3e7c4f3efed66c021503ab54bc1fa2496d9",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-lifecycle-journal.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-lifecycle-runner.mjs",
+      "sha256": "75590c8e4be2095b9011ea3b482ceef90a1d21f92ad676dba41578093e7db668",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-lifecycle-runner.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-lifecycle-witness.mjs",
+      "sha256": "dce432df758b12b9dd8c83e2627febe88a36444ad74ce5dc1911e26edb7149c6",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-lifecycle-witness.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-permit-collector.mjs",
+      "sha256": "2c2f3fc6d444300c5e15da5b54f393a72d8fb86d519c70cd7419c640a3091dba",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-permit-collector.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-permit-gate.mjs",
+      "sha256": "2ee846d462354874eb704ef0a4cf6492536428497fa8f2fa93f654d411ad235a",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-permit-gate.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-restart-policy.mjs",
+      "sha256": "15f42274a6edc861b7afc1aeb9167d4028f855e8c8b99d8fbc3738eb1151204c",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-restart-policy.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-serving-permit.mjs",
+      "sha256": "bdd316a1be52668c2716b6453dfd77135685285a0668eb899d5d2d8d6518cd1d",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-serving-permit.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-transition-intent.mjs",
+      "sha256": "1932ad2ef522df9260c061a6ce18ca1f2e09ef850c2850b57d46186bbca3f210",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-transition-intent.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/deployment-witness-http.mjs",
+      "sha256": "1e597f81b8d37c65917c3e081309294df2cf2013f9a2e3fe02d1215ef9eca10b",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-witness-http.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/host-admission-policy.mjs",
+      "sha256": "a15c05ea4dfd963ba72be60af03f0a712f39974423abe4b1abc80cbfabc145e0",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/host-admission-policy.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/lease-release-journal.mjs",
+      "sha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lease-release-journal.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/lifecycle-finality-bridge.mjs",
+      "sha256": "a719bece74e0b7d198bd36b35e361bcb4d9e9e155ce366f15185b4e37f91c197",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-finality-bridge.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/lifecycle-host-authority.mjs",
+      "sha256": "76f5be11c3e07d17e86842815e567fa327772a5aa2c12407342b3f00056ffce1",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-authority.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/lifecycle-host-dispatch.mjs",
+      "sha256": "ac2cf3016b263406f495b33801e961aeb8ccd4700bfee20eb9381509369927a3",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-dispatch.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/lifecycle-host-incarnation-journal.mjs",
+      "sha256": "488298539e71fe66b508e5ed52f47ed104b5235fa46deb1d40839acfae93ac25",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-incarnation-journal.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/lifecycle-host-profile.mjs",
+      "sha256": "ae53da9f520e7f66e5a88c850226f96a7294708e2f5dad27c178138096f4bc94",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-profile.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/lifecycle-host-registry-profile.mjs",
+      "sha256": "4816316ef9ced6fca3a4d135c64f7fd41f99b55bb737a7c10f4e6428c113b1b9",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-registry-profile.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/lifecycle-independent-admission.mjs",
+      "sha256": "9ec46b88e4be5550e6072bc9f6bc566c553edf36e6231b9da4f718f2bbb04db9",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-independent-admission.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/lifecycle-linked-artifacts.mjs",
+      "sha256": "d9ad52648cf5bda505d2ccebb8a6ea49fb3bc682a7fd0d431d1f5def372808cf",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-linked-artifacts.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/lifecycle-schema3-profile.mjs",
+      "sha256": "e10f460866be7c30f71e0bc482929818b3003065f46ef5d53feb73d2f8134083",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-schema3-profile.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/network-policy-core.mjs",
+      "sha256": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/network-policy-core.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/network-policy.mjs",
+      "sha256": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/network-policy.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/op-receipts-root.mjs",
+      "sha256": "36c34dad228224a56bf559a6fe6ff6ee65c40738a54a18076b4abd2b1e26afe3",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/op-receipts-root.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/provider-qualification.mjs",
+      "sha256": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/provider-qualification.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/route-record.mjs",
+      "sha256": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/route-record.mjs",
+      "match": true
+    },
+    {
+      "relative": "network/runtime-lock.mjs",
+      "sha256": "256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a",
+      "retainedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/runtime-lock.mjs",
+      "match": true
+    }
+  ],
+  "generatorMatches": [
+    "permit-generator.json:5",
+    "dispatch-generator.json:1",
+    "journal-generator.json:1"
+  ],
+  "scope": "Byte matching and recorded qualification only; no tests or generators rerun."
+}

@@ -1,0 +1,25 @@
+{
+  "units": [
+    {
+      "unit": "enclave-operator-durability-r2-focused-root-20261029",
+      "state": "ActiveState=inactive\nMainPID=0\n",
+      "ownedTmpRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/od2-zgxd0aa7"
+    },
+    {
+      "unit": "enclave-operator-durability-r2-quarantine-baseline-20261029",
+      "state": "ActiveState=inactive\nMainPID=0\n",
+      "ownedTmpRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/od2-oufmti1a"
+    },
+    {
+      "unit": "enclave-operator-durability-r2-repaired-root-20261029",
+      "state": "ActiveState=inactive\nMainPID=0\n",
+      "ownedTmpRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/od2-9d_bhud8"
+    }
+  ],
+  "frozenPins": 243,
+  "repairedPins": 243,
+  "changedProductFiles": [
+    "control/windows/node/chain.mjs"
+  ],
+  "shippedBundleSha256": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d"
+}

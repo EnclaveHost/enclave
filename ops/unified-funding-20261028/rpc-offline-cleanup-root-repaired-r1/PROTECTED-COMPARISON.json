@@ -1,0 +1,8 @@
+{
+  "sparse_copy": true,
+  "hold_qemu_locks": true,
+  "scan_holders": true,
+  "_kill_own": true,
+  "run": true,
+  "holders": true
+}

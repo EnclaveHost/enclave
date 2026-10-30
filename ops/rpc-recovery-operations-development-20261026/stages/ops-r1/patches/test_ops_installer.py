@@ -1,0 +1,122 @@
+"""r6-ops-fixes: installer preflight-before-mutation, journaled commit, exact rollback/recover, activation guard. Offline, private root."""
+import hashlib, importlib.util, json, os, pathlib, stat, sys, tempfile, unittest
+
+TREE = pathlib.Path(__file__).resolve().parents[1]
+sys.dont_write_bytecode = True
+spec = importlib.util.spec_from_file_location('iv_ops', TREE / 'install/install_verified.py'); IV = importlib.util.module_from_spec(spec); spec.loader.exec_module(IV)
+sha = lambda b: hashlib.sha256(b).hexdigest()
+
+
+class Installer(unittest.TestCase):
+    def setUp(self):
+        self.t = pathlib.Path(tempfile.mkdtemp(prefix='ops-install-'))
+        IV.ROOT, IV.UID, IV.PROC = self.t / 'root', os.getuid(), self.t / 'proc'
+        IV.PROC.mkdir(); (IV.ROOT / 'opt/x').mkdir(parents=True); os.chmod(IV.ROOT / 'opt', 0o755); os.chmod(IV.ROOT / 'opt/x', 0o755)
+        os.chmod(IV.ROOT, 0o755)
+        self.stage = self.t / 'stage'; self.stage.mkdir()
+        self.new = {'a.py': b'NEW A\n', 'b.py': b'NEW B\n', 'c.py': b'NEW C\n'}
+        for n, b in self.new.items():
+            (self.stage / n).write_bytes(b)
+        self.m = {'format': 'enclave-finality-install-manifest/v1', 'trees': [], 'files': [
+            {'src': 'a.py', 'dest': '/opt/x/a.py', 'mode': '0755', 'sha256': sha(self.new['a.py'])},
+            {'src': 'b.py', 'dest': '/opt/x/b.py', 'mode': '0644', 'sha256': sha(self.new['b.py'])},
+            {'src': 'c.py', 'dest': '/opt/y/c.py', 'mode': '0644', 'sha256': sha(self.new['c.py'])}]}
+        # the live install: a (mode 0700, odd on purpose: a restore must give it back) and b exist with old bytes; /opt/y is absent
+        self.live('a.py', b'OLD A\n', 0o700); self.live('b.py', b'OLD B\n', 0o640)
+
+    def live(self, n, b, mode):
+        p = IV.ROOT / 'opt/x' / n; p.write_bytes(b); os.chmod(p, mode)
+
+    def snapshot(self):
+        out = {}
+        for p in sorted(IV.ROOT.rglob('*')):
+            st = os.lstat(p)
+            out[str(p.relative_to(IV.ROOT))] = (stat.S_IMODE(st.st_mode), p.read_bytes() if p.is_file() else None)
+        return out
+
+    def no_mutation(self, before):
+        after = self.snapshot()
+        self.assertEqual(after, before)
+
+    def test_late_source_refusal_changes_nothing(self):
+        (self.stage / 'c.py').write_bytes(b'TAMPERED\n'); before = self.snapshot()
+        with self.assertRaisesRegex(IV.Refused, 'c.py differs from its manifest sha'):
+            IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
+        self.no_mutation(before)
+
+    def test_late_destination_refusal_changes_nothing(self):
+        for n in ('a.py', 'b.py'):
+            (IV.ROOT / 'opt/x' / n).unlink()
+        (IV.ROOT / 'opt/y').mkdir(); os.chmod(IV.ROOT / 'opt/y', 0o755); (IV.ROOT / 'opt/y/c.py').write_bytes(b'OTHER\n')
+        before = self.snapshot()
+        with self.assertRaisesRegex(IV.Refused, '/opt/y/c.py exists with other bytes'):
+            IV.preflight(self.m, replace=False, include_wrapper=False, include_units=False, stage=self.stage)
+        self.no_mutation(before)
+        os.chmod(IV.ROOT / 'opt/y', 0o777)                                  # an unsafe parent is refused in preflight too
+        with self.assertRaisesRegex(IV.Refused, 'not a real root-owned directory'):
+            IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
+
+    def test_extra_file_in_a_tree_destination_is_refused_before_any_write(self):
+        src = self.t / 'treesrc'; src.mkdir(); (src / 'index.js').write_bytes(b'x')
+        self.m['trees'] = [{'src': str(src), 'dest': '/opt/x/deps', 'treeSha256': IV.tree_sha256(src), 'files': {'index.js': sha(b'x')}}]
+        (IV.ROOT / 'opt/x/deps').mkdir(); os.chmod(IV.ROOT / 'opt/x/deps', 0o755); (IV.ROOT / 'opt/x/deps/planted.js').write_bytes(b'evil')
+        before = self.snapshot()
+        with self.assertRaisesRegex(IV.Refused, r'outside the qualified tree: \[.planted.js.\]'):
+            IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
+        self.no_mutation(before)
+
+    def test_injected_mid_commit_failure_restores_everything_exactly(self):
+        before = self.snapshot()
+        ops, _ = IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
+        with self.assertRaisesRegex(IV.Refused, 'rolled back'):
+            IV.commit(ops, 'T1', fail_at=2)                                 # a and b replaced, then c (a new dir + file) fails
+        after = {k: v for k, v in self.snapshot().items() if '.pre-T1' not in k and 'install-journal' not in k and k not in ('var', 'var/lib', 'var/lib/enclave-rpc')}
+        self.assertEqual(after, before)
+        self.assertFalse((IV.ROOT / 'opt/y').exists(), 'the created directory is removed')
+        j = json.loads((IV.ROOT / 'var/lib/enclave-rpc/install-journal/T1.json').read_text())
+        self.assertEqual(j['state'], 'rolled-back'); self.assertEqual(IV.open_journals(), [])
+
+    def test_backup_is_a_copy_and_never_changes_the_live_mode(self):
+        ops, _ = IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
+        self.assertEqual(IV.commit(ops, 'T2'), 'committed')
+        a, keep = IV.ROOT / 'opt/x/a.py', IV.ROOT / 'opt/x/a.py.pre-T2'
+        self.assertEqual((a.read_bytes(), stat.S_IMODE(os.lstat(a).st_mode)), (self.new['a.py'], 0o755))
+        self.assertEqual((keep.read_bytes(), stat.S_IMODE(os.lstat(keep).st_mode)), (b'OLD A\n', 0o600))
+        self.assertNotEqual(os.lstat(a).st_ino, os.lstat(keep).st_ino, 'a copy, not a hard link')
+        self.assertEqual(IV.preflight(self.m, replace=False, include_wrapper=False, include_units=False, stage=self.stage)[1],
+                         [{'dest': e['dest'], 'result': 'identical'} for e in self.m['files']])
+
+    def test_interrupted_commit_blocks_install_and_activation_until_recover_restores_exactly(self):
+        before = self.snapshot()
+        ops, _ = IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
+        self.assertEqual(IV.commit(ops, 'T3', crash_at=0), 'crashed (test)')   # a replaced, b and c not: a partial set
+        (IV.ROOT / 'opt/x/.b.py.install-99999').write_bytes(b'half')            # another (dead) writer's temp
+        self.assertEqual(len(IV.open_journals()), 1)
+        with self.assertRaisesRegex(IV.Refused, 'journal is still open'):
+            IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
+        with self.assertRaisesRegex(IV.Refused, 'journal is still open'):
+            IV.installed_exactly(self.m)
+        self.assertEqual(IV.recover()[0]['result'], 'rolled-back')
+        after = {k: v for k, v in self.snapshot().items() if '.pre-T3' not in k and 'install-journal' not in k and k not in ('var', 'var/lib', 'var/lib/enclave-rpc')}
+        self.assertEqual(after, before)
+        IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
+
+    def test_activation_refuses_a_partial_or_altered_set(self):
+        with self.assertRaisesRegex(IV.Refused, 'not installed as the qualified bytes'):
+            IV.installed_exactly(self.m)                                         # nothing installed yet
+        ops, _ = IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
+        IV.commit(ops, 'T4'); IV.installed_exactly(self.m)
+        (IV.ROOT / 'opt/y/c.py').write_bytes(b'changed later\n')
+        with self.assertRaisesRegex(IV.Refused, '/opt/y/c.py is not installed'):
+            IV.installed_exactly(self.m)
+
+    def test_qualification_needs_the_exact_r6_lines(self):
+        q, rc = self.t / 'q.out', self.t / 'q.rc'; rc.write_text('0\n')
+        q.write_text('## finality-r6 rc=0\n## r6 SHA256SUMS abc\n'); IV.qualified(q, rc, 'abc')
+        q.write_text('## finality-r5 rc=0\n## r6 SHA256SUMS abc\n')
+        with self.assertRaises(IV.Refused):
+            IV.qualified(q, rc, 'abc')
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)

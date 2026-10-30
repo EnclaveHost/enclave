@@ -1,0 +1,43 @@
+{
+ "aliveAfterProbeWindow": true,
+ "requests": [
+  {
+   "server": "beacon",
+   "method": "GET",
+   "path": "/eth/v1/beacon/light_client/bootstrap/0xabababababababababababababababababababababababababababababababab"
+  }
+ ],
+ "bootstrapForOurCheckpoint": true,
+ "contactedInjectedEnvEndpoints": false,
+ "mentionsPublicDefault": false,
+ "mentionsFallback": false,
+ "syncFailedLogged": true,
+ "everFreshFinalized": false,
+ "statuses": [
+  {
+   "t": 33.1,
+   "refused": "not-ready",
+   "message": "no finalized block"
+  },
+  {
+   "t": 35.1,
+   "refused": "not-ready",
+   "message": "no finalized block"
+  },
+  {
+   "t": 37.1,
+   "refused": "not-ready",
+   "message": "no finalized block"
+  },
+  {
+   "t": 39.2,
+   "refused": "not-ready",
+   "message": "no finalized block"
+  },
+  {
+   "t": 41.2,
+   "refused": "not-ready",
+   "message": "no finalized block"
+  }
+ ]
+}

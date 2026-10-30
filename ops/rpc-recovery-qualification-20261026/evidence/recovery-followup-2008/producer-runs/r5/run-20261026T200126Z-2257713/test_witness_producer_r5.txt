@@ -1,0 +1,17 @@
+../home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r5/tests/test_witness_producer_r5.py:91: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r5/runs/run-20261026T200126Z-2257713/tmp/wp3ygpe3ro1/fetch/ran' mode='r' encoding='utf-8'>
+  return [json.loads(l) for l in open(p)] if os.path.exists(p) else []
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r5/tests/test_witness_producer_r5.py:91: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r5/runs/run-20261026T200126Z-2257713/tmp/wp3amlfwb1b/fetch/ran' mode='r' encoding='utf-8'>
+  return [json.loads(l) for l in open(p)] if os.path.exists(p) else []
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+..../home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r5/tests/test_witness_producer_r5.py:201: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r1/producer/witness_producer.py' mode='r' encoding='utf-8'>
+  r1 = open(f"{R1}/producer/witness_producer.py").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r5/tests/test_witness_producer_r5.py:91: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r5/runs/run-20261026T200126Z-2257713/tmp/wp3hh5gifg9/fetch/ran' mode='r' encoding='utf-8'>
+  return [json.loads(l) for l in open(p)] if os.path.exists(p) else []
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+...
+----------------------------------------------------------------------
+Ran 11 tests in 3.737s
+
+OK

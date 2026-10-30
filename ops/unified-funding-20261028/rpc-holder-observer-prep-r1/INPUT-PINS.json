@@ -1,0 +1,14 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-holder-observer-prep-r1/observe.py",
+    "sha256": "2db98dce8fce7d13e8457c2dd9b15fbbd74e94cf9c09c118ec40a306af75872c"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-holder-observer-prep-r1/test_observe.py",
+    "sha256": "b7672720cc55d14778b0e3ccae274b5bdb784f81eaff68673928f210b104d2e3"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-holder-observer-prep-r1/run-tests.py",
+    "sha256": "7eaa501a910c360a19212262efa05c6fa35702db3748a82cd5b2cf23ddd24642"
+  }
+]

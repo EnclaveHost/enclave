@@ -1,0 +1,136 @@
+{
+  "scope": "one owned synthetic clean fixture; no production attach",
+  "collectionCompleted": true,
+  "coverageVerified": false,
+  "productionAcceptance": false,
+  "manualReview": {
+    "scope": "one actual owned clean fixture; manual metadata review",
+    "collectionCompleted": true,
+    "conservativeCoverage": "REFUSE",
+    "productionAcceptance": false,
+    "traceBytes": 8964,
+    "traceSha256": "1d1459a6944522ddd0510f4ee8de0580ce395eac74ccf86e3a59c3d10e6cff57",
+    "traceLines": 125,
+    "observedThreadCount": 7,
+    "traceThreadIdsMatchObserved": true,
+    "terminalExitIdsMatchObserved": true,
+    "terminalExitCodes": [
+      0
+    ],
+    "cloneForkExecCalls": {},
+    "unparsedPrefixLines": [],
+    "journalRenames": [
+      {
+        "line": 26,
+        "tid": 252795,
+        "success": true,
+        "exactOwnedPaths": true
+      }
+    ],
+    "writes": [
+      {
+        "line": 18,
+        "tid": 252795,
+        "fd": 18,
+        "requestedBytes": 16,
+        "bufferIsRawPointer": true,
+        "unfinished": false
+      },
+      {
+        "line": 19,
+        "tid": 252795,
+        "fd": 6,
+        "requestedBytes": 1,
+        "bufferIsRawPointer": true,
+        "unfinished": false
+      },
+      {
+        "line": 24,
+        "tid": 252795,
+        "fd": 24,
+        "requestedBytes": 104,
+        "bufferIsRawPointer": true,
+        "unfinished": false
+      },
+      {
+        "line": 53,
+        "tid": 252795,
+        "fd": 14,
+        "requestedBytes": 8,
+        "bufferIsRawPointer": true,
+        "unfinished": true
+      }
+    ],
+    "ioUring": [
+      {
+        "line": 104,
+        "tid": 252795,
+        "ringFd": 4,
+        "toSubmit": 2,
+        "minComplete": 2,
+        "flags": 1
+      }
+    ],
+    "privateReadbackSummary": {
+      "sha256": "80d86e55f24a1d17584ced0fdae4d646426c56fc7d558be1aa8177fdfab49fef",
+      "device": 2049,
+      "inode": 1838206,
+      "size": 104,
+      "records": 1,
+      "states": [
+        "sending"
+      ]
+    },
+    "canaryAbsentFromAllTraceAndLogs": true,
+    "unexpectedQuotedStrings": [
+      {
+        "count": 0
+      }
+    ],
+    "refusalReasons": [
+      "An8-byte write to fd14 occurs after successful journal rename; FD type/generation unrecorded, cannot assume harmless IPC.",
+      "io_uring_enter after rename submits2operations; rawtrace does not identify SQE opcodes/targets, so alternate outbound activity is unresolved."
+    ],
+    "localQueueEvidence": {
+      "capMiB": 256,
+      "innerCapMiB": 220,
+      "hostFloorMiB": 27648,
+      "innerPeakMiB": 39,
+      "outerPeakMiB": 101,
+      "minHostAvailableMiB": 93048
+    },
+    "nextStepProposalOnly": "Review source/metadata requirements for fd14 identity/generation and io_uring SQE opcode/target attribution. No rerun, new observer, buffer reading or production attach authorized by this result."
+  },
+  "cleanup": {
+    "observedAtUtc": "2026-10-29T00:11:56Z",
+    "recordedFrom": "Prior completed read-only cleanup tool result; no new execution",
+    "ownedObservedIdsAbsent": [
+      252793,
+      252795,
+      252796,
+      252797,
+      252798,
+      252799,
+      252800,
+      252801,
+      252803
+    ],
+    "unit": "enclave-checkpoint-fixture-20261028-clean-r1.service",
+    "loadState": "not-found",
+    "activeState": "inactive",
+    "subState": "dead",
+    "mainPid": 0,
+    "dedicatedCgroupAbsent": true,
+    "namedFixtureNetnsAbsent": true,
+    "anonymousNetnsInodeRecorded": false,
+    "namespaceLimitation": "No direct inode disappearance proof; all observed holders absent and no named bind mount created by harness",
+    "productionRelayPid": 228946,
+    "productionSourcePinsUnchanged": true,
+    "privateEvidenceRetained": true,
+    "additionalFixtureRuns": 0,
+    "coverageVerified": false,
+    "productionAcceptance": false
+  },
+  "sourceOnlyReview": "financial-coverage-invariant.txt",
+  "additionalExecutionAuthorized": false
+}

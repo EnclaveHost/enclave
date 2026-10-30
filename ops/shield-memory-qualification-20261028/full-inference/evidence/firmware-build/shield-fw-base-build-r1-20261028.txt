@@ -1,0 +1,26 @@
+[queue] START available=84781MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+Running as unit: enclave-shield-fw-base-build-r1-20261028.service
+{
+  "mode": "base-release",
+  "firmware": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/OVMF.base-release.fd",
+  "sha256": "2bcca0a2b5b56f8dd978d508a40ca9179553b7769fb12c0ea7644fd1ec695898",
+  "bytes": 4194304,
+  "elapsed_sec": 157.41767144203186,
+  "command": ". ./edksetup.sh BaseTools && build -p OvmfPkg/AmdSev/AmdSevX64.dsc -a X64 -t GCC -b RELEASE -n 1",
+  "source_copy": {
+    "head": "2970e5699ba6267f3384ffab20f96647578aebc8",
+    "dirty": " M OvmfPkg/AmdSev/Grub/grub.sh\n",
+    "grub_patch_sha256": "8be684fe5e00f3fde0cea4dea7ab5065ba0e846206129b4167aca59811dc1079",
+    "source": "/home/steven/.cache/enclave-isolation/fwbuild/src/edk2",
+    "copy": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/src"
+  },
+  "production_unchanged": true
+}
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 2min 37.477s
+             CPU time consumed: 2min 35.252s
+                   Memory peak: 802.8M (swap: 0B)
+[memory-guard] exit=0 peakTreeRssMiB=5 minHostAvailableMiB=84487
+[memory-guard] at peak: systemd-run:5
+[queue] EXIT 0

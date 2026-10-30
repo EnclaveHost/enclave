@@ -1,0 +1,11 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10-ops-followup-r2/install/MANIFEST.json	2026-10-26 00:16:50.753440812 -0700
++++ install/MANIFEST.json	2026-10-26 00:25:59.521861487 -0700
+@@ -199,7 +199,7 @@
+    "src": "recovery/forward_sync.py",
+    "dest": "/opt/enclave-rpc/recovery/forward_sync.py",
+    "mode": "0755",
+-   "sha256": "0aeaaaeb38f5bac9cf2070d6bde9defbc31795f0fbd1a29c3f0827617e9a1725"
++   "sha256": "b41e71a30140bf2b3dbe1e5a0c11a45ec6cdb15e0d4eff6c8aebe6a18cf623fc"
+   },
+   {
+    "src": "units/forward-sync/enclave-base-forward-sync.service",

@@ -1,0 +1,31 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=24774MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "test_recovery_overlay": {
+  "rc": 0,
+  "ran20": true,
+  "lastOK": true,
+  "stdoutEmpty": true,
+  "clean": true,
+  "pass": true
+ },
+ "test_diagnostic": {
+  "rc": 0,
+  "ran15": true,
+  "lastOK": true,
+  "stdoutEmpty": true,
+  "clean": true,
+  "pass": true
+ },
+ "noMountsLeft": true,
+ "peersUnchanged": true,
+ "pass": true
+}
+tail: option used in invalid context -- 3
+## PASS (20 + 15)
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/tests-20261026T214140Z-2384790
+## rov-r9-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=189 minHostAvailableMiB=24581
+[memory-guard] at peak: fuse2fs:68 python3:50 python3:23 python3:12 python3:12 qemu-nbd:10 nbdfuse:8 bash:4
+[queue] EXIT 0

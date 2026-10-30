@@ -1,0 +1,8 @@
+{
+  "qualifiedSha256": "5b0ee6c8b0f2c819c1d4de78553ec5226afa6502d385c26ebe2b3052e0d81c60",
+  "integratedSha256": "16629d5c8f1b708b3c9dd1bd7ece00908ae8f1f1a9f34c0284dcc8ed57fa6368",
+  "exactAfterOnlyPathLabelReplacement": true,
+  "oldPath": "../../../../enclave/node_modules/",
+  "newPath": "../../enclave/node_modules/",
+  "replacements": 153
+}

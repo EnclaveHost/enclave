@@ -1,0 +1,3 @@
+{"heliosUrl": "http://127.0.0.1:8550", "elUrl": "http://127.0.0.1:28645", "expectedChainId": 1, "pinBy": "hash",
+ "portal": "0x49048044d57e1c92a77f79988d21fa8faf74e97e", "asr": "0xdb9091e48b1c42992a1213e6916184f9ebdbfedf", "portalAsrGetter": "anchorStateRegistry()",
+ "asrCandidates": [], "_notes": ["stub template"]}

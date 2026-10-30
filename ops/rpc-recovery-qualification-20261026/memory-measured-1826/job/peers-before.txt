@@ -1,0 +1,5 @@
+/home/steven/Documents/Codex/2026-10-26/my/work/tr004-readonly fuseblk /dev/sda2
+/home/steven/Documents/Codex/2026-10-26/my/work/tr004/l1-files fuse.ext4 work/tr004/l1-view/nbd
+/run/user/1000/doc fuse.portal portal
+2255428 qemu-nbd --fork --persistent --read-only --format=qcow2 --socket=/home/steven/Documents/Codex/2026-10-26/my/work/tr004/l1.sock --pid-file=/home/steven/Documents/Codex/2026-10-26/my/work/tr004/l1-qemu-nbd.pid work/tr004-readonly/enclave-rpc-production/l1-origin.qcow2
+2256475 work/tr004/fuse2fs-package/usr/bin/fuse2fs -o ro,norecovery,fakeroot,cache_size=64M work/tr004/l1-view/nbd work/tr004/l1-files

@@ -1,0 +1,17 @@
+.F...
+======================================================================
+FAIL: test_2_manifest_sha_kind_and_production_pins_are_enforced (__main__.Import.test_2_manifest_sha_kind_and_production_pins_are_enforced)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r4/tests/test_production_import.py", line 163, in test_2_manifest_sha_kind_and_production_pins_are_enforced
+    self.refused(fx, "default-production")                     # a fixture manifest is never a production view
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r4/tests/test_production_import.py", line 114, in refused
+    self.assertEqual(rc, 3, name); self.assertFalse(os.path.lexists(out), name)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 0 != 3 : default-production
+
+----------------------------------------------------------------------
+Ran 5 tests in 2.978s
+
+FAILED (failures=1)

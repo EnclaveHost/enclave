@@ -1,0 +1,52 @@
+{
+ "mode": "slice",
+ "sourceTree": "1cc32f1c9ce6fd5eeb16808c08f77568f17c3e3a",
+ "tests": {
+  "kvm-unit": {
+   "rc": 0,
+   "tests": 22,
+   "pass": 22,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 22,
+   "ok": true
+  },
+  "composition": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 6,
+   "ok": true
+  },
+  "replica-exact": {
+   "rc": 0,
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 8,
+   "ok": true
+  },
+  "enrollment": {
+   "rc": 1,
+   "tests": 19,
+   "pass": 18,
+   "fail": 1,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 19,
+   "ok": false
+  }
+ },
+ "ok": false,
+ "scope": "SLICE: source only (no build, no bundle, no image), co-located in-process replicas (NOT a quorum), the reader START a stand-in, synthetic advance anchors; proves the role/IPC/replica/KVM-journal composition, NOT release, authority or SNP qualification"
+}

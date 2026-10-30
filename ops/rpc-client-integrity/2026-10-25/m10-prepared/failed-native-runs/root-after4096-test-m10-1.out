@@ -1,0 +1,22 @@
+[queue] START available=21001MiB required=18432MiB cap=1792MiB floor=16384MiB concurrentSmall=0MiB
+## toolchain rustc 1.96.0 (ac68faa20 2026-05-25) | cargo 1.96.0 (30a34c682 2026-05-25)
+## [1] engine lib (all tests: default paths unchanged + M10)
+## engine: REBUILT base_consensus_engine-22bbca68e14337e9 sha256 b21d891ac2d82db5526ad6168a9c501ce0d090ab310cf30ad6676f77912ca214
+test sync::anchor::tests::parse_accepts_only_number_colon_hash ... ok
+test sync::anchor::tests::precondition_accepts_head_exactly_n_with_labels_at_or_below_n ... ok
+test sync::anchor::tests::precondition_propagates_execution_layer_errors ... ok
+test sync::anchor::tests::anchored_forkchoice_is_head_over_n_and_requires_n_canonical ... ok
+test sync::anchor::tests::precondition_refuses_replayed_snapshot_labels_above_n ... ok
+test sync::anchor::tests::precondition_refuses_wrong_number_wrong_hash_and_rpc_claimed_hash ... ok
+test task_queue::core::tests::bootstrap_anchor::anchor_not_canonical_refuses_before_any_fcu ... ok
+test task_queue::core::tests::bootstrap_anchor::fcu_rpc_error_refuses_without_retry ... ok
+test task_queue::core::tests::bootstrap_anchor::valid_fcu_starts_from_head_over_anchor_with_safe_finalized_at_anchor ... ok
+test task_queue::core::tests::bootstrap_anchor::invalid_or_syncing_fcu_refuses_without_retry ... ok
+test result: ok. 152 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.10s
+## engine OK
+## [2] node lib (actors::engine:: incl. processor + validator anchor tests)
+
+[memory-guard] STOPPING own job: process tree RSS 1818 MiB > 1792 MiB
+[memory-guard] exit=SIGTERM peakTreeRssMiB=1818 minHostAvailableMiB=18654 STOPPED: process tree RSS 1818 MiB > 1792 MiB
+[memory-guard] at peak: rustc:1483 cargo:331 bash:4
+[queue] EXIT 99

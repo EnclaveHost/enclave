@@ -1,0 +1,11 @@
+[queue] NOT STARTED: small allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] START available=22746MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+PASS six monitor controls: success, remote failure, prestart floor, active floor, cancellation, unexpected observer error
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=22704
+[memory-guard] at peak: 
+[queue] EXIT 0

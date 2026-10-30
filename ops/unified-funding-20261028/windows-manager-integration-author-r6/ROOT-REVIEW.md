@@ -1,0 +1,9 @@
+# r6 reviewed author inputs — source only, active
+
+Root read the complete task, runner, collector, launch command and interface map and independently verified 2048 read-only pins and all 161 seed files. The candidate exactly preserves the materialized r5 runtime and the verified manager authority-field correction. The exact installed Claude executable hash and required Max account were checked; the runner repeats those checks. No result or passing test is claimed by this package.
+
+One source-only invocation is active, recorded in admission-record.json. Limits remain 55 agentic/API rounds, 1800 seconds child/2100 seconds outer, 1536 MiB queue/hard, 1408 MiB RSS, available-memory floor 27648 MiB, one CPU and no swap. Read/Grep/Edit/Write only; writes restricted by task to candidate, no execution or automatic activation. These tool restrictions are not an OS filesystem sandbox. The peer collects this same invocation and audits exact successful Write/Edit replay against the seed; no duplicate author is authorized.
+
+The next pass must fix explicit staged-authority revocation, authenticated router reservation/cancellation ownership and owned durable launch obligations while retaining the passing DIRECT path. Then complete actual positive composite/native composition, independently authenticated authority and supported-workload consumers. Full capacity/sponsorship/automatic gas/independent Offline/censorship-resistance scope remains. Existing production apps and financial state are unchanged.
+
+The exact binary executes with process comm `2.1.281`, not `claude`. Terminal collection must verify the recorded process identities and additionally the exact executable/cwd; a generic name scan alone is insufficient. Do not alter pinned inputs while this invocation runs. Raw success num_turns and configured agentic limit are different counters, as retained in the metric investigation; no cap was raised.

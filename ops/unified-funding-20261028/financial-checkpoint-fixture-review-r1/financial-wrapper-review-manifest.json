@@ -1,0 +1,12 @@
+{
+  "sourceOnly": true,
+  "executionPerformed": false,
+  "sha256": {
+    "run_financial_fixture_once.py": "84326655f3e4596696ff85e1548161ee7c78dcaf9c040f59279b016329a5c781",
+    "financial_remote_guard.py": "7c271d8c458f5a2c3c6848b102414b2f62cbb2721c59d25e914e053d373949ac",
+    "financial_namespace_launcher.py": "011b39908a8d73e361ec1a1e1ee47137b731d564309d161b972942096b244458",
+    "financial-fixture-profile-PROPOSED.json": "40df3b531b75c08fa56cc44186a899243e3c09c5eb4a324cc4e466022b3bd076",
+    "financial_fixture_parent.mjs": "e0cfcc78bf7c1dd8809175956c30ac99cdd1a2fd9623710f30849718dedf3fa1",
+    "financial_fixture_child.mjs": "ba77e94839d96bb0199b4e7a21d54f2627b2c1f3f18b5e1cb7e74acb637f475a"
+  }
+}

@@ -1,0 +1,9 @@
+# Root review: post-failure diagnostic
+
+Claude prepared the optional one-shot attested /ping diagnostic. Root reviewed it and corrected a deadline issue: the original first guard ran before the timer, and systemctl queries could each block for 15 seconds. A shared monotonic deadline now includes initial identity checking, guard and snapshots. Subprocess timeouts and sleeps are clipped to remaining time; the request has at most 10 seconds within the 15-second diagnostic budget. An expired budget prevents launching a child, and exceptions kill the owned child immediately before ordinary cleanup.
+
+This is not a hard real-time guarantee: local filesystem reads, subprocess creation and OS scheduling can exceed a deadline. Existing owned cleanup has its separate bounded waits. Host cgroup OOM counters do not diagnose guest OOM. A later successful attestation/ping establishes only current liveness and policy compliance, not the cause of a previous failure. Primary failure and benchmark metrics remain unchanged.
+
+Validation: 90 offline harness fixtures passed with no skips in shield-postfail-tests-r2-20261028. The initial run had one faulty new fixture: its simulated systemctl timeout continued into cleanup after the diagnostic child died. The fixture was scoped to the live diagnostic child; product cleanup was unchanged. Added regression cases cover slow first guard, initial hash time, and immediate child cleanup on a request-time guard timeout. Prior client derivation source is unchanged.
+
+No GPU canary or production change was performed. Production Qwen occupies the required RAM/GPU; the requested 30-minute graceful suspension window remains pending. The diagnostic is opt-in and has not been exercised on SNP hardware. Claude's POSTFAIL.md is its source-only report before root correction/testing; this review supersedes its untested status and unconditional timeout statements.

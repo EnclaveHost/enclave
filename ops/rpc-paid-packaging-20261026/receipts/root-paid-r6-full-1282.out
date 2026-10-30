@@ -1,0 +1,289 @@
+[queue] START available=18630MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "new": {
+  "test/paid-derived-adapter.test.mjs": {
+   "rc": 0,
+   "tests": 15,
+   "pass": 15,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "expected": "15/15, nothing skipped",
+  "test/paid-derived-packaging.test.mjs": {
+   "rc": 1,
+   "tests": 5,
+   "pass": 2,
+   "fail": 3,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  }
+ },
+ "regression": {
+  "test/stack-provider-authority.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 4,
+    "pass": 4,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 4,
+    "pass": 4,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/attested-provider-collateral.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/wg-provider.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 10,
+    "pass": 10,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 10,
+    "pass": 10,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/paid-network.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 5,
+    "pass": 5,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 5,
+    "pass": 5,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/verified-chain.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/service-index.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 15,
+    "pass": 15,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 15,
+    "pass": 15,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/attested-paid-provider.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/attested-route-composition.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 7,
+    "pass": 7,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 7,
+    "pass": 7,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/attested-chain-verifier.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 15,
+    "pass": 15,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 15,
+    "pass": 15,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  }
+ },
+ "mutants": {},
+ "checkConfig": {
+  "patched/valid": {
+   "rc": 0,
+   "expect": "\"paidFinality\":\"derived\"",
+   "ok": true
+  },
+  "patched/no-optin": {
+   "rc": 1,
+   "expect": "derivedFinality is set but paidFinality is not \"derived\"",
+   "ok": true
+  },
+  "patched/quorum": {
+   "rc": 1,
+   "expect": "needs a proof executor",
+   "ok": true
+  },
+  "patched/public-history": {
+   "rc": 1,
+   "expect": "historyUrl: must be a loopback or private IPv4",
+   "ok": true
+  },
+  "pristine/valid": {
+   "rc": 1,
+   "expect": "txBackend is only used with chainAuthority \"attested-verifier\"",
+   "ok": true
+  }
+ },
+ "r4Control": {
+  "rc": 1,
+  "tests": 7,
+  "pass": 6,
+  "fail": 1,
+  "skipped": 0,
+  "todo": 0,
+  "cancelled": 0,
+  "reproducedRegression": true
+ },
+ "packagingMutants": {
+  "static-derived-import": {
+   "rc": 1,
+   "killed": true,
+   "failed": [
+    "the release pipeline: provider.mjs carries no derived code; derived-runtime.mjs and the pinned schedule_reader.mjs ship beside it",
+    "packaged provider WITHOUT the derived files: quorum and local-verifier configurations run; a derived one refuses explicitly",
+    "packaged release WITH the derived files: --check-config loads the runtime beside it; a missing or altered schedule reader refuses",
+    "the RELEASE derived-runtime.mjs runs the adapter journal cases (back-to-back, finalized advancement, restart, forged history)"
+   ]
+  },
+  "no-reader-resource": {
+   "rc": 1,
+   "killed": true,
+   "failed": [
+    "the release pipeline: provider.mjs carries no derived code; derived-runtime.mjs and the pinned schedule_reader.mjs ship beside it",
+    "packaged release WITH the derived files: --check-config loads the runtime beside it; a missing or altered schedule reader refuses",
+    "the RELEASE derived-runtime.mjs runs the adapter journal cases (back-to-back, finalized advancement, restart, forged history)"
+   ]
+  }
+ },
+ "ok": false
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-adapter-stage/r6/runs/20261026T115949Z-full-1637373
+## paid-derived-adapter-r5 full rc=1
+[memory-guard] exit=1 peakTreeRssMiB=629 minHostAvailableMiB=18064
+[memory-guard] at peak: node:331 node:95 node:62 anvil:43 anvil:31 anvil:30 anvil:29 bash:4
+[queue] EXIT 1

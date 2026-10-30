@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: configuration: strict, operator-owned, relative to its file; a remote adapter never takes plaintext secrets
+ok 1 - configuration: strict, operator-owned, relative to its file; a remote adapter never takes plaintext secrets
+  ---
+  duration_ms: 3.110048
+  type: 'test'
+  ...
+# Subtest: a backend may add optional arguments, never replace an original one
+ok 2 - a backend may add optional arguments, never replace an original one
+  ---
+  duration_ms: 0.489065
+  type: 'test'
+  ...
+# Subtest: one call reads at ONE agreed block; a liar is outvoted, two disagreeing peers of three refuse
+ok 3 - one call reads at ONE agreed block; a liar is outvoted, two disagreeing peers of three refuse
+  ---
+  duration_ms: 1.842111
+  type: 'test'
+  ...
+# Subtest: replay: a record that changed between the build and the answer is a SnapshotChanged; time-dependent reads are exempt
+ok 4 - replay: a record that changed between the build and the answer is a SnapshotChanged; time-dependent reads are exempt
+  ---
+  duration_ms: 0.93047
+  type: 'test'
+  ...
+# Subtest: the backend rebuilds once on a changed snapshot, then refuses; every call gets its own scope; the gateway is closed
+ok 5 - the backend rebuilds once on a changed snapshot, then refuses; every call gets its own scope; the gateway is closed
+  ---
+  duration_ms: 1.94852
+  type: 'test'
+  ...
+# Subtest: verified host capacity records become the hosted availability/pricing shapes; without records capabilities are unknown
+ok 6 - verified host capacity records become the hosted availability/pricing shapes; without records capabilities are unknown
+  ---
+  duration_ms: 18.109135
+  type: 'test'
+  ...
+# Subtest: entrypoints: loopback-only unless --remote; --remote serves profiles by path only; a profile is never a tool argument
+ok 7 - entrypoints: loopback-only unless --remote; --remote serves profiles by path only; a profile is never a tool argument
+  ---
+  duration_ms: 11.580412
+  type: 'test'
+  ...
+# Subtest: remote adapter secrets: ciphertext-only schemas; plaintext-shaped arguments refused statically before ANY chain read
+ok 8 - remote adapter secrets: ciphertext-only schemas; plaintext-shaped arguments refused statically before ANY chain read
+  ---
+  duration_ms: 1.033029
+  type: 'test'
+  ...
+# Subtest: remote seal: the recipient is the owner's OWN read; a remote hint differing in any field, or an altered update, is refused
+ok 9 - remote seal: the recipient is the owner's OWN read; a remote hint differing in any field, or an altered update, is refused
+  ---
+  duration_ms: 65.117114
+  type: 'test'
+  ...
+# Subtest: remote clear: judged against the owner's own clear plan (no recipient needed); a false no-op or any altered clear is refused
+ok 10 - remote clear: judged against the owner's own clear plan (no recipient needed); a false no-op or any altered clear is refused
+  ---
+  duration_ms: 13.315624
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 358.594567

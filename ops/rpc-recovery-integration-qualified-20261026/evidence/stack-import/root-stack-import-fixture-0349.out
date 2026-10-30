@@ -1,0 +1,34 @@
+[queue] START available=22548MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{
+ "ok": true,
+ "fails": [],
+ "results": {
+  "original": {
+   "rc": 1,
+   "tests": 3,
+   "pass": 2,
+   "fail": 1,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "failing": [
+    "every name the Windows chain modules import from the admission bundle is exported by the bundle AND its source entry"
+   ]
+  },
+  "patched": {
+   "rc": 0,
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "failing": []
+  }
+ }
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/stack-import-fixture-stage/runs/20261026T034842Z-805912
+## stack-import rc=0
+[memory-guard] exit=0 peakTreeRssMiB=151 minHostAvailableMiB=22316
+[memory-guard] at peak: node:84 node:58 bash:4 timeout:2 bash:2
+[queue] EXIT 0

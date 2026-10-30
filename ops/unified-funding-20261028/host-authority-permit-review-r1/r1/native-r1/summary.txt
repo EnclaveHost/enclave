@@ -1,0 +1,2 @@
+FAIL host-registry rc 1 expected 16 tests 16 pass 15 fail 1 cancelled 0 skipped 0 todo 0
+PASS permit-adapter rc 0 expected 7 tests 7 pass 7 fail 0 cancelled 0 skipped 0 todo 0

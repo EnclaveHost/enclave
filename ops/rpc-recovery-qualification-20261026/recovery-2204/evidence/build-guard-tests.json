@@ -1,0 +1,16 @@
+{
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "format": "bsro-guard-test-receipt/r5",
+ "pass": true,
+ "ran": [
+  "10"
+ ],
+ "rc": 0,
+ "stageSums": "71e5fac4008a1776271cb83434311d6ece1621c8cdf0f29f3ba8edf9471c988f"
+}

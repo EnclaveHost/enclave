@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-29T02:38:08.452Z",
+  "readOnly": true,
+  "gasLimit": 1200000,
+  "feeCap": "80000",
+  "providers": [
+    "https://base-rpc.publicnode.com",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "block": "53226069",
+  "blockHash": "0xf90fbb9c9eb023104cc75b1d98a0de25e0592188cc48459c17407e34b0a8524b",
+  "error": "chain_unreadable: eth_getCode failed: rpc: base-rpc.publicnode.com eth_getCode: HTTP 429"
+}

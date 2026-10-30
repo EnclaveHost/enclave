@@ -1,0 +1,7 @@
+from pathlib import Path
+import json,hashlib,os
+p=Path('/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025')
+r=p/'logs/recovery-diagnostic-request-1720.json'
+d={'format':'recovery-overlay-diagnostic-request/v1','purpose':'full-readonly-mdbx-validation','recoveryAccepted':False,'productionUse':False,'planSha256':'c4e38213847793d5c0868825fe454c5702b4499a6b25315078037b073a4f35a9','journalSha256':'d95d81fcaf1fdecb305f5645bc5bf2d6093d0a7fc40affbfc769894798cbc073','history':{'path':str(p/'postdelete-bitmap-stage/r2/runs/check-20261026T211719Z-2363068/result.json'),'sha256':'25abe05e6eb9e7bc7183552ad22bf7a466e080ed69437b33e0630f01d11196a7','verdict':'BLOCKED'},'validator':{'chkSha256':'c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981','wrapperSha256':'f0d27e40c29271b94d2b48b9d4ab70a84de1f946709db4e9361cdfba00bac131'},'requestedBy':'root recovery investigation','note':'Diagnostic only, 1800 second throughput/integrity probe. No recovery acceptance. Earlier pinned r2 history remains BLOCKED by its narrow model. Newer r5 finds reuse of two extent-tree metadata blocks, both supplied from verified journal copies; no cross-commit data reuse. Intra-transaction reuse and content corruption remain unproven. USB writes, download and production VM boot remain paused.'}
+with open(r,'x') as f:json.dump(d,f,indent=1)
+os.chmod(r,0o600);print(r);print(hashlib.sha256(r.read_bytes()).hexdigest())

@@ -1,0 +1,14 @@
+{
+ "module": "test_controller",
+ "expected": 14,
+ "counts": {
+  "testsRun": 14,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "expectedFailures": 0,
+  "unexpectedSuccesses": 0
+ },
+ "pass": true,
+ "notPassed": []
+}

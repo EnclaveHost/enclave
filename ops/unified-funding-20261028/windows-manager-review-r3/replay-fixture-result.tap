@@ -1,0 +1,256 @@
+TAP version 13
+# Subtest: ROOT release immediately revokes retained admission while retaining physical ownership during withdrawal
+ok 1 - ROOT release immediately revokes retained admission while retaining physical ownership during withdrawal
+  ---
+  duration_ms: 11.996797
+  type: 'test'
+  ...
+# Subtest: ROOT authenticated hash chain does not admit semantically invalid replay rows
+ok 2 - ROOT authenticated hash chain does not admit semantically invalid replay rows
+  ---
+  duration_ms: 8.011419
+  type: 'test'
+  ...
+# Subtest: ROOT rejected expired registration leaves no armed record invisible to session-death cleanup
+ok 3 - ROOT rejected expired registration leaves no armed record invisible to session-death cleanup
+  ---
+  duration_ms: 7.344027
+  type: 'test'
+  ...
+# Subtest: r2 release: every admission path refuses while withdrawal-direction writes still land under the held handle
+ok 4 - r2 release: every admission path refuses while withdrawal-direction writes still land under the held handle
+  ---
+  duration_ms: 25.105261
+  type: 'test'
+  ...
+# Subtest: r2 release: a rejected listener keeps the handle owned and admissions revoked; release() retries only the failed listener
+ok 5 - r2 release: a rejected listener keeps the handle owned and admissions revoked; release() retries only the failed listener
+  ---
+  duration_ms: 6.649305
+  type: 'test'
+  ...
+# Subtest: r2 release: the REAL r18 gate closes through the journal listener and new gate work is refused at release begin
+ok 6 - r2 release: the REAL r18 gate closes through the journal listener and new gate work is refused at release begin
+  ---
+  duration_ms: 5.50803
+  type: 'test'
+  ...
+# Subtest: r2 replay: positive cold reopen reproduces every section written through the journal API
+ok 7 - r2 replay: positive cold reopen reproduces every section written through the journal API
+  ---
+  duration_ms: 30.070158
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: negative revision
+ok 8 - r2 replay refuses a well-chained but impossible journal: negative revision
+  ---
+  duration_ms: 8.325794
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: generation rollback
+ok 9 - r2 replay refuses a well-chained but impossible journal: generation rollback
+  ---
+  duration_ms: 9.148003
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: revision rollback
+ok 10 - r2 replay refuses a well-chained but impossible journal: revision rollback
+  ---
+  duration_ms: 8.307445
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: sequence equivocation
+ok 11 - r2 replay refuses a well-chained but impossible journal: sequence equivocation
+  ---
+  duration_ms: 9.698407
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: sequence rollback
+ok 12 - r2 replay refuses a well-chained but impossible journal: sequence rollback
+  ---
+  duration_ms: 8.048188
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: new generation keeps old sequence
+ok 13 - r2 replay refuses a well-chained but impossible journal: new generation keeps old sequence
+  ---
+  duration_ms: 8.163677
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: binding equivocation
+ok 14 - r2 replay refuses a well-chained but impossible journal: binding equivocation
+  ---
+  duration_ms: 8.122907
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: unfenced without newer assignment
+ok 15 - r2 replay refuses a well-chained but impossible journal: unfenced without newer assignment
+  ---
+  duration_ms: 8.246665
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: denial floor rollback
+ok 16 - r2 replay refuses a well-chained but impossible journal: denial floor rollback
+  ---
+  duration_ms: 8.788218
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: sequence without digest
+ok 17 - r2 replay refuses a well-chained but impossible journal: sequence without digest
+  ---
+  duration_ms: 7.178789
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: unknown lc field
+ok 18 - r2 replay refuses a well-chained but impossible journal: unknown lc field
+  ---
+  duration_ms: 6.902512
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: string generation
+ok 19 - r2 replay refuses a well-chained but impossible journal: string generation
+  ---
+  duration_ms: 7.06018
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: uppercase deployment id
+ok 20 - r2 replay refuses a well-chained but impossible journal: uppercase deployment id
+  ---
+  duration_ms: 7.176098
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: unknown record kind
+ok 21 - r2 replay refuses a well-chained but impossible journal: unknown record kind
+  ---
+  duration_ms: 7.029221
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: instance first record not staging
+ok 22 - r2 replay refuses a well-chained but impossible journal: instance first record not staging
+  ---
+  duration_ms: 7.167559
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: instance revived
+ok 23 - r2 replay refuses a well-chained but impossible journal: instance revived
+  ---
+  duration_ms: 10.371958
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: instance launch epoch changed
+ok 24 - r2 replay refuses a well-chained but impossible journal: instance launch epoch changed
+  ---
+  duration_ms: 9.975703
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: instance unknown field
+ok 25 - r2 replay refuses a well-chained but impossible journal: instance unknown field
+  ---
+  duration_ms: 6.948752
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: instance removal back to serving
+ok 26 - r2 replay refuses a well-chained but impossible journal: instance removal back to serving
+  ---
+  duration_ms: 9.109344
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: removed without confirmation
+ok 27 - r2 replay refuses a well-chained but impossible journal: removed without confirmation
+  ---
+  duration_ms: 9.149383
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: host authority rollback
+ok 28 - r2 replay refuses a well-chained but impossible journal: host authority rollback
+  ---
+  duration_ms: 8.860957
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: host authority forged digest
+ok 29 - r2 replay refuses a well-chained but impossible journal: host authority forged digest
+  ---
+  duration_ms: 8.179846
+  type: 'test'
+  ...
+# Subtest: r2 replay refuses a well-chained but impossible journal: Offline cleared at same generation
+ok 30 - r2 replay refuses a well-chained but impossible journal: Offline cleared at same generation
+  ---
+  duration_ms: 8.765439
+  type: 'test'
+  ...
+# Subtest: r2 replay: an injected flush failure latches the handle; the landed intent is replayed (outcome unknown is conservative)
+ok 31 - r2 replay: an injected flush failure latches the handle; the landed intent is replayed (outcome unknown is conservative)
+  ---
+  duration_ms: 6.697895
+  type: 'test'
+  ...
+# Subtest: r2 guard: invalid admission fields write nothing
+ok 32 - r2 guard: invalid admission fields write nothing
+  ---
+  duration_ms: 6.143212
+  type: 'test'
+  ...
+# Subtest: r2 guard: timer installation failure after the durable arm expires the instance (never armed without a timer)
+ok 33 - r2 guard: timer installation failure after the durable arm expires the instance (never armed without a timer)
+  ---
+  duration_ms: 10.806622
+  type: 'test'
+  ...
+# Subtest: r2 guard: a write whose outcome is unknown is owned and removed, never forgotten
+ok 34 - r2 guard: a write whose outcome is unknown is owned and removed, never forgotten
+  ---
+  duration_ms: 9.524269
+  type: 'test'
+  ...
+# Subtest: r2 guard: session death and stop cover a durable armed record that has no live timer
+ok 35 - r2 guard: session death and stop cover a durable armed record that has no live timer
+  ---
+  duration_ms: 9.657268
+  type: 'test'
+  ...
+# Subtest: r2 guard: an expired renew writes nothing and keeps the previous deadline in force
+ok 36 - r2 guard: an expired renew writes nothing and keeps the previous deadline in force
+  ---
+  duration_ms: 11.125829
+  type: 'test'
+  ...
+# Subtest: r2 guard: an impossible replayed registration refuses the guard
+ok 37 - r2 guard: an impossible replayed registration refuses the guard
+  ---
+  duration_ms: 9.734197
+  type: 'test'
+  ...
+# Subtest: r2 enforcement: a hung raw startup does not block withdrawal; absence is confirmed only after the launch settles
+ok 38 - r2 enforcement: a hung raw startup does not block withdrawal; absence is confirmed only after the launch settles
+  ---
+  duration_ms: 213.800093
+  type: 'test'
+  ...
+# Subtest: r2 enforcement: a hung installed removal stays owned and unconfirmed; a failed data-plane close is not acknowledged as ingress withdrawn
+ok 39 - r2 enforcement: a hung installed removal stays owned and unconfirmed; a failed data-plane close is not acknowledged as ingress withdrawn
+  ---
+  duration_ms: 308.130626
+  type: 'test'
+  ...
+# Subtest: r2 EXLOCK adapter: refuses without an exact qualification, on another runtime, or on Linux
+ok 40 - r2 EXLOCK adapter: refuses without an exact qualification, on another runtime, or on Linux
+  ---
+  duration_ms: 0.78252
+  type: 'test'
+  ...
+# Subtest: r2 EXLOCK adapter: an ignored flag (second open succeeds) refuses and closes both handles; a sharing violation passes
+ok 41 - r2 EXLOCK adapter: an ignored flag (second open succeeds) refuses and closes both handles; a sharing violation passes
+  ---
+  duration_ms: 0.309536
+  type: 'test'
+  ...
+1..41
+# tests 41
+# suites 0
+# pass 41
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1219.10743

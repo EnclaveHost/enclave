@@ -1,0 +1,17 @@
+[queue] START available=18437MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+test_gate_accepts_pinned_inputs_without_probe (__main__.T.test_gate_accepts_pinned_inputs_without_probe) ... ok
+test_interval_is_required_and_must_divide_the_range (__main__.T.test_interval_is_required_and_must_divide_the_range) ... ok
+test_mutations_target_the_agreed_preimage_and_blobs_or_report_not_tested (__main__.T.test_mutations_target_the_agreed_preimage_and_blobs_or_report_not_tested) ... ok
+test_public_endpoint_refuses (__main__.T.test_public_endpoint_refuses) ... ok
+test_rpc_finalized_label_is_not_an_l1_head (__main__.T.test_rpc_finalized_label_is_not_an_l1_head) ... ok
+test_trusted_input_uses_only_caller_values (__main__.T.test_trusted_input_uses_only_caller_values) ... ok
+test_unauthenticated_anchor_refuses (__main__.T.test_unauthenticated_anchor_refuses) ... ok
+test_unpinned_or_altered_inputs_refuse (__main__.T.test_unpinned_or_altered_inputs_refuse) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.013s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

@@ -1,0 +1,7 @@
+# Prepared root QMP test closure — not run
+
+Wait for actual frozen source delivery and root semantic review. This directory does not authorize execution. Preserve original13 tests byte-identically. Their setup needs only exact launcher and manifest metadata; captured here after pin verification, no image opened. Harness will redirect original module DEFAULT_CFG launcher/manifest to these isolated fixtures, not alter assertions or product source. Guest tests use owned temporary directories and mocked systemctl/os.sync. New tests must be reviewed before enumeration/execution.
+
+One512MiBhard450RSSfloor27648CPU1noSwap bounded shared-queue unit after source author terminal and collector completed. Isolate network and use a fresh temp copy of frozen candidate plus captured metadata. Verify source/fixture hashes before and after. Disable bytecode writes. Collect exact test counts/failures and preserve raw logs, including failures; no silent retries. AF_UNIX fixture traffic only; no QEMU/systemctl/SSH/datadir/DB/mount/production action. Failure does not authorize source repair or runtime activation by itself.
+
+Read revised transport for absolute deadlines through partial reads/writes/event loops, correlated replies including bool-vs-number distinctions, constructor/terminal socket cleanup, bounded buffers, safe diagnostic fields, no mutation replay on ambiguous response, and exact-owned cleanup. Review original phase budgets/host floor/storage and launcher pins for unchanged behavior.

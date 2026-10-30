@@ -1,0 +1,2 @@
+@echo off
+"C:\Program Files\Enclave\runtime\node\node.exe" "C:\ProgramData\Enclave\native-manager\releases\58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929\bootstrap.mjs" router 58ca73a0d002619990c25eedc4d66188533dd76b739afdc2cd8e0efbb4d1a929 "C:\ProgramData\Enclave\native-desktop\releases\91791dc89d55b1026ef1949068551f4d20973580aa0f807b6463110b343b2680\router-config.json" a4ba4c47cb8868c4bdac2961613a6d12ea0343f129b6879572ff41037c1920a3 >> "C:\ProgramData\Enclave\native-manager\state-v12\router.log" 2>&1

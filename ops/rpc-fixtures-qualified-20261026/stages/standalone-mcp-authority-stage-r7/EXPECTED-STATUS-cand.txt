@@ -1,0 +1,5 @@
+ M cli/independent.mjs
+ M mcp/independent-secrets.mjs
+ M mcp/independent.mjs
+?? node_modules
+?? test/mcp-independent-verifier.test.mjs

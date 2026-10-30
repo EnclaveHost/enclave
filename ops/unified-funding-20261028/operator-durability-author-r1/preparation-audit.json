@@ -1,0 +1,22 @@
+{
+  "status": "PREPARATION_FILE_HASH_STATIC_IMPORT_INVENTORY_AND_HELPER_AST_ONLY",
+  "preparedSha256": "2423b86ebb77d6ae65235d3db57a204d011b51a4b9d03b24635dcbb1da72bf17",
+  "seedFiles": 230,
+  "candidateExactRootRepairedSeed": true,
+  "rootRepairsPreserved": 3,
+  "preAuthorProductEdits": 0,
+  "readonlyPins": 8473,
+  "inputDrift": [],
+  "authorLaunched": false,
+  "candidateExecuted": false,
+  "testsOrBuildsRun": false,
+  "helperASTParsedNotExecuted": [
+    "run.py",
+    "collect-terminal.py",
+    "readonly-progress.py"
+  ],
+  "operatorLiteralProjectClosureFiles": 10,
+  "missingProjectImports": [],
+  "sponsoredReadonlyReferenceFiles": 42,
+  "note": "Narrow scope; coordinator reviews and launches. Unchanged collector uses ROOT REPAIRED230 immutable replay seed."
+}

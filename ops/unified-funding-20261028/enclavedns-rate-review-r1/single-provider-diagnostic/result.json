@@ -1,0 +1,145 @@
+{
+  "expectedPayoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+  "capturedAt": "2026-10-29T23:10:25.891Z",
+  "readOnly": true,
+  "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B",
+  "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+  "assurance": "Single Enclave-operated RPC diagnostic only; NOT quorum verified or authority to mutate payouts/funds.",
+  "scope": "Public exact deployment and all registry hosts (maximum 32) with expected payout-wallet comparisons and host-specific pricing at one quorum block. No signatures, sends, config fetches or funds. Single-provider observation, not independently confirmed or finality.",
+  "observation": {
+    "blockNumber": "53263038",
+    "blockHash": "0xca4c857ba0e58b60b339f2bf705c0c6b0780173851d62426db7e03d21fb8b0c4",
+    "timestamp": "1793315423",
+    "value": {
+      "ledgerSchema": "16",
+      "registrySchema": "4",
+      "count": "11",
+      "deployment": {
+        "owner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+        "active": true,
+        "storedRate": "2",
+        "cap": "14",
+        "fee": [
+          "0x0000000000000000000000000000000000000000",
+          "0"
+        ],
+        "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+        "leaseUntil": "1793141661",
+        "appRef": "catalog://0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06/5"
+      },
+      "hosts": [
+        {
+          "hostId": "0xef72af43dfb392ad3ef635cca36fbb95555ec09bfbc40b02e2d47c1549e14575",
+          "endpoint": "https://kryptos.enclave.containers.tinfoil.dev",
+          "active": true,
+          "payoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "payoutMatchesExpected": true,
+          "ownerMatches": false,
+          "rateFor": "34",
+          "isStoredRunner": false
+        },
+        {
+          "hostId": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+          "endpoint": "https://api.enclave.host/t/metal0",
+          "active": true,
+          "payoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "payoutMatchesExpected": true,
+          "ownerMatches": false,
+          "rateFor": "34",
+          "isStoredRunner": false
+        },
+        {
+          "hostId": "0xacbf2e74077731edd738bb598de7538c450438c02bf804c2c82e66c662586b3f",
+          "endpoint": "https://api.enclave.host/t/us-west",
+          "active": true,
+          "payoutWallet": "0x0000000000000000000000000000000000000000",
+          "payoutMatchesExpected": false,
+          "ownerMatches": false,
+          "rateFor": "1",
+          "isStoredRunner": false
+        },
+        {
+          "hostId": "0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b",
+          "endpoint": "https://api.enclave.host/t/nucbox-k11",
+          "active": true,
+          "payoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "payoutMatchesExpected": true,
+          "ownerMatches": false,
+          "rateFor": "1",
+          "isStoredRunner": false
+        },
+        {
+          "hostId": "0xf7a1256d22644d59d88fd523a42820586335fb3bcf01f7ed132e9448a298c745",
+          "endpoint": "https://api.enclave.host/t/metal-iso0",
+          "active": false,
+          "payoutWallet": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+          "payoutMatchesExpected": false,
+          "ownerMatches": false,
+          "rateFor": "34",
+          "isStoredRunner": false
+        },
+        {
+          "hostId": "0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658",
+          "endpoint": "https://api.enclave.host/t/pixel10-pvm-cpu",
+          "active": true,
+          "payoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "payoutMatchesExpected": true,
+          "ownerMatches": false,
+          "rateFor": "1",
+          "isStoredRunner": false
+        },
+        {
+          "hostId": "0xda29eb3a65ddf58610f477a7f30391f3db2f0f3f4b4ff400b5116a48d0d435d9",
+          "endpoint": "https://api.enclave.host/t/nucbox-k11-2",
+          "active": true,
+          "payoutWallet": "0x0000000000000000000000000000000000000000",
+          "payoutMatchesExpected": false,
+          "ownerMatches": false,
+          "rateFor": "1",
+          "isStoredRunner": false
+        },
+        {
+          "hostId": "0xcd7be1efbb73fc6fdb54ec4aec6a989f94683793dd8c568490278e7a038951b3",
+          "endpoint": "https://api.enclave.host/t/nucbox-k11-3",
+          "active": true,
+          "payoutWallet": "0x0000000000000000000000000000000000000000",
+          "payoutMatchesExpected": false,
+          "ownerMatches": false,
+          "rateFor": "1",
+          "isStoredRunner": false
+        },
+        {
+          "hostId": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+          "endpoint": "https://api.enclave.host/t/nucbox-k11-4",
+          "active": true,
+          "payoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "payoutMatchesExpected": true,
+          "ownerMatches": false,
+          "rateFor": "2",
+          "isStoredRunner": true
+        },
+        {
+          "hostId": "0xf8f3110cd13f9b461051172d18d024d9a2cf1091bca32b58e44937d189199097",
+          "endpoint": "tuna://179.237.66.103:30120",
+          "active": true,
+          "payoutWallet": "0x0000000000000000000000000000000000000000",
+          "payoutMatchesExpected": false,
+          "ownerMatches": false,
+          "rateFor": "1",
+          "isStoredRunner": false
+        },
+        {
+          "hostId": "0x668a609b34fe9ce476ad964d1a075ab5d6a8a4a38315625afc93d629bdde75c6",
+          "endpoint": "wg-provider://165.245.191.129",
+          "active": true,
+          "payoutWallet": "0x0000000000000000000000000000000000000000",
+          "payoutMatchesExpected": false,
+          "ownerMatches": false,
+          "rateFor": "40000000000",
+          "isStoredRunner": false
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,10 @@
+[queue] START available=22658MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+ mode change 100644 => 100755 cli/enclave.mjs
+[fix/rpc-relay-consumers-20261025 1bdf5c432] Preserve executable permission on the Enclave CLI
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ mode change 100644 => 100755 cli/enclave.mjs
+To https://github.com/EnclaveHost/enclave.git
+   920a5911d..1bdf5c432  HEAD -> fix/rpc-relay-consumers-20261025
+[memory-guard] exit=0 peakTreeRssMiB=38 minHostAvailableMiB=22554
+[memory-guard] at peak: git-remote-http:16 git:9 git:6 git:4 bash:4
+[queue] EXIT 0

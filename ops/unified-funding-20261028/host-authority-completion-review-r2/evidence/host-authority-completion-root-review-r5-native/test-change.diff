@@ -1,0 +1,13 @@
+--- r4-diagnostic/test.mjs
++++ r5-native/test.mjs
+@@ -235 +235,7 @@
+-  assert.equal(st.floor.generation, '2'); assert.equal(st.bound[w.id].generation, '1'); console.log('ROOT third-send diagnostic', JSON.stringify(w.sent.slice(sent).map(t => ({ to: t.to, decoded: decodeFunctionData({ abi: L3.LIFECYCLE, data: t.data }) })), (_,v)=>typeof v==='bigint'?v.toString():v)); assert.equal(w.sent.length, sent, 'no Running effect');
++  assert.equal(st.floor.generation, '2'); assert.equal(st.bound[w.id].generation, '1'); const decoded = w.sent.slice(sent).map(t => ({ to: t.to.toLowerCase(), ...decodeFunctionData({ abi: L3.LIFECYCLE, data: t.data }) }));
++  assert.equal(decoded.length, 1, 'exactly one revocation transition');
++  assert.equal(decoded[0].to, w.contracts.lifecycle.toLowerCase());
++  assert.equal(decoded[0].functionName, 'transition');
++  assert.equal(decoded[0].args[0].id, w.id);
++  assert.equal(decoded[0].args[0].target, 1, 'Queued revocation is allowed; no Running effect');
++  assert.equal(Number((await w.assignment())[1]), 1, 'actual chain assignment is Queued');
+@@ -252,0 +259 @@
++  assert.deepEqual(w.sent.slice(sent).map(t=>decodeFunctionData({abi:L3.LIFECYCLE,data:t.data}).args[0].target), [1,2], 'exact Queued then Running targets');

@@ -1,0 +1,67 @@
+TAP version 13
+# Subtest: control: real signed permit grants serving while its writer remains owned
+ok 1 - control: real signed permit grants serving while its writer remains owned
+  ---
+  duration_ms: 107.328903
+  type: 'test'
+  ...
+# Subtest: released writer must invalidate its already-installed signed gate grant
+not ok 2 - released writer must invalidate its already-installed signed gate grant
+  ---
+  duration_ms: 97.166943
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r1/test/owner-release.test.mjs:86:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception: installed grant must not survive owner release'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r1/test/owner-release.test.mjs:91:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: released writer must withdraw resources tracked by the actual runtime/gate
+not ok 3 - released writer must withdraw resources tracked by the actual runtime/gate
+  ---
+  duration_ms: 77.671829
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r1/test/owner-release.test.mjs:93:1'
+  failureType: 'testCodeFailure'
+  error: 'resource requires a close callback'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    DeploymentPermitGate.track (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r1/network/deployment-permit-gate.mjs:130:44)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r1/test/owner-release.test.mjs:95:23)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: owner release during real witness verification must prevent signature release
+not ok 4 - owner release during real witness verification must prevent signature release
+  ---
+  duration_ms: 29.225547
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r1/test/owner-release.test.mjs:100:1'
+  failureType: 'testCodeFailure'
+  error: 'released witness owner must not return a valid signature'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-owner-permit-boundary-r1/test/owner-release.test.mjs:114:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 1
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 570.177204

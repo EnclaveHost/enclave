@@ -1,0 +1,1 @@
+PASS srr3 rc 0 expected 32 ran ['32'] final 'OK'

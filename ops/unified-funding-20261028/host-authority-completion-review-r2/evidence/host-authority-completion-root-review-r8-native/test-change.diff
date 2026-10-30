@@ -1,0 +1,7 @@
+--- r7-native/test.mjs
++++ r8-native/test.mjs
+@@ -261 +261,3 @@
+-  if (nextAt > chainNow()) await warp(Math.ceil((nextAt-chainNow())/1000)+1); // ONLY owned TEST clocks, exact existing restart + canonical generation fence
++  const waitMs = Math.max(0, nextAt-chainNow()+1000);
++  assert.ok(waitMs <= 60000, 'bounded actual policy delay');
++  await new Promise(resolve=>setTimeout(resolve,waitMs)); await mine(); // real elapsed time preserves permit gate monotonic/wall-clock guard

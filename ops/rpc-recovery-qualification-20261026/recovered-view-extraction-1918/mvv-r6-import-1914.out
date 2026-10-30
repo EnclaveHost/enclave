@@ -1,0 +1,10 @@
+[queue] START available=23994MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{"viewDir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/runs/view-20261027T133210Z-3241909", "kind": "production", "parts": 265, "manifestSha256": "f94807f71c93b1ef639c224dfefb3b6c0f3e7b9289def91fc52b0e79864821a9", "descriptorSha256": "8bc41249f8c5ea72c47c4e3ad9196e4a4d7f1ae34052b6c08de59c6c700b3d07"}
+{"recheck": "ok", "rehashed": false, "parts": 265, "kind": "production"}
+9cfd6d41562bcfacf08c86d8449add92ef25539e3df89a0356ff9f346e50f4db  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/runs/view-20261027T133210Z-3241909/receipt.json
+8bc41249f8c5ea72c47c4e3ad9196e4a4d7f1ae34052b6c08de59c6c700b3d07  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/runs/view-20261027T133210Z-3241909/view.vmdk
+## view /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/runs/view-20261027T133210Z-3241909
+## mvv-r6-import rc=0
+[memory-guard] exit=0 peakTreeRssMiB=30 minHostAvailableMiB=23941
+[memory-guard] at peak: python3:26 bash:4
+[queue] EXIT 0

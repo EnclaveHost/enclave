@@ -1,0 +1,18 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] START available=18191MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+overlays = r14 + patch; verifier pins = r5/src: {'anchored_origin.py': 'ed1a547d4d8a', 'segments.py': '8764f5cc55cc', 'anchored_acceptance.py': 'cb68413866d0'}
+PASS A-r5-suite testsRun 54 failures 0 errors 0 skipped 0
+REUSED B 49/34/baseline/mutants, C 93 x2, D 27 x2 from root-historical-r5-1287 (byte-identical inputs)
+E legacy activation baseline(r14): testsRun 36 notPassed 0; patched(r5): testsRun 36 notPassed 0
+PASS E-legacy-activation (r14 and r6 wrapper both testsRun 36, 0 failures/errors/skips; RealManifest on 1f0c4e6c)
+PASS F-r17-candidate-reproducible b31dba16c15825562188d432b59b51addc9cc8d4d9952c578a9677aa4f6c3778
+PASS historical-origin-r7 A 54 + E full pass (real manifest) + F r17 reproducible; B/C/D reused from root 1287 (verified)
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r7/logs/run-20261026T122756Z-1686448
+## r7 SHA256SUMS 71a7940403f20c8eb21fc66ebd9df5667917481002c1b3355137f66f3e8a8a0b
+## historical-origin-r7 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=120 minHostAvailableMiB=17915
+[memory-guard] at peak: node:67 python3:45 bash:4 timeout:2 bash:2
+[queue] EXIT 0

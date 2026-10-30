@@ -1,0 +1,179 @@
+{
+ "acceptance": "DIAGNOSTIC RECOVERY VIEW ONLY: not a recovery, restore or production acceptance; the data blocks are not authenticated",
+ "adoptedKilled": [],
+ "checks": {
+  "mountRefusesMkdir": {
+   "detail": 30,
+   "ok": true
+  },
+  "nbdRefusesWrite": {
+   "ok": true
+  },
+  "newFileRefused": {
+   "ok": true
+  },
+  "overlayQcowCheck": {
+   "detail": "{\n    \"image-end-offset\": 3997696,\n    \"total-clusters\": 61035157,\n    \"check-errors\": 0,\n    \"allocated-clusters\": 30,\n    \"filename\": \"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/session/work/ov",
+   "ok": true
+  },
+  "overlayWithinCap": {
+   "detail": 3997696,
+   "ok": true
+  },
+  "patchesReadBack": {
+   "ok": true
+  },
+  "samplesFollowRestoredMap": {
+   "detail": 64,
+   "ok": true
+  },
+  "targetRefusesWrite": {
+   "ok": true
+  },
+  "targetRegularAndSized": {
+   "detail": {
+    "size": 1138166333440
+   },
+   "ok": true
+  }
+ },
+ "children": {
+  "exec": {
+   "cmd": [
+    "/usr/bin/python3",
+    "-I",
+    "-B",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/multipart.py",
+    "serve",
+    "--socket-dir",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/sock",
+    "--expect-size",
+    "1138166333440",
+    "--session-run-dir",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/session"
+   ],
+   "pid": 2521511,
+   "returncode": 0
+  },
+  "fuse2fs": {
+   "cmd": [
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/session/work/fuse2fs",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/session/work/view/nbd",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/session/work/mnt",
+    "-f",
+    "-o",
+    "ro,norecovery,fakeroot,cache_size=64M"
+   ],
+   "cwd": null,
+   "pid": 2521463,
+   "returncode": 0
+  },
+  "nbdfuse": {
+   "cmd": [
+    "nbdfuse",
+    "-r",
+    "-C",
+    "1",
+    "-P",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/session/work/nbdfuse.pid",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/session/work/view",
+    "--unix",
+    "/proc/self/cwd/nbd.sock"
+   ],
+   "cwd": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/session/work",
+   "pid": 2521449,
+   "returncode": 0
+  },
+  "qemu-nbd": {
+   "cmd": [
+    "qemu-nbd",
+    "--read-only",
+    "--shared=1",
+    "--socket=/proc/self/cwd/nbd.sock",
+    "--image-opts",
+    "driver=qcow2,file.driver=file,file.filename=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/session/work/overlay.qcow2,backing.driver=qcow2,backing.read-only=on,backing.file.driver=file,backing.file.filename=/home/steven/Documents/Codex/2026-10-26/my/work/tr004-readonly/enclave-rpc-production/base-origin.qcow2,backing.file.locking=off,read-only=on"
+   ],
+   "cwd": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/session/work",
+   "pid": 2521446,
+   "returncode": 0
+  }
+ },
+ "cleanupComplete": true,
+ "exec": {
+  "cmd": [
+   "/usr/bin/python3",
+   "-I",
+   "-B",
+   "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/multipart.py",
+   "serve",
+   "--socket-dir",
+   "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/sock",
+   "--expect-size",
+   "1138166333440",
+   "--session-run-dir",
+   "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-verify-20261027T002223Z-2521081/session"
+  ],
+  "escapedKilled": 0,
+  "groupEmpty": true,
+  "groupLeftovers": [],
+  "orphansGone": true,
+  "rc": 0,
+  "timedOut": false,
+  "timeout": 86400
+ },
+ "leftoverProcesses": [],
+ "overlayBytes": 3997696,
+ "overlayDeleted": true,
+ "overlayEstimate": 5046272,
+ "parentPost": {
+  "ctimeNs": 1793030438418984700,
+  "dev": 2050,
+  "ino": 3221,
+  "mtimeNs": 1793030438418984700,
+  "size": 2073934036992
+ },
+ "parentPre": {
+  "ctimeNs": 1793030438418984700,
+  "dev": 2050,
+  "ino": 3221,
+  "mtimeNs": 1793030438418984700,
+  "size": 2073934036992
+ },
+ "parentUnchanged": true,
+ "planSha256": "c4e38213847793d5c0868825fe454c5702b4499a6b25315078037b073a4f35a9",
+ "rc": 0,
+ "steps": [
+  [
+   1793060544.317,
+   "overlay create"
+  ],
+  [
+   1793060544.332,
+   "overlay patch"
+  ],
+  [
+   1793060552.824,
+   "qemu-nbd"
+  ],
+  [
+   1793060553.025,
+   "nbdfuse"
+  ],
+  [
+   1793060553.228,
+   "fuse2fs"
+  ],
+  [
+   1793060554.819,
+   "exec"
+  ],
+  [
+   1793061189.466,
+   "cleanup"
+  ]
+ ],
+ "unmount": {
+  "fuse2fs": 0,
+  "nbdfuse": 0
+ }
+}

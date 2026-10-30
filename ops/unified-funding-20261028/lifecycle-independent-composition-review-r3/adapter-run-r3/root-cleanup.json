@@ -1,0 +1,6 @@
+{
+  "path": "/tmp/lca6.n1PNlx",
+  "adapterSha256": "8e666ed6970b8bfed283acfdd08bde917f7004bbdd4c9ebd51de038892406fb1",
+  "matchingTest": true,
+  "reason": "guard stopped job; exact prague Anvil/run processes absent"
+}

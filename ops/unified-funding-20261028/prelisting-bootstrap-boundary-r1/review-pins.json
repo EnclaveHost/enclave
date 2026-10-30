@@ -1,0 +1,11 @@
+{
+  "IMPLEMENTATION-ADDENDUM.txt": "e0ba35449b1337298929d2e6684765412bae8a373775425fe209027ccc041baa",
+  "ROOT-REVIEW.md": "cd5a94971315b595b753c34158efc9eaa7db1a949c1b08edc80eb0c667ca8d0a",
+  "baseline.test.mjs": "1bd6733aa733e323fdf490eb57992967672a929166026306c3f7f1c606a9d9c1",
+  "inner.guard.log": "558dbcbf27b56cc2d90fd7ec42c20b20f016914a5f8f87c9eda0198f16ca71c0",
+  "input-pins.json": "81aeedc7f289d56835246b3ad7075807fc8a1607c238cfed468eae87b95e595d",
+  "outer.guard.log": "ba315ca08e93acd6dfe4eeffc161a9eaeea54f2901ee634dbb38ce579abf1c70",
+  "run.py": "ef44ec76d709d7979247695f882c04623780267ebf659cfe74d02a8c0e2aa1d8",
+  "tests.log": "182e8676dccf3900c951db01dc664fbe6eb66b895bdd02e78ec559b2a41b8210",
+  "tests.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+}

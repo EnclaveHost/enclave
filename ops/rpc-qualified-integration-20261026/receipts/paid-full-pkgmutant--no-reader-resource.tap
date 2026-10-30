@@ -1,0 +1,120 @@
+TAP version 13
+# Subtest: the release pipeline: provider.mjs carries no derived code; derived-runtime.mjs and the pinned schedule_reader.mjs ship beside it
+not ok 1 - the release pipeline: provider.mjs carries no derived code; derived-runtime.mjs and the pinned schedule_reader.mjs ship beside it
+  ---
+  duration_ms: 1263.223459
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/patched/test/paid-derived-packaging.test.mjs:48:1'
+  failureType: 'testCodeFailure'
+  error: "ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/tmp/paid-derived-pkg-c9x1Er/release/schedule_reader.mjs'"
+  code: 'ENOENT'
+  stack: |-
+    Object.openSync (node:fs:560:18)
+    Object.readFileSync (node:fs:444:35)
+    sha (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/patched/test/paid-derived-packaging.test.mjs:35:51)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/patched/test/paid-derived-packaging.test.mjs:58:96)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: packaged provider WITHOUT the derived files: quorum and local-verifier configurations run; a derived one refuses explicitly
+ok 2 - packaged provider WITHOUT the derived files: quorum and local-verifier configurations run; a derived one refuses explicitly
+  ---
+  duration_ms: 316.167032
+  type: 'test'
+  ...
+# Subtest: packaged release WITH the derived files: --check-config loads the runtime beside it; a missing or altered schedule reader refuses
+not ok 3 - packaged release WITH the derived files: --check-config loads the runtime beside it; a missing or altered schedule reader refuses
+  ---
+  duration_ms: 0.970618
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/patched/test/paid-derived-packaging.test.mjs:78:1'
+  failureType: 'testCodeFailure'
+  error: "ENOENT: no such file or directory, copyfile '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/tmp/paid-derived-pkg-c9x1Er/release/schedule_reader.mjs' -> '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/tmp/paid-derived-pkg-c9x1Er/opt-release/schedule_reader.mjs'"
+  code: 'ENOENT'
+  stack: |-
+    Object.copyFileSync (node:fs:3090:11)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/patched/test/paid-derived-packaging.test.mjs:81:70)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: source entry: the same configurations, the runtime resolved from the source tree
+ok 4 - source entry: the same configurations, the runtime resolved from the source tree
+  ---
+  duration_ms: 539.456489
+  type: 'test'
+  ...
+# Subtest: the RELEASE derived-runtime.mjs runs the WHOLE adapter suite: exact counts, every test ok, no skipped or recursive run
+not ok 5 - the RELEASE derived-runtime.mjs runs the WHOLE adapter suite: exact counts, every test ok, no skipped or recursive run
+  ---
+  duration_ms: 339.557233
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/patched/test/paid-derived-packaging.test.mjs:101:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    TAP version 13
+    # node:fs:560
+    #   return binding.open(
+    #                  ^
+    # Error: ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/tmp/paid-derived-pkg-c9x1Er/release/schedule_reader.mjs'
+    #     at Object.openSync (node:fs:560:18)
+    #     at Object.readFileSync (node:fs:444:35)
+    #     at Ph (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/tmp/paid-derived-pkg-c9x1Er/release/derived-runtime.mjs:17:30901)
+    #     at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/tmp/paid-derived-pkg-c9x1Er/release/derived-runtime.mjs:17:31051
+    #     at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    #     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    #     at async file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/patched/test/paid-derived-adapter.test.mjs:40:53 {
+    #   errno: -2,
+    #   code: 'ENOENT',
+    #   syscall: 'open',
+    #   path: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/tmp/paid-derived-pkg-c9x1Er/release/schedule_reader.mjs'
+    # }
+    # Node.js v22.23.3
+    # Subtest: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/patched/test/paid-derived-adapter.test.mjs
+    not ok 1 - /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/patched/test/paid-derived-adapter.test.mjs
+      ---
+      duration_ms: 286.841073
+      type: 'test'
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/patched/test/paid-derived-adapter.test.mjs:1:1'
+      failureType: 'testCodeFailure'
+      exitCode: 1
+      signal: ~
+      error: 'test failed'
+      code: 'ERR_TEST_FAILURE'
+      ...
+    1..1
+    # tests 1
+    # suites 0
+    # pass 0
+    # fail 1
+    # cancelled 0
+    # skipped 0
+    # todo 0
+    # duration_ms 295.552693
+    
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/patched/test/paid-derived-packaging.test.mjs:107:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 2
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2531.658054

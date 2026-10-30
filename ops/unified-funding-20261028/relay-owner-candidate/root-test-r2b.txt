@@ -1,0 +1,5 @@
+[queue] START available=30730MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+usage: memory-guard.mjs --max-rss-mib N --floor-available-mib N [--log FILE] -- command ...
+[memory-guard] exit=2 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 2

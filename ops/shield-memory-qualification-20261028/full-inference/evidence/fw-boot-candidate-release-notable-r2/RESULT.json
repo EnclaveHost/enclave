@@ -1,0 +1,146 @@
+{
+  "scope": "GPU-free boot/rejection qualification; not inference or independently verified attestation",
+  "spec": {
+    "target": "candidate-release",
+    "case": "notable",
+    "firmware_sha256": "5c4840cdac447322ec9f3547026c394570fad3086ffdab35c6e7f593f72a777a",
+    "image_sha256": "7a71d50dfe4282a895d677377347f47f0230b0fc69000b697f38c6a3da8846ec",
+    "qemu": "/usr/bin/qemu-system-x86_64",
+    "qemu_sha256": "a2250f5e2b3b07c754473c0817df1cccf6c3c2443fc616dc474c4c311fa6ef1c",
+    "guest_mib": 4096,
+    "cap_mib": 6144,
+    "no_gpu": true,
+    "no_disks": true,
+    "no_network": true,
+    "override_sha256": null
+  },
+  "argv": [
+    "systemd-run",
+    "--user",
+    "--unit",
+    "fullbench-bc861f11a9544d8c-fw.service",
+    "--service-type=exec",
+    "-p",
+    "MemoryMax=6144M",
+    "-p",
+    "MemorySwapMax=0",
+    "-p",
+    "CPUQuota=200%",
+    "-p",
+    "TasksMax=128",
+    "-p",
+    "RuntimeMaxSec=120",
+    "-p",
+    "TimeoutStopSec=10",
+    "-p",
+    "KillMode=control-group",
+    "--",
+    "/usr/bin/qemu-system-x86_64",
+    "-machine",
+    "q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1",
+    "-object",
+    "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=off",
+    "-object",
+    "memory-backend-memfd,id=ram1,size=4096M,share=true",
+    "-cpu",
+    "host",
+    "-smp",
+    "2",
+    "-m",
+    "4096M",
+    "-bios",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/OVMF.candidate-release.fd",
+    "-kernel",
+    "/home/steven/enclave-prod/release-5cab66e4/kernel",
+    "-initrd",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/A.cpio.gz",
+    "-append",
+    "console=ttyS0 rdinit=/init loglevel=3",
+    "-nodefaults",
+    "-no-user-config",
+    "-nic",
+    "none",
+    "-monitor",
+    "none",
+    "-display",
+    "none",
+    "-serial",
+    "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fw-boot-candidate-release-notable-r2/serial.log",
+    "-debugcon",
+    "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fw-boot-candidate-release-notable-r2/debug.log",
+    "-global",
+    "isa-debugcon.iobase=0x402",
+    "-no-reboot"
+  ],
+  "samples": [
+    {
+      "t": 1793169201.2583358,
+      "host_available": 88524042240
+    },
+    {
+      "t": 1793169202.2727957,
+      "host_available": 88837873664
+    },
+    {
+      "t": 1793169203.2988257,
+      "host_available": 88304705536
+    },
+    {
+      "t": 1793169204.3280866,
+      "host_available": 86295990272
+    },
+    {
+      "t": 1793169205.344384,
+      "host_available": 84454043648
+    },
+    {
+      "t": 1793169206.3597875,
+      "host_available": 84432445440
+    },
+    {
+      "t": 1793169207.3754768,
+      "host_available": 84482916352
+    },
+    {
+      "t": 1793169208.3904133,
+      "host_available": 84481576960
+    },
+    {
+      "t": 1793169209.405805,
+      "host_available": 84471906304
+    },
+    {
+      "t": 1793169210.4211662,
+      "host_available": 84447883264
+    },
+    {
+      "t": 1793169211.4385216,
+      "host_available": 87341907968
+    },
+    {
+      "t": 1793169212.4548395,
+      "host_available": 88747229184
+    }
+  ],
+  "outcome": "guest_ended",
+  "identity": {
+    "unit": "fullbench-bc861f11a9544d8c-fw.service",
+    "binary": "/usr/bin/qemu-system-x86_64",
+    "created_by_us": true,
+    "invocation": "f7f4c1f3d8a84e1591a46650c4bb4b0a",
+    "main_pid": 4186865,
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/fullbench-bc861f11a9544d8c-fw.service",
+    "pid_start": "147431494"
+  },
+  "cleanup_errors": [],
+  "cleanup": "clean",
+  "kernel_entered": false,
+  "fallback": true,
+  "substitution_active": false,
+  "verifier_success": {
+    "kernel": false,
+    "initrd": false,
+    "cmdline": false
+  },
+  "accepted": true
+}

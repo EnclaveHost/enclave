@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: r8 factory: pinned config refuses unknown fields, forbidden capabilities, wrong host and hash drift
+ok 1 - r8 factory: pinned config refuses unknown fields, forbidden capabilities, wrong host and hash drift
+  ---
+  duration_ms: 7.526384
+  type: 'test'
+  ...
+# Subtest: r8 factory: the supervisor's chain reader is read-only; proof qualification comes only from the adapter's own fields
+ok 2 - r8 factory: the supervisor's chain reader is read-only; proof qualification comes only from the adapter's own fields
+  ---
+  duration_ms: 0.498377
+  type: 'test'
+  ...
+# Subtest: r8 factory: node entry composition -> no signer/relay adapter -> owned lifecycle bound to the client's runtime adapters, dispatch stopped
+ok 3 - r8 factory: node entry composition -> no signer/relay adapter -> owned lifecycle bound to the client's runtime adapters, dispatch stopped
+  ---
+  duration_ms: 7.579294
+  type: 'test'
+  ...
+# Subtest: r8 supervisor over factory snapshots: Online despite Enclave catalog refusal proceeds; Offline revokes; unverified fences; wrong host withdraws
+ok 4 - r8 supervisor over factory snapshots: Online despite Enclave catalog refusal proceeds; Offline revokes; unverified fences; wrong host withdraws
+  ---
+  duration_ms: 3.041976
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 356.393986

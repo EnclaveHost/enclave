@@ -1,0 +1,30 @@
+{
+  "offline_mask.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-cleanup-delivery-r1/author-delivery/offline_mask.py",
+    "sha256": "4a1a96237bbc4180901fe761ff494fe2770903b03ac8ed53c6a0b03a6278e554"
+  },
+  "test_offline_mask.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-cleanup-delivery-r1/author-delivery/test_offline_mask.py",
+    "sha256": "0ed021bdb4ee2de5b53cca8616b983058def437fe6afa9136998e6ea34b2f7e9"
+  },
+  "test_exporter_cleanup.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-cleanup-delivery-r1/author-delivery/test_exporter_cleanup.py",
+    "sha256": "7d1471f8b951b7d553e134901653d678b7145f668d04121ee865a65b9b7ddc69"
+  },
+  "test_offline_revalidation.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-cleanup-delivery-r1/author-delivery/test_offline_revalidation.py",
+    "sha256": "7e328c756757ba28a622d9ff199105dee11dac377959d4b65145547d0042540f"
+  },
+  "test_root_integration.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-writer-root-repaired-r1/test_root_integration.py",
+    "sha256": "a8707316d650db266d9f1b0a17d77251206d454bdd966c7d18163c321cd81f66"
+  },
+  "test_root_cleanup.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-cleanup-root-tests-r1/test_root_cleanup.py",
+    "sha256": "0af1cdcc29ec701374e4bb2fb1910cf721c913f95aa244061ded52a99072feda"
+  },
+  "harness.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-cleanup-root-tests-r1/harness.py",
+    "sha256": "dda301299c3b53cd043253475206629265faf32b3b2f97b5b460aeb345b0648e"
+  }
+}

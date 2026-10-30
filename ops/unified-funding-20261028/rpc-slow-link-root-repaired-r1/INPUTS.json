@@ -1,0 +1,42 @@
+{
+  "offline_mask.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-slow-link-root-repaired-r1/candidate/offline_mask.py",
+    "sha256": "37c8f244602496a894620d743721c1ed2ee92a8b9afda1ae93a356024d0870cb"
+  },
+  "test_exporter_cleanup.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-slow-link-root-repaired-r1/candidate/test_exporter_cleanup.py",
+    "sha256": "7d1471f8b951b7d553e134901653d678b7145f668d04121ee865a65b9b7ddc69"
+  },
+  "test_offline_mask.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-slow-link-root-repaired-r1/candidate/test_offline_mask.py",
+    "sha256": "0ed021bdb4ee2de5b53cca8616b983058def437fe6afa9136998e6ea34b2f7e9"
+  },
+  "test_offline_revalidation.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-slow-link-root-repaired-r1/candidate/test_offline_revalidation.py",
+    "sha256": "7e328c756757ba28a622d9ff199105dee11dac377959d4b65145547d0042540f"
+  },
+  "test_private_boundary.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-slow-link-root-repaired-r1/candidate/test_private_boundary.py",
+    "sha256": "2894f0da21f486ddd0eed8671d395590e6a915d2414c9a22db7b22fd5f660b88"
+  },
+  "test_root_cleanup.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-slow-link-root-repaired-r1/candidate/test_root_cleanup.py",
+    "sha256": "0af1cdcc29ec701374e4bb2fb1910cf721c913f95aa244061ded52a99072feda"
+  },
+  "test_root_integration.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-slow-link-root-repaired-r1/candidate/test_root_integration.py",
+    "sha256": "a8707316d650db266d9f1b0a17d77251206d454bdd966c7d18163c321cd81f66"
+  },
+  "harness.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-slow-link-root-repaired-r1/harness.py",
+    "sha256": "dda301299c3b53cd043253475206629265faf32b3b2f97b5b460aeb345b0648e"
+  },
+  "test_root_acl_race.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-private-boundary-root-repaired-r1/test_root_acl_race.py",
+    "sha256": "31ae0140537c78f4bdefc9ec26b69948abf68f596a19251008e4f21f51c98140"
+  },
+  "test_root_slow_link.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-slow-link-root-repaired-r1/test_root_slow_link.py",
+    "sha256": "6a77b4dd502dbfde1106a8f90a8e73a1a63612f2bc2f7d94acb4281c3790952f"
+  }
+}

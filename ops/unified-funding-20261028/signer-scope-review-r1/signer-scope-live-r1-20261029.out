@@ -1,0 +1,10 @@
+[queue] START available=92636MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+{"schema": "signer-scope-equality-r1", "pid": 228946, "startTicks": 43738495, "identityVerified": true, "sessionConfigured": true, "sponsorConfigured": true, "sessionValid": true, "sponsorValid": true, "samePrivateKey": false}
+[memory-guard] exit=0 peakTreeRssMiB=23 minHostAvailableMiB=92586
+[memory-guard] at peak: ssh:10 ssh:10 timeout:2
+[memory-guard] exit=0 peakTreeRssMiB=75 minHostAvailableMiB=92586
+[memory-guard] at peak: node:52 ssh:10 ssh:10 timeout:2
+[queue] EXIT 0

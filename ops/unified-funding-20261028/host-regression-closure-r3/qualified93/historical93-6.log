@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: durable host authority rejects lower revision after process restart
+ok 1 - durable host authority rejects lower revision after process restart
+  ---
+  duration_ms: 7.853393
+  type: 'test'
+  ...
+# Subtest: durable host authority rejects same revision different owner after process restart
+ok 2 - durable host authority rejects same revision different owner after process restart
+  ---
+  duration_ms: 1.999676
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 211.319206

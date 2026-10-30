@@ -1,0 +1,45 @@
+[queue] START available=96083MiB required=20736MiB cap=4096MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "checks": {
+  "clean": false,
+  "cleanupComplete": true,
+  "noMountLeft": true,
+  "noProcessLeft": true,
+  "peersUnchanged": true,
+  "rc0": false,
+  "snapshotsOk": true
+ },
+ "collectRc": 0,
+ "format": "composite-production-memory-job-receipt/r10",
+ "meaning": "CLEAN = mdbx_chk structural check only; not chain/state/trie/canonical-root/RPC validation, not a production acceptance",
+ "memoryDirty": null,
+ "memoryPeaks": {
+  "cgAnon": 635469824,
+  "cgCurrent": 3892781056,
+  "cgFileMapped": 1075748864,
+  "cgPagetables": 2222551040,
+  "chkRssAnonKiB": 541068,
+  "chkRssFileKiB": 636192,
+  "chkVmPTEKiB": 2168028,
+  "chkVmRSSKiB": 1177188,
+  "minMemAvailableMiB": 16757.55859375,
+  "treeVmRssMiB": 1638.12890625
+ },
+ "mountsLeft": "",
+ "outcome": "CANCELLED",
+ "processesLeft": "",
+ "rc": 5,
+ "reasons": [
+  "soft stop: MemAvailable 16758 MiB < 16896 MiB (16 GiB floor + 512)"
+ ],
+ "runtimeKilled": false,
+ "softStop": "soft stop: MemAvailable 16758 MiB < 16896 MiB (16 GiB floor + 512)",
+ "structurallyCleanRun": false,
+ "wrapperTerm": false
+}
+## final evidence failed: runtime rc 5, job receipt rc 1, evidence rc 1 -> job exit 5
+## gate/runtime /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/prod-20261027T144321Z-3292184 ; job /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/job-20261027T144321Z-3292184
+## cmv-r10-prod runtime rc=5 final rc=5 (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/job-20261027T144321Z-3292184/status-before.txt, /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/job-20261027T144321Z-3292184/status-after.txt)
+[memory-guard] exit=5 peakTreeRssMiB=1640 minHostAvailableMiB=16567
+[memory-guard] at peak: mdbx_chk:1558 python3:30 python3:21 qemu-nbd:16 nbdfuse:8 bash:4 timeout:2
+[queue] EXIT 5

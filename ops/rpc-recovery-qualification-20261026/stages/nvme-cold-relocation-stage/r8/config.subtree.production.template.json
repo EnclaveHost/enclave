@@ -1,0 +1,38 @@
+{
+ "format": "nvme-cold-subtree-config/v1",
+ "owner_uid": 1000,
+ "owner_gid": 1000,
+ "archive_root": "/vm/enclave-volumes/codex-archive",
+ "subtrees": [
+  "2026-10-24/home/hf-convert",
+  "2026-10-24/home/gvs5h",
+  "2026-10-24/home/gguf-e2b"
+ ],
+ "dest_root": "/home/steven/.cold-archive/codex-archive",
+ "source_mount": {
+  "path": "/vm",
+  "fstype": "ext4",
+  "device": "/dev/mapper/cryptvm"
+ },
+ "dest_mount": {
+  "path": "/",
+  "fstype": "ext4",
+  "device": "/dev/mapper/cryptroot"
+ },
+ "manifest": {
+  "path": "/vm/enclave-volumes/codex-archive/2026-10-24/recovery-documents/artifact-relocation-manifest.json",
+  "sha256": "77b5cf1ce8e9f53a2333e4c6895b918b16a861b8a5e38908fa8cc15b19a8b493",
+  "entries": 2102
+ },
+ "inventory_1381": {
+  "journal_dir": "/home/steven/.local/state/nvme-cold-relocation",
+  "identity": "d3f4775fc09ae7f0df6c6b2ce3d846cb439e737718fc8fe2125ba065cd27f4e2",
+  "logical": "fb369205b3b1962d4bd14eb46e829e51d1d1db0c5486c93ae50e5e215518d26e"
+ },
+ "journal_dir": "/home/steven/.local/state/nvme-cold-subtree-r7",
+ "rsync_path": "/home/steven/.local/bin/rsync",
+ "bwlimit_kib": "REQUIRED: operator throttle in KiB/s, <= 204800 (200 MiB/s; protects the live Qwen padbank IO on /vm)",
+ "queue_lane_bytes": "REQUIRED: the exact cgroup memory.max of root's queue lane that runs inventory/copy/verify (e.g. 268435456 for 256)",
+ "dest_floor_bytes": 300000000000,
+ "writer_check_max_age_seconds": "REQUIRED: operator (seconds between the root writer-check and cut-over)"
+}

@@ -1,0 +1,11 @@
+# original control-guest-cutover-stage FROZEN (rejected by root for execution); its SHA256SUMS and that file's own hash:
+d9618edd2dfde2b936a17a98258aba3b399dd252950045ff32a8dd7b4f14d6f9  ./EXPECTED-LIVE.txt
+9d8ca0893333c1e439544b6e87f0bc570ea2eb9b77624249a56ab172ab3b5db9  ./README.md
+20e319992fcc9844c458bed2b9d4e988fcaf53e3f43c555d9603cded96d06da7  ./guest/00-capture-baseline.sh
+c2c97404cae24e6fc9199c5cfe755b5b387d3407d96cbebdf0d287b9b132bc47  ./guest/10-preflight.sh
+a3320b542cd881b8c6dcd141c991f5853cd2dd2eecfcd26069557a876e283abb  ./guest/20-apply.sh
+aae067c293ceaa8eed7f04b1fe98c033b1be45b2e917a995ad5fb8cccbb4c312  ./guest/30-canary.sh
+e95738caf21bf2d52a04ea91f769f936691beaee837a6f9bb957b5a4719661d6  ./guest/90-rollback.sh
+3e8cb585c66992528b3377dea1f3e31458253444b30f26fda48e5512b763a3f2  ./guest/public-rpc-egress-observe.sh
+e8c210e170f050849869f81c5f7d919b8df1e38fe14d12f3c3e0a0afc23df007  ./templates/50-chain-authority.conf.template
+723af5b5e0c3df5d32d9c90aee1c326a630475facf6498b75f78b51b160bff5f  control-guest-cutover-stage/SHA256SUMS

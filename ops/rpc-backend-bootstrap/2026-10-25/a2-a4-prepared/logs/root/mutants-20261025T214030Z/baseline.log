@@ -1,0 +1,424 @@
+test_an_advanced_anchor_refuses_release_with_the_documented_code (__main__.Gates.test_an_advanced_anchor_refuses_release_with_the_documented_code) ... {"step": "plan", "ok": false, "refused": "a1_anchor_advanced: the ASR anchor advanced to 52870560 (> N): the current A1 tool re-checks only the LATEST anchor, so it cannot re-confirm game 0x343b3a99527af07d2cfb2652747b9e37715e21ac now; needs the game-specific re-check (G-h) - never re-anchor or accept descendants silently"}
+ok
+test_an_interrupted_mutation_blocks_every_later_step (__main__.Gates.test_an_interrupted_mutation_blocks_every_later_step) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": false, "refused": "bounded: stage unwind --datadir: timeout after 1 s; own process group 4094916 stopped; MUTATION INTERRUPTED: datadir state unknown"}
+{"step": "a3", "ok": false, "refused": "interrupted_mutation: mutation journal ends with interrupted rc=-15 for ['stage', 'unwind', '--datadir']: the datadir state is UNKNOWN; no step continues automatically (PROCEDURE.md \u00a74: inspect read-only, then root decides; default recovery = re-download)"}
+{"step": "plan", "ok": false, "refused": "interrupted_mutation: mutation journal ends with interrupted rc=-15 for ['stage', 'unwind', '--datadir']: the datadir state is UNKNOWN; no step continues automatically (PROCEDURE.md \u00a74: inspect read-only, then root decides; default recovery = re-download)"}
+ok
+test_bad_config (__main__.Gates.test_bad_config) ... ok
+test_commands_are_bounded_and_only_our_process_group_is_stopped (__main__.Gates.test_commands_are_bounded_and_only_our_process_group_is_stopped) ... {"step": "plan", "ok": false, "refused": "bounded: db --datadir /tmp/tmpdiy3gn5f/datadir: timeout after 1 s; own process group 4094942 stopped"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpdiy3gn5f'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "bounded: db --datadir /tmp/tmpy1vx_h93/datadir: output cap (1048576 B) exceeded; own process group 4094957 stopped"}
+ok
+test_download_receipt_binds_manifest_unit_marker_and_datadir (__main__.Gates.test_download_receipt_binds_manifest_unit_marker_and_datadir) ... {"step": "plan", "ok": true, "refused": null}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpjnnttqa6'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "marker: the snapshot-complete marker is expected EMPTY (stage_backend.py ExecStartPost touch)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp_nbibk0_'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "receipt_fields: receipt manifestSha256='0000000000000000000000000000000000000000000000000000000000000000', expected '3a5bde069d2e9ad0cb85e3d1c01c8026cce2b2a3aae90f44221759596a51b491'"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpzaxjmeeu'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "receipt_fields: receipt does not attribute the download to the pinned base binary"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp81itqr92'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "unverified_archive: ('storage_changesets', 105): the manifest lists no per-file BLAKE3 for it, so the client verified nothing (full verification not established)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp_hot2cfi'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "download_unit: enclave-rpc-base-snapshot.service did not finish successfully now"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpitmbw7rq'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "receipt_datadir: the receipt names another datadir (dev/ino)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp2svem92l'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "untrusted_file: receipt /tmp/tmpc7n2oq57/receipt.json must be owned by uid 0 and not group/other-writable"}
+ok
+test_every_db_step_gates_before_any_db_access_even_without_plan (__main__.Gates.test_every_db_step_gates_before_any_db_access_even_without_plan) ... /usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpl7ayd9x9'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "binary_pin: base binary sha256 differs from the pin"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp2d2ksf9r'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "no_receipt: no root completed-download receipt: the snapshot is not proven complete (an empty marker alone is not accepted)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpnc88jyqt'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "first_pass_only: receipt profile first-pass-distance-140000 is the first-pass selection, not the approved final retention (final-h48000000-s52500000)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpv_1gq0pm'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "marker: the snapshot-complete marker is expected EMPTY (stage_backend.py ExecStartPost touch)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpqtpcsqkv'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "service_running: enclave-base-holder.service is active: stop it before any DB access"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmph9af9loa'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "prune_config: /tmp/tmp3sxspx3b/reth.toml must set [prune.segments] account_history = { before = <= 52500000 } (a Distance profile refuses N)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp3sxspx3b'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "download_unit: enclave-rpc-base-snapshot.service did not finish successfully now"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp6e6v3ksi'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "v1_layout: legacy (non-v2) storage: the plain->hashed rebuild path is NOT prepared/tested here; refusing"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpw1fj_tfi'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a3", "ok": false, "refused": "binary_pin: base binary sha256 differs from the pin"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp44uh2upt'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a3", "ok": false, "refused": "no_receipt: no root completed-download receipt: the snapshot is not proven complete (an empty marker alone is not accepted)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp5skaqhir'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a3", "ok": false, "refused": "first_pass_only: receipt profile first-pass-distance-140000 is the first-pass selection, not the approved final retention (final-h48000000-s52500000)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp5yjdste_'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a3", "ok": false, "refused": "marker: the snapshot-complete marker is expected EMPTY (stage_backend.py ExecStartPost touch)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp0lq0b8no'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a3", "ok": false, "refused": "service_running: enclave-base-holder.service is active: stop it before any DB access"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp7v_l31t4'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a3", "ok": false, "refused": "prune_config: /tmp/tmp9osrpfty/reth.toml must set [prune.segments] account_history = { before = <= 52500000 } (a Distance profile refuses N)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp9osrpfty'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a3", "ok": false, "refused": "download_unit: enclave-rpc-base-snapshot.service did not finish successfully now"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpluy_d1j8'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a3", "ok": false, "refused": "v1_layout: legacy (non-v2) storage: the plain->hashed rebuild path is NOT prepared/tested here; refusing"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpdp67zbcx'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a4", "ok": false, "refused": "binary_pin: base binary sha256 differs from the pin"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpfm6doqfo'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a4", "ok": false, "refused": "no_receipt: no root completed-download receipt: the snapshot is not proven complete (an empty marker alone is not accepted)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpak_ngmsd'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a4", "ok": false, "refused": "first_pass_only: receipt profile first-pass-distance-140000 is the first-pass selection, not the approved final retention (final-h48000000-s52500000)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpwo_90h77'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a4", "ok": false, "refused": "marker: the snapshot-complete marker is expected EMPTY (stage_backend.py ExecStartPost touch)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp0s0a4g7e'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a4", "ok": false, "refused": "service_running: enclave-base-holder.service is active: stop it before any DB access"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpnpjge0wp'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a4", "ok": false, "refused": "prune_config: /tmp/tmp72oty1a9/reth.toml must set [prune.segments] account_history = { before = <= 52500000 } (a Distance profile refuses N)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp72oty1a9'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a4", "ok": false, "refused": "download_unit: enclave-rpc-base-snapshot.service did not finish successfully now"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpvg316fkk'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a4", "ok": false, "refused": "v1_layout: legacy (non-v2) storage: the plain->hashed rebuild path is NOT prepared/tested here; refusing"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp9mvgfo0m'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "bytecodes", "ok": false, "refused": "binary_pin: base binary sha256 differs from the pin"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp7g5elj03'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "bytecodes", "ok": false, "refused": "no_receipt: no root completed-download receipt: the snapshot is not proven complete (an empty marker alone is not accepted)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmprvii_g9t'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "bytecodes", "ok": false, "refused": "first_pass_only: receipt profile first-pass-distance-140000 is the first-pass selection, not the approved final retention (final-h48000000-s52500000)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmprd7dban8'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "bytecodes", "ok": false, "refused": "marker: the snapshot-complete marker is expected EMPTY (stage_backend.py ExecStartPost touch)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpfn2rudkp'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "bytecodes", "ok": false, "refused": "service_running: enclave-base-holder.service is active: stop it before any DB access"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpkuijjcj4'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "bytecodes", "ok": false, "refused": "prune_config: /tmp/tmpr2c9p8tg/reth.toml must set [prune.segments] account_history = { before = <= 52500000 } (a Distance profile refuses N)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpr2c9p8tg'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "bytecodes", "ok": false, "refused": "download_unit: enclave-rpc-base-snapshot.service did not finish successfully now"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpbfa5saxl'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "bytecodes", "ok": false, "refused": "v1_layout: legacy (non-v2) storage: the plain->hashed rebuild path is NOT prepared/tested here; refusing"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpwnjtrcbu'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "release", "ok": false, "refused": "binary_pin: base binary sha256 differs from the pin"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpou3lnnoj'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "release", "ok": false, "refused": "no_receipt: no root completed-download receipt: the snapshot is not proven complete (an empty marker alone is not accepted)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmprd6fkuj2'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "release", "ok": false, "refused": "first_pass_only: receipt profile first-pass-distance-140000 is the first-pass selection, not the approved final retention (final-h48000000-s52500000)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp7flgc_k_'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "release", "ok": false, "refused": "marker: the snapshot-complete marker is expected EMPTY (stage_backend.py ExecStartPost touch)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp3h8038g5'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "release", "ok": false, "refused": "service_running: enclave-base-holder.service is active: stop it before any DB access"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpep3_og6z'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "release", "ok": false, "refused": "prune_config: /tmp/tmp9qds6l9a/reth.toml must set [prune.segments] account_history = { before = <= 52500000 } (a Distance profile refuses N)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp9qds6l9a'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "release", "ok": false, "refused": "download_unit: enclave-rpc-base-snapshot.service did not finish successfully now"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpo4ouf21i'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "release", "ok": false, "refused": "v1_layout: legacy (non-v2) storage: the plain->hashed rebuild path is NOT prepared/tested here; refusing"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp77kzx0ox'>
+  _warnings.warn(warn_message, ResourceWarning)
+ok
+test_exact_argv_accepts_the_observed_real_first_pass_invocation (__main__.Gates.test_exact_argv_accepts_the_observed_real_first_pass_invocation) ... ok
+test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero (__main__.Gates.test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero) ... {"step": "plan", "ok": true, "refused": null}
+ok
+test_post_exit_size_orphans_and_mutation_stdout (__main__.Gates.test_post_exit_size_orphans_and_mutation_stdout) ... {"step": "plan", "ok": false, "refused": "bounded: db --datadir /tmp/tmpy3quo5a4/datadir: output cap (1048576 B) exceeded; own process group 4095299 stopped"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpy3quo5a4'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "bounded: db --datadir /tmp/tmp0io5uvmo/datadir: process group left 1 member(s) after the command exited (stopped); own process group 4095353 stopped"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp0io5uvmo'>
+  _warnings.warn(warn_message, ResourceWarning)
+ok
+test_prerequisites_fail_closed (__main__.Gates.test_prerequisites_fail_closed) ... {"step": "plan", "ok": false, "refused": "prune_config: /tmp/tmp4kosd26e/reth.toml must set [prune.segments] account_history = { before = <= 52500000 } (a Distance profile refuses N)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp4kosd26e'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "proofs_store: <datadir>/proofs exists: the proofs-history store is NOT unwound by stage unwind; quarantine it first (root)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpeu_3vrv2'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "no_receipt: no root completed-download receipt: the snapshot is not proven complete (an empty marker alone is not accepted)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp03l6y8do'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "service_running: enclave-base-holder.service is active: stop it before any DB access"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp1299i2l8'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "capability: pinned `base reth stage run --help` lacks ['--skip-unwind', '--checkpoints', '--config']: client capability differs from the audited source"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpi0uadb77'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "binary_pin: base binary sha256 differs from the pin"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpg6c20p09'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "backup_unsupported: a full datadir copy is not prepared here: capacity/time must be measured first (see PROCEDURE.md)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmphx099e8e'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "v1_layout: legacy (non-v2) storage: the plain->hashed rebuild path is NOT prepared/tested here; refusing"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpx9lm9cqy'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "capacity: only 59772424192 bytes free on the datadir filesystem"}
+ok
+test_selection_is_exactly_the_pinned_manifest_and_final_profile (__main__.Gates.test_selection_is_exactly_the_pinned_manifest_and_final_profile) ... {"step": "plan", "ok": false, "refused": "first_pass_only: receipt profile first-pass-distance-140000 is the first-pass selection, not the approved final retention (final-h48000000-s52500000)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp7zjuzvam'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: headers: chunk -1 is not an integer in [0, 107)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpj5r7giao'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: headers: chunk True is not an integer in [0, 107)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpa6fus18q'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: state is a single archive: chunk must be null"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpx76b3ft3'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: headers: chunk 107 is not an integer in [0, 107)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpcn_6pr4h'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: malformed entry {'component': 'headers', 'chunk': 1, 'x': 1}"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpsj5jqxmi'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: nope is not a manifest component"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpq2uo1xhi'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: duplicate entry ('account_changesets', 105)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp6er3kpq_'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: receipt selection differs from the pinned manifest + profile: missing [\"('transactions', 106)\"] extra []"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpbfnd1iqz'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: receipt selection differs from the pinned manifest + profile: missing [] extra [\"('transaction_senders', 106)\"]"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp61vfrcw2'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: unlisted token '--with-senders'"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpu3c8nvnu'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: unlisted token '--prune-unlisted'"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp266j8zvq'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: --with-txs-since '47000000' != '48000000'"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmphz0wch_g'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: --manifest-path '/tmp/other.json' != '/tmp/tmpcvlcp7g6/manifest.json'"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpcvlcp7g6'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: unlisted token '--unknown-flag'"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp2ypg55g8'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: duplicate --datadir"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpv3q75_mp'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: duplicate --chain"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp5dt04xjt'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: duplicate -y"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpooxueymn'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: missing ['-y']"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpzpdqclrh'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: --chain has no value"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmphh8ezykr'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: argv must be a list of strings"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpahs6dxcu'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: argv must start with ['/opt/enclave-rpc/bin/base', \"snapshot\", \"download\"]"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp4bh3yp6h'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: --download-concurrency '64' != '16'"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmphoi8x8r3'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "manifest_selection: unlisted token 'extra'"}
+ok
+test_stale_or_foreign_a1_is_refused (__main__.Gates.test_stale_or_foreign_a1_is_refused) ... {"step": "plan", "ok": false, "refused": "a1_stale: A1 evidence is 601 s old (max 600): re-run A1 now; an existing file is not accepted"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpnimxxkg_'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "a1_pins: ASR or respected game type is not the pinned mainnet value"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpdcjei8g4'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "a1_anchor_advanced: the ASR anchor advanced to 52866961 (> N): the current A1 tool re-checks only the LATEST anchor, so it cannot re-confirm game 0x343b3a99527af07d2cfb2652747b9e37715e21ac now; needs the game-specific re-check (G-h) - never re-anchor or accept descendants silently"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp67m0rfu9'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "a1_anchor: A1 anchor (N/outputRoot/game) differs from the planned one"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmphd98mq48'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "a1_anchor: A1 anchor (N/outputRoot/game) differs from the planned one"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpa0a6w6l_'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "a1_anchor: A1 anchor (N/outputRoot/game) differs from the planned one"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpbl35ms0o'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "a1_unproven: A1 read isGameBlacklisted is not proof-verified"}
+ok
+test_units_and_openers_are_checked_before_any_db_access (__main__.Gates.test_units_and_openers_are_checked_before_any_db_access) ... /usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp203j1izj'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "service_running: enclave-base-holder.service is active: stop it before any DB access"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpbw_jv8o_'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "service_running: enclave-base-holder.path is active: stop it before any DB access"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp0mc_egc_'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "service_running: enclave-rpc-base-snapshot.service is active: stop it before any DB access"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpbx_k2zi8'>
+  _warnings.warn(warn_message, ResourceWarning)
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp5l5hxhsw'>
+  _warnings.warn(warn_message, ResourceWarning)
+/tmp/tmp.1NKeZrFAjz/test/test_a2a4.py:168: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp8liazdqf/datadir/held' mode='r' encoding='UTF-8'>
+  holder = subprocess.Popen(['sleep', '30'], stdin=open(self.d / 'datadir/held'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": false, "refused": "datadir_open: processes [4095490] hold files under the datadir"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp8liazdqf'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "v1_layout: legacy (non-v2) storage: the plain->hashed rebuild path is NOT prepared/tested here; refusing"}
+ok
+test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing (__main__.Steps.test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing) ... {"step": "a2", "ok": true, "refused": null}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpkvb8ryu1'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "a2_mismatch: header N does not reproduce the A1 output root (output_root: header N does not reproduce the game's output root (state root, message-passer root or block hash differs))"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpgg5mtngk'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "empty_read: db get static-file headers 52866960 printed nothing (a missing key exits 0 in this client): refusing"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpn6maj2za'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "header_format: header JSON lacks requestsHash: the pinned output format differs from the audited serde shape"}
+ok
+test_a3_refuses_a_short_unwind_and_surviving_headers (__main__.Steps.test_a3_refuses_a_short_unwind_and_surviving_headers) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": false, "refused": "unwind_short: execution checkpoint 52866970 != unwind target 52866960"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp05z_6780'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": false, "refused": "headers_above_n: a header above N survived the unwind"}
+ok
+test_a3_requires_review_unwinds_in_chunks_to_exactly_n_and_lowers_labels (__main__.Steps.test_a3_requires_review_unwinds_in_chunks_to_exactly_n_and_lowers_labels) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": false, "refused": "not_reviewed: in-place mutation requires inPlaceReviewed=true after explicit root review (recovery = re-download)"}
+{"step": "a3", "ok": true, "refused": null}
+ok
+test_a4_full_rebuild_matches_and_a_mismatch_refuses (__main__.Steps.test_a4_full_rebuild_matches_and_a_mismatch_refuses) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpanbhr7jh'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": false, "refused": "reth_failed: stage run --datadir rc=1: BodyStateRootDiff"}
+{"step": "release", "ok": false, "refused": "interrupted_mutation: mutation journal ends with finished rc=1 for ['stage', 'run', '--datadir']: the datadir state is UNKNOWN; no step continues automatically (PROCEDURE.md \u00a74: inspect read-only, then root decides; default recovery = re-download)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpsyu69vqj'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": false, "refused": "not_unwound: stage checkpoints {'headers': 52866960, 'bodies': 52866960, 'execution': 53048526, 'merkle-execute': 52866960, 'finish': 53048526} are not at N: A4 runs only on the A3-unwound DB"}
+ok
+test_bytecode_step_binds_this_db_and_release_still_refuses_while_the_gap_is_open (__main__.Steps.test_bytecode_step_binds_this_db_and_release_still_refuses_while_the_gap_is_open) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "bytecode_receipt: no bound bytecode verification (step bytecodes) for this DB"}
+{"step": "bytecodes", "ok": false, "refused": "no_checker: bytecodeChecker/bytecodeCheckerSha256 not configured: the checker is prepared source only (G-a open)"}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: bytecode check failed: rc=0 failures=1 missingCode=0"}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: bytecode check failed: rc=0 failures=0 missingCode=2"}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: bytecode check failed: rc=0 failures=1 missingCode=0"}
+{"step": "release", "ok": false, "refused": "bytecode_receipt: no bound bytecode verification (step bytecodes) for this DB"}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "open_gaps: derivation stays blocked: ['bytecodes-content-unverified'] (a missing client capability, not bypassable by config)"}
+{"step": "release", "ok": false, "refused": "bytecode_receipt_stale: the bytecode verification was for another DB state or another A4 result"}
+{"step": "release", "ok": false, "refused": "open_gaps: derivation stays blocked: ['bytecodes-content-unverified'] (a missing client capability, not bypassable by config)"}
+{"step": "release", "ok": false, "refused": "bytecode_receipt_stale: the bytecode verification was for another DB state or another A4 result"}
+ok
+test_release_stays_blocked_on_the_open_bytecode_gap_and_needs_fresh_a1 (__main__.Steps.test_release_stays_blocked_on_the_open_bytecode_gap_and_needs_fresh_a1) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "bytecode_receipt: no bound bytecode verification (step bytecodes) for this DB"}
+{"step": "release", "ok": false, "refused": "a1_stale: A1 evidence is 900 s old (max 600): re-run A1 now; an existing file is not accepted"}
+ok
+test_steps_refuse_out_of_order (__main__.Steps.test_steps_refuse_out_of_order) ... {"step": "a3", "ok": false, "refused": "order: a2-authenticated.json missing: run the previous step first"}
+{"step": "a4", "ok": false, "refused": "order: a2-authenticated.json missing: run the previous step first"}
+ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 42.140s
+
+OK
+test_refuses_without_real_success_or_exact_argv (__main__.Writer.test_refuses_without_real_success_or_exact_argv) ... /usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpzl04moi2'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "enclave-rpc-base-snapshot.service last invocation did not succeed: inactive/exit-code/0"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp4xgwlho3'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "enclave-rpc-base-snapshot.service last invocation did not succeed: inactive/success/1"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpay0zaei3'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "enclave-rpc-base-snapshot.service last invocation did not succeed: active/success/0"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpjk3l5yyh'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "unlisted token '--with-rocksdb'"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpclejvh08'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "unlisted token '--with-txs-since'"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpj138cutg'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "marker must be the empty root-owned file the unit touched"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpz86dv9o1'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "ExecStart record not parseable (multiple ExecStart lines or unknown format)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpwcw7p938'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "manifest bytes differ from the pin"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmphcg8n3of'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "ExecMainCode '2' is not a normal exit (CLD_EXITED=1)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpw9qzj8fp'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "InvocationID missing or malformed: cannot attribute the result to one invocation"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpj6txbcip'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "InvocationID missing or malformed: cannot attribute the result to one invocation"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpp93ftb14'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "the base binary on disk is not the pinned 9c44836d...: verification cannot be attributed to the audited client"}
+ok
+test_writes_a_receipt_the_harness_accepts_shape_of (__main__.Writer.test_writes_a_receipt_the_harness_accepts_shape_of) ... {"ok": true, "archives": 134, "profile": "final-h48000000-s52500000"}
+{"ok": false, "refused": "[Errno 17] File exists: '/tmp/tmpk3zxyr2g/r.json'"}
+ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 1.656s
+
+OK
+test_real_manifest_selection_counts_and_checksums (__main__.PinnedManifest.test_real_manifest_selection_counts_and_checksums) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.021s
+
+OK

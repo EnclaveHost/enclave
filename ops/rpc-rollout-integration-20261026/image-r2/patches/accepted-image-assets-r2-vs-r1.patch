@@ -1,0 +1,416 @@
+diff --git a/metal/derived-reader-config.v3.json b/metal/derived-reader-config.v3.json
+index 43de5a3..00f05dd 100644
+--- a/metal/derived-reader-config.v3.json
++++ b/metal/derived-reader-config.v3.json
+@@ -22,12 +22,12 @@
+       "build": "arch glibc 2.44+r50+g1848099f063e-1, gcc-libs 16.2.1+r23+gd564253eb6c8-1 (the build host of the pinned binaries)"
+     },
+     "checkpointFile": "/opt/enclave/policy/checkpoint.json",
+-    "consensusUrl": "http://127.0.0.1:5052",
+-    "executionUrl": "http://127.0.0.1:8545",
++    "consensusUrl": null,
++    "executionUrl": null,
+     "readyTimeoutMs": 120000,
+     "requestTimeoutMs": 20000
+   },
+-  "baseUrl": "http://127.0.0.1:18545",
++  "baseUrl": null,
+   "maxBlocks": 1800,
+   "intermediateBlockInterval": 1,
+   "maxAnchorAgeSec": 1800,
+diff --git a/metal/derived-reader-image.json b/metal/derived-reader-image.json
+index 091eaf1..0254b19 100644
+--- a/metal/derived-reader-image.json
++++ b/metal/derived-reader-image.json
+@@ -19,7 +19,8 @@
+  "config": {
+   "path": "/opt/enclave/policy/derived-reader-v3.json",
+   "source": "metal/derived-reader-config.v3.json",
+-  "sha256": "8077b3c7ba193b9900965451c2470590426dc7e34e21bf63f6b278548be16cdb"
++  "sha256": "49ccf144ab1ed79ff51f501cf5da23b0a2317371fd16051b18e106627e7583fd",
++  "endpoints": "null in the image: the platform-api role writes them at relay start from the BOUND platformApi.derivedReader (public, HOST_DATA-bound; private IPv4 literals of the untrusted RPC VM backends)"
+  },
+  "glibcRuntime": {
+   "dir": "/opt/enclave/glibc",
+@@ -35,9 +36,9 @@
+   "stateDir": "/run/measured-control/platform-api/derived-reader-v3",
+   "note": "NOT in the image: the reader's state, coverage store and journal live only in the guest's encrypted RAM state directory (created 0700 by the reader). The image carries no state and no secret; nothing is passed through from the host."
+  },
+- "relayEnv": {
++ "roleEnv": {
+   "ENCLAVE_WRITER_AUTHORITY_SOURCE": "derived",
+-  "ENCLAVE_DERIVED_READER_CONFIG": "/opt/enclave/policy/derived-reader-v3.json",
++  "ENCLAVE_DERIVED_READER_CONFIG": "/run/measured-control/platform-api/derived-reader/derived-reader-v3.json",
+   "ENCLAVE_DERIVED_ANCHOR_JOURNAL": "/run/measured-control/platform-api/derived-reader-v3/anchor-journal.json"
+  },
+  "provenance": {
+diff --git a/metal/guest/measured-control.mjs b/metal/guest/measured-control.mjs
+index 2fd0921..e554be2 100644
+--- a/metal/guest/measured-control.mjs
++++ b/metal/guest/measured-control.mjs
+@@ -388,8 +388,31 @@ export const PLATFORM_API_ROLE_ENV = Object.freeze(['AUTH_DATA_DIR', 'API_RELAY_
+ const SECRET_NAME = /(^|_)(KEY|SECRET|TOKENS?|PASSWORD|PRIVATE|HMAC|SEED|MNEMONIC|EAB)(_|$)/;
+ // the same local-URL rule network/platform-host-policy-config.mjs applies (that module stays dependency-free too)
+ const LOOPBACK_URL = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d{1,5})?(\/|$)/;
++// The derived lease-writer reader's endpoints (platformApi.derivedReader, OPTIONAL; absent = the exact previous bytes):
++// PUBLIC data bound by HOST_DATA, never a credential. They are the untrusted RPC VM backends reached over the host link
++// (e.g. http://10.0.2.2:25052 consensus, :28645 execution, :28545 Base); Helios and the native derivation verify what they
++// return, so they carry no authority. The role writes them into the image's endpoint-free template at relay start
++// (platform-api-role.mjs composeDerivedReader) and sets these names itself: they are never configured nor a credential.
++export const DERIVED_READER_ROLE_ENV = Object.freeze(['ENCLAVE_WRITER_AUTHORITY_SOURCE', 'ENCLAVE_DERIVED_READER_CONFIG', 'ENCLAVE_DERIVED_ANCHOR_JOURNAL', 'ENCLAVE_DERIVED_READER_API_PORT']);
++export const DERIVED_READER_ENDPOINTS_FORMAT = 'enclave-derived-reader-endpoints/v1';
++const DERIVED_READER_ENDPOINTS = ['l1ConsensusUrl', 'l1ExecutionUrl', 'baseUrl'];
++function derivedReaderEndpoints(raw, { verifierBound }) {
++  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) bad('platformApi.derivedReader must be an object');
++  only(raw, ['format', ...DERIVED_READER_ENDPOINTS], 'platformApi.derivedReader');
++  if (raw.format !== DERIVED_READER_ENDPOINTS_FORMAT) bad(`platformApi.derivedReader.format must be ${DERIVED_READER_ENDPOINTS_FORMAT}`);
++  if (!verifierBound) bad('platformApi.derivedReader needs ENCLAVE_CHAIN_AUTHORITY=verifier (the derived writer authority is only bound with the local verifier)');
++  const out = { format: raw.format };
++  for (const k of DERIVED_READER_ENDPOINTS) {
++    let u = null; try { u = new URL(raw[k]); } catch {}
++    // no loopback: nothing serves these on the guest's own loopback; no name (no resolver decides), no credential, path, query or fragment
++    if (!ownBackendLiteral(raw[k]) || !u || u.hostname === '[::1]' || u.hostname.startsWith('127.') || raw[k] !== u.origin)
++      bad(`platformApi.derivedReader.${k} must be the http(s) origin of a private (not loopback) IPv4 address literal, without credentials, path, query or fragment`);
++    out[k] = raw[k];
++  }
++  return out;
++}
+ function directPlatformApi(raw, { controlPort }) {
+-  only(raw, PA_FIELDS, 'platformApi');
++  only(raw && typeof raw === 'object' && !Array.isArray(raw) ? (({ derivedReader, ...fields }) => fields)(raw) : raw, PA_FIELDS, 'platformApi');
+   const apiPort = intIn(raw.apiPort, 1024, 65535, 'platformApi.apiPort'), peerPort = intIn(raw.peerPort, 1024, 65535, 'platformApi.peerPort');
+   for (const [p, w] of [[apiPort, 'apiPort'], [peerPort, 'peerPort']]) if ([8080, 8091, 8443, controlPort].includes(p)) bad(`platformApi.${w} must not be a port another guest service listens on`);
+   if (apiPort === peerPort) bad('platformApi.apiPort and peerPort must differ');
+@@ -427,6 +450,7 @@ function directPlatformApi(raw, { controlPort }) {
+   for (const [k, v] of Object.entries(raw.relayEnv)) {
+     if (!/^[A-Z][A-Z0-9_]{0,63}$/.test(k)) bad(`platformApi.relayEnv: ${JSON.stringify(k.slice(0, 40))} is not an environment name`);
+     if (PLATFORM_API_ROLE_ENV.includes(k)) bad(`platformApi.relayEnv.${k} is set by the role, not configured`);
++    if (DERIVED_READER_ROLE_ENV.includes(k)) bad(`platformApi.relayEnv.${k} is set by the role from the bound platformApi.derivedReader, not configured`);
+     if (SECRET_NAME.test(k)) bad(`platformApi.relayEnv.${k} looks like a secret: secrets go in the sealed credentials, never in the bound (public) config`);
+     if (typeof v !== 'string' || v.length > 4096) bad(`platformApi.relayEnv.${k} must be a string up to 4096 characters`);
+   }
+@@ -447,9 +471,11 @@ function directPlatformApi(raw, { controlPort }) {
+     const mixed = RELAY_VERIFIER_CONFLICTS.filter((k) => raw.relayEnv[k] !== undefined);
+     if (mixed.length) bad(`platformApi.relayEnv: ${mixed.join(', ')} cannot be set with ENCLAVE_CHAIN_AUTHORITY=verifier (the relay reads those through the verifier)`);
+   }
++  const derivedReader = raw.derivedReader === undefined ? undefined : derivedReaderEndpoints(raw.derivedReader, { verifierBound: chainAuthority === 'verifier' });
+   const leaseMs = intIn(raw.leaseMs, 2000, 60000, 'platformApi.leaseMs');
+   return { apiPort, peerPort, hostname: raw.hostname, members, measurements: [...raw.measurements], minTcb: raw.minTcb === null ? null : JSON.parse(canonicalJson(raw.minTcb)),
+-    admins, recovery: [...raw.recovery], archives, archiveMs, relayEnv: JSON.parse(canonicalJson(raw.relayEnv)), leaseMs };
++    admins, recovery: [...raw.recovery], archives, archiveMs, relayEnv: JSON.parse(canonicalJson(raw.relayEnv)), leaseMs,
++    ...(derivedReader === undefined ? {} : { derivedReader }) };
+ }
+ export const RELAY_VERIFIER_CONFLICTS = Object.freeze(['BASE_RPC', 'RPC_FALLBACKS', 'SECRETS_RELEASE_CATALOG_RPCS', 'CUSTODY_RPCS', 'CUSTODY_MIN_AGREE', 'SESSIONS_RPC']);
+ /** network/chain-authority.mjs checkOwnBackend's rule, without its dependencies: true for an acceptable own backend URL. */
+diff --git a/metal/guest/platform-api-role.mjs b/metal/guest/platform-api-role.mjs
+index 14ef514..3c88e2e 100644
+--- a/metal/guest/platform-api-role.mjs
++++ b/metal/guest/platform-api-role.mjs
+@@ -55,7 +55,7 @@ export function readCredentials(file) {
+  * authority (CHAIN_AUTHORITY_ENV) is exactly the BOUND one, validated at bind time and the one the native issuer's host
+  * policy reads with (productionWiring policyEnv) - a sealed credential can neither set nor change it.
+  */
+-export function relayChildEnv({ cfg, credEnv = {}, dataDir }) {
++export function relayChildEnv({ cfg, credEnv = {}, dataDir, derivedEnv = {} }) {
+   // Under a BOUND verifier authority the relay refuses every provider setting of the consumers that read through it
+   // (RELAY_VERIFIER_CONFLICTS). The role's own derived provider default (relayEnvBase BASE_RPC, from the config's rpcs) is
+   // then not the relay's and is not derived; a provider name in the bound relayEnv or in a sealed credential is refused HERE,
+@@ -80,6 +80,47 @@ export function relayChildEnv({ cfg, credEnv = {}, dataDir }) {
+                 API_RELAY_BIND: "127.0.0.1", API_RELAY_PORT: "0", PLATFORM_API_ROLE: "relay-child", NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS || "" };
+   for (const k of Object.keys(env)) if (isNativeCaCredential(k)) delete env[k];
+   for (const k of CHAIN_AUTHORITY_ENV) { if (bound[k] === undefined) delete env[k]; else env[k] = bound[k]; }
++  // the derived reader's names are exactly the role's composition (composeDerivedReader): a credential cannot set them
++  for (const k of DERIVED_READER_ROLE_ENV) { if (derivedEnv[k] === undefined) delete env[k]; else env[k] = derivedEnv[k]; }
++  return env;
++}
++
++// The derived lease-writer reader (metal/derived-reader-image.json, installed by metal/overlay-control-image.py). The same
++// names measured-control.mjs DERIVED_READER_ROLE_ENV refuses in the bound relayEnv (copied: that file is installed unbundled).
++export const DERIVED_READER_IMAGE = "/opt/enclave/DERIVED-READER-IMAGE.json";
++export const DERIVED_READER_ROLE_ENV = Object.freeze(["ENCLAVE_WRITER_AUTHORITY_SOURCE", "ENCLAVE_DERIVED_READER_CONFIG", "ENCLAVE_DERIVED_ANCHOR_JOURNAL", "ENCLAVE_DERIVED_READER_API_PORT"]);
++const GUEST_PLATFORM_API_DIR = "/run/measured-control/platform-api";
++const derivedRefusal = (code, message) => Object.assign(new Error(message), { code });
++/**
++ * The reader's config at relay start: the image's endpoint-free template (its sha256 pinned by the measured image record)
++ * plus the BOUND platformApi.derivedReader endpoints (public, HOST_DATA-bound; untrusted transport the reader verifies),
++ * written 0600 in a 0700 RAM directory under the role's root. -> the relay's derived env, or {} when nothing is bound.
++ * Throws (code derived_reader_absent | derived_reader_tamper | derived_reader_endpoint) instead of composing anything else:
++ * no host file, no default or public endpoint, no state initialization (the template's initializeState is false).
++ */
++export function composeDerivedReader({ cfg, root, image = DERIVED_READER_IMAGE }) {
++  const ep = cfg.platformApi.derivedReader;
++  if (ep === undefined) return {};
++  const dir = path.join(root, "derived-reader"), file = path.join(dir, "derived-reader-v3.json"), stateDir = path.join(root, "derived-reader-v3");
++  fs.rmSync(dir, { recursive: true, force: true });       // never a previous start's file
++  for (const k of ["l1ConsensusUrl", "l1ExecutionUrl", "baseUrl"]) {
++    let u = null; try { checkOwnBackend(ep[k]); u = new URL(ep[k]); } catch {}
++    if (!u || u.hostname === "[::1]" || u.hostname.startsWith("127.") || ep[k] !== u.origin) throw derivedRefusal("derived_reader_endpoint", `the bound derivedReader.${k} is not a private IPv4 origin`);
++  }
++  let pins, template;
++  try { pins = JSON.parse(fs.readFileSync(image, "utf8")); } catch (e) { throw derivedRefusal("derived_reader_absent", `no derived reader in this image (${image}: ${e.code || e.message})`); }
++  if (!pins || pins.format !== "enclave-derived-reader-image/v1" || !pins.config || !pins.private || !pins.roleEnv) throw derivedRefusal("derived_reader_tamper", `${image} is not an enclave-derived-reader-image/v1 record`);
++  try { template = fs.readFileSync(pins.config.path); } catch (e) { throw derivedRefusal("derived_reader_absent", `the reader template is missing (${e.code || e.message})`); }
++  if (createHash("sha256").update(template).digest("hex") !== pins.config.sha256) throw derivedRefusal("derived_reader_tamper", "the reader template is not the one the image record pins");
++  const t = JSON.parse(template);
++  if (!t.l1 || t.l1.consensusUrl !== null || t.l1.executionUrl !== null || t.baseUrl !== null || t.initializeState !== false
++      || pins.private.stateDir !== path.join(GUEST_PLATFORM_API_DIR, "derived-reader-v3") || t.stateDir !== pins.private.stateDir)
++    throw derivedRefusal("derived_reader_tamper", "the reader template is not endpoint-free, never-initializing, with the record's state directory");
++  const env = { ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived", ENCLAVE_DERIVED_READER_CONFIG: file, ENCLAVE_DERIVED_ANCHOR_JOURNAL: path.join(stateDir, "anchor-journal.json") };
++  if (root === GUEST_PLATFORM_API_DIR && canonicalJson(env) !== canonicalJson(pins.roleEnv)) throw derivedRefusal("derived_reader_tamper", "the role's reader paths are not the image record's roleEnv");
++  const composed = { ...t, stateDir, l1: { ...t.l1, consensusUrl: ep.l1ConsensusUrl, executionUrl: ep.l1ExecutionUrl }, baseUrl: ep.baseUrl };
++  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
++  fs.writeFileSync(file, JSON.stringify(composed, null, 2) + "\n", { mode: 0o600 });
+   return env;
+ }
+ export const PEER_PATH = "/platform-api/peer", HANDOFF_PATH = "/platform-api/handoff", BOOTSTRAP_PATH = "/platform-api/bootstrap",
+@@ -177,8 +218,12 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+       const f = path.join(dirs.root, "creds", k);
+       fs.mkdirSync(path.dirname(f), { recursive: true, mode: 0o700 }); fs.writeFileSync(f, v, { mode: 0o600 }); credEnv[k] = f;
+     }
++    // the derived reader: composed from the bound endpoints, or absent (the relay still starts; its writer authority stays unproven and refuses)
++    let derivedEnv = {};
++    try { derivedEnv = composeDerivedReader({ cfg, root: dirs.root }); }
++    catch (e) { log(`derived reader NOT configured (${e.code || "error"}): ${e.message}; the relay's writer authority stays unproven (refusing)`); }
+     let env;
+-    try { env = relayChildEnv({ cfg, credEnv, dataDir }); }
++    try { env = relayChildEnv({ cfg, credEnv, dataDir, derivedEnv }); }
+     catch (e) { log(`relay NOT started: ${e.message}`); return; }   // fail closed: no child, the reason in the log
+     const argv = relayArgv || [process.execPath, fileURLToPath(import.meta.url), "--relay-child"];
+     const c = spawn(argv[0], argv.slice(1), { env, cwd: dataDir, stdio: ["ignore", "inherit", "inherit", "ipc"] });
+diff --git a/metal/overlay-control-image.py b/metal/overlay-control-image.py
+index c1cf9bc..0d88c95 100644
+--- a/metal/overlay-control-image.py
++++ b/metal/overlay-control-image.py
+@@ -320,7 +320,7 @@ def derived_reader_install(pins_bytes, config_bytes, vdir):
+     must hash to its pin and AGREE with it (same binaries, digests, checkpoint, glibc build, a RAM state directory outside
+     the image, no secret-shaped field); every native input comes from vdir by name at its pinned sha256."""
+     pins = json.loads(pins_bytes)
+-    if set(pins) != {'format', 'binaries', 'files', 'config', 'glibcRuntime', 'private', 'relayEnv', 'provenance'} or \
++    if set(pins) != {'format', 'binaries', 'files', 'config', 'glibcRuntime', 'private', 'roleEnv', 'provenance'} or \
+             pins['format'] != 'enclave-derived-reader-image/v1' or set(pins['binaries']) != {'native', 'l1'} or set(pins['files']) != {'checkpoint'}:
+         raise ValueError(DERIVED_READER_PINS+' is not the reviewed enclave-derived-reader-image/v1 shape')
+     if sha(config_bytes) != pins['config']['sha256']:
+@@ -338,11 +338,20 @@ def derived_reader_install(pins_bytes, config_bytes, vdir):
+              (cfg['l1']['binary']['path'], b['l1']['path']), (cfg['l1']['binary']['sha256'], b['l1']['sha256']),
+              (cfg['l1']['checkpointFile'], pins['files']['checkpoint']['path']),
+              (cfg['native'].get('runtime'), {'dir': g['dir'], 'build': g['build']}), (cfg['l1'].get('runtime'), {'dir': g['dir'], 'build': g['build']}),
+-             (cfg['stateDir'], pins['private']['stateDir']), (pins['relayEnv'].get('ENCLAVE_DERIVED_READER_CONFIG'), pins['config']['path'])]
++             (cfg['stateDir'], pins['private']['stateDir']),
++             (sorted(pins['roleEnv']), ['ENCLAVE_DERIVED_ANCHOR_JOURNAL', 'ENCLAVE_DERIVED_READER_CONFIG', 'ENCLAVE_WRITER_AUTHORITY_SOURCE'])]
+     if any(a != c for a, c in agree):
+         raise ValueError('the reader config and '+DERIVED_READER_PINS+' disagree')
+     if not cfg['stateDir'].startswith('/run/') or cfg.get('initializeState') is not False:
+         raise ValueError('the reader state must be a guest RAM directory (never in the image) and never auto-initialized')
++    # the image carries a TEMPLATE: the endpoints come from the bound config at relay start (platform-api-role.mjs
++    # composeDerivedReader writes the composed file to roleEnv's RAM path), never from the image or the host
++    if any(v is not None for v in (cfg['l1'].get('consensusUrl', 0), cfg['l1'].get('executionUrl', 0), cfg.get('baseUrl', 0))):
++        raise ValueError('the image reader config is a template: its endpoints must be null (they are bound in platformApi.derivedReader)')
++    rc = pins['roleEnv'].get('ENCLAVE_DERIVED_READER_CONFIG', '')
++    if pins['roleEnv'].get('ENCLAVE_DERIVED_ANCHOR_JOURNAL') != cfg['stateDir']+'/anchor-journal.json' or \
++            pins['roleEnv'].get('ENCLAVE_WRITER_AUTHORITY_SOURCE') != 'derived' or not rc.startswith('/run/measured-control/platform-api/derived-reader/') or rc == pins['config']['path']:
++        raise ValueError('roleEnv must name the role-composed RAM config, not the image template')
+     wanted = [(v['path'], v['sha256'], 0o100555) for v in b.values()] + [(pins['files']['checkpoint']['path'], pins['files']['checkpoint']['sha256'], 0o100444)]
+     wanted += [(g['dir'].rstrip('/')+'/'+n, d, 0o100555 if n.startswith('ld-linux') else 0o100444) for n, d in g['files'].items()]
+     files, modes, record = {}, {}, []
+@@ -362,7 +371,7 @@ def derived_reader_install(pins_bytes, config_bytes, vdir):
+     files['opt/enclave/DERIVED-READER-IMAGE.json'], modes['opt/enclave/DERIVED-READER-IMAGE.json'] = pins_bytes, 0o100444
+     record.append({'path': '/opt/enclave/DERIVED-READER-IMAGE.json', 'sha256': sha(pins_bytes), 'source': DERIVED_READER_PINS})
+     return files, modes, {'pins': DERIVED_READER_PINS, 'pinsSha256': sha(pins_bytes), 'files': record,
+-                          'privateStateDir': pins['private']['stateDir'], 'relayEnv': pins['relayEnv']}
++                          'privateStateDir': pins['private']['stateDir'], 'roleEnv': pins['roleEnv']}
+ 
+ def derived_reader_files(commit, repo, vdir):
+     pins_bytes = committed(commit, repo, DERIVED_READER_PINS)
+diff --git a/test/derived-reader-endpoints.test.mjs b/test/derived-reader-endpoints.test.mjs
+new file mode 100644
+index 0000000..bd3703f
+--- /dev/null
++++ b/test/derived-reader-endpoints.test.mjs
+@@ -0,0 +1,156 @@
++// accepted-image-assets r2: the derived reader's endpoints. Bound (public, HOST_DATA) private-literal backends in
++// platformApi.derivedReader; the role composes them into the image's endpoint-free template at relay start; the transport
++// to them is KVM's boundedRpc (untrusted: Helios and the native derivation verify). Offline: no chain, no SNP is claimed.
++import { test, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import { createHash } from "node:crypto";
++import * as MC from "../metal/guest/measured-control.mjs";
++import { composeDerivedReader, relayChildEnv, DERIVED_READER_ROLE_ENV, groupIdOf } from "../metal/guest/platform-api-role.mjs";
++import { boundedRpc } from "../network/derived-reader/rpc.mjs";
++
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "derived-endpoints-"));
++after(() => fs.rmSync(tmp, { recursive: true, force: true }));
++const a = (n) => "0x" + n.toString(16).padStart(40, "0");
++// the fixture of test/platform-api-config.test.mjs, with the local verifier bound (the derived source needs it)
++const BASE = () => ({ format: MC.CONFIG_FORMAT, chainId: 8453,
++  contracts: { registry: a(0x11), deployments: a(0x12), appCatalog: a(0x13), proofOfTime: a(0x14), enclavePay: a(0), verificationFees: a(0), sessionVaultFactory: a(0), secretVaultV2: a(0) },
++  profileDigest: null, rpcs: ["https://rpc-a.example/v1", "https://rpc-b.example"], quorum: 2, releaseId: "ab".repeat(32),
++  replicas: { gateways: ["http://192.0.2.10:8189"], storagePlan: null },
++  identity: { publicUrl: "https://host-1.example.org", repo: "owner/enclave", operator: a(0xb1) },
++  selling: { cpuPrice6: null, payout: null }, isolation: { managerUrl: "http://10.0.2.2:8095", dataAddr: "10.0.2.2:8096" }, hostAdmissionSha256: null, controlPort: 8444 });
++const RELAY = () => ({ ADDRESS_BOOK_ADDRESS: "0xab214342d5a490150a4a977063a2f88e21f80907", SIWE_DOMAIN: "enclave.host", SIWE_URI: "https://enclave.host",
++  ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: "http://127.0.0.1:8547" });
++// the RPC VM's private backends as the guest reaches them (host link 10.0.2.2: l1-cl 25052, l1-el 28645, base-rpc 28545)
++const DR = () => ({ format: MC.DERIVED_READER_ENDPOINTS_FORMAT, l1ConsensusUrl: "http://10.0.2.2:25052", l1ExecutionUrl: "http://10.0.2.2:28645", baseUrl: "http://10.0.2.2:28545" });
++const PA = (extra = {}) => ({ apiPort: 8098, peerPort: 8099, hostname: "api.enclave.host",
++  members: [0, 1, 2].map((i) => ({ operator: a(0xb0 + i), publicUrl: `https://host-${i}.example.org`, controlUrl: `https://198.51.100.${10 + i}:8444` })),
++  measurements: ["77".repeat(48)], minTcb: null, admins: [a(0xad)], recovery: ["11".repeat(32)], archives: ["https://archive.example"], archiveMs: 30000,
++  relayEnv: RELAY(), leaseMs: 10000, ...extra });
++const bind = (pa) => MC.canonicalDirectConfig({ ...BASE(), platformApi: pa });
++
++test("bind: the endpoints are bound public data (in the canonical config and the group id); absent keeps the previous shape", () => {
++  const withDr = bind(PA({ derivedReader: DR() })), without = bind(PA());
++  assert.deepEqual(withDr.platformApi.derivedReader, DR());
++  assert.equal("derivedReader" in without.platformApi, false);
++  assert.notEqual(groupIdOf(withDr.platformApi), groupIdOf(without.platformApi));
++  assert.deepEqual(MC.DERIVED_READER_ROLE_ENV, DERIVED_READER_ROLE_ENV);
++});
++
++test("bind refusals: name, public or loopback address, credentials, path/query/fragment, other schemes, shape, no verifier, role names", () => {
++  const url = (k, v) => PA({ derivedReader: { ...DR(), [k]: v } });
++  const cases = [
++    [url("baseUrl", "http://base-rpc.internal:28545"), /private \(not loopback\) IPv4/],
++    [url("baseUrl", "https://mainnet.base.org"), /private \(not loopback\) IPv4/],
++    [url("l1ExecutionUrl", "http://8.8.8.8:8545"), /private \(not loopback\) IPv4/],
++    [url("l1ConsensusUrl", "http://127.0.0.1:5052"), /private \(not loopback\) IPv4/],
++    [url("l1ConsensusUrl", "http://[::1]:5052"), /private \(not loopback\) IPv4/],
++    [url("baseUrl", "http://user:pw@10.0.2.2:28545"), /private \(not loopback\) IPv4/],
++    [url("baseUrl", "http://10.0.2.2:28545/?key=x"), /private \(not loopback\) IPv4/],
++    [url("baseUrl", "http://10.0.2.2:28545/#x"), /private \(not loopback\) IPv4/],
++    [url("baseUrl", "http://10.0.2.2:28545/v1/abcdef"), /private \(not loopback\) IPv4/],
++    [url("baseUrl", "ws://10.0.2.2:28546"), /private \(not loopback\) IPv4/],
++    [url("baseUrl", "file:///etc/passwd"), /private \(not loopback\) IPv4/],
++    [url("baseUrl", 28545), /private \(not loopback\) IPv4/],
++    [PA({ derivedReader: { ...DR(), apiKey: "x" } }), /unknown field/],
++    [PA({ derivedReader: { ...DR(), format: "enclave-derived-reader-endpoints/v0" } }), /format must be/],
++    [PA({ derivedReader: (({ baseUrl, ...r }) => r)(DR()) }), /missing: baseUrl/],
++    [PA({ derivedReader: "http://10.0.2.2:28545" }), /must be an object/],
++    [PA({ derivedReader: DR(), relayEnv: (({ ENCLAVE_CHAIN_AUTHORITY, ENCLAVE_CHAIN_VERIFIER, ...r }) => r)(RELAY()) }), /needs ENCLAVE_CHAIN_AUTHORITY=verifier/],
++    ...MC.DERIVED_READER_ROLE_ENV.map((k) => [PA({ relayEnv: { ...RELAY(), [k]: "/host/file" } }), /set by the role from the bound platformApi.derivedReader/]),
++  ];
++  for (const [pa, re] of cases) assert.throws(() => bind(pa), re, JSON.stringify(pa.derivedReader ?? pa.relayEnv));
++});
++
++// a measured-image fixture: the COMMITTED template and record, with the template path moved into tmp (same bytes, same pin)
++const TEMPLATE = fs.readFileSync(new URL("../metal/derived-reader-config.v3.json", import.meta.url));
++const RECORD = JSON.parse(fs.readFileSync(new URL("../metal/derived-reader-image.json", import.meta.url), "utf8"));
++let n = 0;
++function image({ template = TEMPLATE, record = (r) => r } = {}) {
++  const d = path.join(tmp, `img-${++n}`); fs.mkdirSync(d);
++  fs.writeFileSync(path.join(d, "template.json"), template);
++  const r = record(JSON.parse(JSON.stringify({ ...RECORD, config: { ...RECORD.config, path: path.join(d, "template.json") } })));
++  fs.writeFileSync(path.join(d, "record.json"), JSON.stringify(r));
++  return { image: path.join(d, "record.json"), root: path.join(d, "root") };
++}
++const CFG = (dr = DR()) => bind(PA(dr === null ? {} : { derivedReader: dr }));
++
++test("compose: the bound endpoints into the pinned template, 0600 in a 0700 RAM dir; never initializing; env = exactly the role names", () => {
++  const { image: img, root } = image();
++  const env = composeDerivedReader({ cfg: CFG(), root, image: img });
++  const file = path.join(root, "derived-reader", "derived-reader-v3.json");
++  assert.deepEqual(env, { ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived", ENCLAVE_DERIVED_READER_CONFIG: file,
++    ENCLAVE_DERIVED_ANCHOR_JOURNAL: path.join(root, "derived-reader-v3", "anchor-journal.json") });
++  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
++  assert.equal(fs.statSync(path.dirname(file)).mode & 0o777, 0o700);
++  const c = JSON.parse(fs.readFileSync(file, "utf8")), t = JSON.parse(TEMPLATE);
++  assert.deepEqual([c.l1.consensusUrl, c.l1.executionUrl, c.baseUrl], ["http://10.0.2.2:25052", "http://10.0.2.2:28645", "http://10.0.2.2:28545"]);
++  assert.equal(c.initializeState, false);
++  assert.equal(c.stateDir, path.join(root, "derived-reader-v3"));
++  assert.equal(fs.existsSync(c.stateDir), false, "the role creates no reader state");
++  assert.deepEqual({ ...c, stateDir: t.stateDir, baseUrl: null, l1: { ...c.l1, consensusUrl: null, executionUrl: null } }, t, "everything else is the template");
++  // nothing bound -> nothing composed, and a previous start's file is not left either
++  assert.deepEqual(composeDerivedReader({ cfg: CFG(null), root, image: img }), {});
++});
++
++test("compose refusals: absent image or template, tampered template, template with endpoints, wrong record, never a partial file", () => {
++  const sha = (b) => createHash("sha256").update(b).digest("hex");
++  const withUrl = Buffer.from(JSON.stringify({ ...JSON.parse(TEMPLATE), baseUrl: "https://mainnet.base.org" }));
++  const init = Buffer.from(JSON.stringify({ ...JSON.parse(TEMPLATE), initializeState: true }));
++  const cases = [
++    [() => { const f = image(); fs.rmSync(f.image); return f; }, "derived_reader_absent"],
++    [() => { const f = image(); fs.rmSync(path.join(path.dirname(f.image), "template.json")); return f; }, "derived_reader_absent"],
++    [() => image({ template: Buffer.concat([TEMPLATE, Buffer.from(" ")]) }), "derived_reader_tamper"],
++    [() => image({ template: withUrl, record: (r) => ({ ...r, config: { ...r.config, sha256: sha(withUrl) } }) }), "derived_reader_tamper"],
++    [() => image({ template: init, record: (r) => ({ ...r, config: { ...r.config, sha256: sha(init) } }) }), "derived_reader_tamper"],
++    [() => image({ record: (r) => ({ ...r, format: "enclave-derived-reader-image/v0" }) }), "derived_reader_tamper"],
++    [() => image({ record: (r) => ({ ...r, private: { ...r.private, stateDir: "/var/lib/reader" } }) }), "derived_reader_tamper"],
++  ];
++  for (const [mk, code] of cases) {
++    const { image: img, root } = mk();
++    assert.throws(() => composeDerivedReader({ cfg: CFG(), root, image: img }), (e) => e.code === code, code);
++    assert.equal(fs.existsSync(path.join(root, "derived-reader")), false);
++  }
++  // an unbound (forged) endpoint at the role is refused too (defence in depth: bind already refuses it)
++  const { image: img, root } = image(), cfg = CFG();
++  cfg.platformApi.derivedReader = { ...cfg.platformApi.derivedReader, baseUrl: "http://203.0.113.9:8545" };
++  assert.throws(() => composeDerivedReader({ cfg, root, image: img }), (e) => e.code === "derived_reader_endpoint");
++});
++
++test("relay env: the derived names are exactly the composition; a sealed credential or the base cannot set or redirect them", () => {
++  const cfg = { ...CFG(), relayEnvBase: { ENCLAVE_DERIVED_READER_CONFIG: "/host/x" } };
++  const credEnv = { ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived", ENCLAVE_DERIVED_READER_CONFIG: "/run/x.json", ENCLAVE_DERIVED_READER_API_PORT: "1" };
++  const none = relayChildEnv({ cfg, credEnv, dataDir: tmp });
++  for (const k of DERIVED_READER_ROLE_ENV) assert.equal(none[k], undefined, k);
++  const derivedEnv = { ENCLAVE_WRITER_AUTHORITY_SOURCE: "derived", ENCLAVE_DERIVED_READER_CONFIG: "/run/c.json", ENCLAVE_DERIVED_ANCHOR_JOURNAL: "/run/j.json" };
++  const env = relayChildEnv({ cfg, credEnv, dataDir: tmp, derivedEnv });
++  assert.deepEqual(Object.fromEntries(DERIVED_READER_ROLE_ENV.filter((k) => k in env).map((k) => [k, env[k]])), derivedEnv);
++});
++
++// The handler the reader uses on these endpoints (KVM network/derived-reader/rpc.mjs boundedRpc) against a local fixture
++// backend: it forwards a well-formed answer and refuses a malformed one. It is transport only: a forwarded VALUE is not
++// trusted (Helios checks L1 consensus and eth_chainId 0x1; the native v3 derivation checks Base) - nothing here claims a chain.
++test("transport: forwards a well-formed JSON-RPC answer; refuses wrong id, error, redirect, oversize, HTTP error, credentials/query", async () => {
++  let mode = "ok";
++  const srv = http.createServer((req, res) => {
++    let body = ""; req.on("data", (c) => { body += c; });
++    req.on("end", () => {
++      const q = JSON.parse(body);
++      if (mode === "redirect") { res.writeHead(307, { location: "http://203.0.113.9/" }); return res.end(); }
++      if (mode === "http") { res.writeHead(502); return res.end(); }
++      const reply = { ok: { jsonrpc: "2.0", id: q.id, result: q.method === "eth_chainId" ? "0x2105" : null },
++        id: { jsonrpc: "2.0", id: q.id + 1, result: "0x2105" }, error: { jsonrpc: "2.0", id: q.id, error: { code: -32000, message: "x" } },
++        big: { jsonrpc: "2.0", id: q.id, result: "0x" + "0".repeat(4096) } }[mode];
++      res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(reply));
++    });
++  });
++  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
++  after(() => srv.close());
++  const u = `http://127.0.0.1:${srv.address().port}`, rpc = boundedRpc(u, { maxBytes: 1024, timeoutMs: 5000 });
++  assert.equal(await rpc("eth_chainId", []), "0x2105");   // forwarded as untrusted input, nothing more
++  for (const m of ["id", "error", "redirect", "big", "http"]) { mode = m; await assert.rejects(rpc("eth_chainId", []), undefined, m); }
++  for (const bad of [`http://u:p@127.0.0.1:1`, `${u}/?k=1`, `${u}/#x`, "file:///etc/passwd", "ws://127.0.0.1:1"]) assert.throws(() => boundedRpc(bad), /invalid reader transport URL/, bad);
++});
+diff --git a/test/metal-control-overlay.test.py b/test/metal-control-overlay.test.py
+index 6cb39b4..b258989 100644
+--- a/test/metal-control-overlay.test.py
++++ b/test/metal-control-overlay.test.py
+@@ -330,8 +330,9 @@ class DerivedReaderOverlay(ControlOverlay):
+              '2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33'))
+         self.assertTrue(cfg['stateDir'].startswith('/run/measured-control/platform-api/') and cfg['initializeState'] is False)
+         self.assertNotIn(p['private']['stateDir'],[v['path'] for v in [*p['binaries'].values(),*p['files'].values()]])
+-        self.assertEqual(p['relayEnv']['ENCLAVE_DERIVED_READER_CONFIG'],p['config']['path'])
+-        self.assertTrue(p['relayEnv']['ENCLAVE_DERIVED_ANCHOR_JOURNAL'].startswith(p['private']['stateDir']+'/'))
++        self.assertTrue(p['roleEnv']['ENCLAVE_DERIVED_READER_CONFIG'].startswith('/run/measured-control/platform-api/derived-reader/'))
++        self.assertTrue(p['roleEnv']['ENCLAVE_DERIVED_ANCHOR_JOURNAL'].startswith(p['private']['stateDir']+'/'))
++        self.assertEqual([cfg['l1']['consensusUrl'],cfg['l1']['executionUrl'],cfg['baseUrl']],[None,None,None])
+         # the reviewed source pins (KVM's committed reader and the RPC runtime) are what the image record pins
+         src=lambda f:mod.committed(COMMIT,REPO,f).decode()
+         self.assertIn(p['binaries']['native']['sha256'],src('network/derived-reader/native.mjs'))
+@@ -363,7 +364,13 @@ class DerivedReaderOverlay(ControlOverlay):
+                (dict(mutate_pins=lambda p:p['binaries']['native'].update(path='/usr/local/bin/x'),
+                      mutate_cfg=lambda c:c['native'].update(path='/usr/local/bin/x')),'must live under /opt/enclave',None),
+                (dict(mutate_pins=lambda p:p['private'].update(stateDir='/opt/enclave/state'),
+-                     mutate_cfg=lambda c:c.update(stateDir='/opt/enclave/state')),'guest RAM directory',None)]
++                     mutate_cfg=lambda c:c.update(stateDir='/opt/enclave/state')),'guest RAM directory',None),
++               # r2: the image config is an endpoint-free template; the role (not the image or the host) composes the endpoints
++               (dict(mutate_cfg=lambda c:c['l1'].update(consensusUrl='http://10.0.2.2:25052')),'template',None),
++               (dict(mutate_cfg=lambda c:c.update(baseUrl='http://127.0.0.1:18545')),'template',None),
++               (dict(mutate_pins=lambda p:p['roleEnv'].update(ENCLAVE_DERIVED_READER_CONFIG=p['config']['path'])),'roleEnv must name',None),
++               (dict(mutate_pins=lambda p:p['roleEnv'].update(ENCLAVE_DERIVED_ANCHOR_JOURNAL='/home/x/journal.json')),'roleEnv must name',None),
++               (dict(mutate_pins=lambda p:p['roleEnv'].update(BASE_RPC='http://8.8.8.8')),'disagree',None)]
+         for kw,needle,after in cases:
+             pb,cb,d=self.fixture(**kw)
+             if after:after(d)

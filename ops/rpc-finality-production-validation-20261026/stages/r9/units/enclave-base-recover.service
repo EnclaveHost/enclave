@@ -1,0 +1,7 @@
+# base-finality-proof-stage/r6 (SOURCE ONLY): crash recovery without a human: wait, then start the base unit (which pulls the permit)
+[Unit]
+Description=Restart the Base node after a failure through the checked permit
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 15
+ExecStart=/bin/systemctl start --no-block enclave-base-holder.service

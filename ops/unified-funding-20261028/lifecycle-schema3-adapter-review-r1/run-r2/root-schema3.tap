@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: actual schema3 pair: library runtime + embedded self address; read/prepare/submit/resolve/finalize through lifecycleStart/lifecycleEndAt
+ok 1 - actual schema3 pair: library runtime + embedded self address; read/prepare/submit/resolve/finalize through lifecycleStart/lifecycleEndAt
+  ---
+  duration_ms: 2317.222563
+  type: 'test'
+  ...
+# Subtest: fail closed: absent/wrong library or self binding, wrong immutables, wrong prover/controller/ledger/recursive dependency, wrong profile
+ok 2 - fail closed: absent/wrong library or self binding, wrong immutables, wrong prover/controller/ledger/recursive dependency, wrong profile
+  ---
+  duration_ms: 894.473038
+  type: 'test'
+  ...
+# Subtest: qualified schema3 retirement is metadata only; residual admin powers remain blockers; admin change denies new starts, not reads/queue/reconciliation
+ok 3 - qualified schema3 retirement is metadata only; residual admin powers remain blockers; admin change denies new starts, not reads/queue/reconciliation
+  ---
+  duration_ms: 1615.701018
+  type: 'test'
+  ...
+# Subtest: pending emergency cutoff: exact tuple at the authenticated block; no fresh funding/admission/transition; reconciliation restores normal
+ok 4 - pending emergency cutoff: exact tuple at the authenticated block; no fresh funding/admission/transition; reconciliation restores normal
+  ---
+  duration_ms: 1712.009193
+  type: 'test'
+  ...
+# Subtest: stopped emergency + final settlement; a revoked confirmed start is never upgraded; a reorged emergency is not retained; reorg proof refusal
+ok 5 - stopped emergency + final settlement; a revoked confirmed start is never upgraded; a reorged emergency is not retained; reorg proof refusal
+  ---
+  duration_ms: 1601.373462
+  type: 'test'
+  ...
+# Subtest: runner: a pending offline run is never served/restarted; generation certificates refused; monotonic denial restored only after settlement
+ok 6 - runner: a pending offline run is never served/restarted; generation certificates refused; monotonic denial restored only after settlement
+  ---
+  duration_ms: 1311.471631
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9662.841317

@@ -1,0 +1,23 @@
+[queue] START available=24674MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## verified SHA256SUMS 342ca52586e22f61a9d63bb1d2e6ec84cb0b6e4f2adde016ba4293862ec3c5a8
+test_a_bad_checksum_changes_nothing_but_the_raw_field_everything_stays_unchecked (__main__.Inventory.test_a_bad_checksum_changes_nothing_but_the_raw_field_everything_stays_unchecked) ... ok
+test_a_descriptor_near_the_end_wraps_its_images_to_s_first (__main__.Inventory.test_a_descriptor_near_the_end_wraps_its_images_to_s_first) ... ok
+test_escape_and_deleted_tag_flags_are_reported_not_interpreted (__main__.Inventory.test_escape_and_deleted_tag_flags_are_reported_not_interpreted) ... ok
+test_overflowing_or_unknown_descriptors_and_bad_revokes_are_undecodable_and_map_nothing (__main__.Inventory.test_overflowing_or_unknown_descriptors_and_bad_revokes_are_undecodable_and_map_nothing) ... ok
+test_transactions_targets_commit_times_revokes_and_the_unauthenticated_label (__main__.Inventory.test_transactions_targets_commit_times_revokes_and_the_unauthenticated_label) ... ok
+test_truncated_stale_and_uncommitted_transactions_are_marked_never_intact (__main__.Inventory.test_truncated_stale_and_uncommitted_transactions_are_marked_never_intact) ... ok
+test_unsupported_formats_are_refused (__main__.Inventory.test_unsupported_formats_are_refused) ... ok
+test_inputs_are_regular_no_follow_non_blocking_and_outputs_never_overwritten (__main__.Safety.test_inputs_are_regular_no_follow_non_blocking_and_outputs_never_overwritten) ... REFUSED: the output file already exists (never overwritten)
+REFUSED: journal copy must be exactly 1073741824 bytes (got 16384); use --fixture only for fixtures
+ok
+test_output_is_bounded_truncation_is_explicit_and_too_large_refuses (__main__.Safety.test_output_is_bounded_truncation_is_explicit_and_too_large_refuses) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.139s
+
+OK
+{"written": "/tmp/tmp.cruod0YlIZ/jbd2inv-smstprgu/inv.json", "bytes": 3023}
+## journal-recovery-r1-tests rc=1
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

@@ -1,0 +1,28 @@
+{
+  "inputs": {
+    "relay-owner-r2/funding-route.mjs": "47b06a2ba24cf1c298fe7e4591a90ec7feb1f234590f6a60c27918e901f62eb4",
+    "relay-owner-r2/generated/PREPARE-MANIFEST.json": "a420633c263b70898f09947bc790355da75ad34fc008f9a80e067251fead3154",
+    "relay-owner-r2/patched/relay/funding-abi.mjs": "93a951752cbcbdbd01537965f3d540a43fc796665f1a77e87791c9b2e555198a",
+    "relay-owner-r2/patched/relay/funding-route.mjs": "87e6df639df4569d6a5c44439d0448a4fe3ce4c2580c2b7e997baab61f5aa7bc",
+    "relay-owner-r2/patched/relay/sessions.mjs": "a1c98a799799217bdd3804210f000ff951c60038401448e19e875952157e5301"
+  },
+  "note": "source-only stage: these hashes are computed when the root runs prepare.py; nothing here was executed by its author",
+  "outputs": {
+    "patched/relay/funding-abi.mjs": "93a951752cbcbdbd01537965f3d540a43fc796665f1a77e87791c9b2e555198a",
+    "patched/relay/funding-route.mjs": "87e6df639df4569d6a5c44439d0448a4fe3ce4c2580c2b7e997baab61f5aa7bc",
+    "patched/relay/sessions.mjs": "eb0f5543f2d16bc846ab158b291d26379dc32a7e11461946b1c3537f1b9cd7ba"
+  },
+  "replaced": {
+    "TxQueue (block)": "cf19c3f1257388e6e5edbc608ccd00cb56f9bca281590af3792d47974d56cf83",
+    "TxQueue (original class bytes)": "1880581f50589c92ead0f77cb02c38ec4ea7401f0b56f56773e7c46b40ae7d99"
+  },
+  "source": {
+    "relay/sessions.mjs": "457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d"
+  },
+  "symlinks": {
+    "patched/node_modules": "../../../../node_modules",
+    "patched/relay/sessions-abi.mjs": "../../../../../relay/sessions-abi.mjs",
+    "patched/relay/snp-verify.mjs": "../../../../../relay/snp-verify.mjs"
+  },
+  "unpinned": {}
+}

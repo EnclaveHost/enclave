@@ -1,0 +1,9 @@
+9b86d35086227e7dc26ce9cf664e61f6b6271340269dbfdf64b86288b7063fc5  ./PROVENANCE.md
+21fba6f92cdbf82d91e6793fc5496770424b519a28e8e3a416db0fa12112bf6f  ./inputs/claude-enrollment-r9.md
+11dc029d64bc099be24436d2d23f002a21bb3091173c018a1804e9b60aca80e3  ./inputs/root-1464/startup-unenrolled.txt
+76c714111a1d3b6adf05a711db3478261bbd08f0f92bc15e9a802584280718e3  ./inputs/root-1464/unenrolled-after.txt
+595372754f5b2c7bc93d069904120ebb41440e0035240b9f9869f9fb47f2e55a  ./inputs/root-1464/unenrolled-compose.json
+a77430d2c6e02deb8fb6e535041a9d2d766521b830c02b86769fecf1ab4ae194  ./inputs/root-1464/verdict.json
+863ba5049f808617a1f88fe14becd310763fac69bbbad737c511289080cb9a3d  ./jobs/check-unenrolled-tree.py
+90c579ab62bb9ffe7389e049fc5743b2fe67e55688ae202561517e88c8bf8875  ./jobs/kvm-overlay.py
+d67adb2a2e662eb3685487badc0003884768ed52469e048618e218bdd8058a15  ./jobs/root-accepted-image-enrollment-r9.sh

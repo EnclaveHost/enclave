@@ -1,0 +1,19 @@
+{
+  "format": "enclave-nvme-copy-plan/v1",
+  "source": {
+    "path": "/mnt/usb/enclave-rpc-production/os.qcow2",
+    "dev": 2050,
+    "ino": 3219,
+    "size": 3110666240
+  },
+  "target": {
+    "dir": "/vm/enclave-volumes/rpc-production",
+    "name": "os.qcow2"
+  },
+  "unit": "enclave-rpc-production-vm.service",
+  "systemctl": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-copy-root-review/systemctl-user",
+  "allowIncompleteProcScan": true,
+  "reserveBytes": 300000000000,
+  "progressPath": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/nvme-migration/copy-os.progress.json",
+  "receiptPath": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/nvme-migration/copy-os.receipt.json"
+}

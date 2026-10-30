@@ -1,0 +1,28 @@
+[queue] START available=87540MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "capacity": {
+  "freeNow": 528600571904,
+  "startAdmitted": true,
+  "startThreshold": 488719476736
+ },
+ "disks": {
+  "l1": {
+   "identity": "receipt inode+size+mtime/ctime<=finished",
+   "ino": 147981798,
+   "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2"
+  },
+  "os": {
+   "identity": "receipt inode+size+mtime/ctime<=finished",
+   "ino": 147981797,
+   "path": "/vm/enclave-volumes/rpc-production/os.qcow2"
+  }
+ },
+ "launcherSha256": "8b1ece11201b0f6fe157c2dbf053e46846572741663dfc772ca29a0e0bfa463c",
+ "manifestSha256": "74db2e44b784ad1bf9bd8eddc533cde5790da7377c35ed0937749316a4ad159c",
+ "next": "root reviews, then (VM stopped) /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-migration-stage/staged-final/install.sh",
+ "qemuArgvSha256": "a6da118b3a8ef83d2f0fbb17a404db1087e0ee11cf4f119744ef80f1f291f2f4",
+ "staged": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-migration-stage/staged-final"
+}
+[memory-guard] exit=0 peakTreeRssMiB=49 minHostAvailableMiB=87495
+[memory-guard] at peak: python3:25 qemu-img:24
+[queue] EXIT 0

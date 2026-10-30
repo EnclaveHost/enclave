@@ -1,0 +1,5 @@
+[queue] START available=19521MiB required=18688MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1792MiB
+{"startedAt": "2026-10-25T19:38:24.878237+00:00", "kind": "bounded-own-L1-real-Helios-smoke", "binarySha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0", "checkpointRoot": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094", "checkpointSlot": 15511008, "productionActivated": false, "success": true, "processStopped": true, "finishedAt": "2026-10-25T19:38:39.945952+00:00"}
+[memory-guard] exit=0 peakTreeRssMiB=82 minHostAvailableMiB=19438
+[memory-guard] at peak: 3:52 python3:31
+[queue] EXIT 0

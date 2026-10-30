@@ -1,0 +1,37 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 9 not started; sleep 30
+[queue] START available=84371MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+Running as unit: enclave-shield-full-probe-build-r1-20261028.service
+error: lock file must be provided when offline mode is enabled
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/root-build-full-probe.py", line 13, in <module>
+    subprocess.run(['/home/steven/.cargo/bin/cargo','component','build','--release','--target','wasm32-wasip1','--offline'],cwd=out,env=env,check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['/home/steven/.cargo/bin/cargo', 'component', 'build', '--release', '--target', 'wasm32-wasip1', '--offline']' returned non-zero exit status 1.
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 99ms
+             CPU time consumed: 71ms
+                   Memory peak: 20.1M (swap: 0B)
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

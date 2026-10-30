@@ -1,0 +1,161 @@
+{
+ "format": "recovery-sequential-probe/r2",
+ "meaning": "TIMING ONLY: 4 x 64 MiB sequential reads of the original through qemu-io; page cache NOT controlled; includes process start/open; NOT an integrity check, NOT a whole-copy or validation ETA",
+ "concurrentLoad": "rates are measured under whatever else reads the same USB array (root 1740: the peer L1 comparison was reading it); NOT isolated disk throughput, NOT a copy or validation ETA",
+ "loadavgPre": "5.86 5.14 7.46 3/4530 2422283",
+ "loadavgPost": "5.86 5.14 7.46 2/4633 2422464",
+ "image": "/home/steven/Documents/Codex/2026-10-26/my/work/tr004-readonly/enclave-rpc-production/base-origin.qcow2",
+ "identityPre": {
+  "dev": 2050,
+  "ino": 3221,
+  "size": 2073934036992,
+  "mtimeNs": 1793030438418984700,
+  "ctimeNs": 1793030438418984700
+ },
+ "identityPost": {
+  "dev": 2050,
+  "ino": 3221,
+  "size": 2073934036992,
+  "mtimeNs": 1793030438418984700,
+  "ctimeNs": 1793030438418984700
+ },
+ "imageUnchanged": true,
+ "readOnlyMount": true,
+ "namersAfter": [],
+ "pageCacheControlled": false,
+ "qemuIoSha256": "085e254e8a64b25c70051b123eed1ff56cf0a70acc2d064e50377220bca53f55",
+ "lifecycleSha256": "f0d27e40c29271b94d2b48b9d4ab70a84de1f946709db4e9361cdfba00bac131",
+ "coverageSha256": "70180b22ac5a905eb415caec8c8c7014cbaa8c3f6201cd577ee2d02979de9200",
+ "summary": {
+  "requested": 4,
+  "completeCount": 4,
+  "requestedBytes": 268435456,
+  "measuredBytes": 268435456,
+  "status": "complete"
+ },
+ "cancelledBySignal": null,
+ "ranges": [
+  {
+   "index": 0,
+   "virtualOffset": 229227102208,
+   "length": 67108864,
+   "extent": [
+    127674368,
+    32768,
+    55947264,
+    false
+   ],
+   "logicalOffset": 523021320192,
+   "seconds": 0.78,
+   "rc": 0,
+   "timedOut": false,
+   "cut": false,
+   "heldOpen": false,
+   "escaped": false,
+   "cancelled": false,
+   "stats": {
+    "bytes": 67108864,
+    "ops": 1,
+    "qemuTime": "0:00:00.67",
+    "qemuBytesPerSec": 100712937.961
+   },
+   "complete": true,
+   "outputTail": "67108864,1,0:00:00.67,100712937.961,1.501\n",
+   "MiBps": 82.03
+  },
+  {
+   "index": 1,
+   "virtualOffset": 1017353601024,
+   "length": 67108864,
+   "extent": [
+    2048,
+    32768,
+    248377344,
+    false
+   ],
+   "logicalOffset": 8388608,
+   "seconds": 0.635,
+   "rc": 0,
+   "timedOut": false,
+   "cut": false,
+   "heldOpen": false,
+   "escaped": false,
+   "cancelled": false,
+   "stats": {
+    "bytes": 67108864,
+    "ops": 1,
+    "qemuTime": "0:00:00.55",
+    "qemuBytesPerSec": 122030189.107
+   },
+   "complete": true,
+   "outputTail": "67108864,1,0:00:00.55,122030189.107,1.818\n",
+   "MiBps": 100.82
+  },
+  {
+   "index": 2,
+   "virtualOffset": 1357343883264,
+   "length": 67108864,
+   "extent": [
+    77783040,
+    32768,
+    331382784,
+    false
+   ],
+   "logicalOffset": 318599331840,
+   "seconds": 0.732,
+   "rc": 0,
+   "timedOut": false,
+   "cut": false,
+   "heldOpen": false,
+   "escaped": false,
+   "cancelled": false,
+   "stats": {
+    "bytes": 67108864,
+    "ops": 1,
+    "qemuTime": "0:00:00.65",
+    "qemuBytesPerSec": 103795445.796
+   },
+   "complete": true,
+   "outputTail": "67108864,1,0:00:00.65,103795445.796,1.547\n",
+   "MiBps": 87.38
+  },
+  {
+   "index": 3,
+   "virtualOffset": 1900171755520,
+   "length": 67108864,
+   "extent": [
+    214841344,
+    32768,
+    463896576,
+    false
+   ],
+   "logicalOffset": 880041525248,
+   "seconds": 0.668,
+   "rc": 0,
+   "timedOut": false,
+   "cut": false,
+   "heldOpen": false,
+   "escaped": false,
+   "cancelled": false,
+   "stats": {
+    "bytes": 67108864,
+    "ops": 1,
+    "qemuTime": "0:00:00.57",
+    "qemuBytesPerSec": 117799653.399
+   },
+   "complete": true,
+   "outputTail": "67108864,1,0:00:00.57,117799653.399,1.755\n",
+   "MiBps": 95.81
+  }
+ ],
+ "totalSeconds": 2.816,
+ "limits": {
+  "perReadSec": 45,
+  "eofGraceSec": 2.0,
+  "killGraceSec": 5.0,
+  "totalBudgetSec": 240,
+  "aggregateMax": 268435456,
+  "outputCap": 65536,
+  "concurrency": 1
+ }
+}

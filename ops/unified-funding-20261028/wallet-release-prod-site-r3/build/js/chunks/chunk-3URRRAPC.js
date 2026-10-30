@@ -1,0 +1,2 @@
+import{a as o}from"./chunk-ZDW7UQXR.js";import{I as r}from"./chunk-UVYTINZI.js";var l=null;async function e(){await o(document.querySelector(".arch-fleet c-fleet-list"),r.base)}function u(){e();let t=document.querySelector(".arch-fleet c-fleet-list");t&&t.addEventListener("refresh",e),l||(l=setInterval(()=>{document.getElementById("architecture")&&e()},3e4))}export{u as a};
+//# sourceMappingURL=chunk-3URRRAPC.js.map

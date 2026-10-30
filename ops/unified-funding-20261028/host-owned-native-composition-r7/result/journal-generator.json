@@ -1,0 +1,31 @@
+{
+ "output": "/tmp/hacr2.HXDPet/r6/network/journal-composed.mjs",
+ "sha256": "3258481cbf178668c315e88f5184f3e7c4f3efed66c021503ab54bc1fa2496d9",
+ "baselineSha256": "c4db54b3509f7a318b938dbfe11abdf565742611ffe6e8898d465b6fa005f601",
+ "manifest": [
+  {
+   "name": "validate",
+   "baselineLine": 16,
+   "candidateOffset": 865,
+   "length": 115
+  },
+  {
+   "name": "helper",
+   "baselineLine": 49,
+   "candidateOffset": 3457,
+   "length": 1357
+  },
+  {
+   "name": "updateHost",
+   "baselineLine": 75,
+   "candidateOffset": 6466,
+   "length": 656
+  },
+  {
+   "name": "methods",
+   "baselineLine": 92,
+   "candidateOffset": 8300,
+   "length": 1563
+  }
+ ]
+}

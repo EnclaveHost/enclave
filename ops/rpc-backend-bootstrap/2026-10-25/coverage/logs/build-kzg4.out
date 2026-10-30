@@ -1,0 +1,256 @@
+[queue] START available=20226MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+     Locking 283 packages to latest compatible versions
+      Adding crypto-common v0.1.6 (available: v0.1.7)
+      Adding serde_json v1.0.151 (available: v1.0.154)
+ Downgrading base64ct v1.8.3 -> v1.6.0
+note: pass `--verbose` to see 2 unchanged dependencies behind latest
+ Downgrading bitflags v2.13.2 -> v2.13.1
+note: pass `--verbose` to see 3 unchanged dependencies behind latest
+ Downgrading cc v1.8.0 -> v1.3.0
+note: pass `--verbose` to see 4 unchanged dependencies behind latest
+ Downgrading cfg-if v1.0.5 -> v1.0.4
+note: pass `--verbose` to see 5 unchanged dependencies behind latest
+ Downgrading cpufeatures v0.3.1 -> v0.3.0
+note: pass `--verbose` to see 6 unchanged dependencies behind latest
+    Updating crypto-common v0.1.6 -> v0.1.7
+ Downgrading generic-array v0.14.9 -> v0.14.7 (available: v0.14.9)
+note: pass `--verbose` to see 6 unchanged dependencies behind latest
+ Downgrading deranged v0.5.9 -> v0.5.8
+note: pass `--verbose` to see 7 unchanged dependencies behind latest
+ Downgrading either v1.19.0 -> v1.16.0
+note: pass `--verbose` to see 8 unchanged dependencies behind latest
+ Downgrading equivalent v1.0.3 -> v1.0.2
+note: pass `--verbose` to see 9 unchanged dependencies behind latest
+ Downgrading find-msvc-tools v0.1.14 -> v0.1.9
+note: pass `--verbose` to see 10 unchanged dependencies behind latest
+error: failed to select a version for the requirement `futures-core = "^0.3.34"`
+candidate versions found which didn't match: 0.3.33
+location searched: crates.io index
+required by package `futures-util v0.3.34`
+    ... which satisfies dependency `futures-util = "^0.3.31"` (locked to 0.3.34) of package `js-sys v0.3.106`
+    ... which satisfies dependency `js-sys = "^0.3.66"` (locked to 0.3.106) of package `iana-time-zone v0.1.65`
+    ... which satisfies dependency `iana-time-zone = "^0.1.45"` (locked to 0.1.65) of package `chrono v0.4.45`
+    ... which satisfies dependency `chrono_0_4 = "^0.4.20"` (locked to 0.4.45) of package `serde_with v3.24.0`
+    ... which satisfies dependency `serde_with = "^3"` (locked to 3.24.0) of package `alloy-consensus v2.4.1`
+    ... which satisfies dependency `alloy-consensus = "=2.4.1"` (locked to 2.4.1) of package `kzgcheck v0.2.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/coverage-stage/kzgcheck)`
+note: offline mode (via `--offline`) can sometimes cause surprising resolution failures
+help: if this error is too confusing you may wish to retry without `--offline`
+error: failed to select a version for the requirement `futures-task = "^0.3.34"`
+candidate versions found which didn't match: 0.3.33
+location searched: crates.io index
+required by package `futures-util v0.3.34`
+    ... which satisfies dependency `futures-util = "^0.3.31"` (locked to 0.3.34) of package `js-sys v0.3.106`
+    ... which satisfies dependency `js-sys = "^0.3.66"` (locked to 0.3.106) of package `iana-time-zone v0.1.65`
+    ... which satisfies dependency `iana-time-zone = "^0.1.45"` (locked to 0.1.65) of package `chrono v0.4.45`
+    ... which satisfies dependency `chrono_0_4 = "^0.4.20"` (locked to 0.4.45) of package `serde_with v3.24.0`
+    ... which satisfies dependency `serde_with = "^3"` (locked to 3.24.0) of package `alloy-consensus v2.4.1`
+    ... which satisfies dependency `alloy-consensus = "=2.4.1"` (locked to 2.4.1) of package `kzgcheck v0.2.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/coverage-stage/kzgcheck)`
+note: offline mode (via `--offline`) can sometimes cause surprising resolution failures
+help: if this error is too confusing you may wish to retry without `--offline`
+ Downgrading futures-util v0.3.34 -> v0.3.33
+note: pass `--verbose` to see 11 unchanged dependencies behind latest
+error: package ID specification `generic-array@0.14.9` did not match any packages
+help: there are similar package ID specifications:
+
+  generic-array@0.14.7
+ Downgrading hex-conservative v0.2.3 -> v0.2.2
+note: pass `--verbose` to see 12 unchanged dependencies behind latest
+ Downgrading hybrid-array v0.4.15 -> v0.4.13
+note: pass `--verbose` to see 13 unchanged dependencies behind latest
+ Downgrading indexmap v2.14.2 -> v2.14.0
+note: pass `--verbose` to see 14 unchanged dependencies behind latest
+ Downgrading js-sys v0.3.106 -> v0.3.103
+ Downgrading wasm-bindgen v0.2.129 -> v0.2.126 (available: v0.2.129)
+ Downgrading wasm-bindgen-macro v0.2.129 -> v0.2.126 (available: v0.2.129)
+ Downgrading wasm-bindgen-macro-support v0.2.129 -> v0.2.126 (available: v0.2.129)
+ Downgrading wasm-bindgen-shared v0.2.129 -> v0.2.126 (available: v0.2.129)
+note: pass `--verbose` to see 15 unchanged dependencies behind latest
+ Downgrading libc v0.2.191 -> v0.2.188
+note: pass `--verbose` to see 20 unchanged dependencies behind latest
+ Downgrading log v0.4.34 -> v0.4.33
+note: pass `--verbose` to see 21 unchanged dependencies behind latest
+ Downgrading num-integer v0.1.47 -> v0.1.46
+note: pass `--verbose` to see 22 unchanged dependencies behind latest
+ Downgrading pest v2.9.0 -> v2.8.7
+note: pass `--verbose` to see 23 unchanged dependencies behind latest
+ Downgrading portable-atomic v1.15.0 -> v1.14.0
+note: pass `--verbose` to see 24 unchanged dependencies behind latest
+ Downgrading powerfmt v0.2.1 -> v0.2.0
+note: pass `--verbose` to see 25 unchanged dependencies behind latest
+ Downgrading rand v0.8.8 -> v0.8.7
+note: pass `--verbose` to see 26 unchanged dependencies behind latest
+ Downgrading ref-cast v1.0.27 -> v1.0.26
+ Downgrading ref-cast-impl v1.0.27 -> v1.0.26 (available: v1.0.27)
+note: pass `--verbose` to see 27 unchanged dependencies behind latest
+error: package ID specification `ref-cast-impl@1.0.27` did not match any packages
+help: there are similar package ID specifications:
+
+  ref-cast-impl@1.0.26
+ Downgrading schemars v1.2.3 -> v1.2.1
+note: pass `--verbose` to see 29 unchanged dependencies behind latest
+ Downgrading base64 v0.23.1 -> v0.22.1
+    Removing bitflags v1.3.2
+    Removing darling v0.24.1
+    Removing darling_core v0.24.1
+    Removing darling_macro v0.24.1
+    Removing defmt v1.1.1
+    Removing defmt-macros v1.1.1
+    Removing defmt-parser v1.0.0
+    Removing jiff v0.2.38
+    Removing jiff-core v0.1.1
+    Removing jiff-static v0.2.38
+    Removing jiff-tzdb v0.1.9
+    Removing jiff-tzdb-platform v0.1.3
+    Removing portable-atomic v1.14.0
+    Removing portable-atomic-util v0.2.8
+ Downgrading serde_with v3.24.0 -> v3.21.0
+ Downgrading serde_with_macros v3.24.0 -> v3.21.0 (available: v3.24.0)
+note: pass `--verbose` to see 29 unchanged dependencies behind latest
+error: package ID specification `serde_with_macros@3.24.0` did not match any packages
+help: there are similar package ID specifications:
+
+  serde_with_macros@3.21.0
+ Downgrading smallvec v1.16.3 -> v1.15.2
+note: pass `--verbose` to see 31 unchanged dependencies behind latest
+ Downgrading syn v3.0.9 -> v3.0.2
+note: pass `--verbose` to see 32 unchanged dependencies behind latest
+ Downgrading thiserror v2.0.21 -> v2.0.19
+ Downgrading thiserror-impl v2.0.21 -> v2.0.19 (available: v2.0.21)
+note: pass `--verbose` to see 33 unchanged dependencies behind latest
+error: package ID specification `thiserror-impl@2.0.21` did not match any packages
+help: there are similar package ID specifications:
+
+  thiserror-impl@2.0.19
+ Downgrading tinyvec v1.13.3 -> v1.12.0
+      Adding tinyvec_macros v0.1.1
+note: pass `--verbose` to see 35 unchanged dependencies behind latest
+ Downgrading toml_parser v1.1.3+spec-1.1.0 -> v1.1.2+spec-1.1.0
+note: pass `--verbose` to see 36 unchanged dependencies behind latest
+ Downgrading unicode-ident v1.0.27 -> v1.0.24
+note: pass `--verbose` to see 37 unchanged dependencies behind latest
+error: package ID specification `wasm-bindgen@0.2.129` did not match any packages
+help: there are similar package ID specifications:
+
+  wasm-bindgen@0.2.126
+error: package ID specification `wasm-bindgen-macro@0.2.129` did not match any packages
+help: there are similar package ID specifications:
+
+  wasm-bindgen-macro@0.2.126
+error: package ID specification `wasm-bindgen-macro-support@0.2.129` did not match any packages
+help: there are similar package ID specifications:
+
+  wasm-bindgen-macro-support@0.2.126
+error: package ID specification `wasm-bindgen-shared@0.2.129` did not match any packages
+help: there are similar package ID specifications:
+
+  wasm-bindgen-shared@0.2.126
+ Downgrading zerocopy v0.8.63 -> v0.8.55
+ Downgrading zerocopy-derive v0.8.63 -> v0.8.55 (available: v0.8.63)
+note: pass `--verbose` to see 38 unchanged dependencies behind latest
+error: package ID specification `zerocopy-derive@0.8.63` did not match any packages
+help: there are similar package ID specifications:
+
+  zerocopy-derive@0.8.55
+ Downgrading zeroize v1.9.1 -> v1.9.0
+note: pass `--verbose` to see 40 unchanged dependencies behind latest
+ Downgrading futures-core v0.3.34 -> v0.3.33
+note: pass `--verbose` to see 41 unchanged dependencies behind latest
+ Downgrading futures-task v0.3.34 -> v0.3.33
+note: pass `--verbose` to see 42 unchanged dependencies behind latest
+lockcheck: every dependency equals base-v1.5.1 Cargo.lock (version+checksum+source)
+lockcheck: every dependency equals base-v1.5.1 Cargo.lock (version+checksum+source)
+   Compiling syn v2.0.119
+   Compiling serde_core v1.0.229
+   Compiling syn v3.0.2
+   Compiling typenum v1.20.1
+   Compiling serde v1.0.229
+   Compiling serde_derive v1.0.229
+   Compiling paste v1.0.15
+   Compiling cfg-if v1.0.4
+   Compiling hybrid-array v0.4.13
+   Compiling bytes v1.12.1
+   Compiling alloy-rlp-derive v0.3.16
+   Compiling unicode-segmentation v1.13.3
+   Compiling arrayvec v0.7.8
+   Compiling alloy-rlp v0.3.16
+   Compiling convert_case v0.10.0
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling cpufeatures v0.2.17
+   Compiling unicode-xid v0.2.6
+   Compiling ruint-macro v1.2.1
+   Compiling ruint v1.19.0
+   Compiling derive_more-impl v2.1.1
+   Compiling digest v0.11.3
+   Compiling keccak v0.2.0
+   Compiling foldhash v0.2.0
+   Compiling itoa v1.0.18
+   Compiling hashbrown v0.17.1
+   Compiling sha3 v0.11.0
+   Compiling derive_more v2.1.1
+   Compiling const-hex v1.19.1
+   Compiling alloy-primitives v1.6.1
+   Compiling version_check v0.9.5
+   Compiling generic-array v0.14.7
+   Compiling strsim v0.11.1
+   Compiling ident_case v1.0.1
+   Compiling thiserror v2.0.19
+   Compiling darling_core v0.23.0
+   Compiling thiserror-impl v2.0.19
+   Compiling once_cell v1.21.4
+   Compiling darling_macro v0.23.0
+   Compiling zmij v1.0.23
+   Compiling darling v0.23.0
+   Compiling serde_json v1.0.151
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling crc-catalog v2.5.0
+   Compiling memchr v2.8.3
+   Compiling crc v3.4.0
+   Compiling digest v0.10.7
+   Compiling serde_with_macros v3.21.0
+   Compiling tracing-core v0.1.36
+   Compiling either v1.16.0
+   Compiling smallvec v1.15.2
+   Compiling pin-project-lite v0.2.17
+   Compiling tracing v0.1.44
+   Compiling nybbles v0.4.8
+   Compiling serde_with v3.21.0
+   Compiling sha2 v0.10.9
+   Compiling alloy-eip2124 v0.2.0
+   Compiling alloy-serde v2.4.1
+   Compiling alloy-eip7928 v0.4.5
+   Compiling alloy-eip7702 v0.6.3
+   Compiling alloy-eip2930 v0.2.3
+   Compiling syn-solidity v1.6.1
+   Compiling auto_impl v1.3.0
+   Compiling macro-string v0.2.0
+   Compiling proc-macro-error-attr3 v3.0.1
+   Compiling equivalent v1.0.2
+   Compiling dunce v1.0.5
+   Compiling heck v0.5.0
+   Compiling alloy-sol-macro-input v1.6.1
+   Compiling indexmap v2.14.0
+   Compiling proc-macro-error3 v3.0.1
+   Compiling alloy-eips v2.4.1
+   Compiling alloy-trie v0.9.5
+   Compiling alloy-tx-macros v2.4.1
+   Compiling alloy-consensus v2.4.1
+   Compiling alloy-sol-macro-expander v1.6.1
+   Compiling zeroize_derive v1.5.0
+   Compiling zeroize v1.9.0
+   Compiling alloy-sol-macro v1.6.1
+   Compiling blst v0.3.16
+   Compiling alloy-sol-types v1.6.1
+   Compiling alloy-consensus-any v2.4.1
+   Compiling alloy-network-primitives v2.4.1
+   Compiling itertools v0.14.0
+   Compiling c-kzg v2.1.8
+   Compiling alloy-rpc-types-eth v2.4.1
+   Compiling kzgcheck v0.2.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/coverage-stage/kzgcheck)
+    Finished `release` profile [optimized] target(s) in 54.12s
+647aad9f0ed9c37cb1c97798f4ebda3b7252deaf1bd056498b3081fa69af10b4  Cargo.lock
+00b3eeb94efece39e4f2cf8e34d5d3450d532328ccc667a6a74e83b151be10eb  target/release/kzgcheck
+[memory-guard] exit=0 peakTreeRssMiB=411 minHostAvailableMiB=18088
+[memory-guard] at peak: rustc:351 cargo:56 bash:4
+[queue] EXIT 0

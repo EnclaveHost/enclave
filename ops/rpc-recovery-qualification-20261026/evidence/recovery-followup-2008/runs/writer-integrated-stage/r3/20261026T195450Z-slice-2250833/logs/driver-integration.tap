@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: policy: exact signed section; the witness producer only on loopback; the template a canonical absolute file
+ok 1 - policy: exact signed section; the witness producer only on loopback; the template a canonical absolute file
+  ---
+  duration_ms: 2.4263
+  type: 'test'
+  ...
+# Subtest: witness transport: the exact request without the ticket; capped, typed, timed out, abortable, no redirects
+ok 2 - witness transport: the exact request without the ticket; capped, typed, timed out, abortable, no redirects
+  ---
+  duration_ms: 360.071076
+  type: 'test'
+  ...
+# Subtest: REAL provider + REAL driver: finality first, the floor only from finalized runs, S only from the provisional track, strict 120 s, A2 marker stops it
+ok 3 - REAL provider + REAL driver: finality first, the floor only from finalized runs, S only from the provisional track, strict 120 s, A2 marker stops it
+  ---
+  duration_ms: 449.23449
+  type: 'test'
+  ...
+# Subtest: own-node hints are numbers only (untrusted); a failing node gives no hint, never a target beyond the provider
+ok 4 - own-node hints are numbers only (untrusted); a failing node gives no hint, never a target beyond the provider
+  ---
+  duration_ms: 0.458721
+  type: 'test'
+  ...
+# Subtest: shutdown: stop() aborts the driver's in-flight native run through the provider and nothing merges afterwards
+ok 5 - shutdown: stop() aborts the driver's in-flight native run through the provider and nothing merges afterwards
+  ---
+  duration_ms: 299.280966
+  type: 'test'
+  ...
+# Subtest: producer outage: bounded failure and backoff; no submit, no floor, the provider is untouched
+ok 6 - producer outage: bounded failure and backoff; no submit, no floor, the provider is untouched
+  ---
+  duration_ms: 283.187446
+  type: 'test'
+  ...
+# Subtest: relay startup: the driver ONLY on the enrolled branch with the signed section; closes driver first; every other combination refuses
+ok 7 - relay startup: the driver ONLY on the enrolled branch with the signed section; closes driver first; every other combination refuses
+  ---
+  duration_ms: 7.650733
+  type: 'test'
+  ...
+# Subtest: KVM staging: the driver section is in the signed binding only when present; an unsigned (self-initialized) state refuses it
+ok 8 - KVM staging: the driver section is in the signed binding only when present; an unsigned (self-initialized) state refuses it
+  ---
+  duration_ms: 226.779487
+  type: 'test'
+  ...
+# Subtest: role (r2): a driver section must name the measured image record's PINNED Base rollup config; the shipped template (no driver) is unchanged
+ok 9 - role (r2): a driver section must name the measured image record's PINNED Base rollup config; the shipped template (no driver) is unchanged
+  ---
+  duration_ms: 4.032337
+  type: 'test'
+  ...
+# Subtest: template read (r3, review 1596 L2): bounded, regular file only; a symlink, FIFO, directory or oversized file is never read
+ok 10 - template read (r3, review 1596 L2): bounded, regular file only; a symlink, FIFO, directory or oversized file is never read
+  ---
+  duration_ms: 6.726782
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1872.423587

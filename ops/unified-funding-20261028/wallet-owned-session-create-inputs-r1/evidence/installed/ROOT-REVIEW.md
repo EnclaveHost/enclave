@@ -1,0 +1,6 @@
+# Installed relay policy observation
+Read-only actual controlVM172.17.28.159 via existing minipc route, October30 00:30:10UTC. MainPID270588 and invocation1ddd9115fa804568a55375b1c984d548 unchanged before/after source capture. Captured only five named public-source paths, no environment, credentials, bundles or private journal. Four exist; session-api-auth.mjs absent at relay root (host component, not inferred absent systemwide).
+
+Installed sessions.mjs1609-1634: known vault held.env0 refuses; env2 compares exact appRef/config promotion hash; env1 has no promotion comparison. Plain EOA wallet passes this custody predicate. Installed secrets.js398, secrets-release.mjs478 and shield-secrets.mjs33 call this predicate. Thus STAGING->wallet does not remove a promotion requirement at these installed call sites. Other lease, attestation and backend policies remain. This is on-disk source tied to unchanged service identity, not a memory dump of loaded module bytes, proof of every remote backend, or full session census. No policy changed.
+
+Earlier read-only service metadata queries on edge hosts/nan found no active target; those were not the controlVM and are not outage evidence. Actual target was then resolved from existing production baseline. No restarts or writes to any production machine.

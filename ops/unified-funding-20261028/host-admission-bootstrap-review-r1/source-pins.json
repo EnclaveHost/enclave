@@ -1,0 +1,15 @@
+{
+  "candidateCommit": "ecf364c0a81b9176163d254dcfc9685572bde0cd",
+  "readOnly": true,
+  "qualification": "Source review only; no deployed bootstrap or balance proof",
+  "files": {
+    "contracts/EnclaveHostOwnership.sol": "20c1485fc5682038fbd881106de23bfa5ac5bf1b5baa9a57c88470a3db228224",
+    "contracts/EnclaveRegistry.sol": "49dd631721c3c304b32881929d0c03e0e3204b5e101de280a15ff41b87063045",
+    "network/host-capacity-producer.mjs": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0",
+    "network/host-capacity.mjs": "ef92bba48fe197b81e7d7aa59b0daf44dedde849c2a05a79121d1ae42ccc8e72",
+    "availability/host-acceptor.mjs": "63436160d00ecae43d5eff7046b13e16e2fad04a423d32102afaa7645bbfb85d",
+    "availability/workload.mjs": "501492c7d587faa1e376c9890b9779ee3f7f8f5a3336d14db1d3b544282b360c",
+    "availability/observation.mjs": "180edac0f1ebb7e7ee9227b3c2f584732dbd67b4084fce82f7b1da1df455f479",
+    "deploy/lifecycle/EnclaveDeployments.sol": "9049ea41e5fd8dbff4e0ad70773ea125a747e2dcc404250c245630c849b3febc"
+  }
+}

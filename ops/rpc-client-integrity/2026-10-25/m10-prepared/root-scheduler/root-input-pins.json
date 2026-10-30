@@ -1,0 +1,10 @@
+{
+  "jobs/root-test-m10.sh": "51ffbda21d257a9af3b2ab935b3e63b7801112ae4c47ed1645fa67074ad2bae5",
+  "jobs/selfcheck.sh": "f4d496d82ba248d407a3bcc7a6aee5310d78b6499c91b5095f0508206b1f2d59",
+  "jobs/env.sh": "c627839ba0935df5c7348ca6639514b01d2c3dd33e1214402a8bee295f338da4",
+  "jobs/artifact.py": "06677daee6f3ed65d0eb3f9dd6c43493a464723cf781ba721b70687a080811e9",
+  "control/disable-anchor-checks.py": "8c1b882f408117f2a43ecf3623a631c967e0e69f48b250b0e5c2dbe4d260fdc1",
+  "m10-bootstrap-anchor.patch": "0a10cf866718d9916add99b9119ceef9f9e7a78b28f26e1923eb1143cff903cc",
+  "m10-bootstrap-anchor.patch.sha256": "1391340ae0181e576a28dc8091c42d6ab5efe3c4ff04a20077aa32b38c556bfe",
+  "inputs/base-l1-verify.patch": "e9dfb8c6f950222fb8dee6a42d55612d10bd2cf8c2a68646c9aca8a581485312"
+}

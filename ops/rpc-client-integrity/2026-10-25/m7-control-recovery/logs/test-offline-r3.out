@@ -1,0 +1,79 @@
+[queue] START available=20598MiB required=18432MiB cap=1792MiB floor=16384MiB concurrentSmall=0MiB
+## toolchain rustc 1.96.0 (ac68faa20 2026-05-25) | cargo 1.96.0 (30a34c682 2026-05-25)
+## sources: patched 201d9b8c16b080a4f7111ca29ec5ece8f02a2b9be807bb06e24e7eb1248bb3b2 control f4773918ad3f4d3b03731300028edd6f800d85c90d35829cb60906273978b515
+## control diff: 2 changed lines, 2 of them 'if false && !self.trust_rpc {'
+## [1] patched providers
+## patched: source 201d9b8c16b080a4f7111ca29ec5ece8f02a2b9be807bb06e24e7eb1248bb3b2 REBUILT test binary base_consensus_providers-36019c953d96440f sha256 6f447ae91e2fbd52ad55fcc3bcd323472cf9244e9f1a1be17aa3be92e3415707
+test chain_provider::tests::forged_header_cannot_vouch_for_forged_receipts ... ok
+test chain_provider::tests::altered_log_is_refused ... ok
+test chain_provider::tests::omitted_receipt_is_refused_and_not_cached ... ok
+test chain_provider::tests::reordered_receipts_are_refused ... ok
+test chain_provider::tests::test_from_alloy_chain_provider_error ... ok
+test chain_provider::tests::trusted_rpc_keeps_upstream_behaviour ... ok
+test chain_provider::tests::transactions_must_match_the_verified_transactions_root ... ok
+test chain_provider::tests::verified_receipts_are_returned_and_cached ... ok
+test l2_chain_provider::tests::test_block_by_number_retries_nulls_then_succeeds ... ok
+test l2_chain_provider::tests::test_block_by_number_exhausts_null_retry_budget ... ok
+test l2_chain_provider::tests::test_from_alloy_l2_chain_provider_error ... ok
+test l2_chain_provider::tests::test_block_by_number_transport_error_does_not_retry ... ok
+test l2_chain_provider::tests::test_l2_block_info_by_number_bypasses_number_cache ... ok
+test l2_chain_provider::tests::test_l2_chain_provider_callers_preserve_transport_errors ... ok
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.25s
+## patched: 14/14 OK
+## [2] patched cli l1
+   Compiling base-consensus-providers v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/providers)
+   Compiling base-consensus-engine v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/engine)
+   Compiling base-consensus-rpc v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/rpc)
+   Compiling base-consensus-node v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/service)
+   Compiling base-jwt v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/utilities/jwt)
+   Compiling base-consensus-cli v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/src/crates/consensus/cli)
+test l1::tests::defaults_l1_rpc_timeout_to_fifteen_seconds ... ok
+test l1::tests::finalized_poll_interval_defaults_to_none ... ok
+test l1::tests::l1_rpc_is_verified_unless_explicitly_trusted ... ok
+test l1::tests::parses_finalized_poll_interval_in_milliseconds ... ok
+test l1::tests::parses_l1_rpc_timeout_in_milliseconds ... ok
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 134 filtered out; finished in 0.00s
+## cli: 5/5 OK
+## [3] CONTROL providers (both verification checks disabled; five failures expected)
+## control: source f4773918ad3f4d3b03731300028edd6f800d85c90d35829cb60906273978b515 REBUILT test binary base_consensus_providers-36019c953d96440f sha256 5d0423ead0d4ed884c44bf88181befa9ee2afca17fe2dc553f1e5aeea269fefd
+test chain_provider::tests::altered_log_is_refused ... FAILED
+test chain_provider::tests::forged_header_cannot_vouch_for_forged_receipts ... FAILED
+test chain_provider::tests::omitted_receipt_is_refused_and_not_cached ... FAILED
+test chain_provider::tests::test_from_alloy_chain_provider_error ... ok
+test chain_provider::tests::reordered_receipts_are_refused ... FAILED
+test chain_provider::tests::trusted_rpc_keeps_upstream_behaviour ... ok
+test chain_provider::tests::transactions_must_match_the_verified_transactions_root ... FAILED
+test chain_provider::tests::verified_receipts_are_returned_and_cached ... ok
+test l2_chain_provider::tests::test_block_by_number_exhausts_null_retry_budget ... ok
+test l2_chain_provider::tests::test_block_by_number_retries_nulls_then_succeeds ... ok
+test l2_chain_provider::tests::test_from_alloy_l2_chain_provider_error ... ok
+test l2_chain_provider::tests::test_block_by_number_transport_error_does_not_retry ... ok
+test l2_chain_provider::tests::test_l2_block_info_by_number_bypasses_number_cache ... ok
+test l2_chain_provider::tests::test_l2_chain_provider_callers_preserve_transport_errors ... ok
+test result: FAILED. 9 passed; 5 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.20s
+## control binary differs from patched (5d0423ead0d4ed884c44bf88181befa9ee2afca17fe2dc553f1e5aeea269fefd vs 6f447ae91e2fbd52ad55fcc3bcd323472cf9244e9f1a1be17aa3be92e3415707)
+## control rc=101 failing: altered_log_is_refused forged_header_cannot_vouch_for_forged_receipts omitted_receipt_is_refused_and_not_cached reordered_receipts_are_refused transactions_must_match_the_verified_transactions_root 
+## control failed exactly as expected (5 named, 9 passed)
+## [4] patched providers again (after control)
+## patched-again: source 201d9b8c16b080a4f7111ca29ec5ece8f02a2b9be807bb06e24e7eb1248bb3b2 REBUILT test binary base_consensus_providers-36019c953d96440f sha256 6f447ae91e2fbd52ad55fcc3bcd323472cf9244e9f1a1be17aa3be92e3415707
+test chain_provider::tests::forged_header_cannot_vouch_for_forged_receipts ... ok
+test chain_provider::tests::altered_log_is_refused ... ok
+test chain_provider::tests::omitted_receipt_is_refused_and_not_cached ... ok
+test chain_provider::tests::test_from_alloy_chain_provider_error ... ok
+test chain_provider::tests::reordered_receipts_are_refused ... ok
+test chain_provider::tests::trusted_rpc_keeps_upstream_behaviour ... ok
+test chain_provider::tests::transactions_must_match_the_verified_transactions_root ... ok
+test chain_provider::tests::verified_receipts_are_returned_and_cached ... ok
+test l2_chain_provider::tests::test_block_by_number_exhausts_null_retry_budget ... ok
+test l2_chain_provider::tests::test_block_by_number_retries_nulls_then_succeeds ... ok
+test l2_chain_provider::tests::test_from_alloy_l2_chain_provider_error ... ok
+test l2_chain_provider::tests::test_block_by_number_transport_error_does_not_retry ... ok
+test l2_chain_provider::tests::test_l2_block_info_by_number_bypasses_number_cache ... ok
+test l2_chain_provider::tests::test_l2_chain_provider_callers_preserve_transport_errors ... ok
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.20s
+## patched-again: 14/14 OK
+## patched binary rebuilt identically after control: yes
+## aggregate rc=0
+[memory-guard] exit=0 peakTreeRssMiB=1550 minHostAvailableMiB=19303
+[memory-guard] at peak: rust-lld:976 rustc:313 cargo:251 bash:4 cc:3 collect2:3
+[queue] EXIT 0

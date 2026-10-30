@@ -1,0 +1,123 @@
+{
+ "ok": true,
+ "fixtures": 13,
+ "results": [
+  {
+   "fixture": "baseline: exactly the allowed tree",
+   "expected": "accepted",
+   "got": "accepted",
+   "pass": true,
+   "violations": []
+  },
+  {
+   "fixture": "a reader journal",
+   "expected": "refused",
+   "got": "refused",
+   "pass": true,
+   "violations": [
+    "unexpected f derived-reader-v3/derived-state.json"
+   ]
+  },
+  {
+   "fixture": "a coverage directory",
+   "expected": "refused",
+   "got": "refused",
+   "pass": true,
+   "violations": [
+    "unexpected d derived-reader-v3/coverage"
+   ]
+  },
+  {
+   "fixture": "an anchor journal",
+   "expected": "refused",
+   "got": "refused",
+   "pass": true,
+   "violations": [
+    "unexpected f derived-reader-v3/anchor-journal.json"
+   ]
+  },
+  {
+   "fixture": "a saved run directory",
+   "expected": "refused",
+   "got": "refused",
+   "pass": true,
+   "violations": [
+    "derived-reader-v3/runs is not empty",
+    "unexpected d derived-reader-v3/runs/run-abc"
+   ]
+  },
+  {
+   "fixture": "a runs.lock (the runs lock is only taken after the journal opens)",
+   "expected": "refused",
+   "got": "refused",
+   "pass": true,
+   "violations": [
+    "derived-reader-v3/runs is not empty",
+    "unexpected f derived-reader-v3/runs/runs.lock"
+   ]
+  },
+  {
+   "fixture": "the lock replaced by a symlink",
+   "expected": "refused",
+   "got": "refused",
+   "pass": true,
+   "violations": [
+    "derived-reader-v3/derived-state.lock is l, expected f (no symlink, no special file)"
+   ]
+  },
+  {
+   "fixture": "an unknown root file",
+   "expected": "refused",
+   "got": "refused",
+   "pass": true,
+   "violations": [
+    "unexpected f x.txt"
+   ]
+  },
+  {
+   "fixture": "a split journal directory",
+   "expected": "refused",
+   "got": "refused",
+   "pass": true,
+   "violations": [
+    "unexpected d derived-reader-v3/journal"
+   ]
+  },
+  {
+   "fixture": "a non-empty lock",
+   "expected": "refused",
+   "got": "refused",
+   "pass": true,
+   "violations": [
+    "derived-reader-v3/derived-state.lock is not empty (5 bytes)"
+   ]
+  },
+  {
+   "fixture": "runs with mode 0755",
+   "expected": "refused",
+   "got": "refused",
+   "pass": true,
+   "violations": [
+    "derived-reader-v3/runs mode 0o755 is not private"
+   ]
+  },
+  {
+   "fixture": "runs replaced by a symlink",
+   "expected": "refused",
+   "got": "refused",
+   "pass": true,
+   "violations": [
+    "derived-reader-v3/runs is l, expected d (no symlink, no special file)"
+   ]
+  },
+  {
+   "fixture": "runs missing",
+   "expected": "refused",
+   "got": "refused",
+   "pass": true,
+   "violations": [
+    "missing derived-reader-v3/runs (the tree is exact)"
+   ]
+  }
+ ]
+}

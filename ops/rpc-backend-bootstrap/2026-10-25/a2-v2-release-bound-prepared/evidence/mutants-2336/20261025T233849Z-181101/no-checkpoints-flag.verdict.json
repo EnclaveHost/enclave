@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "Steps.test_a4_full_rebuild_matches_and_a_mismatch_refuses": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "Steps.test_a4_full_rebuild_matches_and_a_mismatch_refuses"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

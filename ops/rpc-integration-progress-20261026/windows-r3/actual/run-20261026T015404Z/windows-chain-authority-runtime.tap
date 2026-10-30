@@ -1,0 +1,111 @@
+TAP version 13
+# Subtest: chain.mjs, verifier + own backend: reads -> verifier, pending nonce + one submission -> backend, no public request
+ok 1 - chain.mjs, verifier + own backend: reads -> verifier, pending nonce + one submission -> backend, no public request
+  ---
+  duration_ms: 535.188024
+  type: 'test'
+  ...
+# Subtest: chain.mjs refusals: verifier down, no backend, invalid selections - nothing sent, no public fallback; legacy unchanged
+ok 2 - chain.mjs refusals: verifier down, no backend, invalid selections - nothing sent, no public fallback; legacy unchanged
+  ---
+  duration_ms: 2019.389106
+  type: 'test'
+  ...
+# Subtest: shielded startup reader: the same reader contract through the ONE verifier, no public request; policy kept
+ok 3 - shielded startup reader: the same reader contract through the ONE verifier, no public request; policy kept
+  ---
+  duration_ms: 301.620804
+  type: 'test'
+  ...
+# Subtest: shielded startup reader refuses a reorg during the read, a stale block, and a down verifier - with no fallback
+ok 4 - shielded startup reader refuses a reorg during the read, a stale block, and a down verifier - with no fallback
+  ---
+  duration_ms: 851.791476
+  type: 'test'
+  ...
+# Subtest: privacy agent chain: enrollment writes {addressBook, authority, verifier} (no rpc); the agent's REAL LeaseReader reads the verifier only
+not ok 5 - privacy agent chain: enrollment writes {addressBook, authority, verifier} (no rpc); the agent's REAL LeaseReader reads the verifier only
+  ---
+  duration_ms: 208.777743
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r3/run/20261026T015404Z/cand/test/windows-chain-authority-runtime.test.mjs:162:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    no result: rusted checker addresses required");
+                                                                                                                   ^
+    
+    Error: Enclave network: trusted checker addresses required
+        at networkConfig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r3/run/20261026T015404Z/cand/windows/node/network-enroll.mjs:60:112)
+        at baseConfig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r3/run/20261026T015404Z/cand/windows/node/network-enroll.mjs:54:40)
+        at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r3/run/20261026T015404Z/cand/[eval1]:3:19
+    
+    Node.js v22.23.3
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    networkConfig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r3/run/20261026T015404Z/cand/windows/node/network-enroll.mjs:60:112)
+    baseConfig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r3/run/20261026T015404Z/cand/windows/node/network-enroll.mjs:54:40)
+    file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r3/run/20261026T015404Z/cand/[eval1]:3:19
+    ChildProcess.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r3/run/20261026T015404Z/cand/test/windows-chain-authority-runtime.test.mjs:83:114)
+    ChildProcess.emit (node:events:519:28)
+    maybeClose (node:internal/child_process:1101:16)
+    Socket.<anonymous> (node:internal/child_process:456:11)
+    Socket.emit (node:events:519:28)
+    Pipe.<anonymous> (node:net:347:12)
+  ...
+# Subtest: wallet host admission: rpc [] under the verifier builds through the real module; legacy rpc [] still refuses
+not ok 6 - wallet host admission: rpc [] under the verifier builds through the real module; legacy rpc [] still refuses
+  ---
+  duration_ms: 439.162192
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r3/run/20261026T015404Z/cand/test/windows-chain-authority-runtime.test.mjs:187:1'
+  failureType: 'testCodeFailure'
+  error: 'verifier mode with rpc []: {"err":"invalid contract pin document"}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r3/run/20261026T015404Z/cand/test/windows-chain-authority-runtime.test.mjs:198:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: owner-signature reader: pinned -> quorum reader (unchanged); explicit verifier -> that verifier; legacy -> clients path
+ok 7 - owner-signature reader: pinned -> quorum reader (unchanged); explicit verifier -> that verifier; legacy -> clients path
+  ---
+  duration_ms: 2.229475
+  type: 'test'
+  ...
+# Subtest: contract-wallet owners under the verifier: ERC-1271 and SessionVault succeed, a wrong answer and a down verifier refuse, no public request
+not ok 8 - contract-wallet owners under the verifier: ERC-1271 and SessionVault succeed, a wrong answer and a down verifier refuse, no public request
+  ---
+  duration_ms: 26.158893
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r3/run/20261026T015404Z/cand/test/windows-chain-authority-runtime.test.mjs:264:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    ERC-1271 passkey vault: isValidSignature magic through the verifier
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r3/run/20261026T015404Z/cand/test/windows-chain-authority-runtime.test.mjs:273:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 5
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4542.608924

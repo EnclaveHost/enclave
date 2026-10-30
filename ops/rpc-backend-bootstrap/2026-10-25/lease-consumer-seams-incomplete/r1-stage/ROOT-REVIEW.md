@@ -1,0 +1,1 @@
+Before first execution root enabled namespace loopback (no external route), forced npm offline, required actual baseline1/candidate0 exits, rejected cancelled baseline tests and refused ANY unexpected baseline failure including file-level load errors. Original runner and manifest retained. Existing allowed1792MiB lane used for clone/build/regressions.

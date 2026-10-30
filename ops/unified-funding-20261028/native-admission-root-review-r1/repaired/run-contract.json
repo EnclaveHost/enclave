@@ -1,0 +1,74 @@
+{
+  "schema": "enclave-native-admission-run-contract/1",
+  "status": "CONTRACT_ONLY_NOT_ADMITTED_NOT_RUN",
+  "actualWindowsAdmission": false,
+  "nativeQualified": false,
+  "binaries": {
+    "admission-envelope.exe": {"sha256": null, "source": "admission-envelope.c + no-crt.c"},
+    "owned-job.exe": {"sha256": null, "source": "owned-job.c (R1 interface) + no-crt.c"},
+    "job-probe.exe": {"sha256": null, "source": "job-probe.c (unchanged) + no-crt.c"},
+    "pinRule": "Filled only from reviewed build bytes; envelope enforces launcher/probe pins via compiled EXPECT_* and deny-write handles held for the whole phase."
+  },
+  "testDomain": {
+    "directory": "<existing parent without reparse points>\\enclave-native-admission-test-<nonce>",
+    "nonce": "32 lowercase hex, fresh CSPRNG per invocation, not all zero, never reused",
+    "files": ["admission-envelope.exe", "owned-job.exe", "job-probe.exe"],
+    "maxFileBytes": 65536,
+    "noProductionKeyConfigJournal": true,
+    "noJournalGenesis": "No journal file is created by any phase; EXLOCK remains a later separate test.",
+    "cleanup": "Creator only, after every recorded identity is signalled; exact whitelisted names, nonrecursive. Envelope and observer never clean up."
+  },
+  "arguments": {
+    "envelope": ["limits|death", "<nonce>", "<creatorPid decimal, nonzero>", "<creator creation FILETIME decimal>", "<inherited creator process handle, lowercase hex>"],
+    "observerInternal": ["observe", "<nonce>", "<effective floor MiB>", "<wrapper handle hex>", "<wrapper pid>", "<wrapper creation>", "3 x (<handle hex> <pid> <creation>)"],
+    "lexical": "Program token then at most 16 tokens matching [0-9a-z]{1,32}; total command line <= 1024 UTF-16 units; anything else ArgumentsRefused. No JSON, Boolean, path, or resource value is accepted from arguments.",
+    "onePhasePerInvocation": true,
+    "retry": "none; a refusal or unknown outcome ends the invocation and requires a new reviewed admission"
+  },
+  "creatorContract": {
+    "status": "ABSENT_REQUIRES_SEPARATE_REVIEW",
+    "steps": [
+      "Creator is itself an existing independently constrained, separately reviewed fixed program; its own footprint and lifetime are outside this envelope and must be accounted in its own review.",
+      "CreateJobObjectW(NULL, NULL) for Job E; handle non-inheritable and never duplicated to any process.",
+      "SetInformationJobObject(E, JobObjectExtendedLimitInformation): LimitFlags exactly KILL_ON_JOB_CLOSE|JOB_MEMORY|ACTIVE_PROCESS|AFFINITY|DIE_ON_UNHANDLED_EXCEPTION|JOB_TIME (0x2000|0x200|0x8|0x10|0x400|0x4 = 0x261C); JobMemoryLimit 402653184 (384 MiB); ActiveProcessLimit 7; Affinity 1; PerJobUserTimeLimit 300000000.",
+      "Duplicate own process handle (SYNCHRONIZE|PROCESS_QUERY_LIMITED_INFORMATION) inheritable; PROC_THREAD_ATTRIBUTE_HANDLE_LIST exactly {stdin, stdout, stderr pipes with finite reader budgets, that creator handle}.",
+      "CreateProcessW(envelope path, fixed argument vector, bInheritHandles TRUE, CREATE_SUSPENDED|CREATE_NO_WINDOW|EXTENDED_STARTUPINFO_PRESENT, cwd = test directory).",
+      "AssignProcessToJobObject(E, envelope) while suspended; verify IsProcessInJob and E accounting active=1,total=1; only then ResumeThread. On any failure TerminateProcess(envelope) before resume.",
+      "Own a wall deadline of 60000 ms: TerminateJobObject(E) at deadline (also kills nested T and O); read stdout up to 16384 bytes total, refuse more; retain everything on timeout.",
+      "Never retry; record envelope PID+creation, exit code, bytes read, E accounting at end."
+    ],
+    "envelopeVerifiesAtEntry": "Immediate Job flags/caps/CPU exact, active=1 and total=1, creator handle PID+creation exact and alive, creator created earlier. Unverifiable by envelope: that no other handle to E exists and that the creator enforces its wall deadline; these remain creator-review obligations."
+  },
+  "capacityHoldInterface": {
+    "status": "ABSENT",
+    "requiredFields": ["incarnation", "sequence", "liveFloorMiB (validated live guestd floor, >=18432 or higher)", "physicalMiB = full P upper bound of not-yet-reflected reservations: manager starting/uncertain rows in full, router durable pending head, already-admitted-not-started work, other host work; safe double counting until exact epoch/id dedup", "commitMiB outstanding commit reservations", "heldMiB >= 384 test budget honoured by every manager and direct admission path", "expiresTick finite", "overlapBounded from the boundary itself"],
+    "notRequired": "Router waiting pre-admission queue length; no global drain.",
+    "forbiddenSources": ["argv", "files", "stale JSON", "historical observations", "caller Booleans"],
+    "currentBehaviour": "capacity_hold() returns CapacityInterfaceAbsent before any child creation."
+  },
+  "admissionRule": {
+    "physical": "freshAvailPhysMiB >= max(18432, liveFloorMiB) + P + 384 where 384 = candidate 256 + observer O 64 + envelope early/steady remainder E 64, all hard job-commit caps nested in Job E",
+    "commit": "freshAvailCommitMiB >= commitMiB + 384",
+    "evaluatedAt": ["before any child", "immediately before launcher resume"],
+    "duringRun": "best-effort 50 ms sample: avail < floor + P or hold expiry -> TerminateJobObject(T); not a hard global floor guarantee",
+    "residualNotEnforced": "Kernel pool, page tables and shared image pages are not job-commit charged; must be bounded by the hold review or remain an open gap."
+  },
+  "phases": {
+    "limits": {"jobT": "flags 0x261C minus JOB_TIME = 0x2618, 256 MiB, 4 processes, affinity 1, no breakaway, kill-on-close held only by envelope", "tree": "owned-job -> PowerShell (fixed encoded '& .\\job-probe.exe; exit $LASTEXITCODE') -> job-probe", "deadlineMs": 35000, "receipt": "probe JSON (unchanged semantics) then envelope receipt"},
+    "death": {"tree": "same with fixed 'job-probe.exe child'", "readyMs": 10000, "deathMs": 15000, "jobO": "flags 0x261C minus KILL_ON_JOB_CLOSE = 0x061C, 64 MiB, 1 process, affinity 1, CPU 5 s", "wrapper": "envelope process = sole Job T owner", "observerAction": "TerminateProcess(exact wrapper handle, 0x4F000000|nonce low 24 bits) then wait exact 3 descendant handles 5000 ms", "receipt": "observer JSON; envelope JSON only if it survives (ObserverDied/DeathNotObserved/other)"}
+  },
+  "receipts": {
+    "envelope": ["schema", "phase", "nonce", "reason", "self{pid,creationFiletime}", "hold{...|null}", "effectiveFloorMiB", "envelopeJobCommitMiB", "launched", "tree[3]", "launcherExit", "testJobDrained", "actualWindowsAdmission=false", "limitAttributionQualified=false", "ownerDeathQualified=false", "nativeQualified=false"],
+    "observer": ["schema", "outcome in {ownerDeathObservedUnqualified, wrapperExitedOtherwise, descendantExitedBeforeAction, notAliveBeforeAction, unknown}", "wrapper", "descendants[3]", "terminateError", "wrapperExitCode", "expectedCode", "wrapperGone", "descendantsGone", "positiveControls", "ownerDeathQualified=false"],
+    "maxBytesPerProcess": 4096,
+    "noSecretsEnvPathsCommandLine": true
+  },
+  "refusals": {
+    "ArgumentsRefused": 65, "BootstrapUnqualified": 66, "CreatorIdentityRefused": 67, "TestDomainRefused": 68, "ImagePinRefused": 69,
+    "CapacityInterfaceAbsent": 70, "CapacityUnknown": 71, "HoldStale": 72, "OverlapUnbounded": 73, "HoldTooSmall": 74, "CapacityImplausible": 75,
+    "PhysicalShortage": 76, "CommitShortage": 77, "ChildSetupFailedBeforeResume": 78, "ContainmentNotProven": 79, "ReadyIdentitiesNotProven": 80,
+    "ObserverSetupFailed": 81, "ObserverDied": 82, "DeathNotObserved": 83, "PressureStop": 84, "HoldExpiredDuringRun": 85, "Deadline": 86,
+    "CreatorGone": 87, "DrainUnknown": 88, "OutputBound": 89, "Completed": 64,
+    "launcherOwnExit96": "launcher not inside exact preconfigured Job T at entry"
+  }
+}

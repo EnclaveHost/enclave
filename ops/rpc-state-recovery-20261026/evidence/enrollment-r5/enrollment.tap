@@ -1,0 +1,289 @@
+TAP version 13
+# Subtest: unenrolled: derivedReader bound without an enrollment -> relay serving, only the INTENDED marker, no state, no crash loop
+ok 1 - unenrolled: derivedReader bound without an enrollment -> relay serving, only the INTENDED marker, no state, no crash loop
+  ---
+  duration_ms: 5252.570731
+  type: 'test'
+  ...
+# Subtest: enrollment refusals, then an admin genesis bound to the primary's boot; a replay is refused
+not ok 2 - enrollment refusals, then an admin genesis bound to the primary's boot; a replay is refused
+  ---
+  duration_ms: 201.817048
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:191:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'ports')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    enroll (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:158:34)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:216:23)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: IPC commit: only the exact committed bytes are acknowledged; refusals say nothing was written; the role's deadline is enforced
+not ok 3 - IPC commit: only the exact committed bytes are acknowledged; refusals say nothing was written; the role's deadline is enforced
+  ---
+  duration_ms: 1.334897
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:227:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'ports')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    relay (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:157:45)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:229:19)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: restart: a new child gets a new boot and the COMMITTED copies; the old boot is refused
+not ok 4 - restart: a new child gets a new boot and the COMMITTED copies; the old boot is refused
+  ---
+  duration_ms: 0.480956
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:259:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'ports')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    relay (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:157:45)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:260:38)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: seeding uses ONLY the scan of a fresh majority round: a local-only write is committed by that round (never assumed absent); a foreign local file refuses
+not ok 5 - seeding uses ONLY the scan of a fresh majority round: a local-only write is committed by that round (never assumed absent); a foreign local file refuses
+  ---
+  duration_ms: 0.521775
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:270:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'roleCfg')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:272:23)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: client deadline: a commit not confirmed in time is OUTCOME UNKNOWN and fences; the late ack resolves nothing
+not ok 6 - client deadline: a commit not confirmed in time is OUTCOME UNKNOWN and fences; the late ack resolves nothing
+  ---
+  duration_ms: 1201.469215
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:288:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'role')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    childPid (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:165:27)
+    restartChild (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:167:68)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:290:55)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: quorum loss: no majority -> never acknowledged, the primary steps down and stops its relay; healed, every member agrees on the seeded bytes
+not ok 7 - quorum loss: no majority -> never acknowledged, the primary steps down and stops its relay; healed, every member agrees on the seeded bytes
+  ---
+  duration_ms: 4126.979851
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:301:1'
+  failureType: 'testCodeFailure'
+  error: 'the late-committed D, or the never-acknowledged C adopted by the new epoch (outcome unknown)'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:311:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: failover: a stopped primary's successor seeds the same committed copy
+not ok 8 - failover: a stopped primary's successor seeds the same committed copy
+  ---
+  duration_ms: 2615.559002
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:315:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:321:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: crash guard: a derived child dying before serving, or soon after, disables derived (relay serving, no loop); the backoff timer retries it (M4); a rotate re-enables it
+not ok 9 - crash guard: a derived child dying before serving, or soon after, disables derived (relay serving, no loop); the backoff timer retries it (M4); a rotate re-enables it
+  ---
+  duration_ms: 11176.353512
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:326:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the state is carried, not reset
+    + actual - expected
+    
+    + undefined
+    - null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:350:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: rotation binds the COMMITTED floor: another reader image is unenrolled until a rotate naming exactly that floor
+not ok 10 - rotation binds the COMMITTED floor: another reader image is unenrolled until a rotate naming exactly that floor
+  ---
+  duration_ms: 1823.61359
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:354:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'role')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    statusOf (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:159:27)
+    rotateNow (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:325:57)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:364:23)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: enrollment quiesces the writer: a racing derived commit either lands before (the enrollment is then refused as stale) or is refused - never both
+not ok 11 - enrollment quiesces the writer: a racing derived commit either lands before (the enrollment is then refused as stale) or is refused - never both
+  ---
+  duration_ms: 1.204759
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:371:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'role')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    statusOf (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:159:27)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:372:28)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: B1: the previous child's exit not CONFIRMED -> nothing is composed or seeded (journal and lock inodes untouched); retried once it exits
+not ok 12 - B1: the previous child's exit not CONFIRMED -> nothing is composed or seeded (journal and lock inodes untouched); retried once it exits
+  ---
+  duration_ms: 30064.897503
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:386:1'
+  failureType: 'testCodeFailure'
+  error: "timed out waiting for derived up (Cannot read properties of undefined (reading 'ports'))"
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:39:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:388:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: B2: leadership lost during the exit wait -> the stale term seeds nothing; the new primary seeds ITS committed scan
+not ok 13 - B2: leadership lost during the exit wait -> the stale term seeds nothing; the new primary seeds ITS committed scan
+  ---
+  duration_ms: 64016.620806
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:408:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting for another primary with derived (null)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:39:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:415:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: M3: a rejecting replica commit is a plain failure: the child's commit is OUTCOME UNKNOWN, the barrier answers ok:false, no unhandled rejection
+not ok 14 - M3: a rejecting replica commit is a plain failure: the child's commit is OUTCOME UNKNOWN, the barrier answers ok:false, no unhandled rejection
+  ---
+  duration_ms: 1200.363786
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:423:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'role')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    childPid (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:165:27)
+    restartChild (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:167:68)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r5/runs/20261026T160454Z-slice-1996795/repo/test/derived-state-enrollment.test.mjs:424:21)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: restore/recover: the archive is not freshness - high-water at least the restored floors PER CHAIN, exact on ties; never-enrolled recover carries no state
+ok 15 - restore/recover: the archive is not freshness - high-water at least the restored floors PER CHAIN, exact on ties; never-enrolled recover carries no state
+  ---
+  duration_ms: 9.173885
+  type: 'test'
+  ...
+# Subtest: committer: exact echo only; refused vs OUTCOME UNKNOWN; every failure fences; late replies resolve nothing; serialized; deadline sent
+ok 16 - committer: exact echo only; refused vs OUTCOME UNKNOWN; every failure fences; late replies resolve nothing; serialized; deadline sent
+  ---
+  duration_ms: 122.279176
+  type: 'test'
+  ...
+# Subtest: writer adapter: KVM's exact declaration or nothing; enroll on missing/pending/changed binding or digest only; stateDir deleted; canonical paths only
+ok 17 - writer adapter: KVM's exact declaration or nothing; enroll on missing/pending/changed binding or digest only; stateDir deleted; canonical paths only
+  ---
+  duration_ms: 8.311523
+  type: 'test'
+  ...
+# Subtest: replica: a catch-up snapshot is never sent with bytes other than the scanned ones
+ok 18 - replica: a catch-up snapshot is never sent with bytes other than the scanned ones
+  ---
+  duration_ms: 0.418727
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 5
+# fail 13
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 122063.810557

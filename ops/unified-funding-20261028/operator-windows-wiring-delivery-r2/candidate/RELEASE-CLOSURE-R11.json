@@ -1,0 +1,25 @@
+{
+  "schema": "windows-permit-release-closure/r11",
+  "status": "AUTHORED SOURCE ONLY. NOT RUN, NOT BUILT, NOT HASHED BY THE AUTHOR. Root computes every hash, runs every test, and qualifies before any use.",
+  "baseline": "Exact222 root r10 frozen candidate (manifest c2ce5554636fa47eea7d760451cc4fa1dd8b07def05358cc95b4d77545c112ff). Old release hashes are historical.",
+  "changedSource": [
+    { "path": "control/windows/node/protected-supervisor.mjs", "change": "policy revalidated on every call (observeEnrollment); established epoch kept for withdrawal; policyNewWorkRefusal checked at new-work entry, after the capability await and before serve; per-route serialized authority lane; single-flight resolveUnknown; rawUnknown predicate passed to stage", "sha256": "root-computes" },
+    { "path": "control/windows/node/chain.mjs", "change": "direct sender: gate re-asked after each await up to writeContract and after the retry backoff; writeContract throw = ambiguous (no resend/new nonce/replacement; later sends blocked until the mined count passes the nonce); claim/release accept opts.gate; sponsored: gated account (signAuthorization/signTypedData) and gated fetch (relay POST) handed to the shipped configuredLeaseSender; one refusal shape (notSent/superseded/unknownOutcome/pending)", "sha256": "root-computes" },
+    { "path": "control/windows/node/host.mjs", "change": "claim and release pass live gates into the sender; a gate-refused release retains tracking; protectedTick has no shared guard: per-route bounded authority (PROTECTED_AUTHORITY_BOUND_MS=15000, joined while in flight), per-route single-flight new work, epoch re-check of late work; established routes keep withdrawal under an unknown policy", "sha256": "root-computes" },
+    { "path": "control/network/lifecycle-host-dispatch.mjs", "change": "admitStart compares the fresh authenticated snapshot with the planned one (state/generation/host/resources/content/envelope/access) and returns it as the admission's snapshot; capacity checked on the fresh snapshot; admission token held in the allocation; settleStart(id, admission, {rawUnknown}) releases only with an owning admission, no unknown raw op, no journal running commitment and a fresh definite absent listing; retired() clears the token", "sha256": "root-computes" },
+    { "path": "control/windows/node/protected-authority-factory.mjs", "change": "admittedRuntime stages adm.snapshot (converted by protectedSnapshotOf) and settles the reservation on ended or on a throw without unknown raw work; wiring passes snapshotOf", "sha256": "root-computes" }
+  ],
+  "changedTests": [
+    { "path": "test/windows-permit/r11-policy-send-boundary.test.mjs", "kind": "new", "status": "authored-not-run" },
+    { "path": "test/windows-permit/r10-host-independence.test.mjs", "kind": "appended four r11 tests; existing r10 tests unchanged", "status": "authored-not-run" }
+  ],
+  "sponsoredRuntime": {
+    "shippedBundle": "control/windows/node/lease-gas-runtime.bundle.mjs UNCHANGED (candidate sha256 159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d per readonly provenance)",
+    "repairLocation": "chain.mjs (its consumer). Source inspection of the shipped bundle shows configuredLeaseSender forwards the caller options (...s) and account to the lease client, and the client POSTs /v1/lease through that fetchImpl; the reference source (debbfb377 network/lease-gas-runtime.mjs:116-126, client/lease-executor-client.mjs:651-845) has the same forwarding. So no bundle regeneration is needed for these gates.",
+    "notClaimed": "This is not a repaired bundle and not bundle equivalence. Regenerating from debbfb377 is NOT proposed because it would conflict with control/network/rpc-identity.mjs, package.json, package-lock.json and the shipped bundle (provenance conflictingCandidatePaths). No generator was authored in r11 because no bundle change was needed.",
+    "assumption": "clientConfig (config-derived) does not override fetchImpl; root should confirm this against the actual bundle"
+  },
+  "unchangedButRelevant": ["control/network/deployment-isolation-runtime.mjs", "control/network/deployment-chain-adapter.mjs", "control/windows/vbslike/**", "control/windows/node/isolation-lifecycle.mjs"],
+  "dependencyClosure": "No new imports or packages. ws override/npm acceptance remain unqualified; nothing downloaded; no integrity values invented.",
+  "rootActions": ["hash all changed files and manifest", "run the r11 tests together with the root r10 regressions (policy-refresh, chain-send-boundary, host-route-progress, r5 fixture correction), including the actual-bundle sponsored path", "build/compare any release artifacts", "Windows/Base/production/financial qualification"]
+}

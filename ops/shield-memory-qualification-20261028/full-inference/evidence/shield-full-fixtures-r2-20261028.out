@@ -1,0 +1,55 @@
+[queue] START available=84197MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+Running as unit: enclave-shield-full-fixtures-r2-20261028.service
+test_client_is_trusted_mode (test_fullbench.Argv.test_client_is_trusted_mode) ... ok
+test_control_sockets_and_pause_refused (test_fullbench.Argv.test_control_sockets_and_pause_refused) ... ok
+test_host_data_production_ring_and_cid_refused (test_fullbench.Argv.test_host_data_production_ring_and_cid_refused) ... ok
+test_planned_argv_passes (test_fullbench.Argv.test_planned_argv_passes) ... ok
+test_probe_argv_is_loopback_and_bounded (test_fullbench.Argv.test_probe_argv_is_loopback_and_bounded) ... ok
+test_unit_and_worker_limits (test_fullbench.Argv.test_unit_and_worker_limits) ... ok
+test_cleanup_failure_after_success_fails_receipt (test_fullbench.Arms.test_cleanup_failure_after_success_fails_receipt) ... ok
+test_fwd_first_line_bounded (test_fullbench.Arms.test_fwd_first_line_bounded) ... ok
+test_request_timeout_kills_clients (test_fullbench.Arms.test_request_timeout_kills_clients) ... ok
+test_startup_watchdog_yields_before_guest (test_fullbench.Arms.test_startup_watchdog_yields_before_guest) ... ok
+test_success_then_clean (test_fullbench.Arms.test_success_then_clean) ... ok
+test_total_wall_deadline (test_fullbench.Arms.test_total_wall_deadline) ... ok
+test_bench_workers_excluded_by_owned_cgroup (test_fullbench.Gpu.test_bench_workers_excluded_by_owned_cgroup) ... ok
+test_budget_growth_refused (test_fullbench.Gpu.test_budget_growth_refused) ... ok
+test_insufficient_device_vram_refused (test_fullbench.Gpu.test_insufficient_device_vram_refused) ... ok
+test_restarted_production_worker_refused (test_fullbench.Gpu.test_restarted_production_worker_refused) ... ok
+test_shared_reviewed_inventory_passes (test_fullbench.Gpu.test_shared_reviewed_inventory_passes) ... ok
+test_strict_default_refuses_any_process (test_fullbench.Gpu.test_strict_default_refuses_any_process) ... ok
+test_unknown_process_refused (test_fullbench.Gpu.test_unknown_process_refused) ... ok
+test_ambiguous_timeout_claimed_only_with_proof (test_fullbench.Ownership.test_ambiguous_timeout_claimed_only_with_proof) ... ok
+test_changed_invocation_not_touched (test_fullbench.Ownership.test_changed_invocation_not_touched) ... ok
+test_stop_refuses_foreign_units (test_fullbench.Ownership.test_stop_refuses_foreign_units) ... ok
+test_unit_present_before_create_is_not_ours (test_fullbench.Ownership.test_unit_present_before_create_is_not_ours) ... ok
+test_gpu_allocation_change_detected (test_fullbench.Production.test_gpu_allocation_change_detected) ... ok
+test_new_held_guest_before_qemu_yields (test_fullbench.Production.test_new_held_guest_before_qemu_yields) ... ok
+test_reviewed_snapshot_passes (test_fullbench.Production.test_reviewed_snapshot_passes) ... ok
+test_stale_probe_yields (test_fullbench.Production.test_stale_probe_yields) ... ok
+test_floor_never_lowered (test_fullbench.Resources.test_floor_never_lowered) ... ok
+test_formula_matches_full_md (test_fullbench.Resources.test_formula_matches_full_md) ... ok
+test_missing_cgroup_data_reserves_full (test_fullbench.Resources.test_missing_cgroup_data_reserves_full) ... ok
+test_reclaimable_cache_excluded (test_fullbench.Resources.test_reclaimable_cache_excluded) ... ok
+test_snapshot_floor_off_refused (test_fullbench.Resources.test_snapshot_floor_off_refused) ... ok
+test_snapshot_formula_and_extra_headroom (test_fullbench.Resources.test_snapshot_formula_and_extra_headroom) ... ok
+test_unbounded_unit_over_budget_refused (test_fullbench.Resources.test_unbounded_unit_over_budget_refused) ... ok
+test_arms_differ_only_in_loader_and_marker (test_fullbench.Stage.test_arms_differ_only_in_loader_and_marker) ... ok
+test_extra_template_file_refused (test_fullbench.Stage.test_extra_template_file_refused) ... ok
+test_tampered_release_refused (test_fullbench.Stage.test_tampered_release_refused) ... ok
+test_parse_client (test_fullbench.Workload.test_parse_client) ... ok
+test_probe_path (test_fullbench.Workload.test_probe_path) ... ok
+test_repo_workload_valid (test_fullbench.Workload.test_repo_workload_valid) ... ok
+
+----------------------------------------------------------------------
+Ran 40 tests in 0.007s
+
+OK
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 99ms
+             CPU time consumed: 84ms
+                   Memory peak: 16.9M (swap: 0B)
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

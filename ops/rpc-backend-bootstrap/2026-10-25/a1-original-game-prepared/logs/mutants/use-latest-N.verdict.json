@@ -1,0 +1,1 @@
+{"badMarkers": [], "cancelled": 0, "fail": 1, "failing": [{"assertion": true, "failureType": "testCodeFailure", "name": "latest anchor ADVANCED: recorded as observation only; N/root stay the original (never accepted)"}], "genuineAssertionFailures": 1, "pass": 26, "rc": 1, "skipped": 0, "suites": 0, "tests": 27, "todo": 0, "verdict": "killed"}

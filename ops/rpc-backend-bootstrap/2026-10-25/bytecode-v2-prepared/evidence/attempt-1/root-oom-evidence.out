@@ -1,0 +1,21 @@
+2026-10-25T15:51:42-07:00 warden-host enclave-risc-gs-bridge[893276]: [screen] /display stream failed (tls handshake with e64f7cba.app.enclave.host: the handshake failed: unexpected EOF); reconnecting
+2026-10-25T15:51:46-07:00 warden-host enclave-risc-gs-bridge[893276]: [screen] /display stream failed (tls handshake with e64f7cba.app.enclave.host: the handshake failed: unexpected EOF); reconnecting
+2026-10-25T15:51:47-07:00 warden-host node[2276329]: 22:51:47 [privacy] app policy 0x7ae476a3: policy requires the current lease
+2026-10-25T15:51:47-07:00 warden-host node[2276329]: 22:51:47 [privacy] app policy 0x9eb4e600: policy requires the current lease
+2026-10-25T15:51:47-07:00 warden-host node[2276329]: 22:51:47 [privacy] app policy 0xd9798e4c: policy requires the current lease
+2026-10-25T15:51:47-07:00 warden-host node[2276329]: 22:51:47 [privacy] app policy 0xe64f7cba: policy requires the current lease
+2026-10-25T15:51:47-07:00 warden-host node[2276329]: 22:51:47 [privacy] app policy 0x4e62e60d: policy requires the current lease
+2026-10-25T15:51:47-07:00 warden-host node[2276329]: 22:51:47 [privacy] app policy 0xd738ef80: policy requires the current lease
+2026-10-25T15:51:47-07:00 warden-host node[2276329]: 22:51:47 [privacy] app policy 0x3e6781ac: policy requires the current lease
+2026-10-25T15:51:47-07:00 warden-host node[2276329]: 22:51:47 [privacy] app policy 0xb9528fd3: policy requires the current lease
+2026-10-25T15:51:47-07:00 warden-host node[2276329]: 22:51:47 [privacy] app policy 0xda09d0f2: policy requires the current lease
+2026-10-25T15:51:47-07:00 warden-host node[2276329]: 22:51:47 [privacy] app policy 0x38f368d6: policy requires the current lease
+2026-10-25T15:51:50-07:00 warden-host enclave-risc-gs-bridge[893276]: [screen] /display stream failed (tls handshake with e64f7cba.app.enclave.host: the handshake failed: unexpected EOF); reconnecting
+2026-10-25T15:51:51-07:00 warden-host node[2762173]: 2026-10-25T22:51:51.886Z [audit] {"created":[],"pending":0,"errors":[],"reason":"no qualified spare capacity"}
+2026-10-25T15:51:54-07:00 warden-host enclave-risc-gs-bridge[893276]: [screen] /display stream failed (tls handshake with e64f7cba.app.enclave.host: the handshake failed: unexpected EOF); reconnecting
+2026-10-25T15:51:55-07:00 warden-host systemd[1899]: run-p49545-i37834870.scope: The kernel OOM killer killed some processes in this unit.
+2026-10-25T15:51:55-07:00 warden-host systemd[1899]: run-p49545-i37834870.scope: Failed with result 'oom-kill'.
+2026-10-25T15:51:55-07:00 warden-host systemd[1899]: run-p49545-i37834870.scope: Consumed 2min 50.979s CPU time over 3min 22.125s wall clock time, 1.7G memory peak.
+2026-10-25T15:51:57-07:00 warden-host node[1036966]: [lease-gas] app-funded claim of 0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9 not sent: no relay landed the claim: https://134.209.248.172: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; this host's ETH is never used instead
+2026-10-25T15:51:57-07:00 warden-host node[1036966]: [claim] 0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9 claim tx failed (app-funded claim of 0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9 not sent: no relay landed the claim: https://134.209.248.172: 422 Unaffordable the app's reserve, per-operation cap or epoch cap does not cover the expected charge; this host's ETH is never used instead)
+2026-10-25T15:51:58-07:00 warden-host enclave-risc-gs-bridge[893276]: [screen] /display stream failed (tls handshake with e64f7cba.app.enclave.host: the handshake failed: unexpected EOF); reconnecting

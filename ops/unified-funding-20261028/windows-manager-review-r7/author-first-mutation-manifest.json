@@ -1,0 +1,9 @@
+{
+  "REPORT-WINDOWS-PERMIT-R7.md": "368bac6c86bedad08e87bf8af40d9f20623fd181532e9c1743ef6f483729689d",
+  "control/network/deployment-isolation-runtime.mjs": "21140a534e83494b7f282763d4b54fd6fe40133f1a2335a0eb5d43d79d55f65e",
+  "control/windows/node/protected-isolation.mjs": "da464a83916940df8a2b2597f02d53809fec9d8b6ad2de1b6001a36d02e05205",
+  "control/windows/node/protected-supervisor.mjs": "ac45ec36fb8a333c184d8346de47a7cc31f67932e4166c1f1a7a4463a71d2028",
+  "test/windows-permit/r7-composite.test.mjs": "cd241cbf16c8559412ab0bc3c290136f8831a84de3b74b66533801b1c8c9bf9c",
+  "test/windows-permit/r7-owner-lifetime.test.mjs": "9236825fc9f9118e40b65206af5a8560a203dfff494a5cde81aaec728e440176",
+  "test/windows-permit/r7-supervisor-withdrawal.test.mjs": "c48262f065d754a979948711987033ec295ec656727a122177072a2d2ff4bcdd"
+}

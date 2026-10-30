@@ -1,0 +1,315 @@
+{
+ "new": {
+  "test/paid-derived-adapter.test.mjs": {
+   "rc": 0,
+   "tests": 15,
+   "pass": 15,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "expected": "15/15, nothing skipped",
+  "test/paid-derived-packaging.test.mjs": {
+   "rc": 0,
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  }
+ },
+ "regression": {
+  "test/stack-provider-authority.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 4,
+    "pass": 4,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 4,
+    "pass": 4,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/attested-provider-collateral.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/wg-provider.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 10,
+    "pass": 10,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 10,
+    "pass": 10,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/paid-network.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 5,
+    "pass": 5,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 5,
+    "pass": 5,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/verified-chain.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/service-index.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 15,
+    "pass": 15,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 15,
+    "pass": 15,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/attested-paid-provider.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/attested-route-composition.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 7,
+    "pass": 7,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 7,
+    "pass": 7,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  },
+  "test/attested-chain-verifier.test.mjs": {
+   "pristine": {
+    "rc": 0,
+    "tests": 15,
+    "pass": 15,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "patched": {
+    "rc": 0,
+    "tests": 15,
+    "pass": 15,
+    "fail": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0
+   },
+   "same": true,
+   "patchedClean": true
+  }
+ },
+ "mutants": {},
+ "checkConfig": {
+  "patched/valid": {
+   "rc": 0,
+   "expect": "\"paidFinality\":\"derived\"",
+   "ok": true
+  },
+  "patched/valid-v3": {
+   "rc": 0,
+   "expect": "\"paidFinality\":\"derived\"",
+   "ok": true
+  },
+  "patched/no-optin": {
+   "rc": 1,
+   "expect": "derivedFinality is set but paidFinality is not \"derived\"",
+   "ok": true
+  },
+  "patched/quorum": {
+   "rc": 1,
+   "expect": "needs a proof executor",
+   "ok": true
+  },
+  "patched/public-history": {
+   "rc": 1,
+   "expect": "historyUrl: must be a loopback or private IPv4",
+   "ok": true
+  },
+  "pristine/valid": {
+   "rc": 1,
+   "expect": "txBackend is only used with chainAuthority \"attested-verifier\"",
+   "ok": true
+  }
+ },
+ "nestedAdapterSuite": {
+  "recorded": true,
+  "runtime": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T122319Z-full-1678341/tmp/paid-derived-pkg-F14ksl/release/derived-runtime.mjs"
+ },
+ "noPrerequisiteControl": {
+  "rc": 1,
+  "failedExplicitly": true
+ },
+ "kvmReaderTests": {
+  "pristine": {
+   "rc": 0,
+   "tests": 33,
+   "pass": 33,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "ok": true
+  },
+  "patched": {
+   "rc": 0,
+   "tests": 33,
+   "pass": 33,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "ok": true
+  }
+ },
+ "packagingMutants": {
+  "static-derived-import": {
+   "rc": 1,
+   "killed": true,
+   "failed": [
+    "the release pipeline: provider.mjs carries no derived code; derived-runtime.mjs and the pinned schedule_reader.mjs ship beside it",
+    "packaged provider WITHOUT the derived files: quorum and local-verifier configurations run; a derived one refuses explicitly",
+    "packaged release WITH the derived files: --check-config loads the runtime beside it; a missing or altered schedule reader refuses",
+    "the RELEASE derived-runtime.mjs runs the WHOLE adapter suite: exact counts, every test ok, no skipped or recursive run"
+   ]
+  },
+  "no-reader-resource": {
+   "rc": 1,
+   "killed": true,
+   "failed": [
+    "the release pipeline: provider.mjs carries no derived code; derived-runtime.mjs and the pinned schedule_reader.mjs ship beside it",
+    "packaged release WITH the derived files: --check-config loads the runtime beside it; a missing or altered schedule reader refuses",
+    "the RELEASE derived-runtime.mjs runs the WHOLE adapter suite: exact counts, every test ok, no skipped or recursive run"
+   ]
+  },
+  "child-inherits-test-context": {
+   "rc": 1,
+   "killed": true,
+   "failed": [
+    "the RELEASE derived-runtime.mjs runs the WHOLE adapter suite: exact counts, every test ok, no skipped or recursive run"
+   ]
+  }
+ },
+ "ok": true
+}

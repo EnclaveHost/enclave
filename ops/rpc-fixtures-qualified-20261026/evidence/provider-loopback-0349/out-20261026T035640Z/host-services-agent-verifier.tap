@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: config: verifier mode is one explicit authority; the quorum block is unchanged; mixed settings refuse
+ok 1 - config: verifier mode is one explicit authority; the quorum block is unchanged; mixed settings refuse
+  ---
+  duration_ms: 3.255309
+  type: 'test'
+  ...
+# Subtest: gate on the verifier with every public provider DOWN: admit, ban, unban, owner rotation; outage never falls back
+ok 2 - gate on the verifier with every public provider DOWN: admit, ban, unban, owner rotation; outage never falls back
+  ---
+  duration_ms: 5143.719611
+  type: 'test'
+  ...
+# Subtest: control: the raw-quorum default (no chainAuthority) still reads the policy's providers, and admits nothing while they are down
+ok 3 - control: the raw-quorum default (no chainAuthority) still reads the policy's providers, and admits nothing while they are down
+  ---
+  duration_ms: 149.260089
+  type: 'test'
+  ...
+# Subtest: the real daemon: host services admitted through the verifier with every provider down, then banned
+ok 4 - the real daemon: host services admitted through the verifier with every provider down, then banned
+  ---
+  duration_ms: 2647.320233
+  type: 'test'
+  ...
+# Subtest: the real daemon: an authority mismatch refuses HOST SERVICES only; the apps keep running
+ok 5 - the real daemon: an authority mismatch refuses HOST SERVICES only; the apps keep running
+  ---
+  duration_ms: 1938.415994
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 30032.423

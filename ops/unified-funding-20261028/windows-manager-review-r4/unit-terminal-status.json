@@ -1,0 +1,6 @@
+{
+  "enclave-windows-manager-root-r4-20261029": "ActiveState=failed\nInvocationID=4112b64c6ea54f2db28bcbd49e1bfeec\nMainPID=0\nResult=exit-code\n",
+  "enclave-windows-manager-root-r4-focused-20261029": "ActiveState=failed\nInvocationID=4fcb8a0867d94f1990a1209038bfb07c\nMainPID=0\nResult=exit-code\n",
+  "enclave-windows-manager-root-r4-regression-20261029": "ActiveState=failed\nInvocationID=006f7e6d000e42ff841887eb7f20bbdd\nMainPID=0\nResult=exit-code\n",
+  "enclave-windows-manager-root-r4-closure-20261029": "ActiveState=failed\nInvocationID=4dae7fda48814d5c8ea058e9208177ae\nMainPID=0\nResult=exit-code\n"
+}

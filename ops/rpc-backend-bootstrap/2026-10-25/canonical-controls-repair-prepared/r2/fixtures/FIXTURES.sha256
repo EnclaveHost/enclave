@@ -1,0 +1,10 @@
+7694440b8558542354d15e7290c33067f408ac008ab64fa0165ad83c34c4b5bf  nff-M1-gate-ignores-require-canonical.out
+39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c  nff-M1-gate-ignores-require-canonical.rc
+cd8443640f4e24a7a58a064fc48659f6f2197e5bd898fa1aec1074e101e67c95  nff-M1-gate-ignores-require-canonical.v1-verdict
+ec7948077a650ee3f4a1623781ba9e70914acb93fd4764b923fd172761ae09c9  nff-M3-gate-no-head-age.out
+39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c  nff-M3-gate-no-head-age.rc
+ec6ff928a394aa17de93d136cc10187204b94c2b9ae1ed10d6afc45ddf7a5fa8  nff-M3-gate-no-head-age.v1-verdict
+b8d76d42395b3364c1a257ec4ce0ba00f341aeb2cba7578545e0b871e61ca422  nff-M7-cache-no-descendant-drop.out
+39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c  nff-M7-cache-no-descendant-drop.rc
+6b5cad604a464102d511104834896f6e73f0eafe5f6d248dd2848cfdbbc3300a  nff-M7-cache-no-descendant-drop.v1-verdict
+c7d150520a1d7cff0963e03d5b6c43f3768f0af5f005be9dee75c6c0fae8330c  orig-M1-gate-ignores-require-canonical.out

@@ -1,0 +1,56 @@
+{
+ "checks": {
+  "guest script rc 0": true,
+  "guest verdict pass": true,
+  "host MemAvailable >= 16384 MiB throughout": true,
+  "host START and END samples recorded (r5)": true,
+  "host watchdog evidence (>= 2 readable samples)": true,
+  "no host floor breach": true,
+  "runner rc 0": true
+ },
+ "guestInformational": {
+  "InaccessiblePaths per path": {
+   "/etc/enclave-rpc/jwt.hex": true,
+   "/srv/enclave-l1-pair": true,
+   "/srv/enclave-sdcanary-20261026T095619Z-14e73dec/sentinel-dir": true,
+   "/srv/enclave-sdcanary-20261026T095619Z-14e73dec/sentinel-file": true,
+   "/var/lib/enclave-rpc": true
+  },
+  "waitL1": {
+   "ok": true,
+   "value": [
+    0,
+    "L1 ready after 1 check(s)"
+   ]
+  }
+ },
+ "guestRequired": {
+  "GUEST reserve: >= 2 readable guest samples, all >= the reserve, no reserve breach (the HOST floor is host_verdict.py)": true,
+  "InaccessiblePaths positive control: both canary sentinels exist on the host and are masked (sentinel file reads 0 bytes)": true,
+  "InaccessiblePaths: every present path is systemd's 0000 mask node (not the host object), EACCES for rpcbase; absent = absent": true,
+  "RuntimeDirectory created root 0755 + publish_status writes 0644 there": true,
+  "RuntimeDirectoryPreserve keeps dir + file for the next unit (second run finds run 1 file, republishes)": true,
+  "after the reviewed drop: all ids rpcbase, no capability": true,
+  "datadir-idle (reviewed) SKIPS the start while the snapshot download is activating": true,
+  "journal dir append (ReadWritePaths on the dir) works": true,
+  "launch dir itself (not journal) is read-only (EROFS)": true,
+  "launch lock O_RDWR + flock (ReadWritePaths on a FILE) works": true,
+  "legacy manifest + handshake env is refused by the reviewed wrapper": true,
+  "non-RW /etc path is read-only (EROFS)": true,
+  "order: a failing permit keeps the holder from starting (Requires=)": true,
+  "order: holder start re-ran the failed (mock) permit first, then the holder": true,
+  "own L1 ready from INSIDE the release-mode sandbox (reviewed wait_l1 -> r13-final wrapper l1-ready, bounded)": true,
+  "own-datadir (reviewed) chowns the private root file to rpcbase": true,
+  "production PIDs (EL/CL/snapshot/forwards/holder) unchanged": true,
+  "production units + /etc/enclave-rpc metadata unchanged": true,
+  "root reads the rpcbase-only datadir file (DAC_READ_SEARCH)": true,
+  "root-phase identity: euid 0, handshake env, CapBnd == drop-in set, NoNewPrivs": true,
+  "rpcbase cannot write the journal or read root-only files": true,
+  "rpcbase writes its data + tmp subtrees": true,
+  "setuid(0) refused after the drop": true
+ },
+ "hostMinAvailMiB": 18420,
+ "hostSamples": 2,
+ "pass": true,
+ "run": "run-20261026T095619Z-14e73dec"
+}

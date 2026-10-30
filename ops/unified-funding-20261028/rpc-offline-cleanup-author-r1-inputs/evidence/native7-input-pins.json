@@ -1,0 +1,58 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-native-locks-r2/run.py",
+    "sha256": "a88ff61aa4ee84d3a89641a5f5e1451c94a05277836c242762a7f272f695d67e"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-native-locks-r2/candidate/UNIT-PINS.json",
+    "sha256": "17ae0820e6d33ffbc9d5e424ccfde38f10f1037b8f4a1abe465219cbd2a2bc38"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-native-locks-r2/candidate/fixture_reference.py",
+    "sha256": "aa94fc722edade15522ba077a8a284f7687856e69e2f3e687ca45064c1a6c51a"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-native-locks-r2/candidate/guest_mask.py",
+    "sha256": "fe744bde89a985906c9db53130f5a856994d8f3542a576451cbae6c8d5b66d7f"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-native-locks-r2/candidate/inspect_os_disk.py",
+    "sha256": "287c09ba2b3bebd3c1feddb995306bf2fe13a6be073f6b17bdeda257b98a0531"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-native-locks-r2/candidate/inspect_units.py",
+    "sha256": "984245562e85e2ce6f198bb2b4227146561d7b848a52075966bb46dfbb39bde5"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-native-locks-r2/candidate/offline_mask.py",
+    "sha256": "5310ec30a9ab75d1f6b09ed6a5e1ce172280f3134cf08d0c9de1aa5be6b4fb2c"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-native-locks-r2/candidate/test_offline_mask.py",
+    "sha256": "0ed021bdb4ee2de5b53cca8616b983058def437fe6afa9136998e6ea34b2f7e9"
+  },
+  {
+    "path": "/usr/bin/qemu-img",
+    "sha256": "3a57bce6765bfb73a75591dba2ac40d985cccde97d371e95537ecbf16d949d30"
+  },
+  {
+    "path": "/usr/bin/qemu-nbd",
+    "sha256": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934"
+  },
+  {
+    "path": "/usr/sbin/qemu-storage-daemon",
+    "sha256": "76e81784faec1be26479758f0e77503a5d7c687f25a783fa9034400d4ada093b"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+    "sha256": "969d9273e53c79abf8604c363daa58b41a462bc4b7f3d03d813980edb771f6f4"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+    "sha256": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6"
+  },
+  {
+    "path": "/usr/bin/python3.14",
+    "sha256": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b"
+  }
+]

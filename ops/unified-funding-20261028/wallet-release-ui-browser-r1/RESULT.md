@@ -1,0 +1,5 @@
+# Actual browser fixture observations, October30 00:20–00:29UTC
+
+The exact repaired UI modules and shipped Session SDK ran in Chromium with real IndexedDB and inert RPC/wallet/relay fixtures. One mock release reached included. Reload retained its nonce and pending record with zero new signature requests or relay POSTs. A second tab opened against the same IndexedDB also retained that pending operation and disabled another release. This was sequential reload/second-tab observation, not a simultaneous CAS race or OS-crash/Base test. No production wallet or funds were used.
+
+Original external fixture used deployment lookup for ownerNonceUsed and produced a false conflict after the inert POST. Original fixture retained; corrected external fixture indexes nonce explicitly in a new disposable database. Product unchanged. Temporary server493e51465f994ea9b2c314416ae92683 is inactive/Main0; both disposable tabs723101060/723101061 closed. User tabs preserved. The live migration gate still requires implementation and qualification; this fixture does not make production rows eligible.

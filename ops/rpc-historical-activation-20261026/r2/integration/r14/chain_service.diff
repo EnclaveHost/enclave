@@ -1,0 +1,78 @@
+--- integration/r14/chain_service.orig.py	2026-10-26 04:05:04.708616099 -0700
++++ integration/r14/chain_service.patched.py	2026-10-26 04:05:13.539756348 -0700
+@@ -323,10 +323,43 @@
+     return {'block': doc['block'], 'timestamp': doc['timestamp'], 'url': snapshot_url, 'effectiveBaseUrl': effective,
+             'components': len(comps), 'scope': 'manifest identity and location only; not authenticated snapshot state'}
+ 
++# ---- N-anchored segmented coverage (historical-origin-segments-stage/r2) -------------------------------------------------
++# Explicit opt-in only: baseBootstrap.mode == 'anchored-segments' selects the anchored overlay; no mode keeps the legacy
++# safe-label path byte-for-byte; any other mode refuses. The overlay code is root-installed, root-owned and sha-pinned here.
++ANCHORED_COVERAGE_LIB = ROOT / 'lib' / 'anchored-coverage'
++ANCHORED_COVERAGE_PINS = {'anchored_acceptance.py': '45675c0b5f0f8668389909c859ad6c856973f475d167e6a2fa61886e1f15469b', 'segments.py': '8764f5cc55cc42307eadbe71695bb986ca5fa86c07db671553d50d0635c51aa1', 'anchored_origin.py': 'ed1a547d4d8aea112cae66479c64cd9e556b531063ef361c9b156c6d2948ddfa'}
++
++def _anchored_overlay(owner=0):
++    _secure_path(ANCHORED_COVERAGE_LIB, owner, leaf='dir')
++    mods = {}
++    for name in ('anchored_origin.py', 'segments.py', 'anchored_acceptance.py'):   # dependency order
++        p = ANCHORED_COVERAGE_LIB / name
++        _secure_path(p, owner)
++        raw = p.read_bytes()
++        assert hashlib.sha256(raw).hexdigest() == ANCHORED_COVERAGE_PINS[name], f'anchored coverage {name} is not the pinned bytes'
++        mod = type(sys)(name[:-3]); mod.__file__ = str(p)
++        sys.modules[name[:-3]] = mod                       # segments imports anchored_origin; anchored_acceptance imports both
++        exec(compile(raw, str(p), 'exec'), mod.__dict__)
++        mods[name] = mod
++    return mods['anchored_acceptance.py']
++
++def base_coverage(cfg, manifest_path, base_binary_sha256, directory=COVERAGE_DIR, owner=0):
++    """-> (binding, bound L1 origin). Legacy: the snapshot safe label's origin. Anchored: N's origin bound to header N."""
++    mode = (cfg.get('baseBootstrap') or {}).get('mode')
++    if mode is None:
++        o = coverage_activation(cfg, manifest_path, base_binary_sha256, directory, owner)
++        return o, o['safeL1Origin']
++    assert mode == 'anchored-segments', f'unknown baseBootstrap.mode {mode!r}: no implicit activation'
++    aa = _anchored_overlay(owner)
++    o = aa.anchored_coverage_activation(sys.modules[__name__], cfg, pathlib.Path(manifest_path), base_binary_sha256,
++                                        pathlib.Path(directory), owner)
++    return o, o['l1Origin']
++
+ def coverage_activation(cfg, manifest_path, base_binary_sha256, directory=COVERAGE_DIR, owner=0):
+     """Offline, fail-closed validation of the activation evidence. Returns the bound bootstrap or raises AssertionError."""
+     bb = cfg.get('baseBootstrap')
+     assert isinstance(bb, dict) and bb.get('coverageVerified') is True, 'Base snapshot blob coverage not approved'
++    assert 'mode' not in bb, 'legacy coverage activation refuses any baseBootstrap.mode'
+     acc = bb.get('coverageAcceptance')
+     assert isinstance(acc, dict) and all(isinstance(acc.get(k), str) and SHA_RE.fullmatch(acc[k])
+                                          for k in ('receiptSha256', 'verdictSha256', 'originSha256', 'snapshotManifestSha256')), \
+@@ -1040,7 +1073,13 @@
+             a += ['--checkpoint-state', base + '/anchor/state.ssz', '--checkpoint-block', base + '/anchor/block.ssz',
+                   '--wss-checkpoint', ck['root'] + ':' + str(ck['epoch'])]
+     elif side == 'base':
+-        origin = coverage_activation(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base'))
++        origin, so = base_coverage(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base'))
++        if origin.get('mode') == 'anchored-segments':
++            # anchored coverage exists only for the release anchor launch: its record must name exactly header N
++            assert lock is not None, 'anchored coverage requires the release launch (manifest baseRelease)'
++            _l_sha, launch, _n = launch_record(CONFIG, BASE_RELEASE_SHA256)
++            assert launch['anchor'] == f"{origin['anchor']['N']}:{origin['anchor']['headerHash']}", \
++                'launch anchor is not the anchored-coverage header N'
+         history_from = history_from_block(CONFIG)
+         state_from = state_history_from_block(CONFIG)
+         snap = (origin.get('snapshot') or {}).get('block')
+@@ -1049,7 +1088,6 @@
+         history_files_present(datadir, profile, history_from)
+         segment_files_present(datadir, profile, state_from, STATE_FILES)
+         ready = l1_ready()
+-        so = origin['safeL1Origin']
+         assert ready['l1Finalized'] >= max(so['number'], origin['toBlock']), 'reviewed coverage range above our L1 finalized'
+         canon = rpc(18645, 'eth_getBlockByNumber', [hex(so['number']), False])
+         assert canon and str(canon.get('hash', '')).lower() == so['hash'], 'snapshot safe L1 origin not canonical on this L1'
+@@ -1104,7 +1142,7 @@
+                           'kzgcheckSha256': KZGCHECK_SHA256, 'evidenceDir': str(COVERAGE_DIR)}, sort_keys=True))
+     elif argv == ['coverage-check']:
+         # Read-only offline validation of the installed activation evidence; no L1 call, never starts a client.
+-        print(json.dumps(coverage_activation(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base')),
++        print(json.dumps(base_coverage(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base'))[0],
+                          sort_keys=True))
+     elif len(argv) == 1 and argv[0] in ('el', 'cl', 'base'):
+         run(argv[0])

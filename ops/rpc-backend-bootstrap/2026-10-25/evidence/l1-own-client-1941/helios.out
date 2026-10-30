@@ -1,0 +1,4 @@
+[2m2026-10-25T19:38:25.296221Z[0m [32m INFO[0m [2mhelios::client[0m[2m:[0m latest block     number=26271832 age=26s
+[2m2026-10-25T19:38:25.584050Z[0m [32m INFO[0m [2mhelios::client[0m[2m:[0m finalized block  number=26271752
+[2m2026-10-25T19:38:39.725682Z[0m [32m INFO[0m [2mhelios::client[0m[2m:[0m latest block     number=26271834 age=16s
+[2m2026-10-25T19:38:39.725913Z[0m [33m WARN[0m [2mhelios_core::execution::providers::block::block_cache[0m[2m:[0m inconsistent block history detected: clearing cache

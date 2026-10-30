@@ -1,0 +1,317 @@
+--- r1/base_launch.py
++++ r2/producer/base_launch.py
+@@ -1,32 +1,25 @@
+ #!/usr/bin/env python3
+-"""base_launch.py: OFFLINE, ROOT-ONLY producer of the M10 bootstrap launch evidence and the explicit lifecycle transitions
+-consumed by the candidate wrapper (base-wrapper-integration-stage/src/chain_service.py bootstrap_anchor_args).
+-PREPARED; NOT run.
+-
+-`produce` reads ONLY the completed A2-A4 workdir of the reviewed harness (a2-v2-release-bound a2a4.py, source pin below)
+-and re-validates it with THAT module's own functions:
+-  - load_config, A1_INITIAL_SHA256, MAINNET, journal_digest, _trusted_sha (root-owned download receipt), MANIFEST_SHA;
+-  - check_bytecode_receipt, bytecode_gap_closed, OPEN_GAPS;
+-plus the record relationships that step_release established (A2 anchor = A4 = m10-launch anchor at N, A1 gate =
+-config N/root/game and the pinned initial receipt, A3 checkpoints at N, the bytecode receipt bound to this A4, the journal,
+-the download receipt and the snapshot manifest, DB file identity unchanged since the scan). It also requires a fresh,
+-successful `release` run record, the staged release binary (4a7c013a..., fixed path, root-owned, no symlinks), and the
+-wrapper's offline coverage binding for that binary (the snapshot manifest must be the one A2-A4 pinned).
+-Nothing is fabricated: a missing or inconsistent input refuses with a coded reason.
+-
+-Output: a NEW directory published atomically (rename of a fully written sibling), never overwritten:
+-  launch.json (enclave-base-bootstrap-launch/v1) + qualification/{m10-launch,a2-authenticated,a4-rebuilt,bytecodes-verified}.json
+-  (byte-exact copies). Root then pins its sha256 in chain.json baseBootstrap.anchorLaunch (a reviewed manual step).
+-
+-Lifecycle (lifecycle.json, enclave-base-bootstrap-lifecycle/v1; hash-chained history, atomic replace):
+-  init                  -> anchor-pending   (only while the launch record is fresh: now <= notAfter)
+-  mark-started          anchor-pending -> anchor-started    (after the FIRST anchored start was issued; the wrapper then
+-                                                             refuses to start, so the anchor is never replayed blindly)
+-  rearm                 anchor-started -> anchor-pending    (only with STOPPED-DB evidence via the harness's own runner:
+-                                                             units stopped, every stage checkpoint == N, header N
+-                                                             authenticates to the anchor hash, no header above N)
+-  record-bootstrapped   anchor-started -> bootstrapped      HOLD: no reviewed finality proof (see FINALITY_PROOF_REVIEWED)
+-  rollback              any non-terminal -> rolled-back     (terminal: every later transition refuses)
++"""base_launch.py r2: OFFLINE, ROOT-ONLY producer of the M10 bootstrap launch record plus the root side of the ONE-SHOT launch
++journal consumed by the r2 wrapper (r2/wrapper/chain_service.py launch_lock / launch_handshake). PREPARED; NOT run.
++
++`produce` is r1's, byte-for-byte in logic (see base-launch-producer-stage/producer/base_launch.py, kept unchanged): it reads ONLY
++the completed A2-A4 workdir of the reviewed harness (a2-v2-release-bound a2a4.py, source pin below), re-validates it with THAT
++module's own functions, and publishes a NEW directory atomically: launch.json (enclave-base-bootstrap-launch/v1) +
++qualification/*. Root pins ONLY launch.json's sha256 in chain.json baseBootstrap.anchorLaunch {launchSha256}: the record is
++immutable, so it is pinned once and never re-pinned per lifecycle step.
++
++The r1 lifecycle.json / mark-started design is REPLACED (root review: a manual mark after the launch leaves a replay window;
++before the launch it blocks every first start). The journal is consumed by the wrapper itself, under the shared lock, durably,
++before it execs. Root operations here take the SAME lock and use the wrapper module's own journal functions (W), so there is
++one implementation of the format, the hash chain and the durable append:
++  arm                   (no journal) -> armed      fresh launch (now <= notAfter) AND the stopped DB unchanged at N; creates the
++                                                   private root lock file and the journal; refuses if either exists
++  [wrapper start]       armed|rearmed -> consumed  r2 wrapper, after every gate, before execve
++  rearm                 consumed -> rearmed        fresh launch AND the stopped DB unchanged at N (the harness's own gate_static,
++                                                   checkpoints, no header above N, header N authenticated, DB file identity
++                                                   the one the launch record bound - before and after the reads)
++  record-bootstrapped   HOLD (FINALITY_PROOF_REVIEWED = False; no such journal event exists)
++  rollback              any non-terminal -> rolled-back (terminal)
+ """
+ import datetime, hashlib, importlib.util, json, os, pathlib, re, stat, sys
+ 
+@@ -35,8 +28,7 @@
+ HARNESS_BINARY_SHA256 = '9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f'  # selection.BASE_BINARY_SHA256 (A2-A4 runs this)
+ BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'   # m7-m10-release-completed-0055
+ BASE_RELEASE_PATH = pathlib.Path('/opt/enclave-rpc/releases/base-m7m10-4a7c013a510f8816/base')
+-LAUNCH_FORMAT = 'enclave-base-bootstrap-launch/v1'                # == wrapper candidate LAUNCH_FORMAT
+-LIFECYCLE_FORMAT = 'enclave-base-bootstrap-lifecycle/v1'          # == wrapper candidate LIFECYCLE_FORMAT
++LAUNCH_FORMAT = 'enclave-base-bootstrap-launch/v1'                # == r2 wrapper LAUNCH_FORMAT
+ QUAL = {'m10LaunchSha256': 'm10-launch.json', 'a2Sha256': 'a2-authenticated.json', 'a4Sha256': 'a4-rebuilt.json',
+         'bytecodesVerifiedSha256': 'bytecodes-verified.json'}
+ MAX_RECORD = 64 << 20
+@@ -45,8 +37,6 @@
+ # N' > N with its output root, and our node's header N' authenticated against that root (the harness's authenticate()), with
+ # N' a descendant of the anchor. Until such a validator is reviewed, `record-bootstrapped` refuses. Source constant, not config.
+ FINALITY_PROOF_REVIEWED = False
+-TERMINAL = {'rolled-back'}
+-TRANSITIONS = {('anchor-pending', 'anchor-started'), ('anchor-started', 'anchor-pending'), ('anchor-started', 'bootstrapped')}
+ 
+ 
+ class Refused(Exception):
+@@ -224,73 +214,60 @@
+         os.close(fd)
+ 
+ 
+-# ---- lifecycle --------------------------------------------------------------------------------------------------------------
+-def _current(d, owner, top):
++# ---- one-shot launch journal (root side; W = the r2 wrapper module: its lock, verifier and durable append) ------------------
++def _launch(d, owner, top):
+     secure_path(d, owner, leaf='dir', top=top)
+     lb, launch = read_record(d / 'launch.json')
+-    if launch.get('format') != LAUNCH_FORMAT:
++    if launch.get('format') != LAUNCH_FORMAT or not re.fullmatch(r'[1-9][0-9]{0,18}:0x[0-9a-f]{64}', str(launch.get('anchor', ''))):
+         refuse('launch', 'not a launch record')
+-    hist = sorted((d / 'lifecycle-history').glob('*.json')) if (d / 'lifecycle-history').is_dir() else []
+-    if not (d / 'lifecycle.json').exists():
+-        if hist:
+-            refuse('lifecycle_tamper', 'history exists without a current lifecycle')
+-        return sha(lb), launch, None, None, []
+-    cb, cur = read_record(d / 'lifecycle.json')
+-    if not hist or read_record(hist[-1])[0] != cb:
+-        refuse('lifecycle_tamper', 'lifecycle.json is not the last recorded transition')
+-    prev = None
+-    for i, h in enumerate(hist, 1):                                      # the hash chain from the first transition
+-        hb, hd = read_record(h)
+-        if hd.get('seq') != i or hd.get('prevSha256') != prev or hd.get('launchSha256') != sha(lb) or hd.get('format') != LIFECYCLE_FORMAT:
+-            refuse('lifecycle_tamper', f'lifecycle history broken at {h.name}')
+-        prev = sha(hb)
+-    return sha(lb), launch, cb, cur, hist
+-
+-
+-def _transition(d, state, evidence, owner, top, now, allowed_from):
+-    lsha, launch, cb, cur, hist = _current(d, owner, top)
+-    frm = cur.get('state') if cur else None
+-    if frm in TERMINAL:
+-        refuse('rolled_back', 'the lifecycle was rolled back: nothing transitions out of it (a new launch directory is required)')
+-    if frm not in allowed_from:
+-        refuse('transition', f'{frm!r} -> {state!r} is not an allowed transition')
+-    doc = {'format': LIFECYCLE_FORMAT, 'launchSha256': lsha, 'state': state, 'seq': len(hist) + 1, 'prevSha256': sha(cb) if cb else None,
+-           'at': now.isoformat(), 'evidence': evidence}
+-    b = json.dumps(doc, indent=1, sort_keys=True).encode()
+-    hd = d / 'lifecycle-history'
+-    if not hd.exists():
+-        os.mkdir(hd, 0o755)
+-    _write_new(hd / f'{doc["seq"]:04d}-{state}.json', b)                 # immutable audit copy first
+-    tmp = d / f'.lifecycle.partial-{os.getpid()}'
+-    _write_new(tmp, b); os.replace(tmp, d / 'lifecycle.json'); _fsync_dir(hd); _fsync_dir(d)
+-    return {'state': state, 'lifecycleSha256': sha(b)}
++    return sha(lb), launch
+ 
+ 
+-def lifecycle_init(d, *, owner=0, top='/', now=None):
+-    now = now or datetime.datetime.now(datetime.timezone.utc); d = pathlib.Path(d)
+-    _, launch, *_ = _current(d, owner, top)
++def _fresh(launch, now):
+     if now > _ts(launch.get('notAfter'), 'launch notAfter'):
+-        refuse('stale_launch', 'the launch record expired before the initial activation: re-run A1 and release, then produce again')
+-    return _transition(d, 'anchor-pending', {'reason': 'initial activation'}, owner, top, now, allowed_from={None})
++        refuse('stale_launch', 'the launch record expired: a fresh A1 recheck, release and launch record (new directory) are required')
+ 
+ 
+-def mark_started(d, note, *, owner=0, top='/', now=None):
+-    now = now or datetime.datetime.now(datetime.timezone.utc)
+-    if not (isinstance(note, str) and 0 < len(note) <= 500):
+-        refuse('evidence', 'mark-started needs a short root note (which start was issued)')
+-    return _transition(pathlib.Path(d), 'anchor-started', {'note': note}, owner, top, now, allowed_from={'anchor-pending'})
++def _locked(d, owner, top, W):
++    try:
++        return W.launch_lock(d, owner, top)
++    except AssertionError as e:
++        refuse('lock', str(e))
+ 
+ 
+-def rearm(d, cfg_path, *, A, owner=0, top='/', now=None):
+-    """anchor-started -> anchor-pending ONLY if the STOPPED DB is still exactly at the anchor (the harness's own runner)."""
+-    now = now or datetime.datetime.now(datetime.timezone.utc); d = pathlib.Path(d)
+-    _, launch, *_ = _current(d, owner, top)
++def _journal(d, lsha, owner, top, W):
++    try:
++        return W.journal_entries(d / 'journal', owner, lsha, top)
++    except AssertionError as e:
++        refuse('journal', str(e))
++
++
++def _append(d, lsha, entries, event, evidence, owner, top, now, W):
++    try:
++        after = W.journal_append(d / 'journal', owner, lsha, entries, event, evidence, now.isoformat(), top)
++    except AssertionError as e:
++        refuse('journal', str(e))
++    return {'event': event, 'seq': len(after), 'entrySha256': after[-1][0]}
++
++
++def stopped_db_unchanged_at_n(launch, cfg_path, *, A):
++    """The REAL harness, never bypassed: the DB file identity the launch record bound (the bytecode scan's), then the harness's
++    own gate_static (units stopped, pins, download receipt, layout), every stage checkpoint == N, no header above N, header N
++    authenticating to the anchor hash, then the identity again. Any difference refuses: the anchor is never replayed."""
+     c = A.load_config(str(cfg_path)); w = pathlib.Path(c['workdir'])
+     n, h = launch['anchor'].split(':')
+-    if int(n) != c['N']:
+-        refuse('rearm', 'the config is for another N')
++    b = launch.get('bindings') or {}
++    if int(n) != c['N'] or b.get('datadir') != c['datadir']:
++        refuse('db', 'the config is for another N or datadir than the launch record')
++    want = (b.get('dbIdentity') or {}).get('mdbx')
++
++    def same():
++        st = os.stat(pathlib.Path(c['datadir'], 'db', 'mdbx.dat'))
++        if want is None or {'dev': st.st_dev, 'ino': st.st_ino, 'size': st.st_size, 'mtimeNs': st.st_mtime_ns} != want:
++            refuse('db_changed', 'the DB file is not the one the launch record bound: never (re)armed (rollback, re-download)')
++    same()
+     base = A.Base(c, [], w)
+-    A.gate_static(c, base)            # the harness's own pre-DB gates (units stopped, pins, download receipt, layout); never bypassed
++    A.gate_static(c, base)
+     cps = A.head_checkpoints(c, base)
+     if any(v != c['N'] for v in cps.values()):
+         refuse('head_advanced', f'stage checkpoints {cps} are not all at N: the head moved; the anchor is never replayed')
+@@ -298,8 +275,52 @@
+     if above.stdout.strip():
+         refuse('head_advanced', 'a header above N exists: the anchor is never replayed')
+     if A.authenticate(c, A.read_header(c, base, c['N']))['blockHash'] != h:
+-        refuse('rearm', 'header N does not authenticate to the anchor hash')
+-    return _transition(d, 'anchor-pending', {'reason': 'stopped DB verified at N', 'checkpoints': cps}, owner, top, now, allowed_from={'anchor-started'})
++        refuse('db', 'header N does not authenticate to the anchor hash')
++    same()
++    return {'reason': 'stopped DB unchanged at N', 'checkpoints': cps, 'headerN': h, 'mdbx': want}
++
++
++def arm(d, cfg_path, *, A, W, owner=0, top='/', now=None):
++    """Genesis: the private root lock file, then the journal with its first entry `armed`. Exactly once per launch directory
++    (an arm interrupted before its first entry landed may be repeated: no entry means nothing was ever armed)."""
++    now = now or datetime.datetime.now(datetime.timezone.utc); d = pathlib.Path(d)
++    lsha, launch = _launch(d, owner, top)
++    _fresh(launch, now)
++    if not os.path.lexists(d / 'journal.lock'):
++        os.close(os.open(d / 'journal.lock', os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600))
++        _fsync_dir(d)
++    fd = _locked(d, owner, top, W)                                       # validates the lock file (private, owner, no symlink)
++    try:
++        jd = d / 'journal'
++        if os.path.lexists(jd):
++            secure_path(jd, owner, leaf='dir', top=top)
++            if any(not W.JOURNAL_PARTIAL.fullmatch(n) for n in os.listdir(jd)):
++                refuse('armed', 'this launch directory was already armed: only rearm (after consumed) or rollback')
++        evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
++        if not os.path.lexists(jd):
++            os.mkdir(jd, 0o755); _fsync_dir(d)
++        return _append(d, lsha, [], 'armed', evidence, owner, top, now, W)
++    finally:
++        os.close(fd)
++
++
++def rearm(d, cfg_path, *, A, W, owner=0, top='/', now=None):
++    """consumed -> rearmed ONLY with the stopped DB proven unchanged at N (a start that never ran, or ran without touching it)."""
++    now = now or datetime.datetime.now(datetime.timezone.utc); d = pathlib.Path(d)
++    lsha, launch = _launch(d, owner, top)
++    fd = _locked(d, owner, top, W)
++    try:
++        entries = _journal(d, lsha, owner, top, W)
++        last = entries[-1][1]['event']
++        if last == 'rolled-back':
++            refuse('rolled_back', 'the launch was rolled back: nothing transitions out of it (a new launch directory is required)')
++        if last != 'consumed':
++            refuse('transition', f'rearm only after a consumed start (journal state {last!r})')
++        _fresh(launch, now)
++        evidence = stopped_db_unchanged_at_n(launch, cfg_path, A=A)
++        return _append(d, lsha, entries, 'rearmed', evidence, owner, top, now, W)
++    finally:
++        os.close(fd)
+ 
+ 
+ def record_bootstrapped(d, proof, *, owner=0, top='/', now=None):
+@@ -309,40 +330,53 @@
+     raise AssertionError('unreachable while FINALITY_PROOF_REVIEWED is False')
+ 
+ 
+-def rollback(d, reason, *, owner=0, top='/', now=None):
+-    now = now or datetime.datetime.now(datetime.timezone.utc)
++def rollback(d, reason, *, W, owner=0, top='/', now=None):
++    now = now or datetime.datetime.now(datetime.timezone.utc); d = pathlib.Path(d)
+     if not (isinstance(reason, str) and 0 < len(reason) <= 500):
+         refuse('evidence', 'rollback needs a short root reason')
+-    return _transition(pathlib.Path(d), 'rolled-back', {'reason': reason, 'recovery': 're-download (A2-A4 procedure)'}, owner, top, now,
+-                       allowed_from={'anchor-pending', 'anchor-started', 'bootstrapped'})
++    lsha, _ = _launch(d, owner, top)
++    fd = _locked(d, owner, top, W)
++    try:
++        entries = _journal(d, lsha, owner, top, W)
++        if entries[-1][1]['event'] == 'rolled-back':
++            refuse('rolled_back', 'the launch was already rolled back (terminal)')
++        return _append(d, lsha, entries, 'rolled-back', {'reason': reason, 'recovery': 're-download (A2-A4 procedure)'},
++                       owner, top, now, W)
++    finally:
++        os.close(fd)
++
++
++def _installed_wrapper():
++    sys.path.insert(0, '/opt/enclave-rpc')
++    import chain_service as W                                         # the INSTALLED r2 wrapper (its own module-level config)
++    if not hasattr(W, 'launch_handshake'):
++        refuse('wrapper', 'the installed chain_service.py is not the r2 handshake wrapper')
++    return W
+ 
+ 
+ def main(argv):
+     if os.geteuid() != 0:
+         print('REFUSED: root only'); return 2
+-    cmds = {'init', 'mark-started', 'rearm', 'record-bootstrapped', 'rollback', 'produce'}
++    cmds = {'produce', 'arm', 'rearm', 'record-bootstrapped', 'rollback'}
+     if len(argv) < 3 or argv[1] not in cmds:
+         print(__doc__); return 2
+     try:
+         if argv[1] == 'produce':                                         # produce <a2a4-config> <new-out-dir>
+-            A = load_a2a4()
+-            sys.path.insert(0, '/opt/enclave-rpc')
+-            import chain_service as W                                     # the INSTALLED wrapper (its own module-level config)
++            A = load_a2a4(); W = _installed_wrapper()
+             cov = W.coverage_activation(W.CONFIG, W.ROOT / 'manifest.json', (W.MANIFEST.get('binaries') or {}).get('base'))
+             r = produce(argv[2], argv[3], A=A, coverage=cov)
+-        elif argv[1] == 'init':
+-            r = lifecycle_init(argv[2])
+-        elif argv[1] == 'mark-started':
+-            r = mark_started(argv[2], argv[3])
+-        elif argv[1] == 'rearm':
+-            r = rearm(argv[2], argv[3], A=load_a2a4())
++            r['next'] = 'pin chain.json baseBootstrap.anchorLaunch {launchSha256} (reviewed manual step), then arm'
++        elif argv[1] == 'arm':                                           # arm <launch-dir> <a2a4-config>
++            r = arm(argv[2], argv[3], A=load_a2a4(), W=_installed_wrapper())
++        elif argv[1] == 'rearm':                                         # rearm <launch-dir> <a2a4-config>
++            r = rearm(argv[2], argv[3], A=load_a2a4(), W=_installed_wrapper())
+         elif argv[1] == 'record-bootstrapped':
+             r = record_bootstrapped(argv[2], None)
+-        else:
+-            r = rollback(argv[2], argv[3])
+-    except (Refused, OSError, KeyError) as e:
++        else:                                                            # rollback <launch-dir> <reason>
++            r = rollback(argv[2], argv[3], W=_installed_wrapper())
++    except (Refused, OSError, KeyError, IndexError) as e:
+         print(json.dumps({'ok': False, 'refused': str(e)})); return 1
+-    print(json.dumps({'ok': True, **r, 'next': 're-pin chain.json baseBootstrap.anchorLaunch to these sha256 values (reviewed manual step)'}))
++    print(json.dumps({'ok': True, **r}))
+     return 0
+ 
+ 

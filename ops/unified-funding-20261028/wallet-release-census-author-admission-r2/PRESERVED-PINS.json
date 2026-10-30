@@ -1,0 +1,22 @@
+[
+  {
+    "path": "admission-record.json",
+    "sha256": "d104d263dfb78afc5ce089f51cedd509531bc4e62e1698b161bf59a2fb31da43"
+  },
+  {
+    "path": "inner.guard.log",
+    "sha256": "36f52a5c17746d7bf6440396c9b111882d5ef03d8d22986b25fd9e6da986dd42"
+  },
+  {
+    "path": "outer.guard.log",
+    "sha256": "004b4d3cc07145d178844e145a354332b94ee9b134e9c9f3788b56939a0899f9"
+  },
+  {
+    "path": "preflight-result.json",
+    "sha256": "04b33e0b33991c1676b9f4018d95ceba08125489fd42987f8d8c7ad4d45a1c6b"
+  },
+  {
+    "path": "preflight.py",
+    "sha256": "c1781731001fc7ff9d5c5456b4446dff05dc28fd244db9cf9ec17d7d28920ba8"
+  }
+]

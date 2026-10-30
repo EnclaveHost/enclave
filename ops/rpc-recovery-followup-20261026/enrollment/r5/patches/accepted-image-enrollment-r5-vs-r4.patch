@@ -1,0 +1,499 @@
+diff --git a/metal/guest/platform-api-role.mjs b/metal/guest/platform-api-role.mjs
+index ee20f7f..1f98aed 100644
+--- a/metal/guest/platform-api-role.mjs
++++ b/metal/guest/platform-api-role.mjs
+@@ -182,7 +182,8 @@ export function openRecovery(env, { groupId, privateKey }) {
+  */
+ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayArgv = null, log = (m) => console.log(`[platform-api] ${m}`),
+                                   now = Date.now, postImpl = null, archivePut = null, forwardConnectMs = 10000, nativeIssuer = null,
+-                                  derivedImage = DERIVED_READER_IMAGE, derivedStableMs = 60000, derivedRetryMs = 60000 }) {
++                                  derivedImage = DERIVED_READER_IMAGE, derivedStableMs = 60000, derivedRetryMs = 60000,
++                                  derivedExitWaitMs = 10000, spawnImpl = spawn }) {
+   const pa = cfg.platformApi, groupId = groupIdOf(pa), self = cfg.self, members = pa.members;
+   const dirs = cfg.dirs, dataDir = dirs.data;
+   for (const d of [dirs.root, dataDir]) fs.mkdirSync(d, { recursive: true, mode: 0o700 });
+@@ -217,6 +218,19 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+   // enrollment retries when its committed state changed (progress, e.g. an unknown ACK that did commit: KVM resumes the exact
+   // prefix) or after a backoff (derivedRetryMs doubling, at most 1 h); a new enrollment clears it. Bounded, never a deadlock.
+   let derivedDisabled = null, verifiedDigest = null, derivedNow = { configured: false, reason: null }, startQueued = false, lastExit = Promise.resolve();
++  // exitRetry: a start refused because the previous child had not exited is retried when it does; retryTimer: the backoff
++  // expiry of derivedDisabled restarts a healthy relay that runs without derived (logs/claude-enrollment-review-fixes-r5.md M4)
++  let exitRetry = false, retryTimer = null;
++  const sameDerived = (a, b) => { const pick = (m) => [...m].filter(([r]) => r.startsWith(DS.DERIVED_DIR + "/")).map(([r, f]) => `${r}:${f.sha}`).sort().join("|"); return pick(a) === pick(b); };
++  function scheduleDerivedRetry(rec) {
++    clearTimeout(retryTimer);
++    retryTimer = setTimeout(() => {
++      if (stopped || derivedDisabled !== rec || !node || node.role !== "leader" || (child && child.derived)) return;
++      log(`derived retry: the backoff for enrollment ${rec.digest.slice(0, 16)} passed; restarting the relay`);
++      stopRelay("derived retry after backoff"); startRelay();
++    }, Math.max(0, rec.until - now()) + 50);
++    retryTimer.unref?.();
++  }
+   const derivedStateDir = path.join(dirs.root, "derived-reader-v3"), anchorJournal = path.join(derivedStateDir, "anchor-journal.json");
+   const DEADLINE_MARGIN_MS = 250, INTENDED = pa.derivedReader === undefined ? {} : { ENCLAVE_DERIVED_INTENDED: "1" };
+   let derivedLock = Promise.resolve();
+@@ -225,7 +239,7 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+   async function freshCommittedScan() {
+     if (!node || node.role !== "leader") return null;
+     const epoch = node.promised;
+-    const ok = await node.commit({ heartbeat: true });
++    const ok = await node.commit({ heartbeat: true }).catch(() => false);
+     if (ok !== true || node.role !== "leader" || node.promised !== epoch || !node.leaseValid()) return null;
+     return { scan: new Map(node.index), epoch };
+   }
+@@ -246,14 +260,27 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+     const dis = derivedDisabled;
+     if (dis && dis.digest === held.digest && dis.stateDigest === held.stateDigest && now() < dis.until)
+       return { env: INTENDED, reason: `disabled: a relay started with this enrollment exited unexpectedly ${dis.attempts}x without progress; retry after ${new Date(dis.until).toISOString()} or a new enrollment` };
+-    const base = composeDerivedReader({ cfg, root: dirs.root, image: derivedImage });
+-    // right before seeding: same primary, same epoch, and the local bytes are still exactly the committed scan's
++    // B1: nothing of the reader's is touched until the previous child's exit is CONFIRMED (its kernel locks and any late write
++    // die with it); not confirmed in time -> refuse (no compose, no seed) and retry when it does exit
++    const exited = await new Promise((r) => { const t = setTimeout(() => r(false), derivedExitWaitMs); t.unref?.(); lastExit.then(() => { clearTimeout(t); r(true); }); });
++    if (!exited) {
++      // retried once THAT exit is confirmed (after this start spawned the non-derived child, whatever the order of the two)
++      exitRetry = true;
++      lastExit.then(() => setTimeout(() => {
++        if (!exitRetry || stopped || !node || node.role !== "leader" || !child || child.derived) return;
++        exitRetry = false; log("derived retry: the previous relay has exited"); stopRelay("derived retry after the previous relay exited"); startRelay();
++      }, 100));
++      return { env: INTENDED, reason: "the previous relay has not exited: nothing is seeded (retried when it exits)" };
++    }
++    // B2: IMMEDIATELY before seeding (no await in between): same primary and epoch, the replica's committed derived files are
++    // still exactly the fresh scan's, and the local bytes are still exactly those
+     const again = DS.readState(dataDir, fresh.scan);
+-    if (!sameTerm(fresh.epoch) || again.error || again.digest !== held.digest || again.stateDigest !== held.stateDigest)
++    if (!sameTerm(fresh.epoch) || !sameDerived(node.index, fresh.scan) || again.error || again.digest !== held.digest || again.stateDigest !== held.stateDigest) {
++      log("derived start refused: the committed view changed while starting (term, committed scan or local bytes); nothing is seeded");
+       return { env: INTENDED, reason: "the committed view changed while starting" };
++    }
++    const base = composeDerivedReader({ cfg, root: dirs.root, image: derivedImage });
+     const boot = randomBytes(16).toString("hex");
+-    // the previous child is gone before its working files are replaced (its kernel locks die with it; lock files are kept)
+-    await Promise.race([lastExit, new Promise((r) => setTimeout(r, 10000))]);
+     return { env: { ...INTENDED, ...base, ...DS.seedDerivedState({ root: dirs.root, stateDir: derivedStateDir, anchorJournal, held, boot }) }, digest: held.digest, stateDigest: held.stateDigest, boot };
+   }
+   function startRelay() {
+@@ -286,16 +313,17 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+     try { env = relayChildEnv({ cfg, credEnv, dataDir, derivedEnv: plan.env }); }
+     catch (e) { log(`relay NOT started: ${e.message}`); return; }   // fail closed: no child, the reason in the log
+     const argv = relayArgv || [process.execPath, fileURLToPath(import.meta.url), "--relay-child"];
+-    const c = spawn(argv[0], argv.slice(1), { env, cwd: dataDir, stdio: ["ignore", "inherit", "inherit", "ipc"] });
++    const c = spawnImpl(argv[0], argv.slice(1), { env, cwd: dataDir, stdio: ["ignore", "inherit", "inherit", "ipc"] });
+     child = c; childPort = 0;
+     c.derived = plan.digest ? { digest: plan.digest, stateDigest: plan.stateDigest, boot: plan.boot, lastId: 0 } : null; c.listened = false; c.listenedAt = 0;
+-    lastExit = new Promise((r) => c.once("exit", r));
++    lastExit = new Promise((r) => { c.once("exit", r); c.once("error", r); });   // "error": the process never started
+     c.on("message", (m) => {
+       if (m && m.t === "listening" && Number.isInteger(m.port)) { c.listened = true; c.listenedAt = now(); childPort = m.port; childBackoff = 500; log(`relay serving (primary, epoch ${node.promised})`); }
+-      if (m && m.t === "derived-commit") derivedCommit(c, m);
+-      if (m && m.t === "derived-enroll-verify") derivedVerify(c, m);
++      // M3: an unexpected failure in a handler never becomes an unhandled rejection; the child's request then times out (unknown)
++      if (m && m.t === "derived-commit") Promise.resolve().then(() => derivedCommit(c, m)).catch((e) => log(`derived commit handler failed: ${e?.message}`));
++      if (m && m.t === "derived-enroll-verify") Promise.resolve().then(() => derivedVerify(c, m)).catch((e) => log(`derived verify handler failed: ${e?.message}`));
+       if (m && m.t === "barrier" && Number.isInteger(m.id))
+-        Promise.resolve(node && node.role === "leader" ? node.commit() : false).then((ok) => { try { c.send({ t: "barrier", id: m.id, ok: ok === true }); } catch {} });
++        Promise.resolve(node && node.role === "leader" ? node.commit() : false).catch(() => false).then((ok) => { try { c.send({ t: "barrier", id: m.id, ok: ok === true }); } catch {} });
+     });
+     c.on("exit", (code, sig) => {
+       if (child === c) { child = null; childPort = 0; }
+@@ -304,6 +332,7 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+       if (c.derived && !c.killed && (!c.listened || now() - c.listenedAt < derivedStableMs)) {
+         const attempts = derivedDisabled?.digest === c.derived.digest ? derivedDisabled.attempts + 1 : 1;
+         derivedDisabled = { digest: c.derived.digest, stateDigest: c.derived.stateDigest, attempts, until: now() + Math.min(derivedRetryMs * 2 ** (attempts - 1), 3600000) };
++        scheduleDerivedRetry(derivedDisabled);
+         log(`derived reader DISABLED for enrollment ${c.derived.digest.slice(0, 16)}: its relay exited unexpectedly (code ${code} sig ${sig}${c.listened ? ", soon after serving" : ", before serving"}); restarting the relay without it (writer authority refused)`);
+       }
+       if (!stopped && node && node.role === "leader") {
+@@ -335,7 +364,7 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+       if (enr.error || enr.digest !== d.digest || !node.index.get(DS.ENROLL_FILE)) return refuse("not_enrolled");
+       const epoch = node.promised;
+       try { DS.writeStateFile(dataDir, q.rel, q.bytes); } catch { return unknown("write_failed"); }
+-      const ok = await node.commit();
++      const ok = await node.commit().catch(() => false);
+       if (ok !== true) return unknown("not_committed");
+       if (!sameTerm(epoch)) return unknown("epoch_changed");
+       const rec = node.index.get(`${DS.STATE_DIR}/${q.rel}`);
+@@ -538,7 +567,7 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
+       if (!sameTerm(fresh.epoch) || again.error || again.digest !== held.digest || again.stateDigest !== held.stateDigest || again.markerDigest !== held.markerDigest)
+         return [409, { error: "state_changed", outcome: "refused", message: "the committed derived state changed before recording; nothing was written" }];
+       let recSha; try { recSha = DS.writeEnrollment(dataDir, r.record); } catch { return [503, { error: "outcome_unknown" }]; }
+-      const ok = await node.commit();
++      const ok = await node.commit().catch(() => false);
+       if (ok !== true || !sameTerm(fresh.epoch) || node.index.get(DS.ENROLL_FILE)?.sha !== recSha)
+         return [503, { error: "outcome_unknown", message: "the enrollment was written but not confirmed by a majority in this epoch; it may still become committed" }];
+       verifiedDigest = DS.packageDigest(pkg); derivedDisabled = null;
+diff --git a/relay/state-replica.mjs b/relay/state-replica.mjs
+index 3b9f846..e0b765d 100644
+--- a/relay/state-replica.mjs
++++ b/relay/state-replica.mjs
+@@ -75,20 +75,24 @@ export function scanDir(dir, prev = new Map()) {
+   return out;
+ }
+ /** what changed between two scans: { changed: {rel: base64}, removed: [rel] } (file contents read now) */
+-export function diffDir(dir, before, after) {
++/** read exactly the bytes `f` (a scan entry) records: throws (code "changed") if the file changed or vanished since the scan.
++ *  The directory is shared with the relay child (ANOTHER process): nothing synchronous in this process orders its writes. */
++function readExact(dir, rel, f, read) {
++  let b; try { b = read(path.join(dir, rel)); } catch (e) { if (e?.code === "ENOENT") throw new ReplicaError(`${rel} vanished after the scan`, "changed"); throw e; }
++  if (sha256Hex(b) !== f.sha) throw new ReplicaError(`${rel} changed after the scan`, "changed");
++  return b;
++}
++/** what changed between two scans: { changed: {rel: base64}, removed: [rel] }, with EXACTLY the bytes `after` recorded */
++export function diffDir(dir, before, after, read = fs.readFileSync) {
+   const changed = {}, removed = [];
+-  for (const [rel, f] of after) if (!before.has(rel) || before.get(rel).sha !== f.sha) changed[rel] = fs.readFileSync(path.join(dir, rel)).toString("base64");
++  for (const [rel, f] of after) if (!before.has(rel) || before.get(rel).sha !== f.sha) changed[rel] = readExact(dir, rel, f, read).toString("base64");
+   for (const rel of before.keys()) if (!after.has(rel)) removed.push(rel);
+   return { changed, removed };
+ }
+ /** the files of `scan` with EXACTLY the scanned bytes: throws (code "changed") if any file changed or vanished since the scan */
+-export function readAllExact(dir, scan) {
++export function readAllExact(dir, scan, read = fs.readFileSync) {
+   const files = {};
+-  for (const [rel, f] of scan) {
+-    let b; try { b = fs.readFileSync(path.join(dir, rel)); } catch { throw new ReplicaError(`${rel} vanished after the scan`, "changed"); }
+-    if (sha256Hex(b) !== f.sha) throw new ReplicaError(`${rel} changed after the scan`, "changed");
+-    files[rel] = b.toString("base64");
+-  }
++  for (const [rel, f] of scan) files[rel] = readExact(dir, rel, f, read).toString("base64");
+   return files;
+ }
+ export function readAll(dir, scan = scanDir(dir)) {
+@@ -137,11 +141,12 @@ const digestOf = (buf) => createHash("sha256").update(buf).digest("hex");
+  */
+ export class ReplicaNode {
+   constructor({ self, n, key, group = "default", dir, metaFile, send, leaseMs = 10000, now = Date.now, log = () => {}, onLeader = () => {}, onFollower = () => {},
+-                info = {}, archive = null, archiveMs = 30000, joinedAt = null, timeoutMs = null, random = Math.random, maxSkewMs = 120000 }) {
++                info = {}, archive = null, archiveMs = 30000, joinedAt = null, timeoutMs = null, random = Math.random, maxSkewMs = 120000,
++                readFile = fs.readFileSync, scanRetries = 3 }) {
+     if (!Number.isInteger(n) || n < 1 || n > 15) throw new ReplicaError("a group has 1 to 15 members", "config");
+     if (!Number.isInteger(self) || self < 0 || self >= n) throw new ReplicaError("self is not a member index", "config");
+     if (typeof group !== "string" || !group) throw new ReplicaError("a group id is required", "config");
+-    Object.assign(this, { self, n, key, group, dir, metaFile, send, leaseMs, now, log, onLeader, onFollower, info, archive, archiveMs, random, maxSkewMs });
++    Object.assign(this, { self, n, key, group, dir, metaFile, send, leaseMs, now, log, onLeader, onFollower, info, archive, archiveMs, random, maxSkewMs, readFile, scanRetries });
+     this.majority = Math.floor(n / 2) + 1;
+     this.margin = Math.floor(leaseMs / 5);
+     this.timeoutMs = timeoutMs || Math.max(200, Math.floor(leaseMs / 3));
+@@ -288,7 +293,8 @@ export class ReplicaNode {
+     }
+     if (m.t === "fetch") {
+       if (m.epoch < this.promised) return { ok: false, stale: true, promised: this.promised };
+-      return { ok: true, head: this.head, files: readAll(this.dir) };
++      // exactly the files of this member's head (its index): a directory changed by another process refuses the fetch
++      try { return { ok: true, head: this.head, files: readAllExact(this.dir, this.index, this.readFile) }; } catch { return { ok: false, error: "changed" }; }
+     }
+     return { ok: false, error: "unknown" };
+   }
+@@ -323,7 +329,10 @@ export class ReplicaNode {
+     // open the epoch: every member gets this exact state, and a majority must hold it before anything is served
+     this.role = "leader"; this.leader = this.self;
+     const t0 = this.now(), head = { epoch, seq: 1 };
+-    const files = readAll(this.dir, this.index = scanDir(this.dir, this.index));
++    // the epoch snapshot carries EXACTLY its scan (another process may write in this directory): otherwise no epoch, nothing sent
++    const scan0 = scanDir(this.dir, this.index);
++    let files; try { files = readAllExact(this.dir, scan0, this.readFile); } catch (e) { this._stepDown(`the epoch snapshot changed under its scan (${e.message})`); return false; }
++    this.index = scan0;
+     const acks = await Promise.all(others.map((i) => this._ask(i, { t: "snapshot", epoch, head, files, info: this.info })));
+     if (acks.some((a) => a.stale)) { this._seeHigher(Math.max(this.promised, ...acks.filter((a) => a.stale).map((a) => a.promised || 0))); return false; }
+     if (acks.filter((a) => a.ok === true && a.head && cmpHead(a.head, head) === 0).length + 1 < this.majority) { this._stepDown("could not establish the epoch"); return false; }
+@@ -340,13 +349,26 @@ export class ReplicaNode {
+    * An acknowledgement counts only if it is bound to this exact request and names exactly the head that was sent.
+    */
+   commit({ heartbeat = false } = {}) {
+-    const run = this._chain.then(() => this._commitOnce(heartbeat));
+-    this._chain = run.catch(() => {});
++    // never rejects: an unexpected failure (a seal error, an unreadable file) is a plain false and this member steps down,
++    // because some members may already have received part of the round (its outcome is unknown)
++    const run = this._chain.then(() => this._commitOnce(heartbeat)).catch((e) => {
++      this.log(`commit failed: ${String(e?.message || e).slice(0, 160)}`);
++      if (this.role === "leader") this._stepDown("a commit failed unexpectedly");
++      return false;
++    });
++    this._chain = run;
+     return run;
+   }
+   async _commitOnce(heartbeat) {
+     if (this.role !== "leader") return false;
+-    const scan = scanDir(this.dir, this.index), delta = diffDir(this.dir, this.index, scan);
++    // the delta carries EXACTLY the bytes its scan recorded: a file another process rewrote in between means re-scan (a few
++    // times), then a plain false with NOTHING sent (no member saw this round; the lease stands)
++    let scan, delta;
++    for (let attempt = 1; ; attempt++) {
++      scan = scanDir(this.dir, this.index);
++      try { delta = diffDir(this.dir, this.index, scan, this.readFile); break; }
++      catch (e) { if (e?.code !== "changed") throw e; if (attempt >= this.scanRetries) { this.log(`commit not sent: ${e.message}`); return false; } }
++    }
+     const moved = Object.keys(delta.changed).length > 0 || delta.removed.length > 0;
+     if (!moved && !heartbeat) return this.leaseValid();
+     const base = this.head, head = moved ? { epoch: base.epoch, seq: base.seq + 1 } : base, t0 = this.now();
+@@ -356,7 +378,7 @@ export class ReplicaNode {
+       // the catch-up snapshot runs AFTER an await: it is sent only with exactly the scanned bytes (a file written since then
+       // would otherwise travel under this older head); a changed directory means this member's answer does not count
+       if (r.needSnapshot) {
+-        let files; try { files = readAllExact(this.dir, scan); } catch (e) { return { error: e.code || "changed" }; }
++        let files; try { files = readAllExact(this.dir, scan, this.readFile); } catch (e) { return { error: e.code || "changed" }; }
+         r = await this._ask(i, { t: "snapshot", epoch: this.promised, head, files, info: this.info });
+       }
+       return r;
+@@ -377,7 +399,9 @@ export class ReplicaNode {
+   async _archive() {
+     const scan = scanDir(this.dir, this.index), head = this.head;
+     try {
+-      await this.archive(sealMessage(this.key, "archive", { format: REPLICA_FORMAT, group: this.group, head, at: this.now(), files: readAll(this.dir, scan) }), head);
++      // an archive is the committed head's exact files: if the directory moved since that commit's scan, skip this round
++      let files; try { files = readAllExact(this.dir, this.index, this.readFile); } catch (e) { this.log(`archive skipped: ${e.message}`); this._archivedAt = this.now(); return; }
++      await this.archive(sealMessage(this.key, "archive", { format: REPLICA_FORMAT, group: this.group, head, at: this.now(), files }), head);
+       this._archived = head; this._archivedAt = this.now();
+     } catch (e) { this.log(`archive failed: ${String(e.message).slice(0, 160)}`); this._archivedAt = this.now(); }
+   }
+diff --git a/test/derived-state-enrollment.test.mjs b/test/derived-state-enrollment.test.mjs
+index 5815265..9c5e0e9 100644
+--- a/test/derived-state-enrollment.test.mjs
++++ b/test/derived-state-enrollment.test.mjs
+@@ -27,6 +27,7 @@ import { startRole, packageMessage, PACKAGE_FORMAT, DERIVED_READER_ROLE_ENV } fr
+ import { createDerivedCommitter } from "../relay/derived-state-commit.mjs";
+ import { derivedWriterAuthorityFromEnv, DERIVED_STATE_API, journalNameMapper, declaresDerivedStateApi } from "../relay/derived-writer-authority.mjs";
+ import { scanDir, readAllExact } from "../relay/state-replica.mjs";
++import { spawn } from "node:child_process";
+ 
+ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "derived-enroll-"));
+@@ -78,6 +79,10 @@ const s = http.createServer(async (req, res) => {
+     try { await getCommitter().commit({ file: b.file, bytes, sha256: b.sha256 || createHash("sha256").update(bytes).digest("hex") }); return out({ ok: true }); }
+     catch (e) { return out({ ok: false, code: e.code, message: e.message }); }
+   }
++  if (req.url === "/barrier") {                                                  // the relay's response barrier, as relay/api-relay.js sends it
++    const id = Date.now() % 1e9, got = new Promise((ok) => { const on = (m) => { if (m && m.t === "barrier" && m.id === id) { process.off("message", on); ok(m); } }; process.on("message", on); });
++    process.send({ t: "barrier", id }); return out({ reply: await Promise.race([got, new Promise((r) => setTimeout(() => r(null), 5000))]) });
++  }
+   if (req.url === "/verify") {
+     try { return out({ ok: true, result: await getCommitter().verifyEnrollment({ binding: b.binding, floorDigest: b.floorDigest }) }); }
+     catch (e) { return out({ ok: false, code: e.code, message: e.message }); }
+@@ -115,6 +120,14 @@ const rawFor = (i) => ({ format: MC.CONFIG_FORMAT, chainId: 8453,
+   profileDigest: null, rpcs: ["https://rpc-a.example/v1", "https://rpc-b.example"], quorum: 2, releaseId: "ab".repeat(32), replicas: { gateways: ["https://replica.example"], storagePlan: null },
+   identity: { publicUrl: `https://host-${i}.example.org`, repo: "owner/enclave", operator: OPS[i] }, selling: { cpuPrice6: null, payout: null },
+   isolation: { managerUrl: "http://10.0.2.2:8095", dataAddr: "10.0.2.2:8096" }, hostAdmissionSha256: null, controlPort: 8444, platformApi: PA() });
++// the B1 stand-in for "SIGKILLed but not yet reaped" (a child stuck in uninterruptible I/O): the REAL child process, whose "exit"
++// event reaches the role only after EXIT_DELAY.ms (set by the test before the kill). Nothing else about the child changes.
++const EXIT_DELAY = { ms: 0 };
++function delayedExitSpawn(...args) {
++  const c = spawn(...args), emit = c.emit.bind(c);
++  c.emit = (ev, ...rest) => { if (ev === "exit" && EXIT_DELAY.ms > 0) { const ms = EXIT_DELAY.ms; setTimeout(() => emit(ev, ...rest), ms); return true; } return emit(ev, ...rest); };
++  return c;
++}
+ async function bootMember(i) {
+   const d = fs.mkdtempSync(path.join(tmp, `m${i}-`));
+   const P = { ...MC.GUEST_PATHS, runDir: d, sessionDir: path.join(d, "session"), statement: path.join(d, "statement.json"), tlsKey: path.join(d, "tls-key.pem"),
+@@ -128,7 +141,7 @@ async function bootMember(i) {
+   fs.mkdirSync(roleCfg.dirs.root, { recursive: true, mode: 0o700 }); fs.writeFileSync(path.join(roleCfg.dirs.root, "k"), K, { mode: 0o600 });
+   const m = { i, roleCfg, ports, controlUrl: config.platformApi.members[i].controlUrl, logs: [] };
+   m.role = await startRole({ cfg: roleCfg, recoverMessageAddress, verifyPeer: async () => ({ ok: false, reason: "not in this test" }), log: (x) => m.logs.push(x),
+-    relayArgv: [process.execPath, STUB], postImpl: postFor(i), derivedImage: IMAGE, derivedStableMs: 1000 });
++    relayArgv: [process.execPath, STUB], postImpl: postFor(i), derivedImage: IMAGE, derivedStableMs: 1000, derivedRetryMs: 4000, derivedExitWaitMs: 3000, spawnImpl: delayedExitSpawn });
+   return m;
+ }
+ const leader = () => M.find((m) => !m.stopped && m.role.status().role === "leader" && m.role.status().relay);
+@@ -310,7 +323,7 @@ test("failover: a stopped primary's successor seeds the same committed copy", {
+ });
+ 
+ const rotateNow = async (l, extra = {}) => { const st = statusOf(l); return enroll(l, await pkgFor(l, { mode: "rotate", previousDigest: st.digest, stateDigest: st.stateDigest, floorDigest: st.dominatingFloorDigest, ...extra })); };
+-test("crash guard: a derived child dying before serving, or soon after, disables derived (relay serving, no loop); a rotate re-enables it", { timeout: 120000 }, async () => {
++test("crash guard: a derived child dying before serving, or soon after, disables derived (relay serving, no loop); the backoff timer retries it (M4); a rotate re-enables it", { timeout: 120000 }, async () => {
+   for (const flag of ["crash", "crash-after"]) {
+     let l = leader();
+     fs.writeFileSync(path.join(CTL, flag), "1");
+@@ -321,6 +334,15 @@ test("crash guard: a derived child dying before serving, or soon after, disables
+     l = leader(); const pid = childPid(l); await sleep(2500); assert.equal(childPid(l), pid, "no restart loop");
+     assert.equal(statusOf(l).configured, false);
+     fs.rmSync(path.join(CTL, flag));
++    if (flag === "crash") {
++      // M4: the backoff (derivedRetryMs 4 s) expires while a healthy relay serves WITHOUT derived: the role retries by itself,
++      // with the SAME enrollment (no admin action), and derived returns
++      const digest = statusOf(l).digest;
++      const back = await waitFor("derived back after the backoff, no enrollment", async () => { const x = await relay(leader(), "GET", "/env"); return x?.descriptor ? x : null; }, 20000);
++      assert.equal(back.descriptor.enrollment.digest, digest, "the same enrollment: a timer retry, not a new package");
++      assert.ok(leader().logs.some((x) => /derived retry: the backoff/.test(x)));
++      continue;
++    }
+     assert.equal((await rotateNow(l, { stateDigest: "33".repeat(32) })).json.error, "wrong_state");
+     const ok = await rotateNow(l); assert.equal(ok.status, 200, JSON.stringify(ok.json));
+     const e = await waitFor("derived again", async () => { const x = await relay(leader(), "GET", "/env"); return x?.descriptor ? x : null; });
+@@ -360,6 +382,61 @@ test("enrollment quiesces the writer: a racing derived commit either lands befor
+   else { assert.equal(en.json.error, "wrong_state", JSON.stringify(en.json)); assert.equal(landed, true); assert.equal(after.digest, st.digest); }
+ });
+ 
++const inode = (p) => { try { const st = fs.statSync(p); return `${st.ino}:${st.mtimeMs}`; } catch { return null; } };
++test("B1: the previous child's exit not CONFIRMED -> nothing is composed or seeded (journal and lock inodes untouched); retried once it exits", { timeout: 120000 }, async () => {
++  let l = leader();
++  await waitFor("derived up", async () => (await relay(l, "GET", "/env"))?.descriptor);
++  const sd = path.join(l.roleCfg.dirs.root, "derived-reader-v3"), binding = statusOf(l).binding;
++  const locks = [path.join(sd, "journal", "derived-state.lock"), path.join(sd, "coverage", binding, "coverage.lock"), path.join(sd, "runs", "runs.lock"), path.join(sd, "anchor-journal.json.lock")];
++  for (const f of locks) { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, ""); }
++  const before = Object.fromEntries([...locks, path.join(sd, "anchor-journal.json"), path.join(l.roleCfg.dirs.root, "derived-reader", "state.json")].map((p) => [p, inode(p)]));
++  // a role-initiated stop + start (a signed rotate: the writer is quiesced, then the relay restarts) while the SIGKILLed child's
++  // exit is not yet confirmed (EXIT_DELAY > derivedExitWaitMs 3 s)
++  EXIT_DELAY.ms = 6000;
++  await sleep(1200); const rot = await rotateNow(l); assert.equal(rot.status, 200, JSON.stringify(rot.json));
++  await waitFor("the refused start", () => /has not exited/.test(statusOf(leader()).reason || ""), 15000);
++  EXIT_DELAY.ms = 0;
++  l = leader();
++  assert.deepEqual((await relay(l, "GET", "/env")).env, { ENCLAVE_DERIVED_INTENDED: "1" }, "the relay serves without derived");
++  for (const [p, v] of Object.entries(before)) assert.equal(inode(p), v, `untouched while the previous child may live: ${path.basename(p)}`);
++  const e = await waitFor("derived back once the exit is confirmed (no admin action)", async () => { const x = await relay(leader(), "GET", "/env"); return x?.descriptor ? x : null; }, 20000);
++  assert.ok(leader().logs.some((x) => /derived retry: the previous relay has exited/.test(x)));
++  for (const p of locks) assert.equal(inode(p), before[p], `a lock file is never unlinked or replaced: ${path.basename(p)}`);
++  assert.equal(e.seeded[BR], committedSha(leader(), BR), "then seeded with the committed bytes");
++});
++
++test("B2: leadership lost during the exit wait -> the stale term seeds nothing; the new primary seeds ITS committed scan", { timeout: 150000 }, async () => {
++  const l = leader(), sd = path.join(l.roleCfg.dirs.root, "derived-reader-v3"), anchorBefore = inode(path.join(sd, "anchor-journal.json"));
++  EXIT_DELAY.ms = 2800;                                                          // < derivedExitWaitMs (3 s): the exit IS confirmed, after the term is gone
++  await sleep(1200); const rot = await rotateNow(l); assert.equal(rot.status, 200, JSON.stringify(rot.json));   // stop + start: the plan waits for the exit
++  await sleep(300); NET.down.add(l.i);                                           // its lease cannot be renewed: it steps down during the wait
++  await waitFor("the stale start refused", () => l.logs.some((x) => /derived start refused: the committed view changed while starting/.test(x)), 15000);
++  EXIT_DELAY.ms = 0;
++  const n = await waitFor("another primary with derived", async () => { const x = M.find((m) => m !== l && !m.stopped && m.role.status().role === "leader" && m.role.status().relay); if (!x) return null; const y = await relay(x, "GET", "/env"); return y?.descriptor ? { x, y } : null; }, 60000);
++  assert.equal(n.y.seeded[BR], committedSha(n.x, BR), "the new primary seeds exactly its committed scan");
++  await sleep(3500);                                                             // past the old exit
++  assert.equal(inode(path.join(sd, "anchor-journal.json")), anchorBefore, "the deposed member did not seed on its stale term");
++  NET.down.delete(l.i);
++  await waitFor("a primary with its relay after healing", () => leader());
++});
++
++test("M3: a rejecting replica commit is a plain failure: the child's commit is OUTCOME UNKNOWN, the barrier answers ok:false, no unhandled rejection", { timeout: 90000 }, async () => {
++  let l = leader(); await restartChild(l); l = leader();
++  await waitFor("derived up", async () => (await relay(l, "GET", "/env"))?.descriptor);
++  let unhandled = 0; const onU = () => { unhandled++; }; process.on("unhandledRejection", onU);
++  const node = l.role.node(), real = node.commit;
++  node.commit = () => Promise.reject(new Error("injected replica failure"));
++  try {
++    const r = await relay(l, "POST", "/commit", { file: BR, text: JSON.stringify({ m3: 1 }) });
++    assert.equal(r.code, "derived_commit_outcome_unknown", JSON.stringify(r));
++    const b = await relay(l, "POST", "/barrier", {});
++    assert.equal(b.reply?.ok, false, "the barrier gets a refusal, not silence");
++  } finally { node.commit = real; }
++  await sleep(200); process.off("unhandledRejection", onU);
++  assert.equal(unhandled, 0);
++  await waitFor("a primary with its relay", () => leader());
++});
++
+ // ---- restore and floor rules, on the role's own functions over a real data directory and the replica's own scan ----
+ test("restore/recover: the archive is not freshness - high-water at least the restored floors PER CHAIN, exact on ties; never-enrolled recover carries no state", () => {
+   const groupId = "g".repeat(32), st = "s".repeat(64), rp = "ab".repeat(32), now = Date.now();
+diff --git a/test/state-replica-exact.test.mjs b/test/state-replica-exact.test.mjs
+index 5020a65..669fe2c 100644
+--- a/test/state-replica-exact.test.mjs
++++ b/test/state-replica-exact.test.mjs
+@@ -9,13 +9,15 @@ import fs from "node:fs";
+ import os from "node:os";
+ import path from "node:path";
+ import { createHash, randomBytes } from "node:crypto";
++import { spawn } from "node:child_process";
+ import { ReplicaNode, scanDir, readAllExact, cmpHead } from "../relay/state-replica.mjs";
+ 
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+ const sha = (b) => createHash("sha256").update(b).digest("hex");
+ function group({ n = 3, leaseMs = 300 } = {}) {
+   const root = fs.mkdtempSync(path.join(os.tmpdir(), "replica-exact-")), key = randomBytes(32), down = new Set(), nodes = [];
+-  const hook = { after: null, delayMs: 0 };                  // after(from, to): runs once a member answered, before the sender continues
++  const hook = { after: null, delayMs: 0, read: null };      // after(from, to): runs once a member answered, before the sender continues;
++                                                             // read(i, file): member i's file reads (the cross-process race injection)
+   const send = (from) => async (to, buf) => {
+     if (down.has(to) || down.has(from)) throw new Error("unreachable");
+     if (hook.delayMs) await sleep(hook.delayMs);
+@@ -24,7 +26,7 @@ function group({ n = 3, leaseMs = 300 } = {}) {
+     return out;
+   };
+   for (let i = 0; i < n; i++) nodes.push(new ReplicaNode({ self: i, n, key, group: "exact", dir: path.join(root, `m${i}/data`), metaFile: path.join(root, `m${i}/meta.json`),
+-    send: send(i), leaseMs, info: { name: `m${i}` } }));
++    send: send(i), leaseMs, info: { name: `m${i}` }, readFile: (p) => (hook.read ? hook.read(i, p) : fs.readFileSync(p)) }));
+   const write = (i, rel, text) => { const f = path.join(nodes[i].dir, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f + ".tmp", text); fs.renameSync(f + ".tmp", f); };
+   const read = (i, rel) => { try { return fs.readFileSync(path.join(nodes[i].dir, rel), "utf8"); } catch { return null; } };
+   /** every file of member i is exactly the bytes member j's committed scan (index) records */
+@@ -101,3 +103,85 @@ test("interleaved writers (barrier, credentials, derived) and commits: no member
+     assert.ok(g.holdsIndexOf(0, 0), "the primary's directory is its committed scan once the writers stopped");
+   } finally { g.cleanup(); }
+ });
++
++// ---- review r3 M1/M2/M3: the directory is shared with ANOTHER process (the relay child); nothing in this process orders its writes ----
++test("M1 forced read race: a file rewritten between the scan and the diff read is re-scanned (never shipped under the old sha); a persistent race sends NOTHING", async () => {
++  const g = group();
++  try {
++    await quiet(g);
++    assert.equal(await g.nodes[0].campaign(), true);
++    const rel = "relay-state.json", file = path.join(g.nodes[0].dir, rel);
++    g.write(0, rel, "v1"); assert.equal(await g.nodes[0].commit(), true);
++    g.write(0, rel, "v2");
++    let raced = 0;
++    g.hook.read = (i, p) => { if (i === 0 && p === file && raced++ === 0) { fs.writeFileSync(file + ".tmp", "v3-other-process"); fs.renameSync(file + ".tmp", file); } return fs.readFileSync(p); };
++    assert.equal(await g.nodes[0].commit(), true, "re-scanned once, then committed");
++    g.hook.read = null;
++    assert.equal(g.nodes[0].index.get(rel).sha, sha("v3-other-process"), "the committed scan is the bytes actually shipped");
++    for (const i of [1, 2]) { assert.equal(g.read(i, rel), "v3-other-process"); assert.ok(g.holdsIndexOf(i, 0)); }
++    const headBefore = { ...g.nodes[1].head };
++    g.write(0, rel, "v4");
++    let n = 0;
++    g.hook.read = (i, p) => { if (i === 0 && p === file) { fs.writeFileSync(file + ".tmp", `churn-${n++}`); fs.renameSync(file + ".tmp", file); } return fs.readFileSync(p); };
++    assert.equal(await g.nodes[0].commit(), false, "every re-scan raced: a plain false");
++    g.hook.read = null;
++    assert.equal(g.nodes[0].role, "leader", "nothing was sent: the lease stands, no step-down");
++    for (const i of [1, 2]) { assert.deepEqual(g.nodes[i].head, headBefore, "no member saw that round"); assert.equal(g.read(i, rel), "v3-other-process"); }
++    assert.equal(await g.nodes[0].commit(), true); for (const i of [1, 2]) assert.ok(g.holdsIndexOf(i, 0));
++  } finally { g.cleanup(); }
++});
++
++test("M1 real cross-process writer (atomic renames in ANOTHER process) racing repeated commits: commits never reject, and every member ends exactly on the committed scan", async () => {
++  const g = group({ leaseMs: 1000 });
++  try {
++    await quiet(g);
++    assert.equal(await g.nodes[0].campaign(), true);
++    const file = path.join(g.nodes[0].dir, "relay-state.json");
++    const writer = spawn(process.execPath, ["-e", `const fs=require("fs");const f=${JSON.stringify(file)};const end=Date.now()+1500;let i=0;
++      while(Date.now()<end){fs.writeFileSync(f+".w.tmp","w"+(i++)+"x".repeat(i%97));fs.renameSync(f+".w.tmp",f);}`], { stdio: "ignore" });
++    const results = [];
++    const done = new Promise((r) => writer.on("exit", r));
++    let running = true; done.then(() => { running = false; });
++    while (running) { results.push(await g.nodes[0].commit().then((x) => x, (e) => `rejected:${e.message}`)); await sleep(5); }
++    assert.ok(results.length > 3 && results.every((x) => x === true || x === false), JSON.stringify(results.slice(0, 5)));
++    if (g.nodes[0].role !== "leader") assert.equal(await g.nodes[0].campaign(), true);
++    assert.equal(await g.nodes[0].commit(), true);
++    for (const i of [1, 2]) { assert.deepEqual(g.nodes[i].head, g.nodes[0].head); assert.ok(g.holdsIndexOf(i, 0), `member ${i} holds exactly the committed scan`); }
++    assert.ok(g.holdsIndexOf(0, 0));
++  } finally { g.cleanup(); }
++});
++
++test("M2: an election whose snapshot changed under its scan opens NO epoch and ships nothing", async () => {
++  const g = group();
++  try {
++    await quiet(g);
++    assert.equal(await g.nodes[0].campaign(), true);
++    g.write(0, "relay-state.json", "v1"); assert.equal(await g.nodes[0].commit(), true);
++    g.nodes[0].stop(); g.down.add(0);
++    await sleep(g.nodes[0].leaseMs * 2);
++    const file = path.join(g.nodes[1].dir, "relay-state.json"), head2 = { ...g.nodes[2].head };
++    let raced = false;
++    g.hook.read = (i, p) => { if (i === 1 && p === file && !raced) { raced = true; fs.writeFileSync(file + ".tmp", "stray-child-write"); fs.renameSync(file + ".tmp", file); } return fs.readFileSync(p); };
++    assert.equal(await g.nodes[1].campaign(), false);
++    g.hook.read = null;
++    assert.equal(raced, true); assert.equal(g.nodes[1].role, "follower");
++    assert.deepEqual(g.nodes[2].head, head2, "no snapshot was shipped"); assert.equal(g.read(2, "relay-state.json"), "v1");
++  } finally { g.cleanup(); }
++});
++
++test("M3: an unexpected failure inside a commit is a plain false and a step-down, never a rejection", async () => {
++  const g = group();
++  let unhandled = 0; const onU = () => { unhandled++; }; process.on("unhandledRejection", onU);
++  try {
++    await quiet(g);
++    assert.equal(await g.nodes[0].campaign(), true);
++    g.write(0, "relay-state.json", "v1"); assert.equal(await g.nodes[0].commit(), true);
++    g.write(0, "relay-state.json", "v2");
++    g.hook.read = (i, p) => { if (i === 0) throw Object.assign(new Error("EACCES injected"), { code: "EACCES" }); return fs.readFileSync(p); };
++    const r = await g.nodes[0].commit();
++    g.hook.read = null;
++    assert.equal(r, false); assert.equal(g.nodes[0].role, "follower", "an unknown-outcome failure steps down");
++    await sleep(50);
++    assert.equal(unhandled, 0);
++  } finally { process.off("unhandledRejection", onU); g.cleanup(); }
++});

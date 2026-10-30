@@ -1,0 +1,20 @@
+[queue] START available=22515MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[ok] offline (no IPv4 route)
+[ok] r2 stage == SHA256SUMS
+[ok] base commit present
+[ok] base files == BASE-b6ac5d657.sha256
+[ok] candidate files == CANDIDATE.sha256
+[ok] base clone clean
+[ok] node_modules linked (package-lock identical)
+v22.23.3
+[ok] candidate syntax
+  candidate-credit-read-authority.tap: node rc 0, {'tests': 7, 'pass': 7, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  candidate-browser-read-authority.tap: node rc 0, {'tests': 12, 'pass': 12, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  base-browser-read-authority.tap: node rc 0, {'tests': 12, 'pass': 12, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+RESULT: PASS
+[memory-guard] exit=0 peakTreeRssMiB=939 minHostAvailableMiB=21702
+[memory-guard] at peak: git:889 git:35 git-upload-pack:6 git:5 bash:4
+[queue] EXIT 0

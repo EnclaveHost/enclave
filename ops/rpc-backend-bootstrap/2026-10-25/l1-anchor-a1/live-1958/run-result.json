@@ -1,0 +1,37 @@
+{
+  "startedAt": "2026-10-25T19:57:00.541685+00:00",
+  "productionActivated": false,
+  "inputPins": {
+    "a1-anchor.mjs": "ec92b70f105f88cbfc466e57e4673afcb0fbd104403e425e036f1dba78e6528d",
+    "a1-read.mjs": "a501a3ec56ebd56e6bf1fc43c0c3725da57d013addac5f1efb13a99e598e0ab8",
+    "vendor/anchor-bootstrap.mjs": "90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8"
+  },
+  "heliosStatus": {
+    "verdict": "fresh-finalized",
+    "authority": "helios-ethereum-light-client",
+    "finalizedBasis": "sync-committee supermajority (>=2/3) finality update verified inside pinned Helios",
+    "latestBasis": "optimistic header (sync-committee signed, NOT finalized); Helios refuses latest >60 s old",
+    "wrapperChecks": "chain id, JSON-RPC envelope, finalized<=latest, finalized age; the wrapper adds no proof",
+    "binarySha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+    "checkpoint": {
+      "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094",
+      "slot": 15511008,
+      "declaredAgeSec": 2101,
+      "sources": 5
+    },
+    "finalized": {
+      "number": 26271848,
+      "hash": "0x3762b17e8235efae14eee170ee13c4f9b316dae37bfd4d9527915085db007cd4",
+      "timestamp": 1792957271,
+      "ageSec": 952
+    },
+    "latest": {
+      "number": 26271924,
+      "hash": "0x95beb6a3a86bd347b3ff7117620292ac50e5a59f50b3358ffb68f41d2bd80d29",
+      "timestamp": 1792958195
+    }
+  },
+  "a1Exit": 0,
+  "processStopped": true,
+  "finishedAt": "2026-10-25T19:58:03.993808+00:00"
+}

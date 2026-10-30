@@ -1,0 +1,88 @@
+[queue] START available=46565MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: actual bundle is accepted offline and authorization rejects changed calldata identity
+ok 1 - actual bundle is accepted offline and authorization rejects changed calldata identity
+  ---
+  duration_ms: 2.331204
+  type: 'test'
+  ...
+# Subtest: signing is off without authorization; wrong owner and chain refuse before RPC
+ok 2 - signing is off without authorization; wrong owner and chain refuse before RPC
+  ---
+  duration_ms: 4.499149
+  type: 'test'
+  ...
+# Subtest: stale RPC and consumed nonce refuse
+ok 3 - stale RPC and consumed nonce refuse
+  ---
+  duration_ms: 3.355397
+  type: 'test'
+  ...
+# Subtest: unknown wallet outcome survives reconstruction and never offers again
+ok 4 - unknown wallet outcome survives reconstruction and never offers again
+  ---
+  duration_ms: 14.50438
+  type: 'test'
+  ...
+# Subtest: runtime disagreement and unsafe RPC methods refuse
+ok 5 - runtime disagreement and unsafe RPC methods refuse
+  ---
+  duration_ms: 0.847354
+  type: 'test'
+  ...
+# Subtest: same-origin capability and CSRF protection; GET does not mutate
+ok 6 - same-origin capability and CSRF protection; GET does not mutate
+  ---
+  duration_ms: 36.595476
+  type: 'test'
+  ...
+# Subtest: preflight refreshes L1/operator fee rather than reusing old cost observation
+ok 7 - preflight refreshes L1/operator fee rather than reusing old cost observation
+  ---
+  duration_ms: 13.08954
+  type: 'test'
+  ...
+# Subtest: fresh fee above reviewed cap refuses before offering
+ok 8 - fresh fee above reviewed cap refuses before offering
+  ---
+  duration_ms: 9.520124
+  type: 'test'
+  ...
+# Subtest: actual local ECDSA envelope plus scripted canonical receipt verifies exact runtime
+ok 9 - actual local ECDSA envelope plus scripted canonical receipt verifies exact runtime
+  ---
+  duration_ms: 22.758232
+  type: 'test'
+  ...
+# Subtest: block-zero preconfirmation and omitted block membership are not inclusion
+ok 10 - block-zero preconfirmation and omitted block membership are not inclusion
+  ---
+  duration_ms: 17.708198
+  type: 'test'
+  ...
+# Subtest: changed calldata/runtime and unknown receipt status never advance
+ok 11 - changed calldata/runtime and unknown receipt status never advance
+  ---
+  duration_ms: 28.137455
+  type: 'test'
+  ...
+# Subtest: concurrent preparation yields one offer only
+ok 12 - concurrent preparation yields one offer only
+  ---
+  duration_ms: 14.208841
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 205.855551
+[memory-guard] exit=0 peakTreeRssMiB=84 minHostAvailableMiB=46539
+[memory-guard] at peak: node:84
+[memory-guard] exit=0 peakTreeRssMiB=132 minHostAvailableMiB=46543
+[memory-guard] at peak: node:82 node:50
+[queue] EXIT 0

@@ -1,0 +1,48 @@
+{
+ "allocationDepthBytes": {
+  "1": 1134426345472
+ },
+ "calls": 9001,
+ "chunkBytes": 1073741824,
+ "cleanupComplete": true,
+ "complete": true,
+ "exportSize": 4000000000000,
+ "extendedHeaders": true,
+ "format": "qcow-allocation-nbd/v2",
+ "image": "/home/steven/Documents/Codex/2026-10-26/my/work/tr004-readonly/enclave-rpc-production/base-origin.qcow2",
+ "imageAfter": [
+  2050,
+  3221,
+  2073934036992,
+  1793030438418984700,
+  1793030438418984700
+ ],
+ "imageBefore": [
+  2050,
+  3221,
+  2073934036992,
+  1793030438418984700,
+  1793030438418984700
+ ],
+ "imageUnchanged": true,
+ "meaning": "image-layer ALLOCATION status only (NBD base:allocation); NOT content integrity; no data byte was read. A HOLE/ZERO byte reads as zero here: the original page may have been zero, so it is not necessarily lost useful content; it only means former NONZERO data there cannot be recovered from this image. Full MDBX + state checks remain required.",
+ "nonDataSamples": [],
+ "rangeBytes": 1134426345472,
+ "ranges": 9001,
+ "rangesFullyAllocatedData": 9001,
+ "rangesWithHoleOrZero": 0,
+ "rc": 0,
+ "seconds": 60.4,
+ "server": {
+  "bind": "/proc/self/cwd/nbd.sock (initial cwd = run dir)",
+  "client": "/proc/self/fd/3/nbd.sock",
+  "pid": 2383421
+ },
+ "serverReturncode": 0,
+ "totals": {
+  "allocatedData": 1134426345472,
+  "hole": 0,
+  "holeZero": 0,
+  "zeroNotHole": 0
+ }
+}

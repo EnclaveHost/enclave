@@ -1,0 +1,16 @@
+{
+  "complete": true,
+  "completed_at": "2026-10-28T01:56:53.016772+00:00",
+  "mount_uuid": "702FE78A62B4C5DC",
+  "current_files_receipt": "/home/steven/Documents/Codex/2026-10-26/my/outputs/tr004-current-files-restored.json",
+  "database_image": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+  "database_internal_path": "/data/db/mdbx.dat",
+  "database_bytes": 1138166333440,
+  "restored_database_parts_read_back_verified": 265,
+  "database_integrity_scan_waived": true,
+  "database_structural_or_canonical_health_claimed": false,
+  "image_modified_after_current_file_copy": true,
+  "kernel_nbd_detached": true,
+  "nvme_backups_retained": true,
+  "metal0_restart_pending": true
+}

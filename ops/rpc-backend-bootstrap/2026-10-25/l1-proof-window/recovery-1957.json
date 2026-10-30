@@ -1,0 +1,41 @@
+{
+  "time": "2026-10-25T19:56:16.470456+00:00",
+  "syncing": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": false
+  },
+  "consensus": {
+    "data": {
+      "is_syncing": false,
+      "is_optimistic": false,
+      "el_offline": false,
+      "head_slot": "15511179",
+      "sync_distance": "0"
+    }
+  },
+  "pids": {
+    "enclave-l1-el.service": "8111",
+    "enclave-l1-cl.service": "898",
+    "enclave-rpc-base-snapshot.service": "4061"
+  },
+  "proofFlags": {
+    "--rpc.eth-proof-window": "256",
+    "--rpc.proof-permits": "2"
+  },
+  "latest": {
+    "number": "0x190e0b2",
+    "hash": "0xd17d035fbdfaf7eec174807eb3567b7f765b5e2bbc3af12e9d56d310ee213219",
+    "timestamp": "0x6ade5edb"
+  },
+  "safe": {
+    "number": "0x190e087",
+    "hash": "0xa8f21abbbc2379360e5afeda980cc731d4c1b310f545d5c19c423e597ad39c68",
+    "timestamp": "0x6ade5cd7"
+  },
+  "finalized": {
+    "number": "0x190e068",
+    "hash": "0x3762b17e8235efae14eee170ee13c4f9b316dae37bfd4d9527915085db007cd4",
+    "timestamp": "0x6ade5b57"
+  }
+}

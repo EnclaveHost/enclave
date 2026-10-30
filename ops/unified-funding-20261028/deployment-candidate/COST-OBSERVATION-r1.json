@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-28T16:03:14.543Z",
+  "readOnly": true,
+  "signable": false,
+  "nonceReserved": false,
+  "production": false,
+  "providers": [
+    "https://base-rpc.publicnode.com",
+    "https://base-mainnet.public.blastapi.io"
+  ],
+  "block": "53207021",
+  "blockHash": "0x73cd9de3cc8ebf471ae6f570b2e05903cb2923ab920cdc5cc98c7e696e2be060",
+  "results": [],
+  "error": "Cannot mix BigInt and other types, use explicit conversions"
+}

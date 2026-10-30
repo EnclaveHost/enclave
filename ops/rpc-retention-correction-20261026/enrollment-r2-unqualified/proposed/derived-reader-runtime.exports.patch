@@ -1,0 +1,15 @@
+diff --git a/relay/derived-reader-runtime.mjs b/relay/derived-reader-runtime.mjs
+index 3769562..240bcaf 100644
+--- a/relay/derived-reader-runtime.mjs
++++ b/relay/derived-reader-runtime.mjs
+@@ -11,3 +11,10 @@ export { serveDerivedReader } from '../network/derived-reader/api.mjs';
+ export { openLifecycleJournal } from '../network/deployment-lifecycle-journal.mjs';
+ /** The file this runtime was loaded from (for startup logs). */
+ export const DERIVED_READER_RUNTIME_URL = import.meta.url;
++// The durable-state API (logs/derived-state-ipc-contract-r2.md §6), DECLARED here only together with the frozen KVM closure
++// that implements it: enrollDerivedState(config,{anchorJournal,verifyEnrollment,commit,commitTimeoutMs,signal}),
++// derivedReaderBinding(config,options), the reader's journalCommit/requireJournalCommit and openLifecycleJournal's
++// {requireExisting,commit,requireCommit,commitTimeoutMs} (logs/image-enrollment-root-note.txt 15:08). The adapter hands the
++// role's state over only when this constant AND every function are present (relay/derived-writer-authority.mjs).
++export { enrollDerivedState, derivedReaderBinding } from '../network/derived-reader/provider.mjs';
++export const DERIVED_STATE_API = 'enclave-derived-state/v1';

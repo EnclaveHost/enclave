@@ -1,0 +1,2 @@
+[host-policy] platform host policy off: not the production chain/book (chain 8453, book 0x7777777777777777777777777777777777777777): platform host policy off unless configured
+fatal: writer authority: ENCLAVE_WRITER_AUTHORITY_SOURCE=derived needs the relay's verifier authority (ENCLAVE_CHAIN_AUTHORITY=verifier): the quorum reader stays the legacy path

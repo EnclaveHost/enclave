@@ -1,0 +1,10 @@
+[queue] START available=22965MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+[fix/rpc-attested-verifier-20261025 c61dbe5fd] Pin tested canonical-hash Helios verifier build
+ 5 files changed, 13 insertions(+), 11 deletions(-)
+github	https://github.com/EnclaveHost/enclave.git (fetch)
+github	https://github.com/EnclaveHost/enclave.git (push)
+origin	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-rpc-runtime-launch/repo (fetch)
+origin	/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-rpc-runtime-launch/repo (push)
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

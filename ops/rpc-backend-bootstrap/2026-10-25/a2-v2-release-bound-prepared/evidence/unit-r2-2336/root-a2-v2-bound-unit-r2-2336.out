@@ -1,0 +1,9 @@
+[queue] START available=23100MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+test_a2a4: OK
+test_receipt_writer: OK
+test_pinned_manifest: OK
+a1-gate.test.mjs: clean {"badMarkers": [], "cancelled": 0, "fail": 0, "failing": [], "pass": 8, "rc": 0, "skipped": 0, "suites": 0, "tests": 8, "todo": 0, "verdict": "baseline-clean"}
+RUN-TESTS rc=0
+[memory-guard] exit=0 peakTreeRssMiB=107 minHostAvailableMiB=22334
+[memory-guard] at peak: node:68 python3:33 sh:4 timeout:2
+[queue] EXIT 0

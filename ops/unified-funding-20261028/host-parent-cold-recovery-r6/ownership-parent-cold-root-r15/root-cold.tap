@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: ROOT15 established parent loss cannot become an empty new journal
+not ok 1 - ROOT15 established parent loss cannot become an empty new journal
+  ---
+  duration_ms: 36.47307
+  type: 'test'
+  location: '/tmp/hacr2.gTvZAl/r6/test/root-cold.test.mjs:13:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///tmp/hacr2.gTvZAl/r6/test/root-cold.test.mjs:16:56)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: ROOT15 externally changed parent state is refused before any cached overwrite
+not ok 2 - ROOT15 externally changed parent state is refused before any cached overwrite
+  ---
+  duration_ms: 10.309456
+  type: 'test'
+  location: '/tmp/hacr2.gTvZAl/r6/test/root-cold.test.mjs:18:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///tmp/hacr2.gTvZAl/r6/test/root-cold.test.mjs:22:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT15 fresh process state with a visible ACK and failed failure-recording requires actual owned boot sync
+ok 3 - ROOT15 fresh process state with a visible ACK and failed failure-recording requires actual owned boot sync
+  ---
+  duration_ms: 66.384657
+  type: 'test'
+  ...
+# Subtest: ROOT15 fresh process cannot use a visible ACK when owned boot sync fails
+ok 4 - ROOT15 fresh process cannot use a visible ACK when owned boot sync fails
+  ---
+  duration_ms: 59.057449
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 2
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 388.87583

@@ -1,0 +1,17 @@
+{
+  "testBehavior": "PASS",
+  "suiteTests": 89,
+  "baselineFailures": 2,
+  "mutants": {
+    "m1-generic-error-waiver": 6,
+    "m2-no-in-gate-l1-pairing": 1,
+    "m3-no-window-enforcement": 2,
+    "m4-no-base-derived-check": 1,
+    "m5-pruned-skips-cl-identity": 2
+  },
+  "originalWrapperExit": 1,
+  "reason": "The summary regex omitted digits in mutant names l1/base; all five mutation runs passed their expected assertion-failure checks. Corrected reporting only; sampler and tested test source unchanged. No reexecution is claimed.",
+  "logSha256": "059d2d37f2a1459c682b9a816634722fcdf01e604dc01a60ced462a065120cef",
+  "samplerSha256": "9aa80ab8a2cbe156f513349f44366c4ad2c8588539666ac802ed9015c771d055",
+  "testSha256": "10c88fa2618b43f793e49ce62b59e3c35d7c99fd5dc992a5afde9750e80bdf72"
+}

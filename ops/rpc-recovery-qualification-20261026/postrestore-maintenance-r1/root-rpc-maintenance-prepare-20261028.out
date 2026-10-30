@@ -1,0 +1,10 @@
+[queue] START available=94622MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "backup": "/vm/enclave-volumes/rpc-production-maint/os-backup-20261028T024604Z-968c09/os.qcow2",
+ "next": "launch --evidence /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/production-20261028",
+ "prepared": true,
+ "unit": "enclave-rpc-maint-20261028T024604Z-968c09.service"
+}
+[memory-guard] exit=0 peakTreeRssMiB=41 minHostAvailableMiB=93900
+[memory-guard] at peak: python3:41
+[queue] EXIT 0

@@ -1,0 +1,19 @@
+{
+  "seedEntries": 7,
+  "candidateEqualsSeed": true,
+  "productPreEdits": 0,
+  "readonlyInputPins": 53,
+  "inputDrift": [],
+  "protectedMethods": [
+    "OsEffects.sparse_copy",
+    "OsEffects.hold_qemu_locks",
+    "OsEffects.scan_holders",
+    "Writer.holders"
+  ],
+  "authorLaunched": false,
+  "accountCheckedNow": false,
+  "testsRun": false,
+  "nativeToolsExecuted": false,
+  "imagesOrDatabaseRead": false,
+  "runtimeOrFinancialAction": false
+}

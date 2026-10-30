@@ -1,0 +1,74 @@
+{
+  "schema": "enclave-cutover-dependency-map/1",
+  "status": "SOURCE_ONLY_NOT_MIGRATED",
+  "sourceRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/author-delivery",
+  "lanes": {
+    "isolatedNewDomain": "Native qualification and later distinct zero-balance canary need no global old-writer drain or restart; no production signer/journal/account reuse. Zero balance alone is not isolation.",
+    "existingDomain": "Needs effective old process DIR/incarnation/pins, exact task/process linkage, continuous writer exclusion and preserved existing obligations.",
+    "perAppHandoff": "Current host legacyHandoff expires leases then stops app; dispatch adoption fences/stops/requires absence. No running-VM ownership transfer exists."
+  },
+  "sourceInterfaces": [
+    {
+      "file": "control/windows/node/agent.mjs",
+      "lines": [
+        68,
+        639,
+        842,
+        1226
+      ],
+      "facts": "Actual DIR known at construction; health/state lack effective identity; SIGINT retires compute."
+    },
+    {
+      "file": "control/windows/node/hosting.mjs",
+      "lines": [
+        391,
+        408
+      ],
+      "facts": "Existing loopback and bearer-authenticated local control seam."
+    },
+    {
+      "file": "control/windows/node/chain.mjs",
+      "lines": [
+        254,
+        259,
+        415,
+        743
+      ],
+      "facts": "Shared direct/sponsored chain queue and memory fence; current store-backed status omits fence; release not independently bounded/durable restart fencing."
+    },
+    {
+      "file": "control/windows/node/host.mjs",
+      "lines": [
+        2574,
+        2953,
+        2960
+      ],
+      "facts": "New-work hold exists; legacy handoff voids renewals, waits expiry then stops VM."
+    },
+    {
+      "file": "control/network/lifecycle-host-dispatch.mjs",
+      "lines": [
+        515,
+        627
+      ],
+      "facts": "Finalized quiescence activation and stop/absence adoption must not be bypassed."
+    }
+  ],
+  "actualObservation": {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-operator-identity-observation-r1-20261029/result.json",
+    "observedAt": "2026-10-29T21:17:26.1028780Z",
+    "effectiveNodeDir": "unknown",
+    "taskProcessAncestry": "unproven",
+    "continuousExclusion": "unproven"
+  },
+  "nativeMissingFacts": [
+    "Fresh physical and commit headroom and full pending/future/direct/other commitments P",
+    "At least18432MiB current live floor; old17408 launcher insufficient",
+    "Enforced/accounted early-bootstrap E and independent observer O; proposed64MiB is not proof",
+    "Exact runtime EXLOCK denial/rename/delete/owner-death/positive-controls",
+    "Native Job memory/process/inheritance/breakaway and independent owner-death evidence",
+    "Actual effective ACL/reparse/storage/flush qualification"
+  ],
+  "noExecution": true,
+  "noProductEdits": true
+}

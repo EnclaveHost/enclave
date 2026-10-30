@@ -1,0 +1,237 @@
+{
+  "observedAt": "2026-10-25T18:06:45.136826+00:00",
+  "note": "Read-only diagnostics; not readiness or historical coverage proof.",
+  "consensusSync": {
+    "data": {
+      "is_syncing": false,
+      "is_optimistic": true,
+      "el_offline": false,
+      "head_slot": "15510631",
+      "sync_distance": "0"
+    }
+  },
+  "database": {
+    "schema_version": 32,
+    "config": {
+      "block_cache_size": 0,
+      "state_cache_size": 128,
+      "state_cache_headroom": 1,
+      "compression_level": 1,
+      "historic_state_cache_size": 1,
+      "cold_hdiff_buffer_cache_size": 16,
+      "hot_hdiff_buffer_cache_size": 1,
+      "compact_on_init": false,
+      "compact_on_prune": true,
+      "prune_payloads": true,
+      "backend": "LevelDb",
+      "hierarchy_config": {
+        "exponents": [
+          5,
+          9,
+          11,
+          13,
+          16,
+          18,
+          21
+        ]
+      },
+      "prune_blobs": true,
+      "epochs_per_blob_prune": 256,
+      "blob_prune_margin_epochs": 0
+    },
+    "split": {
+      "slot": "15510560",
+      "state_root": "0x15a2a96b2c22dc39ae1148cb73f32b89968e8c6371843f9ddf88c23d1371bcd6",
+      "block_root": "0x0e1ab2d4505295c41eb649454e0ed766af470ba5854d29b2c36c26b3b38b2c7f"
+    },
+    "anchor": {
+      "anchor_slot": "15508320",
+      "oldest_block_slot": "15504704",
+      "oldest_block_parent": "0x6555bc3fb4929226898ee5e61a8a3a3ccf822f9362817cacdbed5a7d1e49df04",
+      "state_upper_limit": "18446744073709551615",
+      "state_lower_limit": "0"
+    },
+    "data_info": {
+      "oldest_data_slot": "15504704"
+    }
+  },
+  "custody": {
+    "earliest_custodied_data_column_slot": "15504704",
+    "custody_group_count": "64",
+    "custody_columns": [
+      "95",
+      "111",
+      "67",
+      "116",
+      "45",
+      "30",
+      "102",
+      "32",
+      "83",
+      "89",
+      "13",
+      "33",
+      "40",
+      "50",
+      "28",
+      "90",
+      "7",
+      "100",
+      "59",
+      "91",
+      "48",
+      "99",
+      "118",
+      "71",
+      "109",
+      "101",
+      "113",
+      "98",
+      "35",
+      "31",
+      "84",
+      "15",
+      "110",
+      "54",
+      "106",
+      "64",
+      "39",
+      "16",
+      "58",
+      "70",
+      "34",
+      "23",
+      "37",
+      "85",
+      "42",
+      "1",
+      "73",
+      "81",
+      "82",
+      "5",
+      "60",
+      "96",
+      "46",
+      "74",
+      "61",
+      "88",
+      "25",
+      "108",
+      "18",
+      "24",
+      "19",
+      "79",
+      "80",
+      "47"
+    ]
+  },
+  "executionSync": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "startingBlock": "0x190c00b",
+      "currentBlock": "0x190c00b",
+      "highestBlock": "0x190c00b",
+      "warpChunksAmount": null,
+      "warpChunksProcessed": null,
+      "stages": [
+        {
+          "name": "AccountHashing",
+          "block": "0x190c00b"
+        },
+        {
+          "name": "Bodies",
+          "block": "0x190daae"
+        },
+        {
+          "name": "Era",
+          "block": "0x190c00b"
+        },
+        {
+          "name": "Execution",
+          "block": "0x190caf6"
+        },
+        {
+          "name": "Finish",
+          "block": "0x190c00b"
+        },
+        {
+          "name": "Headers",
+          "block": "0x190daae"
+        },
+        {
+          "name": "IndexAccountHistory",
+          "block": "0x190c00b"
+        },
+        {
+          "name": "IndexStorageHistory",
+          "block": "0x190c00b"
+        },
+        {
+          "name": "MerkleExecute",
+          "block": "0x190c00b"
+        },
+        {
+          "name": "MerkleUnwind",
+          "block": "0x190c00b"
+        },
+        {
+          "name": "Prune",
+          "block": "0x190c00b"
+        },
+        {
+          "name": "PruneSenderRecovery",
+          "block": "0x190c00b"
+        },
+        {
+          "name": "SenderRecovery",
+          "block": "0x190daae"
+        },
+        {
+          "name": "StorageHashing",
+          "block": "0x190c00b"
+        },
+        {
+          "name": "TransactionLookup",
+          "block": "0x190c00b"
+        }
+      ]
+    }
+  },
+  "latest": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "number": "0x190c00b",
+      "hash": "0x20368983a084ba826b4f22ce410dc2e78428657e86756b813c730594c20d971d",
+      "parentHash": "0x6c1e48598fc5cf30ea0309050788dc29b1f7a783667dce967a760d063e532f3b",
+      "timestamp": "0x6adcd60b",
+      "stateRoot": "0xd42235b7cd30f67a6903aba969ea9e1f99ec91eb64252ef69822a4919b3bb597",
+      "receiptsRoot": "0x4c4b9413669d5c4230b0760a89edd5d727f0bc668af8f8283b43b7bb3d61c28e"
+    }
+  },
+  "safe": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "number": "0x190bfdc",
+      "hash": "0xc1e2e20455c14ea6a4ad229625b775f738a64a56191131ce9da1329a2501af04",
+      "parentHash": "0xd2b7860002fdc962fbdd3d31c3a4716d8f3fba49eb2a621c12d191ebef5054e1",
+      "timestamp": "0x6adcd3d7",
+      "stateRoot": "0xeb466c8ae2f0bebfd3cc57fea3d65e9e817675bccab40df8e72bca65a59e6c57",
+      "receiptsRoot": "0x64d6268c2b6d75ed1e6beca780528945b95417ef9a91cb466e117f8c39b83f3e"
+    }
+  },
+  "finalized": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "number": "0x190bfbc",
+      "hash": "0xbe84376c6689328898a4b0bd7f749cacaee3b02189067d87c8c898c6cbcbe4f3",
+      "parentHash": "0x4856ef3a9f47a435f9b24c697baf46af67f580c1dadcf7d517595e4925682e64",
+      "timestamp": "0x6adcd257",
+      "stateRoot": "0x10877f625eb28e05186be7c82e430994d8a1de9b43569cd6e3e497563a1b6271",
+      "receiptsRoot": "0x9071cad464cc900d4a5ae150c25dd16d3f474fcab75631c41badce9ffc7ccc0f"
+    }
+  }
+}

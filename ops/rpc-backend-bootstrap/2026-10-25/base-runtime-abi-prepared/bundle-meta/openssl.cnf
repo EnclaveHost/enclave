@@ -1,0 +1,8 @@
+# Minimal OpenSSL config for the bundled libcrypto (abi.py): no system config, providers or engines are read.
+openssl_conf = openssl_init
+[openssl_init]
+providers = provider_sect
+[provider_sect]
+default = default_sect
+[default_sect]
+activate = 1

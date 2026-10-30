@@ -1,0 +1,40 @@
+[queue] START available=25919MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+r14 composition OK: 106 files byte-identical to r13-manifest-final; ['install/MANIFEST.json', 'producer/base_launch.py', 'recovery/forward_sync.py', 'src/finality_state.py', 'src/reproof.py', 'wrapper/chain_service.py'] + ['units/enclave-witness-bridge-base.service', 'units/enclave-witness-bridge-l1.service', 'witness/witness_rpc_bridge.py']
+r18 candidate = r14 (1ba2d51a) + ['install/MANIFEST.json', 'producer/base_launch.py', 'readiness/publish_readiness.py', 'readiness/readiness_sampler.py', 'recovery/forward_sync.py', 'src/finality_state.py', 'src/reproof.py', 'wrapper/chain_service.py'] + ['historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/MANIFEST.json', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/bin/guest-capture.sh', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/bin/historical-capture', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/lib/anchored_acceptance.py', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/lib/anchored_origin.py', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/lib/bind_anchor.mjs', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/lib/segments.py', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/receipt/a1-evidence.json', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/anchor-bootstrap.mjs', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/coverage/coverage_gate.py', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/coverage/kzgcheck', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/coverage/origin_extract.py', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/LICENSE', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/_u64.js', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/cryptoNode.js', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/package.json', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/sha3.js', 'historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e/vendor/node_modules/@noble/hashes/utils.js']
+NOT REUSED readiness (candidate changes readiness_sampler/publish_readiness): ops-readiness 27 + sampler 93 run below
+HISTORY r12-final 0738 PASS (superseded: changed bytes); ops-followup-r2 0728 ops-installer 17/18, recovery-fixture-r2 FAIL, r3 0732 no-test: pinned, superseded; r3 0733 single PASS (informational)
+NOT REUSED recovery-existing 34 (old wrapper 4fc3b970): the new wrapper's existing 34-test suite runs in wrapper-pruned (49)
+REUSED JS core 20 (tap receipt)
+r13-manifest-final = r13-final except install/MANIFEST.json (stage)
+REUSED parser-recovery Ran 8 OK (receipt 23012c11e1dc)
+REUSED parser-first Ran 8 OK (receipt 23012c11e1dc)
+REUSED capture-closure Ran 14 OK (receipt d572c9ee6c76)
+REUSED cold-proof (0918 receipt b8fc0e8e)
+pins + manifest closure OK: 82 files 14 trees
+reader pins consistent: da9a9e9c6eff 78df2211342f (capture, both harnesses, MANIFEST, bundle-origin); own EL 18645 template kept
+bundle assembled: {"ok": true, "entries": 32}
+bundle closure OK: 32 entries
+r18 candidate manifest: 64 r14 files (re-pinned) + 18 historical-capture bundle files (020cc8bf, own modes), 14 trees, 32 bundle entries
+PASS capture-r10 Ran 3 (expected 3)
+PASS runtime-pin Ran 10 (expected 10)
+PASS tool Ran 34 (expected 34)
+PASS integration Ran 17 (expected 17)
+PASS reproof Ran 17 (expected 17)
+PASS ops-installer Ran 18 (expected 18)
+PASS forward-sync-r2 Ran 6 (expected 6)
+PASS reanchor-recovery Ran 25 (expected 25)
+PASS r3-regression Ran 28 (expected 28)
+PASS r62-isolated Ran 2 (expected 2)
+PASS forward-sync Ran 8 (expected 8)
+PASS wiring-bootstrap-wiring Ran 22 (expected 22)
+PASS wiring-r3-regression Ran 28 (expected 28)
+PASS wrapper-pruned (34 + 15 + baseline blocker + mutants, on the r14 wrapper byte)
+PASS ops-readiness Ran 27 (expected 27)
+PASS sampler Ran 93 (expected 93)
+PASS witness-r2 Ran 12
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r8/compose/r18-candidate/logs/root-finality-r14-witness-tests-20261026T130227Z-1767215
+## r13 SHA256SUMS 1f4c5543f029d19a1849959d5d41f5e90c1c65280a16f193e670583ceb54c230
+## finality-r13 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=236 minHostAvailableMiB=23757
+[memory-guard] at peak: python3:40 python3:31 python3:31 python3:31 python3:31 python3:31 python3:31 bash:4
+[queue] EXIT 0

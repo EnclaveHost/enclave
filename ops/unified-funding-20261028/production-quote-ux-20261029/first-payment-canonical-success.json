@@ -1,0 +1,75 @@
+{
+  "readOnly": true,
+  "capturedAt": "2026-10-29T03:54:24.964Z",
+  "value": {
+    "receipt": {
+      "hash": "0x540b1d23cbea1e67914ed94ec3750b28a9c38a47a06b8046a5d00ab6a4e4d2c4",
+      "status": "success",
+      "block": "53228081",
+      "blockHash": "0x8b419d8f3e3ae6e082760be2b5e2125b8692bffa44587e17d0275286cbdfe0e8",
+      "gasUsed": "711228",
+      "effectiveGasPrice": "6000000"
+    },
+    "events": [
+      {
+        "address": "0x12a3f873041dec436daa0085b766a399a6fa3639",
+        "name": "Deposited",
+        "args": {
+          "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+          "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "from": "0xE5198b7BA033612C45c720d204C469D9ECe77D9e",
+          "amountWei": "200000000000000"
+        }
+      },
+      {
+        "address": "0x86960ed815ca5500e6cfcdbbb32b221c2acf055a",
+        "name": "GasFunded",
+        "args": {
+          "sid": "0x0e6374283afed13378259e0572b9a9e9e2830128c5197c3bcfdc6592248a4ed5",
+          "deployment": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+          "holder": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+          "ethOut": "200000000000000",
+          "usdcSpent6": "461264",
+          "maxUsdcIn6": "465617",
+          "relayer": "0xf4B78D91911e1c064A02E4D28C69E2De6056bE57",
+          "fee6": "66309"
+        }
+      },
+      {
+        "address": "0x86960ed815ca5500e6cfcdbbb32b221c2acf055a",
+        "name": "SessionOp",
+        "args": {
+          "sid": "0x0e6374283afed13378259e0572b9a9e9e2830128c5197c3bcfdc6592248a4ed5",
+          "action": 10,
+          "nonce": "0",
+          "argsHash": "0xed9c736ca7779373cd1a4872e36847c8dd0633036cf26572bb2df200573e2c9e",
+          "amount6": "461264",
+          "fee6": "66309",
+          "result": "0x00000000000000000000000000000000000000000000000000000000000709d00000000000000000000000000000000000000000000000000000000000001101"
+        }
+      }
+    ],
+    "session": {
+      "balance6": "4272427",
+      "spent6": "527573",
+      "periodOps": 1,
+      "periodSpent6": "527573",
+      "lane": 0,
+      "sequence": "1"
+    },
+    "deployment": {
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "active": true,
+      "runner": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+      "leaseUntil": "1793247313",
+      "computeBalance6": "1000004"
+    },
+    "reserveWei": "198592558404641"
+  },
+  "blockNumber": "53228356",
+  "blockHash": "0x3c18a06e07c58cf80aa43dfd19ae1b1a10b47496645854a329a55b305de10f35",
+  "timestamp": 1793246059000,
+  "agreeing": 3,
+  "peers": 3,
+  "failures": []
+}

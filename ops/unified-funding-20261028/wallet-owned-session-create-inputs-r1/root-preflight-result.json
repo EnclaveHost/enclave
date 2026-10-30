@@ -1,0 +1,18 @@
+{
+  "time": 1793328350.7027855,
+  "preparedSha256": "0fe297a61c75a10ff6b8dcf5b430ac0cd2b405f4ab1c17dce5d2cb1a8c851990",
+  "readonlyPins": 699,
+  "seedEntries": 194,
+  "inputDrift": [],
+  "seedDrift": [],
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "otherExactExecutableProcesses": [],
+  "cpuAffinity": [
+    1
+  ],
+  "sourceOnly": true
+}

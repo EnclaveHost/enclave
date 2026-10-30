@@ -1,0 +1,8 @@
+Starting [systemd-run] /home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker --host 127.0.0.1 --port 19622 --vsock-port 0 --vram-gb 16 --shm /dev/shm/shield-netns-smoke-ff23f73578dd.service.ring...
+Started [systemd-run] /home/steven/enclave-prod/v100-shield-9e5190078/shielded-worker --host 127.0.0.1 --port 19622 --vsock-port 0 --vram-gb 16 --shm /dev/shm/shield-netns-smoke-ff23f73578dd.service.ring.
+[shielded-worker] MR8 G4 planner policy: off
+[shielded-worker] shm ring file /dev/shm/shield-netns-smoke-ff23f73578dd.service.ring: 8 ring(s) of 8 MiB (request slot 2044 KiB, reply slot 6 MiB)
+[shielded-worker] Tesla V100-PCIE-32GB, sm_70, 31.7 GiB total, budget 16.0 GiB, 80 SMs @ 1.38 GHz -> 113.0 TFLOPS fp16 rated
+[shielded-worker] field GEMM throughput 2591 G-MAC/s (measured, masked path)
+[shielded-worker] [yield] background mode on: duty 25% of the card while the owner is active (SHIELDED_YIELD_DUTY), detection by turn timing; SHIELDED_YIELD=0 disables
+[shielded-worker] listening on 127.0.0.1:19622 (guest reaches it at 10.0.2.2:19622)

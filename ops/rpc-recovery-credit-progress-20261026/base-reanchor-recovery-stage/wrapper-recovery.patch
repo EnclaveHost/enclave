@@ -1,0 +1,66 @@
+--- r3/chain_service.py
++++ recovery/chain_service.py
+@@ -457,6 +457,10 @@
+ BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'
+ BASE_RELEASE_PATH = ROOT / 'releases' / ('base-m7m10-' + BASE_RELEASE_SHA256[:16]) / 'base'
+ BOOTSTRAP_DIR = pathlib.Path('/etc/enclave-rpc/base-bootstrap')
++# Re-anchor recovery (base-reanchor-recovery-stage; PREPARED): every retired (rolled-back) launch directory lives here under its
++# launchSha256. The current launch's predecessor chain must name ALL of them (launch_lineage): one launch history, no fork.
++BOOTSTRAP_ARCHIVE = pathlib.Path('/etc/enclave-rpc/base-bootstrap-archive')
++MAX_LINEAGE = 64
+ LAUNCH_FORMAT = 'enclave-base-bootstrap-launch/v1'
+ JOURNAL_FORMAT = 'enclave-base-bootstrap-journal/v1'
+ ANCHOR_RE = re.compile(r'([1-9][0-9]{0,18}):(0x[0-9a-f]{64})')
+@@ -587,6 +591,44 @@
+     _instant(launch.get('notAfter'), 'launch notAfter')
+     return l_sha, launch, int(m.group(1))
+ 
++def _anchor_n(launch):
++    m = ANCHOR_RE.fullmatch(str(launch.get('anchor', '')))
++    assert m, 'launch anchor is not <number>:0x<64 lower-case hex>'
++    return int(m.group(1))
++
++def launch_lineage(launch, archive=None, owner=None, top=None):
++    """The launch's predecessor chain through BOOTSTRAP_ARCHIVE -> [anchor, ...] newest first. Each predecessor must be the
++    archived launch record named by its sha, terminally rolled back at exactly the named journal entry; anchors never move
++    backward (an equal height only for the identical anchor); and every archived launch must be in the chain. A first-bootstrap
++    launch (no predecessor) is therefore accepted only while the archive is empty."""
++    archive = pathlib.Path(archive or BOOTSTRAP_ARCHIVE); owner = ROOT_UID if owner is None else owner
++    archived = set()
++    if os.path.lexists(archive):
++        _secure_path(archive, owner, leaf='dir', top=top)
++        archived = set(os.listdir(archive))
++    chain, seen, cur = [launch.get('anchor')], [], launch
++    while cur.get('predecessor') is not None:
++        p = cur['predecessor']
++        assert isinstance(p, dict) and set(p) == {'launchSha256', 'rolledBackEntrySha256', 'anchor'} \
++            and all(isinstance(p[k], str) and HEX64.fullmatch(p[k]) for k in ('launchSha256', 'rolledBackEntrySha256')), \
++            'lineage: malformed predecessor'
++        name = p['launchSha256']
++        assert name in archived and name not in seen and len(seen) < MAX_LINEAGE, \
++            f'lineage: predecessor {name[:12]} is not an archived launch (or repeats)'
++        d = archive / name
++        _secure_path(d, owner, leaf='dir', top=top)
++        p_sha, prev = _evidence(d / 'launch.json', owner)
++        assert p_sha == name and prev.get('format') == LAUNCH_FORMAT and prev.get('anchor') == p['anchor'], \
++            'lineage: the archived launch record differs from its name or the named anchor'
++        assert _anchor_n(prev) < _anchor_n(cur) or prev['anchor'] == cur.get('anchor'), \
++            'lineage: the anchor moved backward (or changed at the same height)'
++        entries = journal_entries(d / 'journal', owner, p_sha, top)
++        assert entries[-1][1]['event'] == 'rolled-back' and entries[-1][0] == p['rolledBackEntrySha256'], \
++            'lineage: the predecessor is not terminally rolled back at the named journal entry'
++        seen.append(name); chain.append(prev['anchor']); cur = prev
++    assert set(seen) == archived, f"lineage: archived launches outside this launch's lineage: {sorted(archived - set(seen))[:3]}"
++    return chain
++
+ def journal_entries(jd, owner, launch_sha, top=None):
+     """The verified journal -> [(sha256, entry)], oldest first. Refuses on any symlink, foreign owner, writable mode,
+     unexpected name, gap, broken hash chain, other launch record, or transition outside JOURNAL_NEXT. `.partial-<pid>`
+@@ -642,6 +684,7 @@
+     assert isinstance(lock_fd, int), 'the launch lock is not held'
+     directory = pathlib.Path(directory or BOOTSTRAP_DIR); owner = ROOT_UID if owner is None else owner
+     l_sha, launch, _n = launch_record(cfg, release_sha, directory, owner, top)
++    launch_lineage(launch, None, owner, top)                 # predecessor chain + archive coverage, before anything is consumed
+     entries = journal_entries(directory / 'journal', owner, l_sha, top)
+     state = entries[-1][1]['event']
+     assert state != 'consumed', (f'bootstrap anchor already consumed (journal seq {len(entries)}): refusing; the anchor is '

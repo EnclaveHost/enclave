@@ -1,0 +1,37 @@
+[queue] START available=40583MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Ran 13 tests in 1.082s
+
+OK
+{
+ "badMarkers": [],
+ "checkerSha256": "fd3c0a9f354452ba42a9616bd334d9580e34ecb4d5562e3bf3e62f1053dd09a9",
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "expectedTests": 13,
+ "format": "enclave-postdelete-bitmap-test-receipt/r2",
+ "libext2fs": {
+  "realpath": "/usr/lib/libext2fs.so.2.4",
+  "sha256": "5ffd7f73c5fa00c74eb892141a94b60df576d80d057245e8225c826f46defd9f"
+ },
+ "pass": true,
+ "python": "3.14.8",
+ "ran": [
+  "13"
+ ],
+ "rc": 0,
+ "runtimeSha256": "d3cfa34e2fa80744b99ddde1a06ace056ccd962e65e45ef9241c0cc6727eb973",
+ "stageSums": "51c393bfeef5506752b44ebb3ae27c1a7f40faffa0126a278948b705113b529d",
+ "stderrSha256": "176499545cd3ebabf2d15ef029737bbf1d299eaeebd7fb5dbdb0f25e01c5cbdd",
+ "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+## PASS (13)
+## receipt /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postdelete-bitmap-stage/r2/runs/tests-20261026T211027Z-2355069/receipt.json
+## pdb-r2-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=60 minHostAvailableMiB=40134
+[memory-guard] at peak: python3:54 bash:4 timeout:2
+[queue] EXIT 0

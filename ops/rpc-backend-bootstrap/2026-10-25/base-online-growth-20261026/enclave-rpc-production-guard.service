@@ -1,0 +1,19 @@
+# rendered by provision_vm.py (enclave-rpc-backend-vm/v2): bounded thin-provisioning guard for enclave-rpc-production-vm.service
+[Unit]
+Description=Enclave RPC VM capacity guard (pauses or powers down ONLY enclave-rpc-production-vm.service before its NVMe floor)
+PartOf=enclave-rpc-production-vm.service
+StartLimitIntervalSec=3600
+StartLimitBurst=3
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/bin/python3 -I /home/steven/.local/state/enclave-rpc-production/provision_vm.py guard /home/steven/.local/state/enclave-rpc-production/manifest.json a28432151c9a24bd207d9adaab401ca4e24a9cdc39807489f12c3000b0936441
+WatchdogSec=30
+TimeoutAbortSec=10
+TimeoutStopSec=30
+Restart=no
+TimeoutStartSec=120
+MemoryMax=256M
+NoNewPrivileges=yes
+UMask=0077

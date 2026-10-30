@@ -1,0 +1,74 @@
+[queue] START available=23533MiB required=19456MiB cap=2560MiB floor=16384MiB concurrentSmall=256MiB
+== frozen inputs and tested evidence
+[ok] common.sh 2c751494
+[ok] canonical-block.patch 41667ec9
+[ok] PATCHED.sha256 7e87fad8
+[ok] INPUT-MANIFEST.base-eeffcc9 pinned
+[ok] tested-evidence receipts unchanged (TESTED-EVIDENCE.sha256)
+[ok] runtime pin set equals the reviewed original
+[ok] glibcRuntime/natives dir PINS.sha256 (for the runtime smoke)
+[ok] offline: interfaces = lo only (lo )
+[ok] offline: no IPv4 route
+[tool] rustc 1.96.0 (ac68faa20 2026-05-25) binary: rustc commit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96 commit-date: 2026-05-25 host: x86_64-unknown-linux-gnu release: 1.96.0 LLVM version: 22.1.2 
+[tool] cargo 1.96.0 (30a34c682 2026-05-25)
+[tool] rustc ba4b837efb6612df cargo f30f9fd1b1d0b8fd cc cc (GCC) 16.2.1 20260810
+[ok] fresh /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z
+[ok] source repo HEAD eeffcc9
+[ok] source repo clean
+[ok] clone tree == R3x tree
+[ok] clone Cargo.lock == R3x
+[ok] base files == INPUT-MANIFEST
+[ok] patched files == PATCHED.sha256
+[ok] base archive pin 9784e20a
+[ok] vendor-inspect/base-v1.5.1 == pinned extraction c9301490
+[ok] vendor-inspect holds only base-v1.5.1
+[ok] cache-reuse: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z ended per /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/root-canonical-native-types-2345.out (rc 20)
+
+[ok] cache-reuse: exclusive lock held for this job
+[ok] cache-reuse: cargo-home/registry/cache == CH0
+[ok] cache-reuse: cargo-home/registry/src == CH0
+[ok] cache-reuse: cargo-home/git == CH0
+[ok] cache-reuse: CARGO_HOME=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/cargo-home CARGO_TARGET_DIR=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target (mutable; fresh source, patch, closure and logs in /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z)
+rustc 1.96.0 (ac68faa20 2026-05-25)
+cargo 1.96.0 (30a34c682 2026-05-25)
+== A0: locked closure (cargo metadata --offline --locked)
+[closure] 26 path packages; outside the work dir: 0
+== A0: dependency cache (cargo fetch --offline --locked, this target)
+[ok] Cargo.lock unchanged
+[ok] eeffcc9 commit time == SOURCE_DATE_EPOCH 1792720709
+[ok] toolchain is 1.96.0
+== reuse: clean ONLY the CLI package so the binary is rebuilt
+     Removed 8 files, 238.7MiB total
+== build helios-cli (2026-10-26T00:46:36Z) SOURCE_DATE_EPOCH=1792720709 RUSTFLAGS='-C link-arg=-Wl,--threads=1' CARGO_PROFILE_DEV_DEBUG=0 jobs=1
+## cargo build rc=0 (2026-10-26T00:47:14Z)
+   Compiling helios-linea v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/helios/linea)
+   Compiling helios-cli v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/helios/cli)
+    Finished `dev` profile [unoptimized] target(s) in 38.18s
+[ok] Cargo.lock unchanged
+[artifacts] 716 units, 695 fresh (reused from the cache)
+== artifact
+[artifact] 8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378  helios  (125121704 bytes)
+[artifact] GNU                  0x00000014	NT_GNU_BUILD_ID (unique build ID bitstring)
+[artifact] Build ID: 7e055aded1b1cfb33876454af6a57e1aa5f2c044
+[artifact] comment [     0]  rustc version 1.96.0 (ac68faa20 2026-05-25)
+[artifact] comment [    2c]  Linker: LLD 22.1.2 (/checkout/src/llvm-project/llvm 1cb4e3833c1919c2e6fb579a23ac0e2b22587b7e)
+[artifact] comment [    8b]  GCC: (GNU) 16.2.1 20260810
+[artifact] interpreter: /lib64/ld-linux-x86-64.so.2; NEEDED: libc.so.6 ld-linux-x86-64.so.2 libgcc_s.so.1 libm.so.6 ; RPATH/RUNPATH: 0
+[artifact] highest GLIBC: GLIBC_2.39
+[ok] NEEDED subset of the pinned glibcRuntime (libc, libm, libgcc_s, ld-linux)
+[artifact] absolute build-path strings (debug build, informational): 32
+== smoke (offline, HOME=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/out/home, 30 s each): host runtime AND the image's pinned glibcRuntime loader
+[ok] host: helios --version rc 0 (helios-cli 0.12.0)
+[ok] host: helios --help rc 0
+[ok] pinned-runtime: helios --version rc 0 (helios-cli 0.12.0)
+[ok] pinned-runtime: helios --help rc 0
+[smoke] ethereum --help rc 0
+[ok] ethereum --help rc 0
+[smoke] opstack --help rc 0
+[ok] opstack --help rc 0
+[smoke] linea --help rc 0
+[ok] linea --help rc 0
+## rc=0 (canonical Helios artifact 8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378 built; NOT a pass, NOT a reproduction, NOT deployed)
+[memory-guard] exit=0 peakTreeRssMiB=1147 minHostAvailableMiB=22833
+[memory-guard] at peak: rustc:961 cargo:180 bash:4 timeout:2
+[queue] EXIT 0

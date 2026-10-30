@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# TEST STUB. state/journal lines are "<invocation id> <message>". _SYSTEMD_INVOCATION_ID=X prints only X's lines; any other
+# query (-u/--since, as the frozen r1 canary used) prints every line, like a time window that still holds an old invocation.
+set -u; ST=$(cd "$(dirname "$0")/.." && pwd)/state; echo "journalctl $*" >> "$ST/calls"; id=
+for a in "$@"; do case $a in _SYSTEMD_INVOCATION_ID=*) id=${a#*=};; esac; done
+if [ -n "$id" ]; then awk -v id="$id" '$1==id { sub(/^[^ ]+ /, ""); print }' "$ST/journal"; else cut -d' ' -f2- "$ST/journal"; fi

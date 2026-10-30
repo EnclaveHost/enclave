@@ -1,0 +1,7 @@
+[queue] START available=92981MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+[composite] REFUSED/FAILED: addon: MANIFEST.json is 51275184f549859bee469a11ef808f8fca84d93aa0557edd3e89380818d50a9a, expected 4ee8435473630bb56c28db0ff701486cb2c5d93d7e2f56534759aa11358f0373
+[memory-guard] exit=1 peakTreeRssMiB=116 minHostAvailableMiB=92863
+[memory-guard] at peak: node:99 python3:18
+[memory-guard] exit=1 peakTreeRssMiB=152 minHostAvailableMiB=92886
+[memory-guard] at peak: node:84 node:50 python3:18
+[queue] EXIT 1

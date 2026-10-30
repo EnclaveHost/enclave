@@ -1,0 +1,16 @@
+{
+ "module": "test_controller",
+ "expected": 14,
+ "counts": {
+  "testsRun": 14,
+  "failures": 1,
+  "errors": 0,
+  "skipped": 0,
+  "expectedFailures": 0,
+  "unexpectedSuccesses": 0
+ },
+ "pass": false,
+ "notPassed": [
+  "test_controller.Controller.test_existing_active_retention_is_refused_never_adopted_or_stopped"
+ ]
+}

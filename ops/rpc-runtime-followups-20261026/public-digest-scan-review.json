@@ -1,0 +1,80 @@
+{
+  "format": "enclave-public-digest-scan-review/v1",
+  "manifest": "ops/rpc-runtime-followups-20261026/signed-capture-r2/VENDOR.json",
+  "manifestSha256": "18bc7bfbd061d6fb2c378f6636b784e45b9f2c81d04de859d2c190347bfec77a",
+  "rule": "coinbase-access-token",
+  "reason": "public viem file names containing Coinbase put their sha256 digests in the token rule's shape; each digest below was recomputed against the vendored file",
+  "audited": [
+    {
+      "file": "vendor/node_modules/viem/_cjs/account-abstraction/accounts/implementations/toCoinbaseSmartAccount.js",
+      "sha256": "ccffc5536cd901914eaee2b279f08c983ae7b3ed6ae180ffd309cd9d4011f1b6",
+      "matchedByRule": true
+    },
+    {
+      "file": "vendor/node_modules/viem/_cjs/account-abstraction/accounts/implementations/toCoinbaseSmartAccount.js.map",
+      "sha256": "db3574564ad9130d19d89277b88b70da8f6ba27c97843ee737a8839e43609450",
+      "matchedByRule": true
+    },
+    {
+      "file": "vendor/node_modules/viem/_cjs/actions/test/setCoinbase.js",
+      "sha256": "9d77333d14f993f37fa7f101068b6c0399622e932b628597b3ff1a2d1d8125ea",
+      "matchedByRule": true
+    },
+    {
+      "file": "vendor/node_modules/viem/_cjs/actions/test/setCoinbase.js.map",
+      "sha256": "508bf1493b23e8fe823519de960c8545059870214e86c3d9572c1663b53b81c5",
+      "matchedByRule": true
+    },
+    {
+      "file": "vendor/node_modules/viem/_esm/account-abstraction/accounts/implementations/toCoinbaseSmartAccount.js",
+      "sha256": "e66a4b64e7684f42f557e9212318e2394508b833d5a6e197eb02b6a5b9c1ca21",
+      "matchedByRule": true
+    },
+    {
+      "file": "vendor/node_modules/viem/_esm/account-abstraction/accounts/implementations/toCoinbaseSmartAccount.js.map",
+      "sha256": "4c588c7240f580902577a6e21824e9e0ea4517e6a72ec051bfca65227f702cd5",
+      "matchedByRule": true
+    },
+    {
+      "file": "vendor/node_modules/viem/_esm/actions/test/setCoinbase.js",
+      "sha256": "c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",
+      "matchedByRule": true
+    },
+    {
+      "file": "vendor/node_modules/viem/_esm/actions/test/setCoinbase.js.map",
+      "sha256": "05dd8b6ec6a67ea0730c24f4d8b17af83621e82eafe2092b74be0f8841dace02",
+      "matchedByRule": true
+    },
+    {
+      "file": "vendor/node_modules/viem/_types/account-abstraction/accounts/implementations/toCoinbaseSmartAccount.d.ts",
+      "sha256": "f4b79c91693fbed54cbc52c904ec5ab8fea9a6f6e875fee00f23df7d366d0ae8",
+      "matchedByRule": true
+    },
+    {
+      "file": "vendor/node_modules/viem/_types/account-abstraction/accounts/implementations/toCoinbaseSmartAccount.d.ts.map",
+      "sha256": "3c970490971d0be5bd0ccccd79fc7481bc8ffb84300327d388518813d7c44b67",
+      "matchedByRule": false
+    },
+    {
+      "file": "vendor/node_modules/viem/_types/actions/test/setCoinbase.d.ts",
+      "sha256": "91d378f564d91afa23da2a7985d2a721cee70494e02b96a439ae3d156297e8ce",
+      "matchedByRule": true
+    },
+    {
+      "file": "vendor/node_modules/viem/_types/actions/test/setCoinbase.d.ts.map",
+      "sha256": "989a876500a3fa277df29a5bbea7d106e95f02b734f274978f3ddce21fcee423",
+      "matchedByRule": true
+    },
+    {
+      "file": "vendor/node_modules/viem/account-abstraction/accounts/implementations/toCoinbaseSmartAccount.ts",
+      "sha256": "e61ddd268dd9c5e588d3cb65599ca9c478743e78596243c027b96bc1350238a6",
+      "matchedByRule": true
+    },
+    {
+      "file": "vendor/node_modules/viem/actions/test/setCoinbase.ts",
+      "sha256": "52ef6c939763a0597d1241035a9eda94d90fc44e34abe6e9af687a861c3e8072",
+      "matchedByRule": true
+    }
+  ],
+  "scope": "targetRules coinbase-access-token only; condition AND on this exact path and exact digests; every other rule and value in the file stays scanned"
+}

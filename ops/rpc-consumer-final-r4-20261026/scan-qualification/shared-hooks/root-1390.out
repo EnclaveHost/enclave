@@ -1,0 +1,19 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] START available=21878MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+C current: scanner rc 0 hook rc 0 gitleaks-selftest rc 0
+C patched: scanner rc 0 hook rc 0 gitleaks-selftest rc 0
+PASS D {"pass": true, "failures": [], "scenarios": {"S1-shared-current-tree-patched": true, "S2-shared-patched-tree-patched": true, "S3-shared-patched-tree-HEAD-scanner": true, "N1-wrong-digest": true, "N2-wrong-path": true, "N3-new-privateKey-entry": true, "N4-real-key-field": true, "N5-extra-content-on-listed-line": true, "N6-changed-setCoinbase-digest": true}}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shared-hook-digest-stage/runs/run-20261026T145545Z-1926621
+## shared-hook-digest rc=0
+[memory-guard] exit=0 peakTreeRssMiB=94 minHostAvailableMiB=21685
+[memory-guard] at peak: gitleaks:52 python3:23 git:5 git-receive-pac:5 bash:4 bash:4 timeout:2
+[queue] EXIT 0

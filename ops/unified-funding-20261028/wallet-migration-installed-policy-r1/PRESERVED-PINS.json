@@ -1,0 +1,46 @@
+[
+  {
+    "path": "ROOT-REVIEW.md",
+    "sha256": "1eaedb6163cf4059e35b04c39b12d940e774d0407f86b0e2e20ac785784d4505"
+  },
+  {
+    "path": "attempt",
+    "sha256": "0cad1edab35f790390ffa5c973867dfed746e503c8bc33031dd50e14694ee3ee"
+  },
+  {
+    "path": "inner.guard.log",
+    "sha256": "6f34a9347ea5673daab82fc7138547f0fb2055958274c042ebd857c7b3f871c4"
+  },
+  {
+    "path": "outer.guard.log",
+    "sha256": "e5bf0541d5931afa8ca452c79072a2d9413952d84ecc041d68f330dafe239565"
+  },
+  {
+    "path": "read.py",
+    "sha256": "97636f04c95b7b0caa0f2b3776616f06503cc359f6c9364d89444ac79b7e6338"
+  },
+  {
+    "path": "result.json",
+    "sha256": "161f5b0e7724b66ad8b6ba4778e5de6c28cc38e4d55f40077e32ea3c9c693df9"
+  },
+  {
+    "path": "secrets-release.mjs",
+    "sha256": "48cf67ee80a088f3b713eaed401273a97aecb3aeca7204f320e0f22083405715"
+  },
+  {
+    "path": "secrets.js",
+    "sha256": "4c49127164e716a7431b1e2d62cd703f82b7a849641205e5bdf28d3bd17a198b"
+  },
+  {
+    "path": "sessions.mjs",
+    "sha256": "483b1c5ef29d83c937a5fd5b15ea3b2e940025d76706a1c5a63867f33c55c4e3"
+  },
+  {
+    "path": "shield-secrets.mjs",
+    "sha256": "744e687237a28b23b1e0954b5b408eeb904cb8882b16c8df39fd8e8aeba144e5"
+  },
+  {
+    "path": "stderr.txt",
+    "sha256": "94dbeecfedf57900fced12d73898498aca6d71ec748d21eae0e0cf23f3c901ad"
+  }
+]

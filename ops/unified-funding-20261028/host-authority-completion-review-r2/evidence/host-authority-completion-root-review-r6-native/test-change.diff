@@ -1,0 +1,9 @@
+--- r5-native/test.mjs
++++ r6-native/test.mjs
+@@ -255,0 +256,6 @@
++  const restart = r1.journal.decision(w.id, chainNow());
++  console.log('ROOT restart evidence', JSON.stringify({restart,now:chainNow(),row:r1.journal.read(w.id)}));
++  if (!restart.start && restart.reason === 'restart backoff') {
++    assert.ok(Number.isSafeInteger(restart.nextAt));
++    await warp(Math.max(1, Math.ceil((restart.nextAt-chainNow())/1000)+1)); // advance ONLY the owned TEST chain/clock beyond actual policy backoff
++  }

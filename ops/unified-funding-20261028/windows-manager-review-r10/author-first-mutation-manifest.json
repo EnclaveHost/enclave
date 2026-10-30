@@ -1,0 +1,14 @@
+{
+  "RELEASE-CLOSURE-R10.json": "324fbbfde566e67681c24876f35449dec1b14a79d3937453ce506a60d085617b",
+  "REPORT-WINDOWS-PERMIT-R10.md": "d9b221b34d2d1e9ff385425b67ac0c33acafdd5e84790cace7a2651661582cd5",
+  "control/network/deployment-chain-adapter.mjs": "808693c98583b6a31868998d72ad873b4eb5e5229caaa6c8503722c3d48ddaa2",
+  "control/network/lifecycle-host-dispatch.mjs": "40fa2baf05180d8fe9aac307a0cbd980019fd0764404f8cf284f9dd8d9a0d118",
+  "control/windows/node/host.mjs": "fb4b0d11ffe1747fcfe806482bd064a24b13a142b7344a10fd8ddd04261d64da",
+  "control/windows/node/protected-authority-factory.mjs": "70838f3dc19f8712d78d82c6624fa3a489d5d8b566cca346b68dbd2a5b9d5d89",
+  "control/windows/node/protected-supervisor.mjs": "c31e07b1f9238d13ad00cb9ffa4c1bebe035da5166615322fa0a4fd782e6c955",
+  "test/windows-permit/r10-host-independence.test.mjs": "39b38ee7b44736c077af2c90c171009dc34c2a089f570495ee5a19412a4e5eff",
+  "test/windows-permit/r4-supervisor-chain.test.mjs": "e8c73cbb56e8911082c7d62e9b1e9657b6b2920a618dc612b372dde8571b964c",
+  "test/windows-permit/r5-ownership-chain.test.mjs": "3875dc9b9889f8b7547ddfe53dea76ab807d803c9e5df0cf595c3bb8dfa2ebb0",
+  "test/windows-permit/r6-stage-revocation.test.mjs": "ce41069fada151aa9b090dc2ed62dfbb7fe198970d30ae3f5b76f19e0261189f",
+  "test/windows-permit/r7-owner-lifetime.test.mjs": "a364d39e68d1c89438573bcec43b4a23a621ed893762b8f0b94ac359e540f6ee"
+}

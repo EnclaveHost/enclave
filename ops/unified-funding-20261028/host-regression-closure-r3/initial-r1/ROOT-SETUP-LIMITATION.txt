@@ -1,0 +1,1 @@
+Root introduced --experimental-test-isolation=none unlike the historically passing93-test command. First zero-route candidate test timed out30s. Exact owned unit8dc44c3fcbd1455ead30939246205c84 stopped; this is not a product regression finding. Newr2 preserves original default test isolation, same one-test concurrency and resource bounds.

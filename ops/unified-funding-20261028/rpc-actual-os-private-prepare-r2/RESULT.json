@@ -1,0 +1,28 @@
+{
+  "exit": 3,
+  "resourceEnvelope": {
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2541249-i44468043.scope",
+    "memoryMax": "536870912",
+    "swapMax": "0"
+  },
+  "stdoutSha256": "1d135a6f8b4216a3854bfcf014366efb404dcc8af711d724b7ed9ca1d98634f8",
+  "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "writerGone": true,
+  "sourceAndBackupWriteAuthorized": false,
+  "published": false,
+  "booted": false,
+  "writerResult": {
+    "error": {
+      "message": "debugfs: request contains unsafe characters",
+      "phase": "debugfs"
+    },
+    "receipt": "/vm/enclave-volumes/rpc-production-maint/os-private-20261030T093130Z-133828/RESULT.json",
+    "status": "FAILED"
+  },
+  "receiptPath": "/vm/enclave-volumes/rpc-production-maint/os-private-20261030T093130Z-133828/RESULT.json",
+  "receiptSha256": "64c91c1ad6565d671d8e16c0e2cc04a5877074a2baf212c0973015e163ffbb4d",
+  "receiptStatus": "FAILED",
+  "publishable": false,
+  "derivative": null,
+  "operationsCompleted": 0
+}

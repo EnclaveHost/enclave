@@ -1,0 +1,81 @@
+{
+  "observedAt": "2026-10-25T22:15Z",
+  "method": "ssh BatchMode, StrictHostKeyChecking=yes, existing aliases; systemctl show / env+config public-field extraction only (observed/live-front-*.json)",
+  "eu-central": {
+    "leaseRelay": {
+      "unit": "enclave-lease-relay.service active",
+      "release": "/opt/enclave-lease-relay/releases/94f4ebdf93d727ed21c1b3aa6ae25114a40f5add40e9b708d4b60f2db7cbc322",
+      "env.LEASE_RELAY_RPCS": [
+        "base-rpc.publicnode.com",
+        "mainnet.base.org",
+        "base-mainnet.public.blastapi.io"
+      ],
+      "env.LEASE_RELAY_QUORUM": 2,
+      "verifierAuthority": "absent",
+      "redactedKeys": [
+        "LEASE_RELAY_RECORD",
+        "LEASE_RELAY_DIGEST",
+        "LEASE_RELAY_MAX_FLOAT_ETH",
+        "LEASE_RELAY_MIN_FLOAT_ETH",
+        "LEASE_RELAY_LISTEN",
+        "LEASE_RELAY_ARTIFACT_SHA256"
+      ]
+    }
+  },
+  "frontStack(all4: eu-central,us-west,ca-east,ap-southeast)": {
+    "enclave-network-provider": {
+      "release": "native-recovery-464cad3/provider.mjs (eu-central, us-west, ap-southeast); hs-transport-39d1513b/wg-provider.mjs with provider-pinned-8b37c37.hs-a1.json (ca-east: DRIFT)",
+      "rpc": [
+        "mainnet.base.org",
+        "base-rpc.publicnode.com",
+        "base.drpc.org"
+      ],
+      "addressBook": "0xab214342d5A490150A4A977063A2f88E21F80907",
+      "authorityPins": "same four as Metal0"
+    },
+    "enclave-public-directory": {
+      "release": "runtime-37366ab",
+      "config": "/etc/enclave-directory/config-f6959cb.json",
+      "rpc": [
+        "mainnet.base.org",
+        "base-rpc.publicnode.com",
+        "base.drpc.org"
+      ]
+    },
+    "enclave-custodian (legacy v1 custodian.mjs)": {
+      "CUSTODY_RPCS": [
+        "mainnet.base.org",
+        "base-rpc.publicnode.com",
+        "base.drpc.org",
+        "1rpc.io"
+      ],
+      "CUSTODY_MIN_AGREE": 2
+    },
+    "enclave-route-dns": {
+      "DNS_READ_ONLY": 1,
+      "ROUTE_MAP_URL": "http://127.0.0.1:8188/...",
+      "chainRpc": "none (fleet BASE_RPC path inactive under READ_ONLY)"
+    },
+    "enclave-bootstrap-gateway": {
+      "release": "enclave-retained/cc96aad",
+      "rpcFieldsInConfig": "none (code defaults not audited)"
+    },
+    "enclave-dns-front": "dnsdist, no chain reads",
+    "caddy/bootstrap-tls": "no chain reads"
+  },
+  "nan": {
+    "enclave-api-relay": "installed /opt/nan-relay but INACTIVE",
+    "enclave-dns": "installed /opt/enclave-dns but INACTIVE",
+    "activeEnclaveServices": "none"
+  },
+  "minipc(Windows)": {
+    "services": [
+      "EnclaveDNS Running"
+    ],
+    "scheduledTasks": [
+      "enclave-host-services-hs2 Ready"
+    ],
+    "nodeProcesses": "query failed (CIM filter error); NOT inventoried"
+  },
+  "apiRelayLocation": "UNKNOWN: api.enclave.host relay not running under the reviewed unit name on any known alias"
+}

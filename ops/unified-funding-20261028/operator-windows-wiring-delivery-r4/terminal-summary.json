@@ -1,0 +1,117 @@
+{
+  "admission": {
+    "unit": "enclave-operator-windows-wiring-r4-20261029.service",
+    "ActiveState": "active",
+    "InvocationID": "c42666e49091427f9856e9d64e197848",
+    "MainPID": "1917274",
+    "processes": [
+      {
+        "pid": 1917274,
+        "start": "161519209",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "affinity": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31
+        ]
+      },
+      {
+        "pid": 1917289,
+        "start": "161519221",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "affinity": [
+          1
+        ]
+      },
+      {
+        "pid": 1917303,
+        "start": "161519303",
+        "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+        "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029",
+        "affinity": [
+          1
+        ]
+      }
+    ],
+    "verifiedAt": 1793310091.518852,
+    "account": {
+      "loggedIn": true,
+      "email": "steven.r.batchelor@gmail.com",
+      "subscriptionType": "max"
+    },
+    "sourceOnly": true,
+    "remoteOrFinancialActions": false,
+    "mainPid": 1917274,
+    "invocationId": "c42666e49091427f9856e9d64e197848",
+    "mainPidStartTicks": "161519209",
+    "runnerPid": 1917289,
+    "runnerPidStartTicks": "161519221",
+    "claudePid": 1917303,
+    "claudePidStartTicks": "161519303"
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 0,
+    "finishedAt": 1793310602.0219579,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "3f35a7fe-21ce-4877-ad43-7a5f001e8258",
+  "duration_ms": 522010,
+  "num_turns": 40,
+  "configuredMaxAgenticTurns": 30,
+  "distinctAssistantMessageIds": 15,
+  "transcriptUserRows": 40,
+  "turnMetricNote": "Raw success-result num_turns is a different user-message counter from max-agentic/API-turn limit; retain without conflating. See pinned turn-metric-investigation.json.",
+  "is_error": false,
+  "outputParseFailed": false,
+  "files": 252,
+  "changedFiles": 6,
+  "removedFiles": [],
+  "manifestSha256": "28a94534fa697b8e972dbe5881f727df1af111a21b6c6cd7c7f5c1a16d603e12",
+  "firstMutations": 6,
+  "firstMutationManifestSha256": "ac1d8c8d17becdea77a8562cc57b584833f438bf7b786fb324915d098040d4b6",
+  "currentInvocationTools": {
+    "Read": 10,
+    "Grep": 6,
+    "Edit": 20,
+    "Write": 3
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [],
+  "mutationAuditSha256": "0c986e37a1bf9f8417679155cc05d905312b72e8485f665b4cda7a94574db6ff",
+  "innerGuard": "[memory-guard] exit=0 peakTreeRssMiB=288 minHostAvailableMiB=31056\n",
+  "outerGuard": "[memory-guard] exit=0 peakTreeRssMiB=354 minHostAvailableMiB=31004\n"
+}

@@ -1,0 +1,2 @@
+{"readOnly": true, "identity": {"pid": 256324, "startTicks": 49472391, "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd", "controlGroup": "/system.slice/enclave-api-relay.service", "invocationId": "049812f4b72645c09e891a09350d97c9"}, "oldGasLimit": 1000000, "newGasLimit": 1200000, "feeCapMicroUSDC": 80000, "onlyConfigFieldChanges": true, "journalLastNonce": 97, "journalCoverageClaim": false}
+

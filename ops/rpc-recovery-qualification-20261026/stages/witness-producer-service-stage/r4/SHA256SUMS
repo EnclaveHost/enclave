@@ -1,0 +1,3 @@
+fbfdd5d00b412ccf18958be1119911b0032e25b53435004abee3baa20bf292ba  ./README.md
+aaa5c314c0823621ade10fb6480f77cb10c3fbd2eccff5608751293b46dbf4f9  ./jobs/tests.sh
+081597c2437298365b6eb0a6ff768266d3ab996d4eb4ce1ee647cccc0f187422  ./tests/test_forward_chain_r4.py

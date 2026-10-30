@@ -1,0 +1,17 @@
+[queue] START available=84253MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+Running as unit: enclave-shield-full-probe-build-r2-20261028.service
+  Generating bindings for ggml-probe (src/bindings.rs)
+   Compiling wit-bindgen-rt v0.39.0
+   Compiling bitflags v2.13.0
+   Compiling ggml-probe v0.1.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-probe-build-r2)
+    Finished `release` profile [optimized] target(s) in 1.47s
+    Creating component target/wasm32-wasip1/release/ggml_probe.wasm
+Public synthetic probe component compiled; no VM/GPU/network operation
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 1.602s
+             CPU time consumed: 1.207s
+                   Memory peak: 255.2M (swap: 0B)
+[memory-guard] exit=0 peakTreeRssMiB=5 minHostAvailableMiB=84163
+[memory-guard] at peak: systemd-run:5
+[queue] EXIT 0

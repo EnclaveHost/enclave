@@ -1,0 +1,12 @@
+[queue] START available=83750MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+Running as unit: enclave-shield-bench-build-r1-20261028.service
+arm A: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-build-r1/images/arm-A.initramfs.cpio.gz sha256=80d28b6f957c232cf9d721b2b6ef1a1d9af0d1c81356440d59914e140e262d9e
+arm B: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-build-r1/images/arm-B.initramfs.cpio.gz sha256=bade714371254c63a6e64f7e2a5706dc7049c1ae0035b331aa4bd0ad03ce8497
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 1.783s
+             CPU time consumed: 1.757s
+                   Memory peak: 61.6M (swap: 0B)
+[memory-guard] exit=0 peakTreeRssMiB=5 minHostAvailableMiB=83697
+[memory-guard] at peak: systemd-run:5
+[queue] EXIT 0

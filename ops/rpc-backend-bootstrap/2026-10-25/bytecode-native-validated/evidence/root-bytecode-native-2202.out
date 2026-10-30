@@ -1,0 +1,41 @@
+[queue] START available=20683MiB required=18432MiB cap=1792MiB floor=16384MiB concurrentSmall=0MiB
+## toolchain rustc 1.96.0 (ac68faa20 2026-05-25) | cargo 1.96.0 (30a34c682 2026-05-25) | jobs=1
+inserted base-bytecode-check before base-challenger (6 deps)
+{"lockSha256": "91a9e7626b5f361faed8f5226268ffae177970575e8ecd243d09cb077bd23bab", "closurePackages": 648, "registry": 632, "git": 16, "gitSources": ["git+https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b51cf9d9504f988bff3266a23085f0bd9"]} problems=0
+## [0] resolution only (no compile): cargo tree --locked
+## compiled graph: 367 packages, all inside the verified closure of 648
+## [1] patched: build + run all tests
+## patched test binary sha256 8f59bea2ab9734edbe2c37e2427f94768c23588dab025f0d9e18a9ef66836e39
+test tests::client_panics_exactly_where_the_checker_predicts ... ok
+test tests::client_cross_check_independently_refuses_harmful_rows ... ok
+test tests::completeness_counts_missing_code_and_ignores_empty ... ok
+test tests::extra_table_bytes_and_bits_past_bit_len_are_non_canonical_not_failures ... ok
+test tests::forged_jump_bits_are_executed_by_the_client ... ok
+test tests::client_written_rows_are_canonical_and_agree ... ok
+test tests::nonzero_padding_is_executed_by_the_client ... ok
+test tests::padding_shorter_than_revm42_is_refused_and_dupn_is_classified ... ok
+test tests::mdbx_scan_end_to_end_reports_failures_missing_code_and_is_read_only ... ok
+test tests::raw_tag0_rows_follow_new_raw ... ok
+test tests::rows_the_client_misreads_silently_are_refused ... ok
+test tests::size_key_and_length_guards ... ok
+test tests::pseudo_random_client_rows_pass_and_every_read_jump_bit_flip_fails ... ok
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.55s
+## [2] CONTROL jumpbit (one rule disabled)
+## control jumpbit rc=101 failing: tests::forged_jump_bits_are_executed_by_the_client tests::mdbx_scan_end_to_end_reports_failures_missing_code_and_is_read_only tests::pseudo_random_client_rows_pass_and_every_read_jump_bit_flip_fails
+## control jumpbit failed exactly as expected
+## [2] CONTROL padding (one rule disabled)
+## control padding rc=101 failing: tests::padding_shorter_than_revm42_is_refused_and_dupn_is_classified
+## control padding failed exactly as expected
+## [2] CONTROL client (one rule disabled)
+## control client rc=101 failing: tests::client_cross_check_independently_refuses_harmful_rows
+## control client failed exactly as expected
+## [2] CONTROL completeness (one rule disabled)
+## control completeness rc=101 failing: tests::completeness_counts_missing_code_and_ignores_empty tests::mdbx_scan_end_to_end_reports_failures_missing_code_and_is_read_only
+## control completeness failed exactly as expected
+## [2] CONTROL eip7702 (one rule disabled)
+## control eip7702 rc=101 failing: tests::rows_the_client_misreads_silently_are_refused
+## control eip7702 failed exactly as expected
+## aggregate rc=0
+[memory-guard] exit=0 peakTreeRssMiB=684 minHostAvailableMiB=19680
+[memory-guard] at peak: rust-lld:301 cargo:220 rustc:153 bash:4 cc:3 collect2:3
+[queue] EXIT 0

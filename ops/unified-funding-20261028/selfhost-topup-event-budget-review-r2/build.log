@@ -1,0 +1,13 @@
+▲ [WARNING] The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected [commonjs-variable-in-esm]
+
+    ../selfhost-topup-r1-20261029/reconstructed/enclave/site/js/lib/qr.js:2300:6:
+      2300 │       module.exports = factory();
+           ╵       ~~~~~~
+
+  This file is considered to be an ECMAScript module because of the "export" keyword here:
+
+    ../selfhost-topup-r1-20261029/reconstructed/enclave/site/js/lib/qr.js:2306:0:
+      2306 │ export function qrSvg(text, opts){
+           ╵ ~~~~~~
+
+PASS candidate build 113 98

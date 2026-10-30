@@ -1,0 +1,32 @@
+{
+  "result": "PASS",
+  "scope": "independent checks of recorded pinned-client config persistence; NOT chain synchronization",
+  "clients": [
+    "reth v2.8.0",
+    "base v1.5.1"
+  ],
+  "complete_profile": {
+    "block_interval": 5,
+    "minimum_pruning_distance": 10064,
+    "segments": {
+      "sender_recovery": "full",
+      "transaction_lookup": {
+        "distance": 140000
+      },
+      "receipts": {
+        "distance": 140000
+      },
+      "account_history": {
+        "distance": 140000
+      },
+      "storage_history": {
+        "distance": 140000
+      },
+      "bodies_history": {
+        "distance": 140000
+      }
+    }
+  },
+  "non_prune_config_preserved": true,
+  "second_launch_and_repair_byte_stability_records": 4
+}

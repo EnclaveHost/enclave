@@ -1,0 +1,168 @@
+{
+  "events": [
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/operator-effects-config.mjs",
+      "rel": "control/windows/node/operator-effects-config.mjs",
+      "id": "toolu_01WkbFWycAa5NhmHgEmvLfhT",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/operator-effects-config.mjs",
+      "rel": "control/windows/node/operator-effects-config.mjs",
+      "id": "toolu_01TujMQkppdkyGjHLmwum6f2",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/operator-effects-config.mjs",
+      "rel": "control/windows/node/operator-effects-config.mjs",
+      "id": "toolu_01BrMhowAdCPMcjaDKybnUQM",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/operator-effects-config.mjs",
+      "rel": "control/windows/node/operator-effects-config.mjs",
+      "id": "toolu_01Ue8xt61LZYsghDbRhrrgUL",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/operator-effects-config.mjs",
+      "rel": "control/windows/node/operator-effects-config.mjs",
+      "id": "toolu_013fDUppmtMf9gXyvf9SaLqT",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/operator-effects-config.mjs",
+      "rel": "control/windows/node/operator-effects-config.mjs",
+      "id": "toolu_01JWYhMTCrac1phjwSBD71pW",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/operator-effects-config.mjs",
+      "rel": "control/windows/node/operator-effects-config.mjs",
+      "id": "toolu_016zLV6kCARAqYXQh1vWuMkf",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/operator-effects-config.mjs",
+      "rel": "control/windows/node/operator-effects-config.mjs",
+      "id": "toolu_017nh3WGDo392G2gk7iZdy7B",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/install-operator-effects.mjs",
+      "rel": "control/windows/node/install-operator-effects.mjs",
+      "id": "toolu_01KLEpYUtWZVmXe9p1wy2Yip",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/install-operator-effects.mjs",
+      "rel": "control/windows/node/install-operator-effects.mjs",
+      "id": "toolu_01HQNc91bSwXa1PC2bLFVWCr",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/install-operator-effects.mjs",
+      "rel": "control/windows/node/install-operator-effects.mjs",
+      "id": "toolu_0173nT4zGgwLM1F5atnQBgj7",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/install-operator-effects.mjs",
+      "rel": "control/windows/node/install-operator-effects.mjs",
+      "id": "toolu_01M9GJmLosVyXu8oHCBrsmDC",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/install-operator-effects.mjs",
+      "rel": "control/windows/node/install-operator-effects.mjs",
+      "id": "toolu_01LDxVshT9jkbod66KNvCKDh",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/install-operator-effects.mjs",
+      "rel": "control/windows/node/install-operator-effects.mjs",
+      "id": "toolu_018gsDLRLd4hAM4hwUVQrmpB",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/install-operator-effects.mjs",
+      "rel": "control/windows/node/install-operator-effects.mjs",
+      "id": "toolu_01Gwzjo6G33TzzUPBh6FPBxh",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/control/windows/node/install-operator-effects.mjs",
+      "rel": "control/windows/node/install-operator-effects.mjs",
+      "id": "toolu_01Ed8aLCboupHfarTMxpLNhQ",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/test/windows-permit/helpers/ow-fixture.mjs",
+      "rel": "test/windows-permit/helpers/ow-fixture.mjs",
+      "id": "toolu_019fv2xFyi2eQmbPfV15CaFQ",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/test/windows-permit/helpers/ow-fixture.mjs",
+      "rel": "test/windows-permit/helpers/ow-fixture.mjs",
+      "id": "toolu_015xEKd5EEJtGzy8stefkd4B",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/test/windows-permit/ow-r4-system-identity.test.mjs",
+      "rel": "test/windows-permit/ow-r4-system-identity.test.mjs",
+      "id": "toolu_01NF22uqdEicTHyqMgjbCNp3",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/test/windows-permit/ow-r4-system-identity.test.mjs",
+      "rel": "test/windows-permit/ow-r4-system-identity.test.mjs",
+      "id": "toolu_01BQQGHN9N6zuzDxLdrePH3N",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Edit",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/test/windows-permit/ow-r4-system-identity.test.mjs",
+      "rel": "test/windows-permit/ow-r4-system-identity.test.mjs",
+      "id": "toolu_011dmekz5PPCM1HWMfR9G88t",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/RELEASE-CLOSURE-OPERATOR-WINDOWS-WIRING-R4.json",
+      "rel": "RELEASE-CLOSURE-OPERATOR-WINDOWS-WIRING-R4.json",
+      "id": "toolu_01N3HqzSVbrsimRzcZT9kBA8",
+      "outcome": "reported-success"
+    },
+    {
+      "tool": "Write",
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-windows-wiring-r4-20261029/candidate/REPORT-OPERATOR-WINDOWS-WIRING-R4.md",
+      "rel": "REPORT-OPERATOR-WINDOWS-WIRING-R4.md",
+      "id": "toolu_01HEaw1pHURUvUCb1bdhSQSj",
+      "outcome": "reported-success"
+    }
+  ],
+  "replayIssues": [],
+  "outsideCandidateAttempts": [],
+  "note": "first successful mutation snapshots reconstructed from immutable seed and successful tool results; any mismatch requires manual audit, never assumed clean"
+}

@@ -1,0 +1,71 @@
+{
+ "ok": false,
+ "fails": [
+  "windows-release-journal: {'rc': 1, 'tests': 7, 'pass': 6, 'fail': 1, 'skipped': 0, 'todo': 0, 'cancelled': 0} (expected 7/7, nothing skipped)"
+ ],
+ "results": {
+  "lease-designated-relays": {
+   "rc": 0,
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "lease-host-relay": {
+   "rc": 0,
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "lease-pinned-relay": {
+   "rc": 0,
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "lease-relay-migration": {
+   "rc": 0,
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "windows-current-runtime": {
+   "rc": 0,
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "windows-host-app-funded": {
+   "rc": 0,
+   "tests": 3,
+   "pass": 3,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "windows-release-journal": {
+   "rc": 1,
+   "tests": 7,
+   "pass": 6,
+   "fail": 1,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  }
+ }
+}

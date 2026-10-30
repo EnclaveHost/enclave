@@ -1,0 +1,26 @@
+{
+ "PRODUCT.md": {
+  "from": "57469e93c025678bc112f41a84461e156c563ce4",
+  "rule": "route blob (route is a superset of the candidate here)",
+  "to": "d0af9d422a41d0581647f827402e9c0521e8633d",
+  "why": "main's independent docs (d2ea087fa); the candidate carried the 7752 base text"
+ },
+ "docs/network/measured-control-guest.md": {
+  "from": "ff32f93a402bd7b7dacb33a2db38496bcff23298",
+  "rule": "2 route blocks, all lineage blocks kept",
+  "to": "ec9a14acfec0ed176e2294a8735f70c2bb893fc8",
+  "why": "the docs must describe the kept route CLI (READY only for verified); the lineage text said the check was not implemented"
+ },
+ "network/attested-verifier-client.mjs": {
+  "from": "719032372de1a32653e78bf63567830fdad982e6",
+  "rule": "route blob (route is a superset of the candidate here)",
+  "to": "e1e0d0abcc7bc962c9709b1b7dcc2ce926c8708e",
+  "why": "the candidate's metal/guest/measured-control.mjs is NOT the deployed image 0235e7d9's (the composition changed it), so guests of that image must be verified with the image lineage's exact code: route's import from the pinned ./attested-guest-verify.bundle.mjs; plus verifyNow (test-only clock) that the composed attested-authority.mjs passes. The candidate->route diff is exactly these 3 hunks"
+ },
+ "network/host-admission-node.mjs": {
+  "from": "d5e053cecfc5b100234b0f9c60453271d40e1902",
+  "rule": "route blob (route is a superset of the candidate here)",
+  "to": "ccbf1fb1f17536442390ed5f5b2125291fffbca9",
+  "why": "route appends the LeaseReader/chainAuthorityFromEnv and verified-read-client exports that windows/node/chain-reader.mjs and windows/node/chain.mjs (route, kept) import from the bundle; the candidate dropped them (r2 RA base == route tip)"
+ }
+}

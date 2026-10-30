@@ -1,0 +1,46 @@
+diff --git a/site/vendor/management.MANIFEST.json b/site/vendor/management.MANIFEST.json
+index dd547526..8c5d4f8f 100644
+--- a/site/vendor/management.MANIFEST.json
++++ b/site/vendor/management.MANIFEST.json
+@@ -10,33 +10,33 @@
+   "sources": {
+     "net-guard.mjs": {
+       "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+-      "commit": "c2bc3cc636ce53719f52688093ea892b9c8639c1",
++      "commit": "eb2c994a6b67e0fbc05be1a42614a27cd847ed71",
+       "committedClean": true
+     },
+     "network/canonical.mjs": {
+       "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+-      "commit": "c2bc3cc636ce53719f52688093ea892b9c8639c1",
++      "commit": "62f082fc615f84a32e26f2caf0868a27975681ae",
+       "committedClean": true
+     },
+     "network/management-browser.mjs": {
+       "sha256": "857dbfb5545951e02325a6e6959e1957394804cd1e4ec64a2b95fa95b7cd614b",
+-      "commit": "b3256349f18eaa853259e42726fa7f6233db1f71",
++      "commit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+       "committedClean": true
+     },
+     "network/management-outcome.mjs": {
+       "sha256": "fea5703454b1cc9323eacc931a42c0f99f1895526f4926e787155d57e44c0398",
+-      "commit": "b3256349f18eaa853259e42726fa7f6233db1f71",
+-      "committedClean": false
++      "commit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
++      "committedClean": true
+     },
+     "network/management-record.mjs": {
+       "sha256": "d946589d7f43a6169fcb8f88cbef9c9e933e24f42ecd3e72a41a38e936285eda",
+-      "commit": "b3256349f18eaa853259e42726fa7f6233db1f71",
++      "commit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+       "committedClean": true
+     },
+     "network/management-routes.mjs": {
+       "sha256": "0a47239553d4c4389227b5b56241fce955af87892907e7b70016bc4a9882dd93",
+-      "commit": "3542e1802018f41654a4554803ea51ecf0a4aaa7",
+-      "committedClean": false
++      "commit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
++      "committedClean": true
+     }
+   }
+ }

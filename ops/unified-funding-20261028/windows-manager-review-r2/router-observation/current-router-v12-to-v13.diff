@@ -1,0 +1,28 @@
+--- work/native-manager-sidecar-v12/control/windows/vbslike/router/control.mjs
++++ work/native-router-health-v13/control/windows/vbslike/router/control.mjs
+@@ -135,10 +135,11 @@
+       h.physicalMemory={poolMiB:h.physicalMemory?.poolMiB,allocatedMiB:null,freeMiB:0};
+       h.memory={...h.memory,allocatedMiB:null,freeMiB:0};
+       h.cpu={...h.cpu,allocatedUnits:null,freeUnits:0};
+-      h.catalog.derivations=[];h.supports.desktop=false;h.supports.gpu=false;
+-      if(h.desktop)h.desktop={...h.desktop,ready:false,freeGpuMilli:0};
+-      if(h.inference)h.inference={...h.inference,ready:false,freeGpuMilli:0};
+-      return {status:200,body:h};
++      // Existing nodes treat a 200 capability change as permanent incompatibility
++      // and retire running domains. An incomplete inventory is transient: 503
++      // becomes unknown/held in those clients; signed per-domain/data routes stay live.
++      h.admission={ready:false,reason:'composite inventory unavailable'};
++      return {status:503,body:h};
+     }
+     const h=structuredClone(s.legacy), d=structuredClone(s.native.desktop);
+     h.managerEpoch=s.epoch;h.vmScopes=[s.legacy.vmScope,s.native.vmScope];
+@@ -152,7 +153,8 @@
+     if(d.ready && s.native.catalog?.derivations?.includes(V8))h.catalog.derivations.push(V8);
+     h.catalog.derives=[...new Set([...h.catalog.derives,V8])];
+     if(h.preflight?.roles)h.preflight.roles.desktop=s.native.preflight?.roles?.desktop ?? {ok:false};
+-    try{if(this.journal.pending()||!this.journal.hasCapacity()){h.canStart=false;h.cannotStart=['router journal requires reconciliation or maintenance'];h.catalog.derivations=[];}}catch{h.canStart=false;h.cannotStart=['router journal unavailable'];h.catalog.derivations=[];}
++    try{if(this.journal.pending()||!this.journal.hasCapacity()){h.canStart=false;h.cannotStart=['router journal requires reconciliation or maintenance'];}}catch{h.canStart=false;h.cannotStart=['router journal unavailable'];}
++    if(h.canStart===false){h.admission={ready:false,reason:h.cannotStart?.join('; ')||'manager unavailable'};return {status:503,body:h};}
+     return {status:200,body:h};
+   }
+   checkNative(body) {

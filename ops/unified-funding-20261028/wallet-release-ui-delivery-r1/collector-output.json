@@ -1,0 +1,56 @@
+{
+  "admission": {
+    "unit": "enclave-wallet-release-ui-r1-20261029-author.service",
+    "invocationId": "d961e51df5854133a4be3e7ca91b56f2",
+    "mainPid": 2027661,
+    "recordedAt": 1793317962.1929767,
+    "mainStartTicks": "162304993",
+    "runnerPid": 2027676,
+    "runnerStartTicks": "162305005",
+    "runnerExecutable": "/usr/bin/python3.14",
+    "runnerCwd": "/home/steven",
+    "claudePid": 2027693,
+    "claudeStartTicks": "162305039",
+    "claudeExecutable": "/home/steven/.local/share/claude/versions/2.1.281",
+    "claudeCwd": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-ui-r1-20261029"
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 124,
+    "finishedAt": 1793318836.687842,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "5cb2ea8e-10d5-4fbd-9c78-084fab656826",
+  "duration_ms": null,
+  "num_turns": null,
+  "configuredMaxAgenticTurns": 30,
+  "distinctAssistantMessageIds": 22,
+  "transcriptUserRows": 51,
+  "turnMetricNote": "Raw success-result num_turns is a different user-message counter from max-agentic/API-turn limit; retain without conflating. See pinned turn-metric-investigation.json.",
+  "is_error": true,
+  "outputParseFailed": true,
+  "files": 121,
+  "changedFiles": 10,
+  "removedFiles": [],
+  "manifestSha256": "ac1837ac6e7c1b4f7af7ecf2235517394d8b972ee96a0415dae3079f03f23069",
+  "firstMutations": 9,
+  "firstMutationManifestSha256": "6828c7d33eabbcde6021288993854cd364aa33c0cb762daa3d941a65690f6ad4",
+  "currentInvocationTools": {
+    "Read": 15,
+    "Grep": 15,
+    "Write": 9,
+    "Edit": 11
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [
+    {
+      "file": "REPORT-WALLET-RELEASE-R1.md",
+      "reason": "changed file not explained by successful Write/Edit"
+    }
+  ],
+  "mutationAuditSha256": "e7da174d9d589e243e0595d81765b0fbaa78970cc9e449a800a8b77502b2fb22",
+  "innerGuard": "[memory-guard] exit=124 peakTreeRssMiB=288 minHostAvailableMiB=29303\n",
+  "outerGuard": "[memory-guard] exit=124 peakTreeRssMiB=355 minHostAvailableMiB=29303\n"
+}

@@ -1,0 +1,41 @@
+{
+  "schema": "production-activation-prep-r1-pins/v1",
+  "status": "REVIEWED_PREPARATION_INPUTS_NOT_ACTIVATED",
+  "modules": {
+    "activation-r1/generated/relay/sessions.mjs": "76341ba39b14463495ce5d9736f115e759751a6f9eaae2d77dbb113327c8530c",
+    "activation-r1/generated/relay/funding-route.mjs": "1989f3ebf88833ac492e4f121ff33d564b1798eae1e5239b1aae444b63b572cd",
+    "activation-r1/generated/relay/funding-abi.mjs": "6bb37e658aca45fd416d5ea17dda3109e1b41791e674976a60425d579f485cd7",
+    "activation-r1/generated/relay/fee-policy.mjs": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd",
+    "activation-r1/generated/relay/funding-activation.mjs": "7554454dbe091f4bcc7ef8e15ac5dd8082c8be6d94256f52b1c8fadcfc198645"
+  },
+  "inputs": {
+    "receipts": {
+      "path": "../source/ops/unified-funding-20261028/production-deployment-20261028/receipts.json",
+      "sha256": "f6e7d8a34c5685c97f6f32465009159bc24e178954a538881d8bebbdd7bf3537"
+    },
+    "deploymentObservation": {
+      "path": "production-deployment-observation-r1.json",
+      "sha256": "6c3dc894d266447b90efb6f45e9c18faed2e773f4065b382ddd8421de46389d3"
+    },
+    "sessionConfig": {
+      "path": "production-session-config-2128.json",
+      "sha256": "3824c39570a4e14c7263f406ea5fcebf928934d52b6183d33567d1fe8fd2fc0c"
+    },
+    "proposal": {
+      "path": "deployment-r1/UNSIGNED-PROPOSAL-r1.json",
+      "sha256": "0ab0e9c2afcf5446806895aacf349e346c1cd918a2077a595eb1228435904aed"
+    },
+    "feeObservation": {
+      "path": "production-fee-observation-r6.json",
+      "sha256": "febbd9faf8d5c2a3b55ba4f48f4a4a3212840d28ec5e912ea66d18557ffe0b14"
+    },
+    "decisions": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-inputs-r1/reviewed-decisions-r1.json",
+      "sha256": "e3888d2cd59feb87d8f240b37df48b08ac3b7fb5855b5589564693655876f2cd"
+    },
+    "observation": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-inputs-r1/live-observation-r2.json",
+      "sha256": "d404d833d8b13782ad760835d26ac7adb59b6ed010c204b3e1c654a6583c35d8"
+    }
+  }
+}

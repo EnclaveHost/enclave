@@ -1,0 +1,1 @@
+Only two demonstrated integration fixes staged: scope grant invalidation to matching host; map actual adapter verified field at servingContext conversion. No tests yet; same-generation Offline, adoption, durable state and native qualification remain. No production change.

@@ -1,0 +1,18 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "FreshInitialTrust.test_the_real_live_initial_receipt_passes_only_while_fresh": "fail",
+  "Gates.test_stale_or_foreign_a1_is_refused": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "Gates.test_stale_or_foreign_a1_is_refused",
+  "FreshInitialTrust.test_the_real_live_initial_receipt_passes_only_while_fresh"
+ ],
+ "skipped": 0,
+ "testsRun": 2,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

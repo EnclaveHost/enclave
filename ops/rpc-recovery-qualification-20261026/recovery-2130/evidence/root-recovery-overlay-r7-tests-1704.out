@@ -1,0 +1,20 @@
+[queue] START available=24856MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "rc": 0,
+ "ran20": true,
+ "lastOK": true,
+ "stdoutEmpty": true,
+ "clean": true,
+ "noMountsLeft": true,
+ "peersUnchanged": true,
+ "pass": true
+}
+Ran 20 tests in 17.576s
+
+OK
+## PASS (20)
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r7/runs/tests-20261026T212430Z-2370443
+## rov-r7-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=167 minHostAvailableMiB=24273
+[memory-guard] at peak: fuse2fs:68 python3:51 python3:23 qemu-nbd:10 nbdfuse:9 bash:4 timeout:2
+[queue] EXIT 0

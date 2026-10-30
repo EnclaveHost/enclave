@@ -1,0 +1,35 @@
+[queue] START available=20502MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+test_report (test_download_diag.Diag.test_report) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-download-performance-stage/test_download_diag.py:20: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/dlg-5i65m120/proc/4242/io' mode='w' encoding='UTF-8'>
+  open(os.path.join(proc, '4242', 'io'), 'w').write('rchar: 100\nwchar: 200\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-download-performance-stage/test_download_diag.py:21: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/dlg-5i65m120/proc/net/dev' mode='w' encoding='UTF-8'>
+  open(os.path.join(proc, 'net', 'dev') if os.makedirs(os.path.join(proc, 'net')) is None else '', 'w').write(
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-download-performance-stage/test_download_diag.py:23: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/dlg-5i65m120/proc/diskstats' mode='w' encoding='UTF-8'>
+  open(os.path.join(proc, 'diskstats'), 'w').write('   8 0 vda 1 0 0 0 1 0 0 0 0 500 0 0 0 0 0 0 0\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-download-performance-stage/test_download_diag.py:27: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/dlg-5i65m120/ss0' mode='w' encoding='UTF-8'>
+  open(a, 'w').write(ss(4242, [0] * 16)); open(b, 'w').write(ss(4242, [1_000_000] * 16))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-download-performance-stage/test_download_diag.py:27: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/dlg-5i65m120/ss1' mode='w' encoding='UTF-8'>
+  open(a, 'w').write(ss(4242, [0] * 16)); open(b, 'w').write(ss(4242, [1_000_000] * 16))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_seconds_bound (test_download_diag.Diag.test_seconds_bound) ... ok
+test_journal_whitelist_never_prints_urls (test_download_diag2.PartsAndJournal.test_journal_whitelist_never_prints_urls) ... ok
+test_parts_classifies_paths (test_download_diag2.PartsAndJournal.test_parts_classifies_paths) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-download-performance-stage/test_download_diag2.py:58: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/dg2p-xn7oyazu/m.json' mode='w' encoding='UTF-8'>
+  json.dump({'components': {'state': {'file': '1792886410/state.tar.zst', 'size': 4 * MIB},
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_cli_sees_concurrent_growth (test_download_diag2.Pieces.test_cli_sees_concurrent_growth) ... ok
+test_report_math (test_download_diag2.Pieces.test_report_math) ... ok
+test_seconds_bound (test_download_diag2.Pieces.test_seconds_bound) ... ok
+test_seek_data_map (test_download_diag2.Pieces.test_seek_data_map) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 2.750s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=35 minHostAvailableMiB=20216
+[memory-guard] at peak: python3:20 python3:15
+[queue] EXIT 0

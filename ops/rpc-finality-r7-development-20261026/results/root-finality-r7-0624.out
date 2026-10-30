@@ -1,0 +1,16 @@
+[queue] START available=20793MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+PASS tool Ran 34 (expected 34)
+PASS integration Ran 17 (expected 17)
+PASS reproof Ran 5 (expected 5)
+## FAIL: ops-readiness: rc 0, Ran 27 (expected 27), last OK (skipped=1) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r7/logs/root-finality-r7-tests-20261026T061615Z-1022733/ops-readiness.txt)
+PASS ops-installer Ran 13 (expected 13)
+PASS sampler Ran 93 (expected 93)
+PASS reanchor-recovery Ran 25 (expected 25)
+PASS r3-regression Ran 27 (expected 27)
+PASS r62-isolated Ran 2 (expected 2)
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r7/logs/root-finality-r7-tests-20261026T061615Z-1022733
+## r7 SHA256SUMS e1af48ad3fd972e281e0136a1438da36850e8089066ae4695dcba8241de1fa3c
+## finality-r7 rc=1
+[memory-guard] exit=1 peakTreeRssMiB=228 minHostAvailableMiB=19358
+[memory-guard] at peak: python3:39 python3:30 python3:30 python3:30 python3:30 python3:30 python3:30 bash:4
+[queue] EXIT 1

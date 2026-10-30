@@ -1,0 +1,4 @@
+7f953dbe80fa8c1a7bb1ea64c811c0572f283c04 test/helpers/windows-lease-scripted-fixture.mjs (candidate debbfb37, before)
+6832c9fd372d0272c4a7f91e10de7cf686d242fa test/helpers/windows-lease-scripted-fixture.mjs (patched; sha256 329e2fec82de7f1d8ea1a10c1f8dfcc354140746f986e0d069b1fed56d56f684)
+3d0311e462002783556a0abc984cf51b170a5b01 windows/node/chain.mjs (unchanged; line 36 imports the 6 names)
+a597ca873869eeeaa01d3e86ab0f076230fabbff test/windows-node-lease-renewal-keeper.test.mjs (unchanged; 16 tests)

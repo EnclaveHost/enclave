@@ -1,0 +1,52 @@
+[queue] START available=18352MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{"refused": "receipt: /tmp/hos-tests.JkGCTU/tmpgahlvp5_/a1-evidence.json is not the pinned b9a90847bb3f"}
+{"verdict": "REFUSED", "refusal": {"code": "missing-data", "detail": "1 slots/blocks lack EL, receipt, beacon or blob data"}, "out": "/tmp/hos-tests.JkGCTU/tmp1ysc_3fc/03-seg1/gate-report.json"}
+{"verdict": "REFUSED", "refusal": {"code": "data-mismatch", "detail": "1 blocks failed commitment/receipt matching"}, "out": "/tmp/hos-tests.JkGCTU/tmp1ysc_3fc/04-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpanvjoenr/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpanvjoenr/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpsdm4gnwo/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpsdm4gnwo/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmptjpal_t0/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmptjpal_t0/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpva58zacu/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpva58zacu/04-seg1/gate-report.json"}
+{"verdict": "REFUSED", "refusal": {"code": "origin-not-canonical", "detail": "safe L1 origin 1004 is not canonical on this L1"}, "out": "/tmp/hos-tests.JkGCTU/tmpmx4hlh7d/03-seg0/gate-report.json"}
+{"verdict": "REFUSED", "refusal": {"code": "origin-not-canonical", "detail": "safe L1 origin 1004 is not canonical on this L1"}, "out": "/tmp/hos-tests.JkGCTU/tmpmx4hlh7d/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmp7_4dnvj3/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmp7_4dnvj3/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmp71a1jnk8/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmp71a1jnk8/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmp71a1jnk8/05-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmp71a1jnk8/08-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmp71a1jnk8/09-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpc2yzd5q6/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpc2yzd5q6/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmp29ekniw1/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmp29ekniw1/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpv440py7s/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpv440py7s/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpfyhiotjo/03-cli-seg1/gate-report.json"}
+{"index": 1, "from": 1005, "to": 1008, "gateVerdict": "COVERED", "gateRefusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpfyhiotjo/03-cli-seg1"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpfyhiotjo/04-cli-seg0/gate-report.json"}
+{"index": 0, "from": 1000, "to": 1004, "gateVerdict": "COVERED", "gateRefusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpfyhiotjo/04-cli-seg0"}
+{"verdict": "COVERED_ALL_SEGMENTS", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpfyhiotjo/05-agg.json"}
+{"verdict": "REFUSED", "refusal": {"code": "partial-coverage", "detail": "segments [0] of 2 not supplied"}, "out": "/tmp/hos-tests.JkGCTU/tmpfyhiotjo/06-agg2.json"}
+{"verdict": "REFUSED", "refusal": {"code": "receipt-not-pinned", "detail": "receipt: /tmp/hos-tests.JkGCTU/tmpqyr0f7ym/a1-evidence.json is not the pinned b9a90847bb3f"}, "out": "/tmp/hos-tests.JkGCTU/tmpfyhiotjo/07-agg3.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpo7_hx5nv/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpo7_hx5nv/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpo7_hx5nv/07-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpo7_hx5nv/08-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpo7_hx5nv/09-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpo7_hx5nv/10-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpj4ke_d8y/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmpj4ke_d8y/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmp8blmbwqk/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmp8blmbwqk/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmp8blmbwqk/07-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-tests.JkGCTU/tmp8blmbwqk/08-seg1/gate-report.json"}
+{"pass": true, "testsRun": 25, "failures": 0, "errors": 0, "skipped": 0, "expectedFailures": 0, "unexpectedSuccesses": 0}
+PASS historical-origin-segments-r2 testsRun 25 failures 0 errors 0 skipped 0 rc 0
+## out /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r2/logs/run-20261026T111242Z-1556644
+[memory-guard] exit=0 peakTreeRssMiB=119 minHostAvailableMiB=16840
+[memory-guard] at peak: node:66 python3:47 bash:4 timeout:2
+[queue] EXIT 0

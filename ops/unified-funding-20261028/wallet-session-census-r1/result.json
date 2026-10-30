@@ -1,0 +1,32 @@
+{
+  "kind": "wallet-session-delegate-census/1",
+  "readOnly": true,
+  "preparedInputHash": "6e09614c2038432717b283471b054b00c19f0cbb432d8cd7dbf75d010641dec3",
+  "scope": "Complete provider-agreed DelegateSet census for owner wallet and B794, plus SessionOpened/current sessionOf for B794 and all source-qualified wallet-delegated v2 vaults. Unknown delegates explicit; no migration authorization.",
+  "assurance": "Provider-agreed log history and state at a coherent block; not cryptographic log-completeness proof, finality, installed-consumer evidence or migration authorization.",
+  "bounds": {
+    "wallSeconds": 240,
+    "rpcCallsPerPeerPhase": 800,
+    "blocksPerRange": 20000,
+    "rangesPerStream": 256,
+    "logsPerResponse": 2048,
+    "eventsPerStream": 2048,
+    "birthSearchSteps": 32,
+    "transactionsAtBirth": 4096,
+    "creationReceipts": 32,
+    "delegates": 64,
+    "vaults": 8,
+    "sessionsPerVault": 256
+  },
+  "completed": false,
+  "qualifiedForMigration": false,
+  "error": {
+    "message": "no 2 RPCs agreed at block 53265265 (base-rpc.publicnode.com: Invalid parameters were provided to the RPC method.; base-mainnet.public.blastapi.io: JSON is not a valid request object.)"
+  },
+  "finishedAt": "2026-10-30T00:26:29.951Z",
+  "callCounts": [
+    40,
+    8,
+    188
+  ]
+}

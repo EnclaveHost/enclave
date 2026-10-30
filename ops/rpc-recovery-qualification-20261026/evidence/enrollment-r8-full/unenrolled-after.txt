@@ -1,0 +1,7 @@
+-rw------- ./derived-reader-v3/derived-state.lock
+-rw------- ./derived-reader/derived-reader-v3.json
+-rw-r--r-- ./DERIVED-READER-IMAGE.json
+drwx------ .
+drwx------ ./derived-reader
+drwx------ ./derived-reader-v3
+drwx------ ./derived-reader-v3/runs

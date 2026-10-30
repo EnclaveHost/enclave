@@ -1,0 +1,8 @@
+{
+  "url": "https://enclave.host/admin",
+  "catalog": "0x18419ca2b502d423a8de6269aeee171a378626e3",
+  "from": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+  "to": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+  "confirmation": "",
+  "log": "catalog rev 9 · 49 apps from 5 publishers\n0x0b2d009c0c9af05b12100d77f3c815fea822ee61 — 38: hello-world, network-test, encrypted-volumes, llm-chat, minecraft-server, image-generator, dead-drop, hookbin, ballot, pixelboard, handoff, backchannel, warpad, failsafe, pulse, quorum, fairdraw, tripwire, tipline, keep, shoebox, gavel, yardstick, anima, net-probe, http-probe, risc-box, image-reader, eyesoff-ai, s3-ipfs-adapter, ipns-publisher, jot, api-mcp-adapter, cron, capacity-work, depot, sia-s3, enclavedns\n0x29479bf04ed889d46a7afb7f292b9bb26e12647c — 5: risc-box-doom-fix, eyesoff-perf, risc-box-perf, enclave-hello, nucbox-shield-inference-check\n0x3977e339f1935d1a31fbbeb945c9fb36ff537f2a — 4: llm-chat-bench, risc-box-dev, eyesoff-dbg, risc-box-doom\n0x6e15d644e0f5abaec8786c9dafa8af750cec9cbc — 1: test\n0xb794c4dd0e1c5e6b72281799f282bfde7654345d — 1: kvm-box-native"
+}

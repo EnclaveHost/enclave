@@ -1,0 +1,24 @@
+{
+  "existing": [
+    "control/windows/node/hosting.mjs",
+    "control/windows/node/host.mjs",
+    "control/windows/node/chain.mjs"
+  ],
+  "optionalNewHelper": [
+    "control/windows/node/release-stopped.mjs"
+  ],
+  "newTests": {
+    "path": "control/test/release-stopped/*.test.mjs",
+    "maximumFiles": 3
+  },
+  "reports": [
+    "REPORT.md",
+    "CLOSURE.json"
+  ],
+  "immutable": [
+    "agent.mjs and every other baseline file",
+    "All generated bundles, dependency locks, package versions",
+    "All seed/evidence/preparation files outside candidate"
+  ],
+  "note": "Manual semantic/scope review required; tool restriction is not an OS sandbox."
+}

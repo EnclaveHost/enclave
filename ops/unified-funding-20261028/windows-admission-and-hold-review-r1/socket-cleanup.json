@@ -1,0 +1,11 @@
+{
+  "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windo",
+  "inode": 6078719,
+  "uid": 1000,
+  "ctime": 1793280314.2291071,
+  "type": "socket",
+  "producerEvidence": "root persistent-router unit fe989dc9 at13:25:13..14, requested IPC pathname190bytes truncated by runtime; no live unit or Unix listener",
+  "cleanup": "single exact socket unlink; no recursive removal",
+  "at": 1793281286.2672138,
+  "absentAfter": true
+}

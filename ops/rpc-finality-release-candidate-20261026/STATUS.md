@@ -1,0 +1,11 @@
+# RPC bootstrap release candidate — 2026-10-26
+
+NOT installed, activated, or production ready. Administrator controls and existing apps are unchanged. PublicRPC consumers have not cut over.
+
+Actual fixes: exclusive retry log filenames no longer collide within the same second (8 tests pass); crash-boundary qualification evidence is retained conservatively (17 reproof tests pass). Runtime directory creation and config-preserving installation have new tests. Earlier failures and superseded stages are retained as history, not successful releases. r12-final comprehensive code qualification PASSED: 18 installer,6 forward-recovery,25 reanchor-recovery,2 isolation,8 forward-sync tests rerun, plus exact source/manifest/bundle closure. Unchanged suites are backed by explicitly pinned successful receipts, not claimed rerun. Rootrun0738 returned0, peak234MiB and hostminimum16880MiB. Qualification proves code tests, not live chain readiness.
+
+Actual guest canary r3 authenticated Ethereum forward finality using our own EL/CL and fixed the wrong EL port, but initial verified contract call FAILED its20s timeout. No Base readiness claim. Bounded diagnostic then completed with all own processes cleaned, productionPIDs unchanged and16GiB hostfloor intact. A cold historical Ethereum proof took21.986s at82blocks depth; repeats5.390s then1.614s. Warm verified Helios calls took3.794s at100%CPUquota and3.247s at400%; memory peaks70–73MB and noOOM. Both CPU comparisons used warmed state, so they do not establish cold performance. A bounded proof-read timeout repair is being prepared separately, retaining block-hash/finality verification.
+
+The Base snapshot download, remaining retention archives, extraction, exact-origin historical blob/KZG checks, authenticated safe/finalized synchronization, live proof serving, mined transactions, restart/outage/cold recovery, and externalconsumercutover remain mandatory. One ownedRPCVM is a bootstrap, not full decentralization.
+
+Source packaging preserves exact frozen bytes; development job origin paths reference this workstation. Production installed files and bundle manifest use guest paths. Private canary captures and bulk dependency bundles are intentionally not inGit.

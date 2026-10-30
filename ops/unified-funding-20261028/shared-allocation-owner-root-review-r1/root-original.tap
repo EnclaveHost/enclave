@@ -1,0 +1,56 @@
+TAP version 13
+# Subtest: ROOT qualification hold survives ttl-expiry until exact end; second allocation must be refused
+not ok 1 - ROOT qualification hold survives ttl-expiry until exact end; second allocation must be refused
+  ---
+  duration_ms: 168.668277
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/shared-allocation-owner-root-review-r1/root-qualification-retention.test.mjs:30:50'
+  failureType: 'testCodeFailure'
+  error: |-
+    capacity was reused without qualification end: {"admitted":true,"grant":{"rid":"5f9a014abca7a81d75cd0c2c4f2a1732","ownerIncarnation":"d40d117023946daa118284ee50d530ea","seq":7,"physicalMiB":384,"commitMiB":512,"terms":{"floorMiB":18432,"availablePhysicalMiB":18824,"availableCommitMiB":648,"unreflectedPhysicalMiB":0,"unreflectedCommitMiB":0,"coveragePhysicalMiB":8,"coverageCommitMiB":8,"needPhysicalMiB":18824,"needCommitMiB":648,"source":"TEST finite capacity; not a physical host"}}}
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/shared-allocation-owner-root-review-r1/root-qualification-retention.test.mjs:36:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: ROOT qualification hold survives owner-restart until exact end; second allocation must be refused
+not ok 2 - ROOT qualification hold survives owner-restart until exact end; second allocation must be refused
+  ---
+  duration_ms: 91.471335
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/shared-allocation-owner-root-review-r1/root-qualification-retention.test.mjs:30:50'
+  failureType: 'testCodeFailure'
+  error: |-
+    capacity was reused without qualification end: {"admitted":true,"grant":{"rid":"14e78b9255e4436d1b3e08e2a71f659b","ownerIncarnation":"8fe07b2669883ec1e82161c3ae1574d2","seq":10,"physicalMiB":384,"commitMiB":512,"terms":{"floorMiB":18432,"availablePhysicalMiB":18824,"availableCommitMiB":648,"unreflectedPhysicalMiB":0,"unreflectedCommitMiB":0,"coveragePhysicalMiB":8,"coverageCommitMiB":8,"needPhysicalMiB":18824,"needCommitMiB":648,"source":"TEST finite capacity; not a physical host"}}}
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/shared-allocation-owner-root-review-r1/root-qualification-retention.test.mjs:36:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 342.678314

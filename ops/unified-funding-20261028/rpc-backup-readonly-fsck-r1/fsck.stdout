@@ -1,0 +1,6 @@
+Pass 1: Checking inodes, blocks, and sizes
+Pass 2: Checking directory structure
+Pass 3: Checking directory connectivity
+Pass 4: Checking reference counts
+Pass 5: Checking group summary information
+cloudimg-rootfs: 198813/4063232 files (0.2% non-contiguous), 4674120/8126203 blocks

@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "tests": 14,
+  "ignored": 0,
+  "filtered": 0,
+  "lockUnchanged": true,
+  "binary": "49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa  <lease-v3 build copy>/target/debug/examples/derivation_harness_lease_v3",
+  "mainnetProof": false
+}

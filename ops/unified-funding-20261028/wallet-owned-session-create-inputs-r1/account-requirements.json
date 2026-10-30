@@ -1,0 +1,7 @@
+{
+  "loggedIn": true,
+  "email": "steven.r.batchelor@gmail.com",
+  "subscriptionType": "max",
+  "checkedNow": false,
+  "gate": "Root fresh auth status and runner independently before author. No auth command run during preparation."
+}

@@ -1,0 +1,11 @@
+--- a/src/reproof.py
++++ b/src/reproof.py
+@@ -23,7 +23,7 @@
+ FORMAT = 'enclave-base-finality-reproof/v1'
+ CONFIG_KEYS = {'format', 'launchDir', 'chainJson', 'rpcUrl', 'statusOut', 'node', 'depsRoot', 'workdir', 'capturesRoot', 'captureSources'}
+ FINALITY_STATE = (pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py'), '218bbfe56caec03e6da0829e442b793b88d4cc148a890a324892f0fafd7c78f4')
+-PRODUCER = (pathlib.Path('/opt/enclave-rpc/base-launch/base_launch.py'), '2f9450cd5c73de3cf693dd7f7d52b2f4f3a8fe0b66a5a76b1d068dda919ac4e2')
++PRODUCER = (pathlib.Path('/opt/enclave-rpc/base-launch/base_launch.py'), 'f56816bb6547ca346d9c2a1098462bf6a665e026ea83748666b1cedb7e655206')   # production-bootstrap-wiring: produce creates finality/
+ KEEP, TEMPFAIL, HOLD = 4, 75, 78
+ FAILED_KEEP, HISTORY, IN_PROGRESS = 2, 'attempts.jsonl', '.in-progress'      # r10-ops-followup: bounded failed-attempt retention
+ QUALIFY_BARRIER, PRESERVED = '.qualify-barrier', ('ambiguous', 'qualified-unrecorded')   # r2: never removed by reproof

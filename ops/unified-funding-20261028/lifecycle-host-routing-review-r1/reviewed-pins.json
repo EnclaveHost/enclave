@@ -1,0 +1,22 @@
+{
+  "REPORT.md": "ac95c726735295952ee302821e12eaf14faddbef709f12daf7ed1d960d189c02",
+  "ROOT-REVIEW.md": "c33b509e8b1de8361e43a63468997b8e6bed260194a051bb1313b04a90c7e3cd",
+  "author-pins.json": "a6a029610c33c3b5a8b73587029452fe06464fb28002d2d63c3dbe11953df5af",
+  "author-tests.log": "6c99528a70e40a692c81885a8a92780e85623f9d7af5755e647448439908027d",
+  "author-tests.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "combined-guard.log": "8275087c30a8651d5fea4be480eee562fcabba2cc8be7c8664a5be8afa645b95",
+  "combined-tests.log": "52a0fae7f706e49980c50e272e6e0d6ef0424184b66b54527db361ea8f847df7",
+  "combined-tests.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "guard.log": "d671bc4b6a30c11dc881e5cf835fd2b63e1d2851b8b0121aed8585e35a201f67",
+  "root-before.log": "4b94d6795131415e0f4cf8ecb7e148ca8a12e63dd2db03758cd7de16483d504a",
+  "root-before.rc": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+  "root-guard.log": "5f8bcb4d7909090ac22e6fe9dbcbd34e1cd0d52265242f719f741edf04f18ab2",
+  "src/network/lifecycle-host-dispatch.mjs": "25a9803677278016c1ea3b2371d4830d252d1c89d71b7adc82088045ce6723bc",
+  "src/tools/generate-lifecycle-host-candidate.mjs": "275372f3a63245c19e6add7eac15081acc5763e8e0ebb6230b79297db77938f5",
+  "test/generate-lifecycle-host-candidate.test.mjs": "c074d2684a759d93261142cf54488d91400fb9abb69f1224a0f7724a769d4e34",
+  "test/helpers/baseline.mjs": "fc6e2c2500154f39f8580c3a2d11471c3e2429da4e88337c3484ca984a2ad8d1",
+  "test/helpers/lifecycle-fixture.mjs": "aa39ceb2767f83b9f3c862e9d5df69b863d9a56745460e7a1ced6a3a04b47e18",
+  "test/lifecycle-host-candidate.test.mjs": "410866bd1eeb00f0fc33d873469118cbe86013e5836329980142977b60afab6f",
+  "test/lifecycle-host-dispatch.test.mjs": "f96bc66e28347a4c649caee610bae629aa1ac13ba8771b29b151d9aab9dd8945",
+  "test/root-dispatch-regressions.test.mjs": "c2026ebda8d3440afbec7e662dd8c7d5c5ba46ff3e664ac5ddc82db64f525b26"
+}

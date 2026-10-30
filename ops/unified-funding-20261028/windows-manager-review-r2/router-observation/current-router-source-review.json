@@ -1,0 +1,19 @@
+{
+  "scope": "Readonly exact local source identification; no execution, test, build, author-input or production mutation",
+  "observedSourceSha256": "966fd3b5480e9859de4f1dc578b25afa1150e97552437e8c183c03bba4606e6a",
+  "matchingLocalSource": "/home/steven/Documents/Codex/2026-10-23/it/work/native-router-health-v13/control/windows/vbslike/router/control.mjs",
+  "localSha256": "966fd3b5480e9859de4f1dc578b25afa1150e97552437e8c183c03bba4606e6a",
+  "oldSeedSource": "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/control/windows/vbslike/router/control.mjs",
+  "oldSeedSha256": "ae43a93780e4f8651af6e365720ed5f0cc91557aef0f062979732eb867bc17c8",
+  "delta": [
+    "Only CompositeManager.health() changes in two hunks.",
+    "Incomplete composite inventory returns HTTP503 with admission.ready=false instead of HTTP200 with emptied catalog derivations and disabled desktop/inference readiness. Capacity stays zero/unknown.",
+    "Pending/full/unavailable journal still makes canStart=false, but preserves catalog derivations and returns HTTP503 with admission.ready=false.",
+    "All journal, snapshot accounting, serialized spawn/reconcile, native pins, memory admission checks, routing, per-domain/data logic unchanged by this delta."
+  ],
+  "implication": "Preserve transient-unavailability health semantics when integrating permit router. r2 seed is older than actual installed router. Source intent is to avoid retiring running domains based on temporary capability loss; no fresh end-to-end client behavior test performed.",
+  "limits": [
+    "Current journal physical0 is a snapshot, not reservation authority over future/direct/other launches.",
+    "Matching on-disk observed source hashes do not prove every executing in-memory module."
+  ]
+}

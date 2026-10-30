@@ -1,0 +1,7 @@
+[queue] START available=24398MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+{"copied": [{"index": 0, "state": "copied"}], "session": {"id": "20261027T000333Z-2502225", "status": "CONFIRMED", "reasons": [], "rc": 0}, "statusRecorded": {"parts": 265, "partsCommitted": 1, "partsVerifiedRecorded": 0, "stale": [], "unconfirmed": [], "invalidRecords": [], "failedVerification": [], "copyComplete": false, "verificationCompleteRecorded": false, "freshlyMeasured": false, "note": "RECORDED state checked against the current file identities; not freshly measured (only a verify run measures). Neither flag is a RAID-reset, recovery or production-ready statement"}}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-multipart-stage/r3/runs/prod-copy-20261027T000332Z-2502178
+## rmp-r3-prod-copy rc=0 (0 done + session CONFIRMED; 3 refused; 4 failed/UNCONFIRMED; 5 stopped)
+[memory-guard] exit=0 peakTreeRssMiB=225 minHostAvailableMiB=23900
+[memory-guard] at peak: fuse2fs:70 python3:58 python3:46 python3:24 qemu-nbd:13 nbdfuse:9 bash:4 timeout:2
+[queue] EXIT 0

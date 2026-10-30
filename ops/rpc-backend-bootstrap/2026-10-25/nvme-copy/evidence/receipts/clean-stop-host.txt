@@ -1,0 +1,2 @@
+Oct 25 09:41:58 warden-host python3[3614830]: powerdown: no QMP socket, QEMU not running
+Oct 25 09:41:58 warden-host systemd[1899]: enclave-rpc-production-vm.service: Consumed 5min 10.738s CPU time over 5min 30.659s wall clock time, 66G memory peak.

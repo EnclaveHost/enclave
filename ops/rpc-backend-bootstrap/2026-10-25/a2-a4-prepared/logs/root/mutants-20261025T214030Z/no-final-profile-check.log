@@ -1,0 +1,215 @@
+test_an_advanced_anchor_refuses_release_with_the_documented_code (__main__.Gates.test_an_advanced_anchor_refuses_release_with_the_documented_code) ... {"step": "plan", "ok": false, "refused": "a1_anchor_advanced: the ASR anchor advanced to 52870560 (> N): the current A1 tool re-checks only the LATEST anchor, so it cannot re-confirm game 0x343b3a99527af07d2cfb2652747b9e37715e21ac now; needs the game-specific re-check (G-h) - never re-anchor or accept descendants silently"}
+ok
+test_an_interrupted_mutation_blocks_every_later_step (__main__.Gates.test_an_interrupted_mutation_blocks_every_later_step) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": false, "refused": "bounded: stage unwind --datadir: timeout after 1 s; own process group 4109890 stopped; MUTATION INTERRUPTED: datadir state unknown"}
+{"step": "a3", "ok": false, "refused": "interrupted_mutation: mutation journal ends with interrupted rc=-15 for ['stage', 'unwind', '--datadir']: the datadir state is UNKNOWN; no step continues automatically (PROCEDURE.md \u00a74: inspect read-only, then root decides; default recovery = re-download)"}
+{"step": "plan", "ok": false, "refused": "interrupted_mutation: mutation journal ends with interrupted rc=-15 for ['stage', 'unwind', '--datadir']: the datadir state is UNKNOWN; no step continues automatically (PROCEDURE.md \u00a74: inspect read-only, then root decides; default recovery = re-download)"}
+ok
+test_bad_config (__main__.Gates.test_bad_config) ... ok
+test_commands_are_bounded_and_only_our_process_group_is_stopped (__main__.Gates.test_commands_are_bounded_and_only_our_process_group_is_stopped) ... {"step": "plan", "ok": false, "refused": "bounded: db --datadir /tmp/tmpjb5kpqmo/datadir: timeout after 1 s; own process group 4109908 stopped"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpjb5kpqmo'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "bounded: db --datadir /tmp/tmpp34s0cz8/datadir: output cap (1048576 B) exceeded; own process group 4109925 stopped"}
+ok
+test_download_receipt_binds_manifest_unit_marker_and_datadir (__main__.Gates.test_download_receipt_binds_manifest_unit_marker_and_datadir) ... {"step": "plan", "ok": true, "refused": null}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpt3fzzwqn'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "marker: the snapshot-complete marker is expected EMPTY (stage_backend.py ExecStartPost touch)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpdsfpp5pi'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "receipt_fields: receipt manifestSha256='0000000000000000000000000000000000000000000000000000000000000000', expected '3a5bde069d2e9ad0cb85e3d1c01c8026cce2b2a3aae90f44221759596a51b491'"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpgz6f8mdt'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "receipt_fields: receipt does not attribute the download to the pinned base binary"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmphvkbf6p0'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "unverified_archive: ('storage_changesets', 105): the manifest lists no per-file BLAKE3 for it, so the client verified nothing (full verification not established)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp_uia_iam'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "download_unit: enclave-rpc-base-snapshot.service did not finish successfully now"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpil42ilrn'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "receipt_datadir: the receipt names another datadir (dev/ino)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp7ugmqo9n'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "untrusted_file: receipt /tmp/tmpw3a8i0ml/receipt.json must be owned by uid 0 and not group/other-writable"}
+ok
+test_every_db_step_gates_before_any_db_access_even_without_plan (__main__.Gates.test_every_db_step_gates_before_any_db_access_even_without_plan) ... /usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp3y5o03m7'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "binary_pin: base binary sha256 differs from the pin"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpxe_czygj'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "no_receipt: no root completed-download receipt: the snapshot is not proven complete (an empty marker alone is not accepted)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpu1ng337m'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": true, "refused": null}
+FAIL
+test_exact_argv_accepts_the_observed_real_first_pass_invocation (__main__.Gates.test_exact_argv_accepts_the_observed_real_first_pass_invocation) ... ok
+test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero (__main__.Gates.test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero) ... {"step": "plan", "ok": true, "refused": null}
+ok
+test_post_exit_size_orphans_and_mutation_stdout (__main__.Gates.test_post_exit_size_orphans_and_mutation_stdout) ... {"step": "plan", "ok": false, "refused": "bounded: db --datadir /tmp/tmpe4wauz7m/datadir: output cap (1048576 B) exceeded; own process group 4110056 stopped"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpe4wauz7m'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "bounded: db --datadir /tmp/tmpks560ll1/datadir: process group left 1 member(s) after the command exited (stopped); own process group 4110084 stopped"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpks560ll1'>
+  _warnings.warn(warn_message, ResourceWarning)
+ok
+test_prerequisites_fail_closed (__main__.Gates.test_prerequisites_fail_closed) ... {"step": "plan", "ok": false, "refused": "prune_config: /tmp/tmpviyalnuj/reth.toml must set [prune.segments] account_history = { before = <= 52500000 } (a Distance profile refuses N)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpviyalnuj'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "proofs_store: <datadir>/proofs exists: the proofs-history store is NOT unwound by stage unwind; quarantine it first (root)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpz_dqs8al'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "no_receipt: no root completed-download receipt: the snapshot is not proven complete (an empty marker alone is not accepted)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp2fxecnuk'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "service_running: enclave-base-holder.service is active: stop it before any DB access"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp19sj2sa1'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "capability: pinned `base reth stage run --help` lacks ['--skip-unwind', '--checkpoints', '--config']: client capability differs from the audited source"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpuqcdd1oq'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "binary_pin: base binary sha256 differs from the pin"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp6j6gl0p8'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "backup_unsupported: a full datadir copy is not prepared here: capacity/time must be measured first (see PROCEDURE.md)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp2shq865c'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "v1_layout: legacy (non-v2) storage: the plain->hashed rebuild path is NOT prepared/tested here; refusing"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmph6huq0cm'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "capacity: only 59772424192 bytes free on the datadir filesystem"}
+ok
+test_selection_is_exactly_the_pinned_manifest_and_final_profile (__main__.Gates.test_selection_is_exactly_the_pinned_manifest_and_final_profile) ... {"step": "plan", "ok": true, "refused": null}
+FAIL
+test_stale_or_foreign_a1_is_refused (__main__.Gates.test_stale_or_foreign_a1_is_refused) ... {"step": "plan", "ok": false, "refused": "a1_stale: A1 evidence is 601 s old (max 600): re-run A1 now; an existing file is not accepted"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp_fi8n8s7'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "a1_pins: ASR or respected game type is not the pinned mainnet value"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp8_wc90ug'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "a1_anchor_advanced: the ASR anchor advanced to 52866961 (> N): the current A1 tool re-checks only the LATEST anchor, so it cannot re-confirm game 0x343b3a99527af07d2cfb2652747b9e37715e21ac now; needs the game-specific re-check (G-h) - never re-anchor or accept descendants silently"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpptpzqnny'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "a1_anchor: A1 anchor (N/outputRoot/game) differs from the planned one"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp6kzifbgs'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "a1_anchor: A1 anchor (N/outputRoot/game) differs from the planned one"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmppa8ptbns'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "a1_anchor: A1 anchor (N/outputRoot/game) differs from the planned one"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpz_x7gi50'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "a1_unproven: A1 read isGameBlacklisted is not proof-verified"}
+ok
+test_units_and_openers_are_checked_before_any_db_access (__main__.Gates.test_units_and_openers_are_checked_before_any_db_access) ... /usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpkxea1ydm'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "service_running: enclave-base-holder.service is active: stop it before any DB access"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpmh0lipon'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "service_running: enclave-base-holder.path is active: stop it before any DB access"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpki148jdi'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "plan", "ok": false, "refused": "service_running: enclave-rpc-base-snapshot.service is active: stop it before any DB access"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpsvti30nm'>
+  _warnings.warn(warn_message, ResourceWarning)
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpq_qkjsqd'>
+  _warnings.warn(warn_message, ResourceWarning)
+/tmp/tmp.1NKeZrFAjz/test/test_a2a4.py:168: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpeesulbnp/datadir/held' mode='r' encoding='UTF-8'>
+  holder = subprocess.Popen(['sleep', '30'], stdin=open(self.d / 'datadir/held'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": false, "refused": "datadir_open: processes [4110198] hold files under the datadir"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpeesulbnp'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "v1_layout: legacy (non-v2) storage: the plain->hashed rebuild path is NOT prepared/tested here; refusing"}
+ok
+test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing (__main__.Steps.test_a2_authenticates_the_real_header_and_refuses_forgery_or_missing) ... {"step": "a2", "ok": true, "refused": null}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpacfilskj'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "a2_mismatch: header N does not reproduce the A1 output root (output_root: header N does not reproduce the game's output root (state root, message-passer root or block hash differs))"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpynl1ucl0'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "empty_read: db get static-file headers 52866960 printed nothing (a missing key exits 0 in this client): refusing"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp4x_b18ej'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": false, "refused": "header_format: header JSON lacks requestsHash: the pinned output format differs from the audited serde shape"}
+ok
+test_a3_refuses_a_short_unwind_and_surviving_headers (__main__.Steps.test_a3_refuses_a_short_unwind_and_surviving_headers) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": false, "refused": "unwind_short: execution checkpoint 52866970 != unwind target 52866960"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpm0amcrcc'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": false, "refused": "headers_above_n: a header above N survived the unwind"}
+ok
+test_a3_requires_review_unwinds_in_chunks_to_exactly_n_and_lowers_labels (__main__.Steps.test_a3_requires_review_unwinds_in_chunks_to_exactly_n_and_lowers_labels) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": false, "refused": "not_reviewed: in-place mutation requires inPlaceReviewed=true after explicit root review (recovery = re-download)"}
+{"step": "a3", "ok": true, "refused": null}
+ok
+test_a4_full_rebuild_matches_and_a_mismatch_refuses (__main__.Steps.test_a4_full_rebuild_matches_and_a_mismatch_refuses) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp9dz59xh8'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": false, "refused": "reth_failed: stage run --datadir rc=1: BodyStateRootDiff"}
+{"step": "release", "ok": false, "refused": "interrupted_mutation: mutation journal ends with finished rc=1 for ['stage', 'run', '--datadir']: the datadir state is UNKNOWN; no step continues automatically (PROCEDURE.md \u00a74: inspect read-only, then root decides; default recovery = re-download)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp7b3s2yl0'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": false, "refused": "not_unwound: stage checkpoints {'headers': 52866960, 'bodies': 52866960, 'execution': 53048526, 'merkle-execute': 52866960, 'finish': 53048526} are not at N: A4 runs only on the A3-unwound DB"}
+ok
+test_bytecode_step_binds_this_db_and_release_still_refuses_while_the_gap_is_open (__main__.Steps.test_bytecode_step_binds_this_db_and_release_still_refuses_while_the_gap_is_open) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "bytecode_receipt: no bound bytecode verification (step bytecodes) for this DB"}
+{"step": "bytecodes", "ok": false, "refused": "no_checker: bytecodeChecker/bytecodeCheckerSha256 not configured: the checker is prepared source only (G-a open)"}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: bytecode check failed: rc=0 failures=1 missingCode=0"}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: bytecode check failed: rc=0 failures=0 missingCode=2"}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: bytecode check failed: rc=0 failures=1 missingCode=0"}
+{"step": "release", "ok": false, "refused": "bytecode_receipt: no bound bytecode verification (step bytecodes) for this DB"}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "open_gaps: derivation stays blocked: ['bytecodes-content-unverified'] (a missing client capability, not bypassable by config)"}
+{"step": "release", "ok": false, "refused": "bytecode_receipt_stale: the bytecode verification was for another DB state or another A4 result"}
+{"step": "release", "ok": false, "refused": "open_gaps: derivation stays blocked: ['bytecodes-content-unverified'] (a missing client capability, not bypassable by config)"}
+{"step": "release", "ok": false, "refused": "bytecode_receipt_stale: the bytecode verification was for another DB state or another A4 result"}
+ok
+test_release_stays_blocked_on_the_open_bytecode_gap_and_needs_fresh_a1 (__main__.Steps.test_release_stays_blocked_on_the_open_bytecode_gap_and_needs_fresh_a1) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "bytecode_receipt: no bound bytecode verification (step bytecodes) for this DB"}
+{"step": "release", "ok": false, "refused": "a1_stale: A1 evidence is 900 s old (max 600): re-run A1 now; an existing file is not accepted"}
+ok
+test_steps_refuse_out_of_order (__main__.Steps.test_steps_refuse_out_of_order) ... {"step": "a3", "ok": false, "refused": "order: a2-authenticated.json missing: run the previous step first"}
+{"step": "a4", "ok": false, "refused": "order: a2-authenticated.json missing: run the previous step first"}
+ok
+
+======================================================================
+FAIL: test_every_db_step_gates_before_any_db_access_even_without_plan (__main__.Gates.test_every_db_step_gates_before_any_db_access_even_without_plan)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.1NKeZrFAjz/test/test_a2a4.py", line 192, in test_every_db_step_gates_before_any_db_access_even_without_plan
+    breakit(); self.refused(step, code)
+               ~~~~~~~~~~~~^^^^^^^^^^^^
+  File "/tmp/tmp.1NKeZrFAjz/test/test_a2a4.py", line 76, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: 0 != 1 : {'step': 'a2', 'startedAt': '2026-10-25T21:45:51.683485+00:00', 'result': {'number': 52866960, 'blockHash': '0x94d32a4e67871f98782eae4b2a359e3d244026098bb2a8ad48e0dd9662ce8652', 'stateRoot': '0x69e39af32bd0cc2d5f8ad822a3afcd7fe8d7211e4ca7c42654cdbda7a9b74516', 'messagePasserStorageRoot': '0xc286d696c67d0c602a4562929e6b721ce6e8ec0a2e0173e0a816328b40062a6e'}, 'ok': True, 'commands': [{'argv': ['/tmp/tmp2wzitikn/bin/base', 'reth', 'stage', 'unwind', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.061, 'stdoutBytes': 60, 'stdoutLog': '/tmp/tmp2wzitikn/work/cmd/20261025T214551722701Z-0001.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp2wzitikn/bin/base', 'reth', 'stage', 'run', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.06, 'stdoutBytes': 58, 'stdoutLog': '/tmp/tmp2wzitikn/work/cmd/20261025T214551783367Z-0002.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp2wzitikn/bin/base', 'reth', 'stage', 'drop', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.061, 'stdoutBytes': 24, 'stdoutLog': '/tmp/tmp2wzitikn/work/cmd/20261025T214551843753Z-0003.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp2wzitikn/bin/base', 'reth', 'db', 'get', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.061, 'stdoutBytes': 25, 'stdoutLog': '/tmp/tmp2wzitikn/work/cmd/20261025T214551904739Z-0004.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp2wzitikn/bin/base', 'reth', 'db', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.061, 'stdoutBytes': 36, 'stdoutLog': '/tmp/tmp2wzitikn/work/cmd/20261025T214551965946Z-0005.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp2wzitikn/bin/base', 'reth', 'db', '--datadir', '/tmp/tmp2wzitikn/datadir', '--config', '/tmp/tmp2wzitikn/reth.toml', 'settings', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 37, 'stdoutLog': '/tmp/tmp2wzitikn/work/cmd/20261025T214552026650Z-0006.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp2wzitikn/bin/base', 'reth', 'db', '--datadir', '/tmp/tmp2wzitikn/datadir', '--config', '/tmp/tmp2wzitikn/reth.toml', 'get', 'static-file', 'headers', '52866960'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 1681, 'stdoutLog': '/tmp/tmp2wzitikn/work/cmd/20261025T214552089664Z-0007.out', 'stderrTail': '', 'stopped': None}], 'finishedAt': '2026-10-25T21:45:52.190070+00:00'}
+
+======================================================================
+FAIL: test_selection_is_exactly_the_pinned_manifest_and_final_profile (__main__.Gates.test_selection_is_exactly_the_pinned_manifest_and_final_profile)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.1NKeZrFAjz/test/test_a2a4.py", line 135, in test_selection_is_exactly_the_pinned_manifest_and_final_profile
+    self.refused('plan', 'first_pass_only')                           # distinguishable, never final readiness
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.1NKeZrFAjz/test/test_a2a4.py", line 76, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: 0 != 1 : {'step': 'plan', 'startedAt': '2026-10-25T21:45:54.711741+00:00', 'result': {'gates': {'a1': {'a1At': '2026-10-25T21:45:54.711117+00:00', 'a1AgeSec': 0, 'l1Finalized': 26271848}, 'stopped': {'unitsInactive': ['enclave-base-holder.service', 'enclave-base-holder.path', 'enclave-rpc-base-snapshot.service'], 'procScanUnreadable': 551}, 'download': {'manifestSha256': '3a5bde069d2e9ad0cb85e3d1c01c8026cce2b2a3aae90f44221759596a51b491', 'archives': 116}, 'freeBytes': 59772424192, 'storageV2': True}, 'checkpoints': {'headers': 53048526, 'bodies': 53048526, 'execution': 53048526, 'merkle-execute': 53048526, 'finish': 53048526}, 'storageV2': True, 'a3': [['stage', 'unwind', '--datadir', '/tmp/tmptffaahmu/datadir', '--config', '/tmp/tmptffaahmu/reth.toml', 'to-block', '52998526'], ['stage', 'unwind', '--datadir', '/tmp/tmptffaahmu/datadir', '--config', '/tmp/tmptffaahmu/reth.toml', 'to-block', '52948526'], ['stage', 'unwind', '--datadir', '/tmp/tmptffaahmu/datadir', '--config', '/tmp/tmptffaahmu/reth.toml', 'to-block', '52898526'], ['stage', 'unwind', '--datadir', '/tmp/tmptffaahmu/datadir', '--config', '/tmp/tmptffaahmu/reth.toml', 'to-block', '52866960']], 'a4': [['stage', 'drop', '--datadir', '/tmp/tmptffaahmu/datadir', '--config', '/tmp/tmptffaahmu/reth.toml', 'merkle'], ['stage', 'run', '--datadir', '/tmp/tmptffaahmu/datadir', '--config', '/tmp/tmptffaahmu/reth.toml', '--from', '0', '--to', '52866960', '--commit', '--checkpoints', '--skip-unwind', 'merkle']], 'refusedOnV2': ['hashing', 'account-hashing', 'storage-hashing', 'execution'], 'v1Extra': []}, 'ok': True, 'commands': [{'argv': ['/tmp/tmptffaahmu/bin/base', 'reth', 'stage', 'unwind', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 60, 'stdoutLog': '/tmp/tmptffaahmu/work/cmd/20261025T214554752084Z-0001.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmptffaahmu/bin/base', 'reth', 'stage', 'run', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 58, 'stdoutLog': '/tmp/tmptffaahmu/work/cmd/20261025T214554816098Z-0002.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmptffaahmu/bin/base', 'reth', 'stage', 'drop', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.062, 'stdoutBytes': 24, 'stdoutLog': '/tmp/tmptffaahmu/work/cmd/20261025T214554879278Z-0003.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmptffaahmu/bin/base', 'reth', 'db', 'get', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 25, 'stdoutLog': '/tmp/tmptffaahmu/work/cmd/20261025T214554941681Z-0004.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmptffaahmu/bin/base', 'reth', 'db', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 36, 'stdoutLog': '/tmp/tmptffaahmu/work/cmd/20261025T214555004876Z-0005.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmptffaahmu/bin/base', 'reth', 'db', '--datadir', '/tmp/tmptffaahmu/datadir', '--config', '/tmp/tmptffaahmu/reth.toml', 'settings', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 37, 'stdoutLog': '/tmp/tmptffaahmu/work/cmd/20261025T214555068312Z-0006.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmptffaahmu/bin/base', 'reth', 'db', '--datadir', '/tmp/tmptffaahmu/datadir', '--config', '/tmp/tmptffaahmu/reth.toml', 'stage-checkpoints', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 417, 'stdoutLog': '/tmp/tmptffaahmu/work/cmd/20261025T214555131664Z-0007.out', 'stderrTail': '', 'stopped': None}], 'finishedAt': '2026-10-25T21:45:55.195600+00:00'}
+
+----------------------------------------------------------------------
+Ran 20 tests in 39.334s
+
+FAILED (failures=2)

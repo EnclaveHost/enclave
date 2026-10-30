@@ -1,0 +1,104 @@
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: bytecode check failed: failures=0 missingCode=1 rows=10 ok=True"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: bytecode check failed: failures=0 missingCode=0 rows=0 ok=True"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: bytecode check failed: failures=0 missingCode=0 rows=10 ok=False"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: failures/missing code/short DUPN padding/read error present"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: failures/missing code/short DUPN padding/read error present"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: failures/missing code/short DUPN padding/read error present"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "checker_receipt: tag counts do not add up to the scanned rows"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "checker_receipt: rows=True is not a non-negative integer"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "checker_receipt: tag counts do not add up to the scanned rows"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "checker_receipt: no account with code was checked for completeness (empty/unscanned HashedAccounts)"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "checker_receipt: HashedAccounts scan incomplete (scanned != table entries, or more code accounts than accounts)"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "checker_receipt: HashedAccounts scan incomplete (scanned != table entries, or more code accounts than accounts)"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "checker_receipt: row/code-hash digests or the MDBX transaction id are missing"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "checker_receipt: row/code-hash digests or the MDBX transaction id are missing"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "checker_receipt: the scan transaction was not at N on every stage checkpoint: {'headers': 52866960, 'bodies': 52866960, 'execution': 52866961, 'merkle-execute': 52866960, 'finish': 52866960}"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "checker_receipt: the scan transaction was not at N on every stage checkpoint: {'execution': 52866960}"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "checker_receipt: receipt keys differ from the v2 schema: ['extra']"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "checker_receipt: receipt keys differ from the v1 schema: ['readError']"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "checker_receipt: unknown receipt format base-bytecode-check/v3"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: bytecode check failed: rc=1 failures=0 missingCode=0"}
+test_missing_malformed_empty_or_unscanned_results_refuse (test_a2a4.BytecodeGate.test_missing_malformed_empty_or_unscanned_results_refuse) ... 
+  test_missing_malformed_empty_or_unscanned_results_refuse (test_a2a4.BytecodeGate.test_missing_malformed_empty_or_unscanned_results_refuse) (code='checker_receipt', receipt={'bytecodesEntries': 11}) ... FAIL
+
+======================================================================
+FAIL: test_missing_malformed_empty_or_unscanned_results_refuse (test_a2a4.BytecodeGate.test_missing_malformed_empty_or_unscanned_results_refuse) (code='checker_receipt', receipt={'bytecodesEntries': 11})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.a6IJsCDG0M/test/test_a2a4.py", line 605, in test_missing_malformed_empty_or_unscanned_results_refuse
+    self.setUp(); self.ready(receipt); self.refused('bytecodes', code)
+                                       ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.a6IJsCDG0M/test/test_a2a4.py", line 131, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: 0 != 1 : {'step': 'bytecodes', 'startedAt': '2026-10-25T23:43:43.891155+00:00', 'result': {'rows': 10, 'tag2': 9, 'tag4': 1, 'nonCanonicalPadding': 0, 'accountsWithCode': 12, 'receiptVersion': 'v2'}, 'ok': True, 'commands': [{'argv': ['/tmp/tmp5sn1nvv3/bin/base', 'reth', 'stage', 'unwind', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.066, 'stdoutBytes': 60, 'stdoutLog': '/tmp/tmp5sn1nvv3/work/cmd/20261025T234343929160Z-0001.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5sn1nvv3/bin/base', 'reth', 'stage', 'run', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 58, 'stdoutLog': '/tmp/tmp5sn1nvv3/work/cmd/20261025T234343995718Z-0002.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5sn1nvv3/bin/base', 'reth', 'stage', 'drop', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.062, 'stdoutBytes': 24, 'stdoutLog': '/tmp/tmp5sn1nvv3/work/cmd/20261025T234344060193Z-0003.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5sn1nvv3/bin/base', 'reth', 'db', 'get', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 25, 'stdoutLog': '/tmp/tmp5sn1nvv3/work/cmd/20261025T234344122576Z-0004.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5sn1nvv3/bin/base', 'reth', 'db', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.062, 'stdoutBytes': 36, 'stdoutLog': '/tmp/tmp5sn1nvv3/work/cmd/20261025T234344186519Z-0005.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5sn1nvv3/bin/base', 'reth', 'db', '--datadir', '/tmp/tmp5sn1nvv3/datadir', '--config', '/tmp/tmp5sn1nvv3/reth.toml', 'settings', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.062, 'stdoutBytes': 37, 'stdoutLog': '/tmp/tmp5sn1nvv3/work/cmd/20261025T234344248475Z-0006.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5sn1nvv3/bin/base', 'reth', 'db', '--datadir', '/tmp/tmp5sn1nvv3/datadir', '--config', '/tmp/tmp5sn1nvv3/reth.toml', 'stage-checkpoints', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.061, 'stdoutBytes': 417, 'stdoutLog': '/tmp/tmp5sn1nvv3/work/cmd/20261025T234344310569Z-0007.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5sn1nvv3/bin/base', 'reth', 'db', '--datadir', '/tmp/tmp5sn1nvv3/datadir', '--config', '/tmp/tmp5sn1nvv3/reth.toml', 'stage-checkpoints', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 417, 'stdoutLog': '/tmp/tmp5sn1nvv3/work/cmd/20261025T234344371929Z-0008.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5sn1nvv3/bin/base', 'reth', 'db', '--datadir', '/tmp/tmp5sn1nvv3/datadir', '--config', '/tmp/tmp5sn1nvv3/reth.toml', 'get', 'static-file', 'headers', '52866960'], 'class': 'read', 'rc': 0, 'sec': 0.062, 'stdoutBytes': 1681, 'stdoutLog': '/tmp/tmp5sn1nvv3/work/cmd/20261025T234344435482Z-0009.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5sn1nvv3/bin/base', 'reth', 'db', '--datadir', '/tmp/tmp5sn1nvv3/datadir', '--config', '/tmp/tmp5sn1nvv3/reth.toml', 'stage-checkpoints', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 417, 'stdoutLog': '/tmp/tmp5sn1nvv3/work/cmd/20261025T234344601405Z-0010.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5sn1nvv3/bin/base', 'reth', 'db', '--datadir', '/tmp/tmp5sn1nvv3/datadir', '--config', '/tmp/tmp5sn1nvv3/reth.toml', 'get', 'static-file', 'headers', '52866960'], 'class': 'read', 'rc': 0, 'sec': 0.062, 'stdoutBytes': 1681, 'stdoutLog': '/tmp/tmp5sn1nvv3/work/cmd/20261025T234344665480Z-0011.out', 'stderrTail': '', 'stopped': None}], 'finishedAt': '2026-10-25T23:43:44.765892+00:00'}
+
+----------------------------------------------------------------------
+Ran 1 test in 83.294s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}

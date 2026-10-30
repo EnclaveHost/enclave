@@ -1,0 +1,34 @@
+{
+  "unit": {
+    "ActiveState": "active",
+    "InvocationID": "a8561633fc04457b96fa9b7b238a4f92",
+    "MainPID": "2071906"
+  },
+  "main": {
+    "pid": 2071906,
+    "startTicks": "162586886",
+    "exe": "/usr/bin/python3.14",
+    "cwd": "/home/steven"
+  },
+  "runner": {
+    "pid": 2072457,
+    "startTicks": "162590696",
+    "exe": "/usr/bin/python3.14",
+    "cwd": "/home/steven"
+  },
+  "children": [
+    {
+      "pid": 2072466,
+      "startTicks": "162590730",
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029"
+    }
+  ],
+  "preparedSha256": "cfa72e246f89e682064cf71354cf1cea98f0db6cc0a6b3e6bb8f01b38b88933d",
+  "sourceOnly": true,
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  }
+}

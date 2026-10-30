@@ -1,0 +1,14 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/install/MISSING.md	2026-10-25 23:53:09.430965872 -0700
++++ install/MISSING.md	2026-10-26 00:25:59.526552923 -0700
+@@ -1,4 +1,4 @@
+-# r10: what genuinely awaits real artifacts, the guest canary, or root (each fails closed while absent)
++# r11: what genuinely awaits real artifacts, the guest canary, or root (each fails closed while absent)
+ 
+ | Item | Needed by | Status |
+ |---|---|---|
+@@ -10,3 +10,5 @@
+ | forward-sync per-recovery values (`recoveryRoot`, `harnessConfig`, `targetMarginBlocks`) | `base-forward-sync.json` | Per recovery event |
+ | `/etc/enclave-rpc/finality-activation.json` | every review flag | Only after root qualification (`install_verified.py activate`) |
+ | `bundle/` (Helios 124 MB, 13 capture dependency trees, capture inputs, the noble tree) | install | Assembled on the workstation by `tools/assemble_bundle.py` from `bundle-origin.json` (hash-checked); then copied with the stage |
++| private runtime directories `/var/lib/enclave-rpc/{finality-captures,finality-work,l1-authority,l1-authority/data,l1-authority/home}` (root 0700) | reproof, finality tool, Helios | Root after the byte-exact install, BEFORE `activate`: `install_verified.py runtime-dirs --commit`, then `--check` (also after any reboot). Existing paths are never changed; a wrong one refuses |
++| release of ambiguous capture attempts (`attempts.jsonl` outcome `ambiguous`/`qualified-unrecorded`) | disk only | Root by hand, only after status shows a recorded proof at/after that attempt (reproof never removes them) |

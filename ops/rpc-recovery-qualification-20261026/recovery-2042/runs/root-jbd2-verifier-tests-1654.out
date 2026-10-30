@@ -1,0 +1,40 @@
+[queue] START available=24726MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Ran 9 tests in 0.222s
+
+FAILED (errors=7)
+{
+ "badMarkers": [
+  "FAIL",
+  "ERROR",
+  "Traceback"
+ ],
+ "checks": {
+  "lastLineOK": false,
+  "noBadMarkers": false,
+  "ranExactly9": true,
+  "rc0": false,
+  "stdoutEmpty": true
+ },
+ "format": "enclave-jbd2-verifier-test-receipt/r2",
+ "libext2fs": {
+  "realpath": "/usr/lib/libext2fs.so.2.4",
+  "sha256": "5ffd7f73c5fa00c74eb892141a94b60df576d80d057245e8225c826f46defd9f"
+ },
+ "pass": false,
+ "python": "3.14.8",
+ "r1Sums": "1a7bcc31444776ddb4cf54b3fb2eca0c8d8f61b2e6b467b98f86752022cee46a",
+ "ran": [
+  "9"
+ ],
+ "rc": 1,
+ "stageSums": "2e40e9a9b8f4990f1873273a20e25b890d5062a5f0de1ddf32d37e80b78e1932",
+ "stderrSha256": "3806439e8613551a6314d5ffc8b83b78030ba803557a858fb870e4547548ec52",
+ "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+ "verifierSha256": "d3cfa34e2fa80744b99ddde1a06ace056ccd962e65e45ef9241c0cc6727eb973"
+}
+## FAIL
+## receipt /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/journal-recovery-verifier-stage/r2/runs/tests-20261026T203604Z-2322054/receipt.json
+## jrv-r2-tests rc=1
+[memory-guard] exit=1 peakTreeRssMiB=33 minHostAvailableMiB=24674
+[memory-guard] at peak: python3:27 bash:4 timeout:2
+[queue] EXIT 1

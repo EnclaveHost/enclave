@@ -1,0 +1,10 @@
+[
+  {
+    "path": "/usr/bin/mke2fs",
+    "sha256": "0ad4756fd858ee0a3a7fcaa34875af0c1050b9bccaf0d363c242d87d70575657"
+  },
+  {
+    "path": "/usr/bin/debugfs",
+    "sha256": "9b27184084383c8607eee03b43c80eca4ef912acf4887b40a7cc420e267ad8a8"
+  }
+]

@@ -1,0 +1,588 @@
+--- a/windows/node/chain.mjs
++++ b/windows/node/chain.mjs
+@@ -38,8 +38,43 @@
+ const RPCS = (process.env.BASE_RPCS || "https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org,https://mainnet.base.org")
+   .split(",").map((s) => s.trim()).filter(Boolean);
+ const BOOK = (process.env.ADDRESS_BOOK_ADDRESS || "0xab214342d5A490150A4A977063A2f88E21F80907").trim();
+-/** The Base RPCs this node reads (the privacy agent's config names the same ones: tuna-enroll.mjs). */
+-export const rpcUrls = () => [...RPCS];
++// THE LOCAL VERIFIER (the operator's explicit ENCLAVE_CHAIN_AUTHORITY=verifier + ENCLAVE_CHAIN_VERIFIER, network/chain-authority.mjs),
++// exactly as supervisor.js:323-339: every chain read of this node (publicClient, the operator wallet's preparation, receipts,
++// logs, the shielded startup reader) is proven by the local verifier (the unsafe tier: its sequencer-signed head chain);
++// submissions and the pending-pool nonce/fee hints go to the operator's OWN backend (ENCLAVE_CHAIN_TX_BACKEND) only, bound to
++// the verifier's chain before each send; a transaction is never sent to the verifier, and nothing - not BASE_RPCS, not a
++// public default - is contacted. An INVALID selection refuses every chain read and transaction. Unset: the RPC list above.
++const CHAIN_AUTHORITY = (() => {
++  try { return chainAuthorityFromEnv(process.env, { chain: base }); }
++  catch (e) { console.error(`[chain] the chain authority selection is INVALID (${e.message}): every chain read and transaction refuses; no provider is used`);
++              return refusingChainAuthority(e.message, { chain: base }); }
++})();
++const rpcTransport = () => CHAIN_AUTHORITY ? CHAIN_AUTHORITY.transport : fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 })));
++if (CHAIN_AUTHORITY) { const d = CHAIN_AUTHORITY.describe();
++  console.log(`[chain] authority: ${d.authority === "refusing" ? "REFUSING (" + d.why + ")" : `local verifier ${d.verifier} (unsafe tier, no L1 finality); `
++    + (d.backend ? `submissions and pool/fee hints via the own backend ${d.backend.label} (bound to the verifier's chain before each send)` : "no own transaction backend: nothing is submitted")
++    + "; logs prove inclusion only; no provider RPC is used"}`); }
++/** The node's explicit chain authority (null = the legacy RPC list). Its .client is ONE authority (VERIFIER_CLIENT). */
++export const chainAuthority = () => CHAIN_AUTHORITY;
++/** The selection to hand to a separate process (the privacy agent's chain config): null in legacy mode,
++ *  {authority: 'verifier', verifier} for a valid explicit selection, {invalid: why} for an invalid one (never a public list). */
++export function chainAuthoritySelection() {
++  if (!CHAIN_AUTHORITY) return null;
++  const d = CHAIN_AUTHORITY.describe();
++  if (d.authority === "refusing") return { invalid: String(d.why || "invalid chain authority selection") };
++  return { authority: "verifier", verifier: String(process.env.ENCLAVE_CHAIN_VERIFIER || "").trim() };
++}
++/** HTTPS origins the privacy agent may probe for EGRESS CONNECTIVITY only (network/egress-probes.mjs: "not an authority over
++ *  leases or app identity"); legacy derived them from its chain RPCs. Under the explicit authority no chain RPC exists, so the
++ *  configured list's origins are handed over explicitly for that purpose alone (ENCLAVE_NETWORK_EGRESS_PROBES overrides). */
++export function connectivityProbeUrls() {
++  const own = String(process.env.ENCLAVE_NETWORK_EGRESS_PROBES || "").split(",").map((s) => s.trim()).filter(Boolean);
++  const list = own.length ? own : RPCS;
++  return [...new Set(list.filter((u) => /^https:\/\//.test(u)).map((u) => new URL(u).origin + "/"))].slice(0, 8);
++}
++/** The Base RPCs this node reads (the privacy agent's config names the same ones: tuna-enroll.mjs). Under an explicit chain
++ *  authority there are NONE: no public RPC list is handed to any consumer (each uses chainAuthority()/chainAuthoritySelection()). */
++export const rpcUrls = () => (CHAIN_AUTHORITY ? [] : [...RPCS]);
+ /** The EnclaveAddressBook this node resolves contracts from (session-api-auth.mjs reads sessionVaultFactory there). */
+ export const addressBook = () => BOOK;
+ 
+@@ -135,7 +170,7 @@
+ const keyOf = (name) => pad(stringToHex(name), { dir: "right", size: 32 });
+ 
+ export function publicClient() {
+-  if (!pub) pub = createPublicClient({ chain: base, transport: fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 }))) });
++  if (!pub) pub = createPublicClient({ chain: base, transport: rpcTransport() });
+   return pub;
+ }
+ /** The operator key: generated on THIS box, never leaves it, and controls nothing but this row. */
+@@ -146,7 +181,7 @@
+   if (!hex) return null;
+   if (!/^0x[0-9a-fA-F]{64}$/.test(hex)) throw new Error("operator key must be 0x + 64 hex chars");
+   acct = privateKeyToAccount(hex);
+-  wal = createWalletClient({ account: acct, chain: base, transport: fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 }))) });
++  wal = createWalletClient({ account: acct, chain: base, transport: rpcTransport() });
+   return acct;
+ }
+ export function newOperatorKey(keyFile) {
+@@ -216,6 +251,9 @@
+ async function send(address, abi, functionName, args) {
+   const job = async () => {
+     if (!wal) throw new Error("no operator key on this box");
++    // under the explicit authority: the verifier's head is fresh and the own backend is bound to its chain, or nothing is
++    // simulated, signed or sent (refused in words). Legacy: nothing here, exactly as before.
++    if (CHAIN_AUTHORITY) await CHAIN_AUTHORITY.actionGate({ what: functionName, submit: true });
+     for (let attempt = 0; ; attempt++) {
+       try {
+         await publicClient().simulateContract({ address, abi, functionName, args, account: acct });   // fail with the revert reason, not a receipt
+@@ -262,11 +300,7 @@
+ // ENCLAVE_CHAIN_VERIFIER (network/chain-authority.mjs) -> every lease read goes to that ONE local verifier and ENCLAVE_LEASE_GAS_RPCS
+ // is never contacted; an INVALID selection refuses every lease read (no provider is used); unset -> null -> the legacy RPC quorum,
+ // unchanged. (leaseGasEnv above holds only LEASE_GAS_ names, so the authority could never be found inside it.)
+-const LEASE_CHAIN_AUTHORITY = (() => {
+-  try { return chainAuthorityFromEnv(process.env, { chain: base }); }
+-  catch (e) { console.error(`[chain] the chain authority selection is INVALID (${e.message}): every app-funded lease read refuses; no provider is used`);
+-              return refusingChainAuthority(e.message, { chain: base }); }
+-})();
++const LEASE_CHAIN_AUTHORITY = CHAIN_AUTHORITY;   // the same explicit selection as every other chain read here
+ // until the host sets its platform host policy, a discovered relay is refused (null is set only when it is explicitly off)
+ const RELAY_POLICY_UNSET = async () => { throw new Error("this host has not set its platform host policy: no discovered relay is admitted"); };
+ /** The host's platform host policy for designated relays (host.mjs passes its policy gate, a refusing decider when on but
+--- a/windows/node/host.mjs
++++ b/windows/node/host.mjs
+@@ -234,10 +234,14 @@
+       const gateways = startupGateways(process.env);
+       if (!gateways.length) throw new Error("no startup package replicas (ENCLAVE_STARTUP_STORAGE_PLAN_FILE or ENCLAVE_STARTUP_GATEWAYS)");
+       if (!chain.CONTRACT_PINS) throw new Error("no pinned contracts (ENCLAVE_CONTRACT_PINS_FILE): the mutable address book is not a startup authority");
+-      const { quorumReader, rpcClients } = await import("./host-identity.mjs");
++      const { quorumReader, rpcClients, verifierReader } = await import("./host-identity.mjs");
+       const { cidFetcher } = await import("../vbslike/manager/fetchcid.mjs");
+       const rpcs = String(process.env.ENCLAVE_STARTUP_RPCS || "").split(",").map((x) => x.trim()).filter(Boolean);
+-      const reader = quorumReader({ clients: await rpcClients(rpcs.length ? rpcs : chain.rpcUrls()) });
++      // under the node's explicit chain authority: the SAME reader contract and per-read policy through the ONE local verifier
++      // (an invalid selection's refusing client refuses every read); an explicit public list would mix a provider into it
++      const authority = chain.chainAuthority();
++      if (authority && rpcs.length) throw new Error("ENCLAVE_STARTUP_RPCS is set but the node runs under ENCLAVE_CHAIN_AUTHORITY=verifier: a provider list is never mixed in");
++      const reader = authority ? verifierReader({ client: authority.client }) : quorumReader({ clients: await rpcClients(rpcs.length ? rpcs : chain.rpcUrls()) });
+       const { fileURLToPath } = await import("node:url");
+       const script = fileURLToPath(new URL("./fetch-cid.py", import.meta.url));
+       const sources = String(this.cfg.gateway || "").split(",").map((x) => x.trim()).filter(Boolean);
+--- a/windows/node/host-identity.mjs
++++ b/windows/node/host-identity.mjs
+@@ -278,6 +278,61 @@
+     },
+   };
+ }
++// THE SAME READER CONTRACT over the node's explicit local verifier (network/chain-authority.mjs, chain.mjs chainAuthority()):
++// ONE authority whose state is proven against the block, not voted on - so instead of two agreeing peers it requires the
++// client to carry the in-process VERIFIER_CLIENT mark (Symbol.for, set only by createChainAuthority; a JSON value or an
++// ordinary RPC client can never carry it). Every per-read policy of quorumReader is kept: the chain id, the target block
++// = head - confirmations, never below a block already accepted, the block read before AND after the value with the same
++// hash and timestamp (a reorg during the read refuses), freshness at both ends, and the deadline. No fallback: a failure
++// is a refusal. (The verifier's tier is its sequencer-signed head chain: unsafe, no L1 finality.)
++const VERIFIER_MARK = Symbol.for("enclave.chain-authority.local-verifier");
++export function verifierReader({ client, chainId = 8453, confirmations = 2, maxBlockAgeMs = 90_000, deadlineMs = 30_000, now = Date.now }) {
++  if (!client || typeof client !== "object" || !client[VERIFIER_MARK]) throw new Error("the single-authority reader needs the node's local verifier client (one RPC never decides what the chain says)");
++  if (PEER_METHODS.some((m) => typeof client[m] !== "function")) throw new Error(`the verifier client needs ${PEER_METHODS.join(", ")}`);
++  if (!inRange(chainId, 1, Number.MAX_SAFE_INTEGER)) throw new Error("chainId must be a positive integer");
++  if (!inRange(confirmations, 1, 1000)) throw new Error("confirmations must be a whole number from 1 to 1000");
++  if (!inRange(maxBlockAgeMs, 1000, 3_600_000)) throw new Error("maxBlockAgeMs must be a whole number of ms from 1 s to 1 h");
++  if (!inRange(deadlineMs, 100, 600_000)) throw new Error("deadlineMs must be a whole number of ms from 0.1 s to 10 min");
++  if (typeof now !== "function") throw new Error("now must be a function");
++  const conf = BigInt(confirmations);
++  let lastBlock = 0n;
++  const why = (e) => redactUrls(String(e?.shortMessage || e?.message || e)).slice(0, 300);
++  const fresh = (t) => Number.isSafeInteger(t) && t <= now() + 5000 && t + maxBlockAgeMs > now();
++  const checkBlock = (b, at) => {
++    let n, t;
++    try { n = BigInt(b.number); t = Number(BigInt(b.timestamp)) * 1000; } catch { throw new Error("malformed chain block"); }
++    if (n !== at) throw new Error(`asked for block ${at}, got block ${n}`);
++    if (typeof b.hash !== "string" || !BLOCK_HASH.test(b.hash)) throw new Error("malformed chain block hash");
++    if (!Number.isSafeInteger(t)) throw new Error("malformed chain block timestamp");
++    return { hash: b.hash.toLowerCase(), t };
++  };
++  return {
++    single: true,
++    async agreed(fn, failures = []) {
++      const stop = new AbortController();
++      let timer;
++      const deadline = new Promise((_, reject) => { timer = setTimeout(() => { stop.abort(); reject(new Error(`no fresh verified chain read within ${deadlineMs / 1000} s${failures.length ? `: ${failures.join("; ")}` : ""}`)); }, deadlineMs); });
++      const read = (async () => {
++        const [id, number] = await Promise.all([client.getChainId(), client.getBlockNumber({ cacheTime: 0 })]);
++        if (Number(id) !== chainId) throw new Error(`wrong chain ${id}`);
++        let at = BigInt(number) - conf;
++        if (at < 0n) throw new Error("no confirmed block yet");
++        if (at < lastBlock) at = lastBlock;                 // never roll back below a block already accepted
++        const first = checkBlock(await client.getBlock({ blockNumber: at }), at);
++        if (!fresh(first.t)) throw new Error("stale chain block");
++        const value = await fn(client, at, stop.signal);
++        const again = checkBlock(await client.getBlock({ blockNumber: at }), at);
++        if (again.hash !== first.hash || again.t !== first.t) throw new Error("chain reorganized during read");
++        if (!fresh(first.t)) throw new Error("chain block went stale during the read");
++        if (at > lastBlock) lastBlock = at;
++        return value;
++      })();
++      try { return await Promise.race([read, deadline]); }
++      catch (e) { failures.push(why(e)); throw new Error(`verified chain read refused: ${why(e)}`); }
++      finally { clearTimeout(timer); stop.abort(); read.catch(() => {}); }
++    },
++  };
++}
+ /** viem clients for two or more RPCs on distinct hosts (one operator's two URLs are one RPC). */
+ export async function rpcClients(rpcs) {
+   if (!Array.isArray(rpcs) || rpcs.length > MAX_PEERS) throw new Error(`at most ${MAX_PEERS} RPCs`);
+--- a/windows/node/network-enroll.mjs
++++ b/windows/node/network-enroll.mjs
+@@ -25,28 +25,55 @@
+ export const RETIRED_KEYS = ["nknRpc", "inventory", "control", "runtime", "defaults", "tunaUSDC", "currencyManagement"];
+ 
+ /** The privacy agent's config for this box, apps empty (the NucBox's production shape). */
++/** The privacy agent's `chain` (network/privacy-agent.mjs: LeaseReader({...cfg.chain}), the provider bootstrap, the network host):
++ *  - the node's explicit verifier (chain.mjs chainAuthoritySelection() {authority:'verifier', verifier}): exactly
++ *    {addressBook, authority, verifier} - validated by the agent's own lease-reader.mjs chainAuthorityOptions, and NO rpc;
++ *  - an INVALID node selection ({invalid}): {addressBook} only - no RPC at all, so the agent's readers refuse (never public);
++ *  - legacy (null): {addressBook, rpc}, unchanged. A selection carrying both a verifier and RPCs is refused (never mixed). */
++export function agentChain({ addressBook, chainRpc, chainAuthority = null }) {
++  if (chainAuthority === null || chainAuthority === undefined) return { addressBook, rpc: chainRpc };
++  if (typeof chainAuthority !== "object" || Array.isArray(chainAuthority)) throw new Error("invalid chain authority selection for the agent");
++  if (Array.isArray(chainRpc) && chainRpc.length) throw new Error("the node selected its own chain authority but RPCs were also passed: never mixed");
++  if (chainAuthority.invalid !== undefined) return { addressBook };
++  // the same rule as the agent's own check (network/lease-reader.mjs chainAuthorityOptions + verifierEndpoint): authority
++  // 'verifier' with a LOOPBACK http(s) URL; the agent validates it again before building any reader
++  if (chainAuthority.authority !== "verifier") throw new Error("the agent's chain authority must be verifier");
++  let u; try { u = new URL(String(chainAuthority.verifier)); } catch { throw new Error("the agent's chain verifier must be a URL"); }
++  const loop = /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(u.hostname) || u.hostname === "[::1]";
++  if ((u.protocol !== "http:" && u.protocol !== "https:") || !loop || u.username || u.password || u.search || u.hash)
++    throw new Error("the agent's chain verifier must be a loopback http(s) URL without credentials, query or fragment");
++  return { addressBook, authority: "verifier", verifier: u.href };
++}
+ export function baseConfig({ agentDir, binDir, nodeBinary, operatorKeyFile, runner, endpoint, relayBase, policyFile, tpmBinary, tpmSha256,
+-                             addressBook, chainRpc, manager = "http://127.0.0.1:8091", dataAddr = "127.0.0.1:8092", upstream = "http://127.0.0.1:9600",
++                             addressBook, chainRpc, chainAuthority = null, manager = "http://127.0.0.1:8091", dataAddr = "127.0.0.1:8092", upstream = "http://127.0.0.1:9600",
+                              enclaveNetwork }) {
+   return { version: 2, directory: path.join(agentDir, "state"), operatorKeyFile, runner, endpoint, apps: [],
+-    chain: { addressBook, rpc: chainRpc }, upstream,
++    chain: agentChain({ addressBook, chainRpc, chainAuthority }), upstream,
+     shield: { policyFile, tpmBinary, tpmSha256, ingress: { url: manager, dataAddr }, manager },
+     dns: [{ address: "1.1.1.1:443", serverName: "cloudflare-dns.com", path: "/dns-query" }, { address: "8.8.8.8:443", serverName: "dns.google", path: "/resolve" }],
+     mirror: relayBase, enclaveNetwork: networkConfig({ binDir, nodeBinary, relayBase, ...enclaveNetwork }) };
+ }
+ 
+ /** The privacy agent's enclaveNetwork section: every app, the box's own control circuits, the bundled binaries. */
+-export function networkConfig({ binDir, nodeBinary, relayBase, checkers, paid, directories }) {
++export function networkConfig({ binDir, nodeBinary, relayBase, checkers, paid, directories, egressProbeUrls }) {
+   const bin = (f) => path.join(binDir, f);
+   if (!Array.isArray(checkers) || !checkers.length || checkers.some((c) => !/^0x[0-9a-f]{40}$/.test(c))) throw new Error("Enclave network: trusted checker addresses required");
+   return { relay: relayBase, checkers, apps: "all", control: true, wgBinary: bin("enclave-wg.exe"), nodeBinary,
+     workerModule: bin("windows-circuit-worker.mjs"), firewallBinary: bin("enclave-circuit-firewall.exe"),
+     ...(directories ? { directories: validDirectories(directories) } : {}),
++    // egress connectivity probes (only set under the node's explicit chain authority, where no chain RPC exists to derive them from)
++    ...(egressProbeUrls ? { egressProbeUrls: validProbeUrls(egressProbeUrls) } : {}),
+     // paid providers (used only for apps whose owners authorized them on chain): this box's registry proof key signs
+     // the bandwidth receipts, its operator key pays the settlement gas; up to 0.01 USDC per provider is settled in a batch
+     ...(paid ? { paid: { proofKeyFile: paid.proofKeyFile, gasKeyFile: paid.gasKeyFile, rpc: paid.rpc || "https://base-rpc.publicnode.com", maxPending6: paid.maxPending6 || "10000" } } : {}) };
+ }
+ 
++export function validProbeUrls(values) {
++  if (!Array.isArray(values) || !values.length || values.length > 8) throw new Error("1..8 egress probe URLs required");
++  return values.map((value) => { const u = new URL(value);
++    if (u.protocol !== "https:" || u.username || u.password || u.hash) throw new Error("egress probes require HTTPS without credentials or fragments");
++    return u.href; });
++}
+ export function validDirectories(values) {
+   if (!Array.isArray(values) || !values.length || values.length > 8) throw new Error("1..8 public directory origins required");
+   return [...new Set(values.map(value => {
+@@ -114,7 +141,19 @@
+     // and on k11-4 two of its three public RPCs rate-limited, so 2 of 3 agreeing failed most rounds (2026-10-18). The agent
+     // reads them at start, so a change restarts it once.
+     const rpcs = Array.isArray(config.chainRpc) ? config.chainRpc.filter((u) => /^https:\/\//.test(String(u))) : [];
+-    if (!fresh && rpcs.length >= 2 && JSON.stringify(cfg.chain?.rpc || []) !== JSON.stringify(rpcs)) {
++    // under the node's explicit chain authority the agent's chain is exactly agentChain(): the old public rpc list (and any
++    // stale selection) is removed, never kept beside the verifier; a change restarts the agent once
++    if (!fresh && config.chainAuthority) {
++      const want = agentChain({ addressBook: cfg.chain?.addressBook ?? config.addressBook, chainRpc: [], chainAuthority: config.chainAuthority });
++      if (JSON.stringify(cfg.chain || {}) !== JSON.stringify(want)) {
++        cfg.chain = want; switched = true; changed = true;
++        log(want.authority ? `chain: the node's local verifier ${new URL(want.verifier).host} (no public RPC)` : "chain: the node's chain authority selection is INVALID - no RPC is configured, the agent's chain reads refuse");
++      }
++    } else if (!fresh && rpcs.length >= 2 && cfg.chain?.authority !== undefined) {
++      // back to legacy: drop the verifier selection explicitly and take the node's list
++      cfg.chain = { addressBook: cfg.chain.addressBook, rpc: rpcs }; switched = true; changed = true;
++      log(`chain: legacy RPCs ${rpcs.map((u) => new URL(u).host).join(", ")} (the verifier selection was removed)`);
++    } else if (!fresh && rpcs.length >= 2 && JSON.stringify(cfg.chain?.rpc || []) !== JSON.stringify(rpcs)) {
+       cfg.chain = { ...(cfg.chain || {}), rpc: rpcs }; switched = true; changed = true;
+       log(`chain RPCs now ${rpcs.map((u) => new URL(u).host).join(", ")}`);
+     }
+--- a/windows/node/agent.mjs
++++ b/windows/node/agent.mjs
+@@ -1061,12 +1061,15 @@
+             config: { agentDir: NET.agentDir, binDir: NET.binDir, nodeBinary: process.execPath,
+                       operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
+                       policyFile: NET.policy, tpmBinary: process.env.TPMATTEST_EXE,
+-                      tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
++                      tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(), chainAuthority: chainMod.chainAuthoritySelection(),
+                       manager: host.cfg.isolationManager, dataAddr: host.cfg.isolationDataAddr,
+                       // the Enclave network (docs/design/enclave-network.md) with its trusted qualification checkers; TUNA is
+                       // retired, so there is no other transport (no checkers: enrollment refuses, and says so in the log)
+                       enclaveNetwork: { checkers: String(process.env.ENCLAVE_NETWORK_CHECKERS || '').toLowerCase().split(',').map((c) => c.trim()).filter(Boolean),
+                         ...(ID.networkDirectories.length ? { directories: ID.networkDirectories } : {}),
++                        // under the explicit chain authority the agent has no chain RPC to derive egress probes from: hand it the
++                        // connectivity-only probe origins explicitly (chain.mjs connectivityProbeUrls)
++                        ...(chainMod.chainAuthority() && chainMod.connectivityProbeUrls().length ? { egressProbeUrls: chainMod.connectivityProbeUrls() } : {}),
+                         // the box's registry proof key and operator key, beside each other here (keys.mjs): paid providers settle with them
+                         ...(fs.existsSync(path.join(DIR, 'proof.key')) && fs.existsSync(path.join(DIR, 'operator.key')) ? { paid: { proofKeyFile: path.join(DIR, 'proof.key'), gasKeyFile: path.join(DIR, 'operator.key') } } : {}) } },
+             // a box whose network configuration changes restarts its network agent once (the \Enclave\Network task starts it again in 10 s)
+--- a/network/enclave-network-host.mjs
++++ b/network/enclave-network-host.mjs
+@@ -57,6 +57,13 @@
+ // attestedKey(id) -> sha256 hex of the TLS key the host's CURRENT attested guest proof bound (or null): required for
+ // owner-committed custom names on direct hosting (c.direct.ownerNames), never consulted otherwise. ownerNameRoots is a
+ // code-level override of the public root store for embedders and tests; no configuration file can set it.
++/** The reader verifyOwnerSignature uses for contract-wallet owners: the pinned quorum reader (unchanged), or the agent's
++ *  LeaseReader when it IS the explicit local verifier authority (lease-reader.mjs authority 'verifier'; its rpc is never
++ *  turned into clients). Otherwise undefined: the legacy multi-client path (every configured client must agree). */
++export function ownerSignatureReader({pins,leaseReader}){
++ if(pins)return leaseReader;
++ return leaseReader&&leaseReader.authority==='verifier'&&typeof leaseReader.agreed==='function'?leaseReader:undefined;
++}
+ export async function createNetworkHost({config:c,account,runner,rpc,addressBook,authorityPins,leaseReader,providerReader=leaseReader,directory,authorize,forward,attestedKey=null,ownerNameRoots,fetch=globalThis.fetch,now=Date.now,log=()=>{}}){
+  if(!c||typeof c!=='object')throw new Error('Enclave network configuration required');
+  if(c.relay!==undefined){
+@@ -77,7 +84,9 @@
+  const directories=new DirectoryClient({origins:c.directories||(c.relay?[c.relay]:[]),fetch});
+  const clients=(rpc||[]).map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
+  // Pinned mode verifies contract owners at the same fresh agreeing chain block.
+- const verify=async(owner,message,signature)=>verifyOwnerSignature({clients,reader:pins?leaseReader:undefined,owner,message,signature,addressBook,sessionVaultFactory:pins?.sessionVaultFactory});
++ // Contract-wallet owners (ERC-1271 passkey vaults, SessionVaults) are verified at ONE agreed block: the pinned quorum reader,
++ // or - when the agent's chain is the node's explicit local verifier (no rpc, so no clients) - that same verifier reader.
++ const verify=async(owner,message,signature)=>verifyOwnerSignature({clients,reader:ownerSignatureReader({pins,leaseReader}),owner,message,signature,addressBook,sessionVaultFactory:pins?.sessionVaultFactory});
+  const state=new DurableState(path.join(directory,'enclave-network'));
+  const memory={get:async id=>(await state.get('policy-nonces'))?.[id],set:async(id,n)=>state.update('policy-nonces',async old=>({...(old||{}),[id]:n}))};
+  const policyCache=new Map();
+--- /dev/null
++++ b/test/windows-chain-authority-runtime.test.mjs
+@@ -0,0 +1,285 @@
++// The Windows node's remaining chain consumers under the explicit chain authority (windows-chain-authority-stage r2; PREPARED,
++// NOT RUN by Claude). Real modules, loopback JSON-RPC recorders only (a local VERIFIER, an OWN BACKEND, a PUBLIC sentinel that
++// stands in for BASE_RPCS and any public RPC); every request each recorder receives is recorded and asserted.
++//   * chain.mjs (child process: its authority is read from the environment at load, as on a box): reads -> verifier, the
++//     operator send -> own backend (pending nonce + exactly one submission), no public request; verifier down / no backend /
++//     invalid selection refuse; legacy unchanged; chainAuthoritySelection() for the agent;
++//   * the shielded startup reader: host-identity.mjs verifierReader over the REAL chain.mjs authority client - the same
++//     per-read policy as quorumReader (head - confirmations, block re-read, reorg and staleness refused), no fallback;
++//   * the privacy agent's chain: network-enroll.mjs baseConfig/agentChain -> the REAL network/lease-reader.mjs LeaseReader
++//     built exactly as network/privacy-agent.mjs builds it ({...cfg.chain}) -> its reads reach the verifier only;
++//   * wallet host admission: network/host-admission-runtime.mjs hostAdmissionFromEnv with rpc [] under the verifier.
++import test from "node:test";
++import assert from "node:assert/strict";
++import http from "node:http";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { spawn } from "node:child_process";
++import { fileURLToPath } from "node:url";
++
++const root = (p) => fileURLToPath(new URL("../" + p, import.meta.url));
++const CHAIN = root("windows/node/chain.mjs"), IDENTITY = root("windows/node/host-identity.mjs"), ENROLL = root("windows/node/network-enroll.mjs");
++const LEASE_READER = root("network/lease-reader.mjs"), ADMISSION = root("network/host-admission-runtime.mjs");
++const KEY = "0x" + "11".repeat(32), TO = "0x" + "22".repeat(20), BOOK = "0xab214342d5A490150A4A977063A2f88E21F80907";
++const HEAD = 0x64, TXH = "0x" + "cd".repeat(32);
++const word = (n) => "0x" + BigInt(n).toString(16).padStart(64, "0");
++
++/** A JSON-RPC recorder. opts: {role, down, hashFor(n, callIndex) -> hash, stale}. */
++async function recorder(role, { down = false, hashFor = () => "0x" + "ab".repeat(32), stale = false } = {}) {
++  const calls = []; let blockCalls = 0;
++  const blk = (n) => ({ number: "0x" + n.toString(16), hash: hashFor(n, blockCalls++), parentHash: "0x" + "aa".repeat(32),
++    timestamp: "0x" + Math.floor((Date.now() - (stale ? 3_600_000 : 0)) / 1000).toString(16), baseFeePerGas: "0x3b9aca00", gasLimit: "0x1c9c380",
++    gasUsed: "0x0", miner: "0x" + "00".repeat(20), difficulty: "0x0", totalDifficulty: "0x0", extraData: "0x", logsBloom: "0x" + "00".repeat(256),
++    mixHash: "0x" + "00".repeat(32), nonce: "0x0000000000000000", receiptsRoot: "0x" + "00".repeat(32), sha3Uncles: "0x" + "00".repeat(32), size: "0x1",
++    stateRoot: "0x" + "00".repeat(32), transactionsRoot: "0x" + "00".repeat(32), transactions: [], uncles: [] });
++  const receipt = { transactionHash: TXH, transactionIndex: "0x0", blockHash: "0x" + "ab".repeat(32), blockNumber: "0x" + HEAD.toString(16),
++    from: "0x" + "00".repeat(20), to: TO, cumulativeGasUsed: "0x5208", gasUsed: "0x5208", effectiveGasPrice: "0x3b9aca01", contractAddress: null,
++    logs: [], logsBloom: "0x" + "00".repeat(256), status: "0x1", type: "0x2" };
++  const answer = (m, p) => {
++    if (m === "eth_chainId") return "0x2105";
++    if (m === "eth_blockNumber") return "0x" + HEAD.toString(16);
++    if (m === "eth_getBlockByNumber") { const tag = p[0]; return blk(tag === "latest" || tag === "pending" ? HEAD : Number(BigInt(tag))); }
++    if (m === "eth_getBlockByHash") return blk(HEAD);
++    if (role === "backend") {
++      if (m === "eth_getTransactionCount") return "0x5";
++      if (m === "eth_maxPriorityFeePerGas" || m === "eth_gasPrice") return "0x1";
++      if (m === "eth_feeHistory") return { oldestBlock: "0x63", baseFeePerGas: ["0x3b9aca00", "0x3b9aca00"], gasUsedRatio: [0.5], reward: [["0x1"]] };
++      if (m === "eth_sendRawTransaction") return TXH;
++      return null;
++    }
++    if (m === "eth_call") return word(7);
++    if (m === "eth_estimateGas") return "0x5208";
++    if (m === "eth_getTransactionCount") return "0x5";
++    if (m === "eth_getTransactionReceipt") return p[0] === TXH ? receipt : null;
++    if (m === "eth_maxPriorityFeePerGas" || m === "eth_gasPrice") return "0x1";
++    if (m === "eth_sendRawTransaction") return TXH;
++    return null;
++  };
++  const server = http.createServer((req, res) => {
++    let body = ""; req.on("data", (c) => (body += c));
++    req.on("end", () => {
++      let j; try { j = JSON.parse(body); } catch { res.writeHead(400); return res.end(); }
++      const one = (r) => { calls.push({ method: r.method, params: r.params }); return { jsonrpc: "2.0", id: r.id, result: answer(r.method, r.params || []) }; };
++      res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(Array.isArray(j) ? j.map(one) : one(j)));
++    });
++  });
++  await new Promise((r) => server.listen(0, "127.0.0.1", r));
++  const url = `http://127.0.0.1:${server.address().port}/`;
++  if (down) await new Promise((r) => server.close(r));
++  return { url, calls, methods: () => calls.map((c) => c.method), close: () => new Promise((r) => (down ? r() : server.close(r))) };
++}
++
++/** Run `body` (an async module script with `out` in scope) in a child with `env`; returns out. */
++function child(env, body) {
++  const script = `const out = {}; const run = async (k, f) => { try { const v = await f(); out[k] = { ok: typeof v === "bigint" ? String(v) : v === undefined ? null : JSON.parse(JSON.stringify(v, (_, x) => typeof x === "bigint" ? String(x) : x)) }; } catch (e) { out[k] = { err: String(e.shortMessage || e.message) }; } };
++    ${body}
++    process.stdout.write("\\n@@" + JSON.stringify(out) + "\\n"); process.exit(0);`;
++  return new Promise((resolve, reject) => {
++    const keep = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(BASE_RPCS|ENCLAVE_CHAIN_|NODE_OPERATOR_KEY|ENCLAVE_LEASE_GAS_|LEASE_GAS_|ENCLAVE_HOST_|ENCLAVE_STARTUP_)/.test(k)));
++    const p = spawn(process.execPath, ["--input-type=module", "-e", script], { env: { ...keep, NODE_OPERATOR_KEY: KEY, ...env }, stdio: ["ignore", "pipe", "pipe"] });
++    let o = "", e = ""; p.stdout.on("data", (c) => (o += c)); p.stderr.on("data", (c) => (e += c));
++    const t = setTimeout(() => { p.kill("SIGKILL"); reject(new Error("child timed out: " + e.slice(-500))); }, 90_000);
++    p.on("close", () => { clearTimeout(t); const m = o.match(/@@(.*)\n/); m ? resolve(JSON.parse(m[1])) : reject(new Error("no result: " + e.slice(-800))); });
++  });
++}
++const J = JSON.stringify;
++const ABI = `[{ type: "function", name: "count", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }, { type: "function", name: "ping", stateMutability: "nonpayable", inputs: [], outputs: [] }]`;
++const chainSteps = `const chain = await import(${J(CHAIN)}); const abi = ${ABI};
++  await run("read", () => chain.blockNumber());
++  await run("readContract", () => chain.publicClient().readContract({ address: ${J(TO)}, abi, functionName: "count" }));
++  chain.loadOperator(); await run("send", () => chain.sendOperatorTx(${J(TO)}, abi, "ping", []));
++  out.urls = chain.rpcUrls(); out.selection = chain.chainAuthoritySelection();`;
++
++test("chain.mjs, verifier + own backend: reads -> verifier, pending nonce + one submission -> backend, no public request", async () => {
++  const v = await recorder("verifier"), b = await recorder("backend"), pub = await recorder("public");
++  try {
++    const r = await child({ BASE_RPCS: pub.url, ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: v.url, ENCLAVE_CHAIN_TX_BACKEND: b.url }, chainSteps);
++    assert.equal(r.read.ok, String(HEAD), J(r)); assert.equal(r.readContract.ok, "7"); assert.equal(r.send.ok, TXH, J(r.send));
++    assert.deepEqual(r.urls, []); assert.deepEqual(r.selection, { authority: "verifier", verifier: v.url });
++    assert.equal(pub.calls.length, 0, `public contacted: ${pub.methods()}`);
++    assert.ok(!v.methods().includes("eth_sendRawTransaction"), "never a transaction to the read-only verifier");
++    assert.equal(b.methods().filter((m) => m === "eth_sendRawTransaction").length, 1);
++    assert.ok(b.calls.some((c) => c.method === "eth_getTransactionCount" && c.params?.[1] === "pending"));
++    for (const m of ["eth_call", "eth_getTransactionReceipt", "eth_estimateGas"]) assert.ok(!b.methods().includes(m), `${m} never asked of the backend`);
++  } finally { await v.close(); await b.close(); await pub.close(); }
++});
++
++test("chain.mjs refusals: verifier down, no backend, invalid selections - nothing sent, no public fallback; legacy unchanged", async () => {
++  const pub = await recorder("public"), b = await recorder("backend"), vdown = await recorder("verifier", { down: true }), v = await recorder("verifier");
++  try {
++    const down = await child({ BASE_RPCS: pub.url, ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: vdown.url, ENCLAVE_CHAIN_TX_BACKEND: b.url }, chainSteps);
++    assert.ok(down.read.err && down.send.err);
++    const nob = await child({ BASE_RPCS: pub.url, ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: v.url }, chainSteps);
++    assert.equal(nob.read.ok, String(HEAD)); assert.ok(nob.send.err && /backend/i.test(nob.send.err), J(nob.send));
++    for (const env of [{ ENCLAVE_CHAIN_AUTHORITY: "bogus" }, { ENCLAVE_CHAIN_AUTHORITY: "verifier" }, { ENCLAVE_CHAIN_TX_BACKEND: b.url },
++                       { ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: "http://example.com/" }]) {
++      const r = await child({ BASE_RPCS: pub.url, ...env }, chainSteps);
++      assert.ok(r.read.err && r.send.err, J(env)); assert.deepEqual(r.urls, []); assert.ok(r.selection && typeof r.selection.invalid === "string", J(r.selection));
++    }
++    assert.equal(pub.calls.length, 0, `public contacted: ${pub.methods()}`);
++    assert.ok(!b.methods().includes("eth_sendRawTransaction") && !v.methods().includes("eth_sendRawTransaction"));
++    const legacy = await child({ BASE_RPCS: pub.url }, `const chain = await import(${J(CHAIN)}); await run("read", () => chain.blockNumber()); out.urls = chain.rpcUrls(); out.selection = chain.chainAuthoritySelection();`);
++    assert.equal(legacy.read.ok, String(HEAD)); assert.deepEqual(legacy.urls, [pub.url]); assert.equal(legacy.selection, null);
++  } finally { await pub.close(); await b.close(); await vdown.close(); await v.close(); }
++});
++
++const startupSteps = (fn) => `const chain = await import(${J(CHAIN)}); const { verifierReader, quorumReader } = await import(${J(IDENTITY)});
++  const a = chain.chainAuthority(); const abi = ${ABI};
++  await run("plainClientRefused", () => verifierReader({ client: chain.publicClient === undefined ? null : { getChainId() {}, getBlockNumber() {}, getBlock() {} } }));
++  await run("singleQuorumRefused", () => quorumReader({ clients: [a.client] }));
++  const reader = verifierReader({ client: a.client, deadlineMs: 20000 });
++  await run("agreed", () => reader.agreed(${fn}));`;
++
++test("shielded startup reader: the same reader contract through the ONE verifier, no public request; policy kept", async () => {
++  const v = await recorder("verifier"), pub = await recorder("public");
++  try {
++    const r = await child({ BASE_RPCS: pub.url, ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: v.url },
++      startupSteps(`async (c, at) => String(await c.readContract({ address: ${J(TO)}, abi, functionName: "count", blockNumber: at })) + "@" + String(at)`));
++    assert.ok(r.plainClientRefused.err, "an ordinary client is never a single authority");
++    assert.ok(r.singleQuorumRefused.err, "quorumReader still refuses one client");
++    assert.equal(r.agreed.ok, `7@${HEAD - 2}`, J(r.agreed));            // head - confirmations (2)
++    const calls = v.calls.filter((c) => c.method === "eth_call");
++    assert.ok(calls.length >= 1 && calls.every((c) => BigInt(c.params[1]) === BigInt(HEAD - 2)), "the value is read AT the target block");
++    assert.ok(v.methods().filter((m) => m === "eth_getBlockByNumber").length >= 2, "the block is read before and after the value");
++    assert.equal(pub.calls.length, 0, `public contacted: ${pub.methods()}`);
++  } finally { await v.close(); await pub.close(); }
++});
++
++test("shielded startup reader refuses a reorg during the read, a stale block, and a down verifier - with no fallback", async () => {
++  const pub = await recorder("public");
++  const reorg = await recorder("verifier", { hashFor: (n, i) => "0x" + (i % 2 ? "ee" : "ab").repeat(32) });
++  const stale = await recorder("verifier", { stale: true }), down = await recorder("verifier", { down: true });
++  try {
++    for (const [v, what] of [[reorg, /reorganized/], [stale, /stale/], [down, /refused/]]) {
++      const r = await child({ BASE_RPCS: pub.url, ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: v.url }, startupSteps(`async (c, at) => String(at)`));
++      assert.ok(r.agreed.err && what.test(r.agreed.err), `${what}: ${J(r.agreed)}`);
++    }
++    assert.equal(pub.calls.length, 0, `public contacted: ${pub.methods()}`);
++  } finally { await pub.close(); await reorg.close(); await stale.close(); await down.close(); }
++});
++
++test("privacy agent chain: enrollment writes {addressBook, authority, verifier} (no rpc); the agent's REAL LeaseReader reads the verifier only", async () => {
++  const v = await recorder("verifier"), pub = await recorder("public");
++  try {
++    const r = await child({}, `const { baseConfig, agentChain } = await import(${J(ENROLL)}); const { LeaseReader } = await import(${J(LEASE_READER)});
++      const cfg = baseConfig({ agentDir: "/x", binDir: "/x/bin", nodeBinary: "node", operatorKeyFile: "/x/k", runner: "0x" + "33".repeat(32), endpoint: "https://e.example",
++        relayBase: "https://r.example", policyFile: "/x/p", tpmBinary: "/x/t", tpmSha256: "00", addressBook: ${J(BOOK)}, chainRpc: [],
++        chainAuthority: { authority: "verifier", verifier: ${J(v.url)} }, enclaveNetwork: {} });
++      out.chain = cfg.chain;
++      await run("mixed", () => agentChain({ addressBook: ${J(BOOK)}, chainRpc: [${J(pub.url)}], chainAuthority: { authority: "verifier", verifier: ${J(v.url)} } }));
++      await run("remote", () => agentChain({ addressBook: ${J(BOOK)}, chainRpc: [], chainAuthority: { authority: "verifier", verifier: "http://example.com/" } }));
++      out.invalid = agentChain({ addressBook: ${J(BOOK)}, chainRpc: [], chainAuthority: { invalid: "x" } });
++      out.legacy = agentChain({ addressBook: ${J(BOOK)}, chainRpc: [${J(pub.url)}] });
++      const reader = new LeaseReader({ ...cfg.chain });                 // exactly network/privacy-agent.mjs:237
++      out.authority = reader.authority;
++      await run("read", () => reader.agreed(async (c, at) => String(at)));
++      await run("invalidReader", () => new LeaseReader({ ...out.invalid }));`);
++    assert.deepEqual(r.chain, { addressBook: BOOK, authority: "verifier", verifier: v.url }, "no rpc key under the explicit authority");
++    assert.ok(r.mixed.err && /never mixed/.test(r.mixed.err)); assert.ok(r.remote.err && /loopback/.test(r.remote.err));
++    assert.deepEqual(r.invalid, { addressBook: BOOK }); assert.deepEqual(r.legacy, { addressBook: BOOK, rpc: [pub.url] });
++    assert.equal(r.authority, "verifier"); assert.ok(r.read.ok !== undefined || r.read.err, J(r.read));
++    assert.ok(r.invalidReader.err, "an agent with an invalid node selection has no RPC: its reader refuses");
++    assert.ok(v.calls.length > 0, "the agent's reader reached the verifier"); assert.equal(pub.calls.length, 0, `public contacted: ${pub.methods()}`);
++  } finally { await v.close(); await pub.close(); }
++});
++
++test("wallet host admission: rpc [] under the verifier builds through the real module; legacy rpc [] still refuses", async () => {
++  const v = await recorder("verifier"), pub = await recorder("public");
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "adm-")); const pins = path.join(dir, "pins.json");
++  const REG = "0x" + "44".repeat(20), CAT = "0x" + "55".repeat(20), OWN = "0x" + "66".repeat(20), HOST = "0x" + "77".repeat(32);
++  fs.writeFileSync(pins, JSON.stringify({ registry: REG, appCatalog: CAT, deployments: "0x" + "88".repeat(20) }));
++  const env = { ENCLAVE_HOST_OWNERSHIP: OWN, ENCLAVE_HOST_REGISTRY_PIN: REG, ENCLAVE_HOST_CATALOG_PIN: CAT, ENCLAVE_HOST_POLICY_DIR: dir, ENCLAVE_CONTRACT_PINS_FILE: pins };
++  try {
++    const body = (e) => `const { hostAdmissionFromEnv } = await import(${J(ADMISSION)});
++      await run("admission", () => { const a = hostAdmissionFromEnv({ hostId: ${J(HOST)}, rpc: [], addressBook: ${J(BOOK)}, env: ${J(e)} }); return a ? Object.keys(a).sort() : null; });`;
++    const ver = await child({}, body({ ...env, ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: v.url }));
++    const legacy = await child({}, body(env));
++    assert.ok(ver.admission.ok, `verifier mode with rpc []: ${J(ver.admission)}`);
++    assert.ok(legacy.admission.err, "legacy mode with rpc [] still refuses (two RPCs required): nothing changed there");
++    assert.equal(pub.calls.length, 0);
++  } finally { await v.close(); await pub.close(); fs.rmSync(dir, { recursive: true, force: true }); }
++});
++
++// ---- r3: the agent network host's contract-wallet owner signatures through the SAME verifier authority ----
++// network/enclave-network-host.mjs ownerSignatureReader + network/owner-signature.mjs verifyOwnerSignature + the REAL
++// LeaseReader in verifier mode (exactly the agent's leaseReader when cfg.chain = {addressBook, authority, verifier}).
++const OWNER_SIG = root("network/owner-signature.mjs"), NET_HOST = root("network/enclave-network-host.mjs");
++const { LeaseReader } = await import(LEASE_READER);
++const { verifyOwnerSignature } = await import(OWNER_SIG);
++const { ownerSignatureReader } = await import(NET_HOST);
++const { privateKeyToAccount } = await import("viem/accounts");
++const { toFunctionSelector, encodeAbiParameters } = await import("viem");
++const SIGNER = privateKeyToAccount(KEY), MESSAGE = "enclave network policy v1", VAULT = "0x" + "99".repeat(20), WALLET = "0x" + "98".repeat(20), FACTORY = "0x" + "97".repeat(20);
++const SEL = { erc1271: toFunctionSelector("isValidSignature(bytes32,bytes)"), addr: toFunctionSelector("addr(bytes32)"),
++              isVault: toFunctionSelector("isVault(address)"), owner: toFunctionSelector("owner()") };
++/** A verifier recorder whose eth_call/eth_getCode answer the contract-wallet reads; `magic` is what isValidSignature returns. */
++async function walletVerifier({ magic = "0x1626ba7e", down = false } = {}) {
++  const v = await recorder("verifier", { down });
++  if (down) return v;
++  const base = v.close; const calls = v.calls;
++  // replace the generic answers for eth_call/eth_getCode by wrapping the server's handler is not possible after listen, so
++  // a second small server is used instead: same recording contract
++  await base();
++  const server = http.createServer((req, res) => {
++    let body = ""; req.on("data", (c) => (body += c));
++    req.on("end", () => {
++      const j = JSON.parse(body); const list = Array.isArray(j) ? j : [j];
++      const ans = list.map((r) => { calls.push({ method: r.method, params: r.params });
++        const p = r.params || [], blk = { number: "0x" + HEAD.toString(16), hash: "0x" + "ab".repeat(32), parentHash: "0x" + "aa".repeat(32),
++          timestamp: "0x" + Math.floor(Date.now() / 1000).toString(16), stateRoot: "0x" + "00".repeat(32), receiptsRoot: "0x" + "00".repeat(32),
++          transactionsRoot: "0x" + "00".repeat(32), logsBloom: "0x" + "00".repeat(256), miner: "0x" + "00".repeat(20), gasLimit: "0x1", gasUsed: "0x0",
++          extraData: "0x", mixHash: "0x" + "00".repeat(32), nonce: "0x0000000000000000", sha3Uncles: "0x" + "00".repeat(32), baseFeePerGas: "0x1",
++          difficulty: "0x0", size: "0x1", transactions: [], uncles: [] };
++        let result = null;
++        if (r.method === "eth_chainId") result = "0x2105";
++        else if (r.method === "eth_blockNumber") result = "0x" + HEAD.toString(16);
++        else if (r.method === "eth_getBlockByNumber" || r.method === "eth_getBlockByHash") result = blk;
++        else if (r.method === "eth_getCode") result = String(p[0]).toLowerCase() === WALLET ? "0x6001" : "0x";
++        else if (r.method === "eth_call") {
++          const to = String(p[0].to).toLowerCase(), sel = String(p[0].data).slice(0, 10);
++          if (to === WALLET && sel === SEL.erc1271) result = magic.padEnd(66, "0");
++          else if (sel === SEL.addr) result = encodeAbiParameters([{ type: "address" }], [FACTORY]);
++          else if (to === FACTORY && sel === SEL.isVault) result = encodeAbiParameters([{ type: "bool" }], [true]);
++          else if (to === VAULT && sel === SEL.owner) result = encodeAbiParameters([{ type: "address" }], [SIGNER.address]);
++          else result = "0x";
++        }
++        return { jsonrpc: "2.0", id: r.id, result }; });
++      res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(Array.isArray(j) ? ans : ans[0]));
++    });
++  });
++  await new Promise((r) => server.listen(Number(new URL(v.url).port), "127.0.0.1", r));
++  return { url: v.url, calls, methods: () => calls.map((c) => c.method), close: () => new Promise((r) => server.close(r)) };
++}
++
++test("owner-signature reader: pinned -> quorum reader (unchanged); explicit verifier -> that verifier; legacy -> clients path", () => {
++  const verifierReader = new LeaseReader({ addressBook: BOOK, authority: "verifier", verifier: "http://127.0.0.1:9/" });
++  const quorum = new LeaseReader({ addressBook: BOOK, rpc: ["https://a.example/", "https://b.example/"] });
++  assert.equal(ownerSignatureReader({ pins: { registry: "0x" }, leaseReader: quorum }), quorum);
++  assert.equal(ownerSignatureReader({ pins: null, leaseReader: verifierReader }), verifierReader);
++  assert.equal(ownerSignatureReader({ pins: null, leaseReader: quorum }), undefined);
++  assert.equal(ownerSignatureReader({ pins: null, leaseReader: undefined }), undefined);
++});
++
++test("contract-wallet owners under the verifier: ERC-1271 and SessionVault succeed, a wrong answer and a down verifier refuse, no public request", async () => {
++  const sig = await SIGNER.signMessage({ message: MESSAGE });
++  const pub = await recorder("public");
++  const check = async (verifier, owner) => {
++    const leaseReader = new LeaseReader({ addressBook: BOOK, authority: "verifier", verifier, rpc: [] });
++    return verifyOwnerSignature({ clients: [], reader: ownerSignatureReader({ pins: null, leaseReader }), owner, message: MESSAGE, signature: sig, addressBook: BOOK });
++  };
++  const ok = await walletVerifier(), bad = await walletVerifier({ magic: "0xffffffff" }), down = await walletVerifier({ down: true });
++  try {
++    assert.equal(await check(ok.url, WALLET), true, "ERC-1271 passkey vault: isValidSignature magic through the verifier");
++    assert.equal(await check(ok.url, VAULT), true, "SessionVault: factory.isVault + vault.owner() = the signer, through the verifier");
++    assert.ok(ok.methods().includes("eth_call") && ok.methods().includes("eth_getCode"));
++    assert.ok(ok.calls.filter((c) => c.method === "eth_call").every((c) => c.params?.[1]?.blockHash), "every read is pinned to one verified block");
++    assert.equal(await check(bad.url, WALLET), false, "a wrong ERC-1271 answer refuses");
++    assert.equal(await check(down.url, WALLET), false, "a down verifier refuses (no fallback)");
++    assert.equal(await verifyOwnerSignature({ clients: [], reader: undefined, owner: WALLET, message: MESSAGE, signature: sig, addressBook: BOOK }), false,
++      "without the verifier reader a contract wallet is refused, as before (never a public client)");
++    assert.equal(await verifyOwnerSignature({ clients: [], reader: undefined, owner: SIGNER.address, message: MESSAGE, signature: sig, addressBook: BOOK }), true,
++      "EOA owners recover locally, unchanged");
++    assert.equal(pub.calls.length, 0, `public contacted: ${pub.methods()}`);
++  } finally { await ok.close(); await bad.close(); await down.close(); await pub.close(); }
++});

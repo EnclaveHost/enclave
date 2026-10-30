@@ -1,0 +1,30 @@
+{
+  "at": "2026-10-30T00:51:00.198569+00:00",
+  "identity": {
+    "MainPID": "270588",
+    "InvocationID": "1ddd9115fa804568a55375b1c984d548"
+  },
+  "origins": {
+    "BASE_RPC": [
+      {
+        "scheme": "http",
+        "host": "127.0.0.1",
+        "hasCredentialOrNonrootPath": true
+      }
+    ],
+    "SESSIONS_RPC": [
+      {
+        "scheme": "http",
+        "host": "127.0.0.1",
+        "hasCredentialOrNonrootPath": true
+      }
+    ],
+    "SESSIONS_PUBLIC_RPC": [
+      {
+        "scheme": "https",
+        "host": "api.enclave.host",
+        "hasCredentialOrNonrootPath": true
+      }
+    ]
+  }
+}

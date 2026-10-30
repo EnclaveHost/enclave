@@ -1,0 +1,31 @@
+# PREPARED (guest-state-install-stage/r1). Root starts it by hand only after phase 1 succeeded. It NEVER runs the extractor: exact
+# staged set + pinned BLAKE3 (root-qualified tool, KAT) BEFORE any rename; then chown to the datadir owner + rename into data/db;
+# idempotent after a crash; the kept archive is never deleted. No network.
+[Unit]
+Description=Enclave base state install r1 phase 2: verify (exact set + pinned BLAKE3) then atomic install into data/db
+RequiresMountsFor=/srv/enclave-base-holder
+ConditionPathIsMountPoint=/srv/enclave-base-holder
+ConditionPathExists=!/srv/enclave-base-holder/retention-complete
+ConditionPathExists=!/srv/enclave-base-holder/state-installed.json
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/enclave-rpc/gsi.env
+ExecStart=/usr/bin/python3 -I /opt/enclave-rpc/state-install-r1/guest_state.py install --manifest /opt/enclave-rpc/snapshots/base-1792886410-manifest.json --manifest-sha256 1f0c4e6c259d4353f598a94ac75a0540321ced2b52b464fb4e11c2ec34c649f2 --work-dir /srv/enclave-base-holder/tmp/state-gsi --datadir /srv/enclave-base-holder/data --holder-root /srv/enclave-base-holder --b3sum ${GSI_B3SUM} --b3sum-sha256 ${GSI_B3SUM_SHA256}
+User=root
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_FOWNER
+ProtectSystem=strict
+ReadWritePaths=/srv/enclave-base-holder/tmp/state-gsi /srv/enclave-base-holder/data/db /srv/enclave-base-holder
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+IPAddressDeny=any
+RestrictSUIDSGID=yes
+TimeoutStartSec=infinity
+TimeoutStopSec=120
+KillMode=control-group
+Restart=no
+MemoryMax=1G
+MemorySwapMax=0
+UMask=0077

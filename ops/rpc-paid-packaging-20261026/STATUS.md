@@ -1,0 +1,9 @@
+# Paid provider package repair
+
+The root-run r7 packaging qualification passed: adapter 15/15; packaging 5/5; the packaged runtime also executed all 15 adapter cases with zero skips, failures, cancellation or todo. The real release prerequisite was generated and compared byte-for-byte. Three deliberately broken packaging variants were rejected, including a child test runner inheriting NODE_TEST_CONTEXT. The actual entrypoint configuration matrix passed. Peak process-tree RSS was 648 MiB and minimum host available memory 16669 MiB under the shared guard.
+
+The repair keeps derived-reader support in a separate release runtime, ships the pinned schedule reader beside it, preserves pin verification and makes legacy provider packaging independent of unused derived imports. The install path carries both required support files together. Tests generate the actual relay network runtime before building consumers, as the release does. Nested tests have explicit counts and clean child environments so a recursive skip cannot masquerade as execution.
+
+Earlier failed stages and receipts are retained for provenance, not deployment: r4 broke the existing bundled provider; r5's runner referenced the wrong patch filename; r6 corrected the filename but exposed missing release build prerequisites and inherited Node test context. Those failures were not accepted as passes.
+
+This qualification uses runtime baseline 64156dcd plus the earlier c66b087 reader inputs. The final production composition with committed v3 reader 34a3c0d6 (qualified composition tree 9dd20e76) is being prepared and still needs full regression and mutation qualification. The stand-in proof reader/executor in adapter tests is not a real Base proof. Positive mainnet execution, accepted SNP-domain serving, actual mined writes, rollback protection, cold recovery and a public-RPC blackout test remain required. No provider configuration or production service was changed.

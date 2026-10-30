@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: F2 anchor: global enabled/admitted and per-host hostAdmission are separate; the 34a3 verifier still accepts the anchor
+ok 1 - F2 anchor: global enabled/admitted and per-host hostAdmission are separate; the 34a3 verifier still accepts the anchor
+  ---
+  duration_ms: 1151.498581
+  type: 'test'
+  ...
+# Subtest: F1 self-hosted (payout = owner) and free owner (payout = owner's SessionVault): unfunded balance, rate 0 -> funded, admitted, unbounded; real start = uint64.max
+ok 2 - F1 self-hosted (payout = owner) and free owner (payout = owner's SessionVault): unfunded balance, rate 0 -> funded, admitted, unbounded; real start = uint64.max
+  ---
+  duration_ms: 1838.959511
+  type: 'test'
+  ...
+# Subtest: F1 paid host: horizon = balance / rateFor(id, host), equal to the lease a real start buys; unaffordable here is host-only
+ok 3 - F1 paid host: horizon = balance / rateFor(id, host), equal to the lease a real start buys; unaffordable here is host-only
+  ---
+  duration_ms: 1178.23213
+  type: 'test'
+  ...
+# Subtest: F1 stale stored rate: a free run ended, host turns paid -> horizon is the paid one (not unbounded); revoked self-hosting while running -> unfunded now
+ok 4 - F1 stale stored rate: a free run ended, host turns paid -> horizon is the paid one (not unbounded); revoked self-hosting while running -> unfunded now
+  ---
+  duration_ms: 1864.197401
+  type: 'test'
+  ...
+# Subtest: F3/F4 production catalog policy (private pending allowed, public pending / rejected refused) and canonical appRef
+ok 5 - F3/F4 production catalog policy (private pending allowed, public pending / rejected refused) and canonical appRef
+  ---
+  duration_ms: 1961.660478
+  type: 'test'
+  ...
+# Subtest: F3 host-owner policy (committed on the ownership contract, read at the same block) denies only THIS host
+ok 6 - F3 host-owner policy (committed on the ownership contract, read at the same block) denies only THIS host
+  ---
+  duration_ms: 3072.665503
+  type: 'test'
+  ...
+# Subtest: F5 administrator change: explicit deny of new starts; reads, queue and stop (withdrawal) continue; allowed sets are explicit
+ok 7 - F5 administrator change: explicit deny of new starts; reads, queue and stop (withdrawal) continue; allowed sets are explicit
+  ---
+  duration_ms: 2101.250362
+  type: 'test'
+  ...
+# Subtest: F6 recursive closure: every reviewed getter, exact indexed lengths, nested legacy pins preserved, the five primary bindings name THIS ledger
+ok 8 - F6 recursive closure: every reviewed getter, exact indexed lengths, nested legacy pins preserved, the five primary bindings name THIS ledger
+  ---
+  duration_ms: 3637.430424
+  type: 'test'
+  ...
+# Subtest: F7 the address book and the contract pins are one reviewed source
+ok 9 - F7 the address book and the contract pins are one reviewed source
+  ---
+  duration_ms: 3683.138387
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20741.822468

@@ -1,0 +1,68 @@
+{
+  "consumer": {
+    "unit": "enclave-windows-r12-consumer-root-20261029.service",
+    "state": "ActiveState=inactive\nSubState=dead\nMainPID=0\n",
+    "temporaryDirectoryRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r12-6gmwdvui",
+    "rc": "1"
+  },
+  "fixture1": {
+    "unit": "enclave-windows-r12-fixture1-root-20261029.service",
+    "state": "ActiveState=inactive\nSubState=dead\nMainPID=0\n",
+    "temporaryDirectoryRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r12-6i7wmvqx",
+    "rc": "1"
+  },
+  "fixture2": {
+    "unit": "enclave-windows-r12-fixture2-root-20261029.service",
+    "state": "ActiveState=inactive\nSubState=dead\nMainPID=0\n",
+    "temporaryDirectoryRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r12-hl3v8fmk",
+    "rc": "1"
+  },
+  "repair1": {
+    "unit": "enclave-windows-r12-repair1-root-20261029.service",
+    "state": "ActiveState=inactive\nSubState=dead\nMainPID=0\n",
+    "temporaryDirectoryRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r12-r506hv0z",
+    "rc": "1"
+  },
+  "repair2": {
+    "unit": "enclave-windows-r12-repair2-root-20261029.service",
+    "state": "ActiveState=inactive\nSubState=dead\nMainPID=0\n",
+    "temporaryDirectoryRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r12-cczmkkfl",
+    "rc": "0"
+  },
+  "consumerall": {
+    "unit": "enclave-windows-r12-consumerall-root-20261029.service",
+    "state": "ActiveState=inactive\nSubState=dead\nMainPID=0\n",
+    "temporaryDirectoryRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r12-mtfgzgmj",
+    "rc": "0"
+  },
+  "transportbefore": {
+    "unit": "enclave-windows-r12-transportbefore-root-20261029.service",
+    "state": "ActiveState=inactive\nSubState=dead\nMainPID=0\n",
+    "temporaryDirectoryRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r12-xasb3w1d",
+    "rc": "1"
+  },
+  "transportafter": {
+    "unit": "enclave-windows-r12-transportafter-root-20261029.service",
+    "state": "ActiveState=inactive\nSubState=dead\nMainPID=0\n",
+    "temporaryDirectoryRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r12-qtikcgdd",
+    "rc": "0"
+  },
+  "regression": {
+    "unit": "enclave-windows-r12-regression-root-20261029.service",
+    "state": "ActiveState=inactive\nSubState=dead\nMainPID=0\n",
+    "temporaryDirectoryRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r12-wcyp0mgg",
+    "rc": "1"
+  },
+  "fixtureclosure": {
+    "unit": "enclave-windows-r12-fixtureclosure-root-20261029.service",
+    "state": "ActiveState=inactive\nSubState=dead\nMainPID=0\n",
+    "temporaryDirectoryRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r12-c1t098nm",
+    "rc": "1"
+  },
+  "durablegaps": {
+    "unit": "enclave-windows-r12-durablegaps-root-20261029.service",
+    "state": "ActiveState=inactive\nSubState=dead\nMainPID=0\n",
+    "temporaryDirectoryRemoved": "/home/steven/Documents/Codex/2026-10-18/wo/work/r12-t5r1voov",
+    "rc": "1"
+  }
+}

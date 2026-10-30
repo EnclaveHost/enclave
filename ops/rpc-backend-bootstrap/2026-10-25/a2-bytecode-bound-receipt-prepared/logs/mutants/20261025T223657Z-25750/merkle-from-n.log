@@ -1,0 +1,17 @@
+{"step": "plan", "ok": true, "refused": null}
+test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero (test_a2a4.Gates.test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero) ... FAIL
+
+======================================================================
+FAIL: test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero (test_a2a4.Gates.test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.t9DLcapkg4/test/test_a2a4.py", line 147, in test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero
+    self.assertIn(['--from', '0', '--to', str(N)], [c[6:10] for c in p['a4']])
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ['--from', '0', '--to', '52866960'] not found in [['merkle'], ['--from', '52866960', '--to', '52866960']]
+
+----------------------------------------------------------------------
+Ran 1 test in 0.538s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}

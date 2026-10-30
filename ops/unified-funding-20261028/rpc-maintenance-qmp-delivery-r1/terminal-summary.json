@@ -1,0 +1,105 @@
+{
+  "admission": {
+    "unit": "enclave-rpc-maintenance-qmp-r1-20261029-author.service",
+    "invocationId": "f4d9477d0fd94d148b1e52462c67fcde",
+    "mainPid": 2361807,
+    "runnerPid": 2361822,
+    "claudePid": 2361833,
+    "processes": [
+      {
+        "pid": 2361807,
+        "startTicks": "164456102",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "affinity": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31
+        ]
+      },
+      {
+        "pid": 2361822,
+        "startTicks": "164456113",
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "affinity": [
+          1
+        ]
+      },
+      {
+        "pid": 2361833,
+        "startTicks": "164456145",
+        "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+        "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-maintenance-qmp-author-r1-20261029",
+        "affinity": [
+          1
+        ]
+      }
+    ],
+    "preparedSha256": "1f4b22991ceaabf48f17557c79dae59d1681bc8f915e31492b065142e78f67c4",
+    "capturedAt": 1793339469.5789943
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 0,
+    "finishedAt": 1793340847.903617,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "345d3774-6f81-4923-b73b-0e98e274e220",
+  "duration_ms": 1399687,
+  "num_turns": 35,
+  "configuredMaxAgenticTurns": 55,
+  "distinctAssistantMessageIds": 19,
+  "transcriptUserRows": 35,
+  "turnMetricNote": "Raw success-result num_turns is a different user-message counter from max-agentic/API-turn limit; retain without conflating. See pinned turn-metric-investigation.json.",
+  "is_error": false,
+  "outputParseFailed": false,
+  "files": 8,
+  "changedFiles": 5,
+  "removedFiles": [],
+  "manifestSha256": "e24db274b20e979f2432b17963161b6bc01c35828b0a77c22293bad5a94ea4dc",
+  "firstMutations": 5,
+  "firstMutationManifestSha256": "01f5eb6125a01c2e9ab5ab705e17bd05a8739308d3339c7ab0d9ef6c47bf0971",
+  "currentInvocationTools": {
+    "Read": 12,
+    "Grep": 3,
+    "Edit": 15,
+    "Write": 4
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [],
+  "mutationAuditSha256": "38b2b973af46b7759a404a41be94e31fdefc00b4f0567bfc2488d41bd7905082",
+  "innerGuard": "[memory-guard] exit=0 peakTreeRssMiB=283 minHostAvailableMiB=33135\n",
+  "outerGuard": "[memory-guard] exit=0 peakTreeRssMiB=365 minHostAvailableMiB=33135\n"
+}

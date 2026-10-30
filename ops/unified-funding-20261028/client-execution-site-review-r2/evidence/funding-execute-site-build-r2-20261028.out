@@ -1,0 +1,9 @@
+[queue] START available=90411MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+[vendor] funding.js: 356046 bytes, sha256 5b0ee6c8b0f2c819c1d4de78553ec5226afa6502d385c26ebe2b3052e0d81c60; packages @noble/curves, @noble/hashes, abitype, isows, ox, viem
+[build] page/dist/harness.js 100708 bytes sha256 9305af4c921e0e9309b3f14e383505a3ec5edab0b596bedd921556e9bc643606
+[build] inputs: ../source/site/js/core/util.js, client-execution-site-r2/candidate/site/js/pages/funding.js, client-execution-site-r2/shell/facade/api.js, client-execution-site-r2/shell/facade/config.js, client-execution-site-r2/shell/facade/empty.js, client-execution-site-r2/shell/facade/sessions.js, client-execution-site-r2/shell/facade/vendor-funding.js, client-execution-site-r2/shell/facade/wallet.js, client-execution-site-r2/shell/harness-state.js, client-execution-site-r2/shell/main.mjs, client-site-repair-r2/authored/site/js/funding/flows.js, client-site-repair-r2/authored/site/js/funding/state.js
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

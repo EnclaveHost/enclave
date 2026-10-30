@@ -1,0 +1,17 @@
+# Actual owned host composition on a local chain
+
+Result: **2 passed, 0 failed, 0 skipped**, using the final parent cold-recovery product from e0bb205598f6230c7544dec4fff3a8a4bee73101. The actual `openOwnedHostRegistryLifecycle` factory opens the parent and both sidecars; this is not the older caller-owned journal fixture. No product code changed for this run.
+
+The first case starts with one actual Running transaction through the linked schema3 ledger/controller/prover and host registry, obtains signed serving permits through the real gate, excludes a second composition even with different sidecar paths, then applies owner restriction and releases/reopens without another transaction or allow. The second case submits an actual canonical owner Offline transaction to the local registry, confirms removal through the TEST manager, and preserves the host Offline generation across owned-composition restart.
+
+The native helper change only exposes its existing TEST client, boundaries, collector, plans and readiness components to the actual owned factory. It does not replace the factory/gate/runtime or implement Windows enforcement. These tests exercise real file/flock ownership and actual local EVM transactions, adapter bindings and signature verification. Finality authority, manager/hardware, readiness, boundary acknowledgments and witness transport remain TEST fixtures. They do not establish live Base finality, installed Windows enforcement, hardware attestation, or production migration.
+
+## Reproduction and provenance
+
+`BASE.json` identifies the prior tracked candidate plus the two-file parent-cold overlay and this test-only helper. `native-pins.json` records all 47 exact source/test/driver inputs; root rechecked every hash after terminal completion. Comparison with the r18 candidate found only `test/helpers/real-v2-host.mjs` changed. The five regenerated protocol module hashes match the retained r18 generated snapshot. All 59 common overlay paths match except the intentional TEST helper. `qualified-network/` retains a reference subset for subsequent manager implementation, not a standalone deployment artifact.
+
+The archived run script verifies the frozen r6 closure, prior generator inputs, linked contract/artifact/compiler and dependency pins, then creates an exclusively owned network namespace with loopback only. TEST doubles compile before Anvil starts; public TEST keys and Anvil chain8453 are used. Its temporary generated tree is removed on exit. Reproduction requires the explicitly pinned external staging inputs in the script; this package is not self-contained.
+
+Terminal unit `enclave-native-owned-r19-20261029` / invocation `e6cbe8ce82e24cae8a249a80619211d5` is inactive with MainPID0. Driver rc0; exact TAP and summary retained. Bounds: 512MiB outer, 450MiB RSS, 27648MiB available-host floor, one CPU, no swap; peak tree RSS268MiB, minimum available34372MiB. This adds two native integration cases to the preceding53 distinct relevant fixture checks; it does not requalify every historical suite or raise their scope.
+
+Installed manager enforcement, independent authenticated authority and Windows guardian/persistence, pre-listing capacity plus attestation, sponsorship/protected Offline gas, automatic refill, fenced production migration and the full censorship-resistance failure demonstrations remain required. No production processes, journals, funds, apps or routing were changed by this test.

@@ -1,0 +1,145 @@
+# state-production-validation-stage/r5 = r4 + the ACTUAL archived extractor e2e 8 PASS (PREPARED by Claude 1919; NOT run; FAIL-CLOSED)
+Report: ../../logs/claude-state-real-extraction-binding-1919.md. Frozen r4 (`5b543e00…`) is preserved.
+
+**r5 changes (nothing else):**
+- **`EXTRACTOR_E2E_RAW`** (was None) = root 1915's ACTUAL che-r3-e2e raw outputs from the durable archive
+  `source/ops/rpc-recovery-qualification-20261026/recovered-view-extraction-1918/{che-r3-e2e-1915.out,.rc,.guard,e2e/stderr,e2e/stdout}`.
+  The sha256 are identical to `logs/che-r3-e2e-1915.*` and to the original run dir's stderr/stdout.
+- **`EXTRACTOR_E2E_ORIGIN_DIR`** = `<extractor r3>/runs/e2e-20261027T133216Z-3242045`: the original output dir, as named by the preserved
+  log's `## outputs` line. It is never the archive path.
+- **`verify_extractor_stage`:**
+  - checks the e2e with r4's unchanged `read_raw_test(..., e2e=True, origin_dir=...)`: exactly `Ran 8`, OK, PASS (8), the workspace
+    line, rc 0, the guard line, no skip or bad marker;
+  - then additionally requires exactly 8 `... ok` lines;
+  - `None` would still be an explicit BLOCK.
+- **Production extraction (root 1916):** its inner and outer receipt locations are DOCUMENTED in comments only. `verify_extraction`
+  still re-reads the ORIGINAL files through the pinned `state_pins`.
+- **`PRODUCTION_INPUTS = None`:** there is no r12 build and no real captures, and the structural r10 run is RUNNING with no result.
+- **Tests:** 27 (`Ran 27 tests`). Tests 04 and 22 are updated; test 27 is new (archived e2e origin/hash/parser regressions).
+  `bash jobs/q-exit-status.sh spv-r5-tests 256 unshare -Urn bash state-production-validation-stage/r5/jobs/tests.sh`.
+
+---
+(r4 README follows)
+
+# state-production-validation-stage/r4 = r3 + the test-04 stub fix + durable actual extractor evidence (PREPARED by Claude 1908; NOT run; FAIL-CLOSED)
+Report: ../../logs/claude-state-adapter-durable-evidence-1908.md. Frozen r3 (`5d24dd4b…`) is preserved. Its ACTUAL run
+`runs/tests-20261027T120233Z-3173349` was **25 ran, 24 PASS, 1 FAIL**: test 04, `'BLOCKED extractorE2E' not found in
+'extractorSums: README.md changed'`. The test's helper stub replaced `sha_file` for EVERY path, so the real extractor-stage SUMS
+check hashed with the stub. The extractor itself is unchanged.
+
+**r4 changes (nothing else):**
+- **Test 04:** the stub answers ONLY for `<good.helperDir>/base-state-readonly` and delegates every other path to the original
+  `sha_file`. The real extractor-stage qualification is retained.
+- **`EXTRACTOR_UNIT_RAW` paths:** they now point at root's committed durable copy
+  `source/ops/rpc-recovery-qualification-20261026/extractor-guard-1904/actual-tests/{che-r3-unit.out,.rc,.guard,extractor/stderr,extractor/stdout}`.
+  I verified the SAME five sha256 (unchanged pins) before binding.
+- **`EXTRACTOR_UNIT_ORIGIN_DIR = "/tmp/che1881-unit-GnvMSyRq"`:** the run's original output dir, kept as metadata.
+- **`read_raw_test(..., origin_dir=None)`:**
+  - physically, stderr/stdout must still be `<one dir>/stderr|stdout`, regular, no symlink, sha-pinned;
+  - with `origin_dir`, the unchanged parser requires the preserved log's `## outputs <origin_dir>`, and the origin must match the
+    output-dir regex;
+  - the default (None, used by the live e2e) keeps "the physical parent IS the output dir".
+- **Unchanged checks:** count, rc, guard and tail are not weakened.
+- **Unchanged generally:** everything else is r3 (lifecycle, memory, classification, final/O1, all pins). `PRODUCTION_INPUTS = None`;
+  `EXTRACTOR_E2E_RAW = None`.
+
+**Tests:** 26 (`jobs/tests.sh` requires exactly `Ran 26 tests`).
+`bash jobs/q-exit-status.sh spv-r4-tests 256 unshare -Urn bash state-production-validation-stage/r4/jobs/tests.sh`.
+
+---
+(r3 README follows)
+
+# state-production-validation-stage/r3 = r2 + the compact-header extractor r3 adapter (PREPARED by Claude 1906; NOT run; NOT PASS; FAIL-CLOSED)
+Report: ../../logs/claude-state-extraction-adapter-1906.md. Frozen r2 (`e1353cdc…`; its actual 20/20 receipt
+`runs/tests-20261027T113056Z-3145879`) and r1 are unchanged. r2's receipt does NOT carry over.
+
+**Unchanged from r2:** every gate, the lifecycle (`composite_session.py` byte-identical), memory/classification (30/34/35/7/8,
+dirty → 7), the final decision (35 only via acceptance r3, else 10; O1 wrapper rule), the capture/build/structural wiring, and all
+r2 pins.
+
+**r3 adds only the extraction consumer:**
+- **Pins:** extractor r3 SUMS `ee657a9d…` and `extract.py` `cf1264cc…`.
+- **`EXTRACTOR_UNIT_RAW`:** the ACTUAL raw che-r3-unit outputs (`logs/che-r3-unit.{out,rc,guard}` and the `/tmp/che1881-unit-GnvMSyRq`
+  stderr/stdout), sha-pinned and checked by `raw_test_errors`/`read_raw_test`:
+  - rc file `0\n`;
+  - exactly one `Ran 25 tests`, then `OK`;
+  - no ResourceWarning/skipped/Traceback/FAIL/ERROR;
+  - stderr's tail immediately before exactly one `## PASS (25)`;
+  - `## outputs <its own /tmp dir>`, then the guard line, then `[queue] EXIT 0`.
+
+  The `/tmp` files are ephemeral: if they are cleaned, this REFUSES until a reviewed re-pin.
+- **`EXTRACTOR_E2E_RAW = None`:** an EXPLICIT production block (`BLOCKED extractorE2E`). The same function, with `e2e=True` (workspace
+  line) and the `<stage>/runs/e2e-<ID>` output dir, accepts the future ACTUAL 8-test PASS.
+- **`PRODUCTION_INPUTS`** gains `extractionJob`. **`verify_extraction`:**
+  - the inner receipt must be at `<destParent>/compact-header-extraction-<ID>/EXTRACTION-RECEIPT.json`;
+  - the outer receipt must be at `<extractor r3>/runs/extract-<ID>/JOB-RECEIPT.json`, with `jobDir ==` its own parent;
+  - no symlink ancestor, and /vm 253:1 for the run dir and `files/data/static_files`;
+  - both are read ONCE, sha-pinned and unchanged after the check;
+  - they are consumed through the PINNED `extract.state_pins(receipt_raw, run_dir, job_raw, stage_sums)`;
+  - the returned `staticFilesDir`/`staticFiles`/receipt shas/`stageSums` must EXACTLY equal the inputs.
+- **`verify_production_inputs`** ends `verify_extractor_stage(); verify_extraction(); return True`. There is no unconditional dead end:
+  with every future input actually present and passing, it returns True.
+
+**Still blocked:** `PRODUCTION_INPUTS = None` (no actual build, captures, structural CLEAN, extraction or production view yet), and the
+e2e pin.
+
+**Tests:** 25 (`jobs/tests.sh` requires exactly `Ran 25 tests`).
+`bash jobs/q-exit-status.sh spv-r3-tests 256 unshare -Urn bash state-production-validation-stage/r3/jobs/tests.sh`.
+
+**No authority:** a 35 is PARTIAL v2 self-consistency only. It is never canonical, recovery acceptance or reset authority.
+
+---
+(r2 README follows)
+
+# state-production-validation-stage/r2: the production STATE runner (PREPARED by Claude 1890/1900; NOT run; NOT PASS; FAIL-CLOSED)
+Report: `../../logs/claude-state-runtime-wiring-1900.md`.
+
+**r1 is preserved unchanged:** SUMS `47a87af0…`; actual 13/14, where test 13 is a false positive (root 1897).
+
+**r2 = r1 plus review 1896 D1–D5, the capture r3 wiring, root 1897's test fix and root's O1 decision.** No new framework.
+
+## What is unchanged
+- `composite_session.py` is byte-identical to r1, i.e. r6 + the single `exec_plan` seam.
+- The r10 memory gate routing.
+- Acceptance r3 as the only classifier and final judge.
+- Every resource constraint: the 4096 lane, the 16 GiB host floor, 40 GiB + 8 GiB native on root, the /vm floor, all 265 CONFIRMED.
+- No original writes.
+
+## What changed
+- **D1 (view binding):** `--view-dir` must equal the pinned view's dir, in `gate` (before any check or MemoryHigh change) and in `runtime`. The exposed view (`r6 receipt["view"]`) must equal the pinned view in `exec_plan`, before the exec; otherwise REFUSED 3 with no child. `runtime` accepts only the exact gate-built argument shape.
+- **D2 (build receipt):** read once, from `<r12>/runs/build-*/receipt.json`. It must pass capture r3's predicate `matching_build_receipts` (verified, finalRc 0, mode build, r12 SUMS, outDir), the helper sha must equal the pin, and it must be the ONLY matching receipt.
+- **D3 (structural CLEAN):** `runs/job-<ID>/receipt.json` + `runs/prod-<ID>/session/receipt.json` of the SAME ID (r10 `root-composite-validate.sh` / `finish.sh` layout). Both are judged on their hashed bytes. `MG.evidence` must pass, and both files must be byte-identical afterwards (no substitution). The job predicate is re-checked with the exact r10 check set.
+- **D4 (strict test receipts):** format, pass, rc 0 (an int), expected, `ran == [n]` and the exact 5 checks, for:
+  - acceptance 46;
+  - capture 18;
+  - r12 guard 16 + 10 + 6;
+  - r12 ns 5;
+  - this stage's own 20 (`state_gate.py tests-receipt`, used by the job).
+- **D5 (paths):** no symlinked ancestors, and the /vm device 253:1, for `helperDir` and `staticFilesDir`.
+- **Capture r3 wiring:**
+  - capture r3 SUMS `f5424d11…`, `capture.py` `81ddd643…` and the ACTUAL 18-test receipt `5fa5224c…`, with capture's r12/acceptance pins equal to ours;
+  - per kind: `receipt_errors == []`, located under `helperDir` with this build receipt;
+  - the pinned acceptance parser re-run over the hashed `capture.txt`;
+  - the exact `## outputs <run>/work/out` line;
+  - the `work/out` manifest re-hashed and equal to the receipt's, plus the exact evidence set and `binaries.sha256`.
+- **O1 (root decision):** a runtime 35 is judged by acceptance alone (35 or 10). Any other runtime code is kept only when every job snapshot check AND the session cleanup are verified; otherwise **4**. Acceptance's code, `cleanupVerified` and the snapshots are recorded in `final.json`.
+- **Test 13 (root 1897):** the semantic invocation checks are:
+  - the exact `runtime_argv`;
+  - `runtime_rest_errors` with positive and negative examples, and `runtime` refusing each negative;
+  - `gate` having no fixture option;
+  - a shlex parse of the job's executable `state_gate.py` invocations, with no fixture/kind/timeout flag;
+  - a regression showing the parser sees an executable flag but ignores one in a comment or message.
+
+  The live memory-fixture guard and its message are kept.
+
+## Fail-closed (intentional)
+- **`PRODUCTION_INPUTS = None`:** there is no r12 build, no real 26/6 captures and no structural CLEAN yet.
+- **`EXTRACTION = None` + BLOCKED `extractionReceipt`:** compact-header extraction r2 is NOT consumed (X1). r3, with its wrapper job receipt, is not final.
+
+## Commands
+```
+bash jobs/q-exit-status.sh spv-r2-tests 256 unshare -Urn bash state-production-validation-stage/r2/jobs/tests.sh     # exactly 20 tests
+bash jobs/q-exit-status.sh state-prod 4096 bash state-production-validation-stage/r2/jobs/root-state-validate.sh VIEW_DIR MAX_HOURS   # refuses now
+```
+
+A 35 is self-consistent PARTIAL v2 state at the DB's own Finish header: NOT canonical, NOT recovery acceptance, NOT reset authority.

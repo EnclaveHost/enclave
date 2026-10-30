@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: the doubles encode exactly the actual reviewed ABIs (registry 13 fields, catalog, address book, closure getters incl. the authorityPins tuple, host ownership)
+ok 1 - the doubles encode exactly the actual reviewed ABIs (registry 13 fields, catalog, address book, closure getters incl. the authorityPins tuple, host ownership)
+  ---
+  duration_ms: 851.503982
+  type: 'test'
+  ...
+# Subtest: real ledger decodes the actual 13-field registry; SessionVault-owned deployment: owner authority = vault owner; coherent same-block read
+ok 2 - real ledger decodes the actual 13-field registry; SessionVault-owned deployment: owner authority = vault owner; coherent same-block read
+  ---
+  duration_ms: 855.814722
+  type: 'test'
+  ...
+# Subtest: each of the five primary dependencies bound to another (legacy) ledger is refused at runtime and statically
+ok 3 - each of the five primary dependencies bound to another (legacy) ledger is refused at runtime and statically
+  ---
+  duration_ms: 1549.354059
+  type: 'test'
+  ...
+# Subtest: host ban, measurement gate and catalog moderation set the right (global vs this-host) flags on the real ledger
+ok 4 - host ban, measurement gate and catalog moderation set the right (global vs this-host) flags on the real ledger
+  ---
+  duration_ms: 920.101706
+  type: 'test'
+  ...
+# Subtest: owner change through the real controller-gated transferDeployment disables globally (owner authority follows the ledger owner)
+ok 5 - owner change through the real controller-gated transferDeployment disables globally (owner authority follows the ledger owner)
+  ---
+  duration_ms: 386.289438
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5079.783271

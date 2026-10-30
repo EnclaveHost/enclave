@@ -1,0 +1,9 @@
+The Claude task timed out after writing these helpers. Root reviewed the source
+and 13 offline tests passed. Actual prepare verified the OS backup by hash,
+independent readback and qemu-img check.
+
+Actual launch FAILED with BlockingIOError. RESULT.json records cleanup of the
+exact owned unit and confirms its PID is gone. There is no successful guest-mask
+or graceful shutdown proof. Base/L1 chain disks were never attached. The normal
+RPC VM remains OFF. Preserve the verified OS backup; do not rerun unchanged.
+Finish and the follow-up read-only mask inventory remain pending.

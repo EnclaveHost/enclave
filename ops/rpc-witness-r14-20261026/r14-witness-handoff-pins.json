@@ -1,0 +1,44 @@
+{
+ "note": "r14-witness handoff (offline qualification PASS; root reviews; nothing installed). Values computed from the frozen bytes.",
+ "stage": "base-finality-proof-stage/r14-witness",
+ "stageSha256sums": "1ba2d51a47d0576cada1e0e24b885234e39c6c53f4e6af5e8c9e5ee5e921793b",
+ "qualificationReceipt": {
+  "path": "logs/claude-r14-witness-1.out",
+  "sha256": "cd64992fb70c2ee48a00852f1e0930f93cb4c3a449e7de7213189f8f4175eb3e",
+  "rc": "logs/claude-r14-witness-1.rc",
+  "lines": [
+   "## r13 SHA256SUMS 1ba2d51a47d0576cada1e0e24b885234e39c6c53f4e6af5e8c9e5ee5e921793b",
+   "## finality-r13 rc=0"
+  ]
+ },
+ "coldCanaryComposedStagePins": {
+  "stage": "base-finality-proof-stage/r14-witness",
+  "stageSha256sums": "1ba2d51a47d0576cada1e0e24b885234e39c6c53f4e6af5e8c9e5ee5e921793b",
+  "manifest": "4691319085be89adcbc293ecf9e4e3c6c59209e0501412df32767a4123ba23c1",
+  "bundleOrigin": "4121a5f6d80528babe0929034066816df00ce91dff0242ec229e2ee20aa80bdf",
+  "captureModule": "8da369de00c176364aadac5af57842f2a2d02f3abee20f63fe4361b7a1b0793e",
+  "finalityState": "608565123278e1d877abffe02fc762aba3fccee6c89e249f3ee6d808b618704e",
+  "finalityCore": "686cbc22cd837dbc0bb79512105972297c5addbe512dbd6dce2cfac28aaa6eab",
+  "a1Read": "da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85",
+  "a1RecheckRead": "78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825"
+ },
+ "systemdCanaryFinalPins": {
+  "stage": "base-finality-proof-stage/r14-witness",
+  "stageSha256sums": "1ba2d51a47d0576cada1e0e24b885234e39c6c53f4e6af5e8c9e5ee5e921793b",
+  "files": {
+   "bootstrap/holder_gate.py": "dd68006175135c3a72b668dbc483492980612f5c2ad075ffd481396234892c07",
+   "wrapper/chain_service.py": "9607b831c8941d1108022a500cf1ae328367b84a110e38b00fdd18476ff4656a",
+   "src/finality_state.py": "608565123278e1d877abffe02fc762aba3fccee6c89e249f3ee6d808b618704e",
+   "units/enclave-base-holder.service.d/60-release-mode.conf": "2df07889f713d43a9d352ed954fa8f57489a9867ffcf879bb3e268acdaf6e6be",
+   "units/enclave-base-finality-reproof.service": "b36ee8d8e700b9aabf302d9ee237c7131bb4ae8adedeecf0628854acf603e945"
+  }
+ },
+ "witness": {
+  "witness/witness_rpc_bridge.py": "cb9765418d30d238ded384c6908462516d153161f17631f28c7247905198fc9d",
+  "units/enclave-witness-bridge-base.service": "e4bdc94784d2bc6cb1e29a30d62c8e65a24846585271009224754960b22b9611",
+  "units/enclave-witness-bridge-l1.service": "dd82cd45eaf854e1f9d13793adfcda260d13de1aef3a894fffa3dda1d4faf429"
+ },
+ "firstBootstrapConsumer": {
+  "bootstrap/a1_capture_original.py": "2f7656b8fc58f4a9d987fe16819a27b83c917e11c9945f88040ff33f149c5420"
+ }
+}

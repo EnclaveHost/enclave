@@ -1,0 +1,96 @@
+TAP version 13
+# Subtest: the composed runtime declares KVM's own API, and the signed binding is KVM's derivedReaderBinding of the image template
+ok 1 - the composed runtime declares KVM's own API, and the signed binding is KVM's derivedReaderBinding of the image template
+  ---
+  duration_ms: 1.639934
+  type: 'test'
+  ...
+# Subtest: genesis through REAL KVM + role IPC + ReplicaNode: a crash after ACK 1 resumes the exact committed prefix (2 more ACKs), never a reset or a deadlock
+not ok 2 - genesis through REAL KVM + role IPC + ReplicaNode: a crash after ACK 1 resumes the exact committed prefix (2 more ACKs), never a reset or a deadlock
+  ---
+  duration_ms: 3371.030604
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r6/runs/20261026T161518Z-slice-2009141/repo/test/derived-state-kvm-composition.test.mjs:166:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the resumed child sent ONLY the remaining two writes
+    + actual - expected
+    
+      [
+    +   'bridge/anchor-journal.json',
+    +   'reader/derived-state.json'
+    -   '/tmp/derived-kvm-xGxM44/m2-ddAD68/pa/derived-reader-v3/anchor-journal.json',
+    -   '/tmp/derived-kvm-xGxM44/m2-ddAD68/pa/derived-reader-v3/journal/derived-state.json'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: '/tmp/derived-kvm-xGxM44/m2-ddAD68/pa/derived-reader-v3/anchor-journal.json'
+    1: '/tmp/derived-kvm-xGxM44/m2-ddAD68/pa/derived-reader-v3/journal/derived-state.json'
+  actual:
+    0: 'bridge/anchor-journal.json'
+    1: 'reader/derived-state.json'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r6/runs/20261026T161518Z-slice-2009141/repo/test/derived-state-kvm-composition.test.mjs:174:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a complete matching enrollment opens normally (no enrollment call) after a restart
+ok 3 - a complete matching enrollment opens normally (no enrollment call) after a restart
+  ---
+  duration_ms: 1961.834612
+  type: 'test'
+  ...
+# Subtest: ADVANCED state opens normally: KVM's own journals move the reader floor (200/100) ahead of the bridge's (150/90) through the real IPC
+ok 4 - ADVANCED state opens normally: KVM's own journals move the reader floor (200/100) ahead of the bridge's (150/90) through the real IPC
+  ---
+  duration_ms: 3927.956262
+  type: 'test'
+  ...
+# Subtest: ROTATE to a new binding carries EXACTLY the dominating floor (the reader's); a crash after ACK 2 resumes with ACK 3 only; never a reset
+not ok 5 - ROTATE to a new binding carries EXACTLY the dominating floor (the reader's); a crash after ACK 2 resumes with ACK 3 only; never a reset
+  ---
+  duration_ms: 2745.871925
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r6/runs/20261026T161518Z-slice-2009141/repo/test/derived-state-kvm-composition.test.mjs:217:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the resumed child sent ONLY the final reader record
+    + actual - expected
+    
+      [
+    +   'reader/derived-state.json'
+    -   '/tmp/derived-kvm-xGxM44/m2-ddAD68/pa/derived-reader-v3/journal/derived-state.json'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: '/tmp/derived-kvm-xGxM44/m2-ddAD68/pa/derived-reader-v3/journal/derived-state.json'
+  actual:
+    0: 'reader/derived-state.json'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/accepted-image-enrollment-stage/r6/runs/20261026T161518Z-slice-2009141/repo/test/derived-state-kvm-composition.test.mjs:234:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: RECOVER after a restore marker needs the signed retained high-water; it raises BOTH floors to it; a crash after ACK 3 reopens normally from the committed scan
+ok 6 - RECOVER after a restore marker needs the signed retained high-water; it raises BOTH floors to it; a crash after ACK 3 reopens normally from the committed scan
+  ---
+  duration_ms: 2323.430311
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 4
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 28962.342366

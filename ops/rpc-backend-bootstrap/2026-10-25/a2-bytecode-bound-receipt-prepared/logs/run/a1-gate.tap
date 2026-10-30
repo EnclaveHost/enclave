@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: pinned reuse: a1gate/a1-recheck.mjs and a1-anchor.mjs are byte-identical to the frozen a1-original-game copies
+ok 1 - pinned reuse: a1gate/a1-recheck.mjs and a1-anchor.mjs are byte-identical to the frozen a1-original-game copies
+  ---
+  duration_ms: 1.169471
+  type: 'test'
+  ...
+# Subtest: REAL live initial receipt: accepted as fresh-initial input (sha of its exact bytes); a wrong pinned sha refuses as initial of a recheck
+ok 2 - REAL live initial receipt: accepted as fresh-initial input (sha of its exact bytes); a wrong pinned sha refuses as initial of a recheck
+  ---
+  duration_ms: 2.039694
+  type: 'test'
+  ...
+# Subtest: the complete mock initial receipt is valid fresh-initial input; a missing required read refuses
+ok 3 - the complete mock initial receipt is valid fresh-initial input; a missing required read refuses
+  ---
+  duration_ms: 0.818284
+  type: 'test'
+  ...
+# Subtest: REAL producer output (unchanged world) is accepted: shape, label and read set are exactly what runRecheck writes
+ok 4 - REAL producer output (unchanged world) is accepted: shape, label and read set are exactly what runRecheck writes
+  ---
+  duration_ms: 5.941174
+  type: 'test'
+  ...
+# Subtest: REAL producer output after the latest anchor ADVANCED: accepted, N/root/game stay the initial values, latest is observation only
+ok 5 - REAL producer output after the latest anchor ADVANCED: accepted, N/root/game stay the initial values, latest is observation only
+  ---
+  duration_ms: 2.760639
+  type: 'test'
+  ...
+# Subtest: never interchangeable: a recheck is not initial evidence, an initial is not a recheck, a CLI refusal is not a pass
+ok 6 - never interchangeable: a recheck is not initial evidence, an initial is not a recheck, a CLI refusal is not a pass
+  ---
+  duration_ms: 2.496961
+  type: 'test'
+  ...
+# Subtest: a recheck of ANOTHER initial receipt (same game/N/root, other L1 block) is refused against the pinned one
+ok 7 - a recheck of ANOTHER initial receipt (same game/N/root, other L1 block) is refused against the pinned one
+  ---
+  duration_ms: 2.878348
+  type: 'test'
+  ...
+# Subtest: every rebinding of the REAL producer output refuses with its code (latest N/descendant, pins, labels, freshness, shape)
+ok 8 - every rebinding of the REAL producer output refuses with its code (latest N/descendant, pins, labels, freshness, shape)
+  ---
+  duration_ms: 3.89161
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 252.104985

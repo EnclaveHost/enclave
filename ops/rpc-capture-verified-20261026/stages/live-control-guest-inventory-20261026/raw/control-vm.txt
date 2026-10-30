@@ -1,0 +1,15 @@
+utc=2026-10-26T03:01:22Z host=enclave-control boot=2026-10-23 08:31:15 sudo=yes
+tunnel_unit enclave-control-tunnel-ap-southeast.service MainPID=11372 NRestarts=215 ActiveState=active SubState=running ActiveEnterTimestamp=Fri 2026-10-23 09:09:33 UTC  forwards=-R 127.0.0.1:30443:127.0.0.1:30443 -R 127.0.0.1:30080:127.0.0.1:30080 -R 127.0.0.1:31053:127.0.0.1:1053  dest=enclave-control-tunnel@165.245.191.129
+tunnel_unit enclave-control-tunnel-ca-east.service MainPID=779 NRestarts=0 ActiveState=active SubState=running ActiveEnterTimestamp=Fri 2026-10-23 08:31:17 UTC  forwards=-R 127.0.0.1:30443:127.0.0.1:30443 -R 127.0.0.1:30080:127.0.0.1:30080 -R 127.0.0.1:31053:127.0.0.1:1053  dest=enclave-control-tunnel@146.190.246.39
+tunnel_unit enclave-control-tunnel-eu-central.service MainPID=11373 NRestarts=215 ActiveState=active SubState=running ActiveEnterTimestamp=Fri 2026-10-23 09:09:33 UTC  forwards=-R 127.0.0.1:30443:127.0.0.1:30443 -R 127.0.0.1:30080:127.0.0.1:30080 -R 127.0.0.1:31053:127.0.0.1:1053  dest=enclave-control-tunnel@134.209.248.172
+tunnel_unit enclave-control-tunnel-us-west.service MainPID=782 NRestarts=0 ActiveState=active SubState=running ActiveEnterTimestamp=Fri 2026-10-23 08:31:17 UTC  forwards=-R 127.0.0.1:30443:127.0.0.1:30443 -R 127.0.0.1:30080:127.0.0.1:30080 -R 127.0.0.1:31053:127.0.0.1:1053  dest=enclave-control-tunnel@134.199.235.187
+target_listen tcp 127.0.0.1:30443 comm="caddy" pid=777 unit=enclave-control-tls.service exe=/usr/bin/caddy exe_sha16=b7105518e3ed1c07 script= sha16= cwd=/
+target_listen tcp 127.0.0.1:30080 comm="caddy" pid=777 unit=enclave-control-tls.service exe=/usr/bin/caddy exe_sha16=b7105518e3ed1c07 script= sha16= cwd=/
+target_listen udp 127.0.0.1:1053 comm="node" pid=105063 unit=enclave-dns.service exe=/usr/bin/node exe_sha16=93956de2e5948047 script=/opt/enclave-dns/dns-relay.js sha16=4f6bd80dab575183 cwd=/opt/enclave-dns
+  pkg /opt/enclave-dns/package.json name=nan-relay version=0.1.0
+target_listen tcp 127.0.0.1:1053 comm="node" pid=105063 unit=enclave-dns.service exe=/usr/bin/node exe_sha16=93956de2e5948047 script=/opt/enclave-dns/dns-relay.js sha16=4f6bd80dab575183 cwd=/opt/enclave-dns
+  pkg /opt/enclave-dns/package.json name=nan-relay version=0.1.0
+unit_info enclave-control-tls.service state=active since=Fri 2026-10-23 08:31:17 UTC fragment=/etc/systemd/system/enclave-control-tls.service user=enclave-control-tls envfiles=
+  authority_keys_found=0
+unit_info enclave-dns.service state=active since=Sun 2026-10-25 19:15:05 UTC fragment=/etc/systemd/system/enclave-dns.service user=enclave-dns envfiles=/etc/enclave-dns/dns.env,/etc/enclave-dns/control-location.env,/etc/enclave-rpc/clients.env,
+  authority_keys_found=0

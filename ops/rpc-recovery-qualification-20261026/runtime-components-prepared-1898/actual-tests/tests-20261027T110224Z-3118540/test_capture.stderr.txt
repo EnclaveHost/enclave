@@ -1,0 +1,6 @@
+.## REFUSED: Refused: '/tmp/out' is not /vm/enclave-volumes/rpc-recovery-validation-build/run-<UTC>-<pid>/out
+.................
+----------------------------------------------------------------------
+Ran 18 tests in 0.045s
+
+OK

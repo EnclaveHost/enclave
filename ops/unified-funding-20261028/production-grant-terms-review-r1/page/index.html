@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TEST ONLY - production-grant-terms-r1 /funding recovery page harness (NEW TEST terms 24 / 4.8 / 1.2)</title>
+</head>
+<body>
+<h1>TEST ONLY: generated /funding recovery page copy on an owned fixture (production-grant-terms-r1, gas candidate gas-recovery-6usdc-r1)</h1>
+<p><strong>Owned loopback Anvil (chain id 8453, NOT Base). Public Anvil fixture keys, mock USDC, TEST terms only (NEW gas candidate gas-recovery-6usdc-r1: 24 legacy / 4.8 nucbox / 1.2 metal).</strong>
+Owner signatures come from a server-side TEST fixture signer, not a wallet; no wallet or extension is used.
+The page is the client-execution-site-r2 generated copy of the r2 page (recovery section added); its flows and state are the client-site-repair-r2 files, unmodified; site modules around them are TEST facades.</p>
+<section id="harness" aria-label="TEST harness">
+  <h2>Harness (click the phases in order)</h2>
+  <div id="hstatus" data-result="LOADING">LOADING</div>
+  <div id="hphase"></div>
+  <div id="hdbs"></div>
+  <div id="hbuttons"></div>
+  <ol id="hstages"></ol>
+  <h3>Page toasts</h3>
+  <pre id="htoasts"></pre>
+  <h3>Log</h3>
+  <pre id="hlog"></pre>
+</section>
+<hr>
+<section id="funding" data-view="funding" aria-label="The actual /funding page">
+  <h2>/funding page (actual)</h2>
+  <div id="fdBody" class="co-body"></div>
+</section>
+<script type="module" src="/dist/harness.js"></script>
+</body>
+</html>

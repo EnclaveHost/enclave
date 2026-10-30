@@ -1,0 +1,7 @@
+[Unit]
+Description=Base RPC consumer gate
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30s
+[Install]
+WantedBy=timers.target

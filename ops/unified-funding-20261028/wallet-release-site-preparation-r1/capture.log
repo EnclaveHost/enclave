@@ -1,0 +1,7 @@
+[queue] START available=31602MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+us-west: read failed, no retry
+[memory-guard] exit=1 peakTreeRssMiB=31 minHostAvailableMiB=31541
+[memory-guard] at peak: python3:18 ssh:10 timeout:2
+[memory-guard] exit=1 peakTreeRssMiB=92 minHostAvailableMiB=31541
+[memory-guard] at peak: node:61 python3:18 ssh:10 timeout:2
+[queue] EXIT 1

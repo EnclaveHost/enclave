@@ -1,0 +1,48 @@
+{
+ "environment": {
+  "noMountLeft": true,
+  "peersUnchanged": true
+ },
+ "format": "composite-mdbx-validation-test-receipt/r6",
+ "guardSha256": "f64c6115ab8ac871d1813d53d45d3b03369c330c45617763824a4bb3fef287ce",
+ "pass": true,
+ "scope": "tiny real MDBX fixtures + guard unit tests only; no production view or part; not chain/state/RPC/SNP validation",
+ "sessionSha256": "407aa7e98fe18f913112b9f49369416e98524ff28f4e44cde788958f314fdbf6",
+ "stageSums": "06705b02eab351a718234f22c9a53acdbefe3977122682f8f3f7ac25d5b9914a",
+ "suites": {
+  "test_composite_session": {
+   "badMarkers": [],
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expectedTests": 12,
+   "pass": true,
+   "ran": [
+    "12"
+   ],
+   "rc": 0,
+   "testsSha256": "0e087dea4f8768e60d482035f61e010db360cc1a08dee90225444c6d5f5c1fd5"
+  },
+  "test_session_guard": {
+   "badMarkers": [],
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expectedTests": 4,
+   "pass": true,
+   "ran": [
+    "4"
+   ],
+   "rc": 0,
+   "testsSha256": "6a66be0d0a2ff88d58dbff0d7d2b0c2ead3693a6ac12042901719304f273994b"
+  }
+ }
+}

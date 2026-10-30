@@ -1,0 +1,14 @@
+{
+  "baselineFiles": 114,
+  "bytes": 2401178,
+  "bareImportCandidates": [
+    ");\n      const fetchers = sources.map((gateway) => cidFetcher({ script, python: this.cfg.python || ",
+    "expired",
+    "viem",
+    "viem/accounts",
+    "viem/chains",
+    "ws"
+  ],
+  "missingRelativeCandidates": [],
+  "qualification": "Static regex scan only, may include comments and excludes minified bundles. No dependency installation, import, test, build or product execution. Root must qualify the focused test dependency closure before execution. Full original captured bundle retained read-only."
+}

@@ -1,0 +1,8 @@
+{
+  "source": "work/tr004/base-view/nbd",
+  "backup": "work/tr004/base-backup-view/nbd",
+  "verified_bytes": 172888113152,
+  "allocated_ranges_sha256": "7cc3270a2e0616b3b3af7d2d115daa4e6a19c8a452cd080b64f8530db8ce8d56",
+  "equal": true,
+  "elapsed_seconds": 1060.4300920460373
+}

@@ -1,0 +1,19 @@
+{
+  "status": "PREPARATION_FILE_HASH_AND_HELPER_AST_ONLY",
+  "preparedSha256": "15a6dad1bb4914bb5e86f7e8a81e725fbc5bd37c9603c552a87896a3a66323a4",
+  "seedFiles": 219,
+  "candidateExactSeed": true,
+  "preAuthorProductEdits": 0,
+  "readonlyPins": 5213,
+  "inputDrift": [],
+  "authorLaunched": false,
+  "candidateExecuted": false,
+  "testsOrBuildsRun": false,
+  "helperASTParsedNotExecuted": [
+    "run.py",
+    "collect-terminal.py",
+    "readonly-progress.py"
+  ],
+  "collector": "Unchanged reviewed collector; root frozen219 source is immutable replay seed; normalized root admission metadata required.",
+  "note": "Current root evidence snapshotted read-only; future mutable root docs not pinned. Coordinator owns review/account/launch."
+}

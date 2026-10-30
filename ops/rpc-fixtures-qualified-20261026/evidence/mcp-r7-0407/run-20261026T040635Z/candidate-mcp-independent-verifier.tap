@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: explicit verifier profile: every read goes to the ONE local verifier at head - confirmations; no RPC list exists; the answer says so
+ok 1 - explicit verifier profile: every read goes to the ONE local verifier at head - confirmations; no RPC list exists; the answer says so
+  ---
+  duration_ms: 89.978731
+  type: 'test'
+  ...
+# Subtest: verifier refusals with their causes - down, stale, wrong chain, block replaced during the read - and nothing else is asked
+ok 2 - verifier refusals with their causes - down, stale, wrong chain, block replaced during the read - and nothing else is asked
+  ---
+  duration_ms: 30.026383
+  type: 'test'
+  ...
+# Subtest: ambiguous or invalid selections are refused before anything is read (rpcs or quorum beside the verifier, no/remote verifier, unknown authority)
+ok 3 - ambiguous or invalid selections are refused before anything is read (rpcs or quorum beside the verifier, no/remote verifier, unknown authority)
+  ---
+  duration_ms: 3.426175
+  type: 'test'
+  ...
+# Subtest: the verifier chain accepts ONLY the marked local-verifier client: an ordinary RPC client never stands in for it
+ok 4 - the verifier chain accepts ONLY the marked local-verifier client: an ordinary RPC client never stands in for it
+  ---
+  duration_ms: 0.503025
+  type: 'test'
+  ...
+# Subtest: legacy profiles are unchanged: no chainAuthority keeps the RPC quorum (and an existing chainVerifier keeps its narrower meaning)
+ok 5 - legacy profiles are unchanged: no chainAuthority keeps the RPC quorum (and an existing chainVerifier keeps its narrower meaning)
+  ---
+  duration_ms: 2.143358
+  type: 'test'
+  ...
+# Subtest: a legacy profile without RPCs is still refused (the quorum rule is not weakened by the new selection)
+ok 6 - a legacy profile without RPCs is still refused (the quorum rule is not weakened by the new selection)
+  ---
+  duration_ms: 0.615344
+  type: 'test'
+  ...
+# Subtest: custody v2 secret tools on a verifier profile (local AND remote adapter, the real tools/call path) refuse before ANY chain, custodian or network read
+ok 7 - custody v2 secret tools on a verifier profile (local AND remote adapter, the real tools/call path) refuse before ANY chain, custodian or network read
+  ---
+  duration_ms: 24.018705
+  type: 'test'
+  ...
+# Subtest: existing quorum secrets functionality is unchanged: on a quorum profile get_secrets proceeds to its chain reads (no verifier refusal)
+ok 8 - existing quorum secrets functionality is unchanged: on a quorum profile get_secrets proceeds to its chain reads (no verifier refusal)
+  ---
+  duration_ms: 1.711643
+  type: 'test'
+  ...
+# Subtest: recorded destinations: stale, replaced and unavailable verifier cases contact ONLY the configured verifier - never a public default
+ok 9 - recorded destinations: stale, replaced and unavailable verifier cases contact ONLY the configured verifier - never a public default
+  ---
+  duration_ms: 15.573181
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 405.479537

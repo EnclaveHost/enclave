@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: legacy selection is unchanged: no --chain-authority (or quorum) returns null; a verifier without the mode refuses
+ok 1 - legacy selection is unchanged: no --chain-authority (or quorum) returns null; a verifier without the mode refuses
+  ---
+  duration_ms: 0.991023
+  type: 'test'
+  ...
+# Subtest: explicit verifier: mixed selections and non-local verifiers refuse before any request
+ok 2 - explicit verifier: mixed selections and non-local verifiers refuse before any request
+  ---
+  duration_ms: 5.647661
+  type: 'test'
+  ...
+# Subtest: explicit verifier: the registry operator and connectivity address are read through the local verifier only
+ok 3 - explicit verifier: the registry operator and connectivity address are read through the local verifier only
+  ---
+  duration_ms: 50.261265
+  type: 'test'
+  ...
+# Subtest: verifier down, stale, on another chain, or failing a proof: every read throws, no provider is asked
+ok 4 - verifier down, stale, on another chain, or failing a proof: every read throws, no provider is asked
+  ---
+  duration_ms: 28.798682
+  type: 'test'
+  ...
+# Subtest: wg-qualify.mjs: legacy run unchanged; --chain-authority verifier logs the local authority; --rpc with it refuses
+ok 5 - wg-qualify.mjs: legacy run unchanged; --chain-authority verifier logs the local authority; --rpc with it refuses
+  ---
+  duration_ms: 758.087163
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1085.45097

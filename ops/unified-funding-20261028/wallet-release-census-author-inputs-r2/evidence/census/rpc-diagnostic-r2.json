@@ -1,0 +1,89 @@
+[
+  {
+    "url": "https://api.enclave.host/rpc/base",
+    "result": [
+      {
+        "name": "genesis",
+        "ok": true,
+        "count": null,
+        "emptyCode": true
+      },
+      {
+        "name": "logs",
+        "ok": true,
+        "count": 0,
+        "emptyCode": false
+      }
+    ]
+  },
+  {
+    "url": "https://base-mainnet.public.blastapi.io",
+    "result": [
+      {
+        "name": "genesis",
+        "ok": true,
+        "count": null,
+        "emptyCode": true
+      },
+      {
+        "name": "logs",
+        "ok": false,
+        "errors": [
+          {
+            "name": "InvalidRequestRpcError",
+            "code": -32600,
+            "short": "JSON is not a valid request object.",
+            "details": "You can make eth_getLogs requests with up to a 10 block range. Based on your parameters, this block range should work: [0x3262564, 0x326256d]",
+            "message": "JSON is not a valid request object.\n\nURL: https://base-mainnet.public.blastapi.io\nRequest body: {\"method\":\"eth_getLogs\",\"params\":[{\"address\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"topics\":[\"0x23c373344ac1f1f50daef0ec31f6924948297610efa8499362428205bcc86b4f\"],\"fromBlock\":\"0x3262564\",\"toBlock\":\"0x3267383\"}]}\n\nDetails: You can make eth_getLogs requests with up to a 10 block range. Based on your parameters, this block range should work: [0x3262564, 0x326256d]\nVersion: viem@2.53.1"
+          },
+          {
+            "name": "RpcRequestError",
+            "code": -32600,
+            "short": "RPC Request failed.",
+            "details": "You can make eth_getLogs requests with up to a 10 block range. Based on your parameters, this block range should work: [0x3262564, 0x326256d]",
+            "message": "RPC Request failed.\n\nURL: https://base-mainnet.public.blastapi.io\nRequest body: {\"method\":\"eth_getLogs\",\"params\":[{\"address\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"topics\":[\"0x23c373344ac1f1f50daef0ec31f6924948297610efa8499362428205bcc86b4f\"],\"fromBlock\":\"0x3262564\",\"toBlock\":\"0x3267383\"}]}\n\nDetails: You can make eth_getLogs requests with up to a 10 block range. Based on your parameters, this block range should work: [0x3262564, 0x326256d]\nVersion: viem@2.53.1"
+          },
+          {
+            "code": -32600,
+            "message": "You can make eth_getLogs requests with up to a 10 block range. Based on your parameters, this block range should work: [0x3262564, 0x326256d]"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "url": "https://base-rpc.publicnode.com",
+    "result": [
+      {
+        "name": "genesis",
+        "ok": false,
+        "errors": [
+          {
+            "name": "InvalidParamsRpcError",
+            "code": -32602,
+            "short": "Invalid parameters were provided to the RPC method.\nDouble check you have provided the correct parameters.",
+            "details": "Archive requests require a personal token. Get one at: https://www.allnodes.com/publicnode",
+            "message": "Invalid parameters were provided to the RPC method.\nDouble check you have provided the correct parameters.\n\nURL: https://base-rpc.publicnode.com\nRequest body: {\"method\":\"eth_getCode\",\"params\":[\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"0x0\"]}\n\nDetails: Archive requests require a personal token. Get one at: https://www.allnodes.com/publicnode\nVersion: viem@2.53.1"
+          },
+          {
+            "name": "RpcRequestError",
+            "code": -32602,
+            "short": "RPC Request failed.",
+            "details": "Archive requests require a personal token. Get one at: https://www.allnodes.com/publicnode",
+            "message": "RPC Request failed.\n\nURL: https://base-rpc.publicnode.com\nRequest body: {\"method\":\"eth_getCode\",\"params\":[\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"0x0\"]}\n\nDetails: Archive requests require a personal token. Get one at: https://www.allnodes.com/publicnode\nVersion: viem@2.53.1"
+          },
+          {
+            "code": -32602,
+            "message": "Archive requests require a personal token. Get one at: https://www.allnodes.com/publicnode"
+          }
+        ]
+      },
+      {
+        "name": "logs",
+        "ok": true,
+        "count": 0,
+        "emptyCode": false
+      }
+    ]
+  }
+]

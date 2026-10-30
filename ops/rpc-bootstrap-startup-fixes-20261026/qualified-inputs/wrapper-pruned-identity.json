@@ -1,0 +1,30 @@
+{
+  "format": "enclave-r13-input-qualification/v1",
+  "stage": "wrapper-pruned-identity-stage",
+  "stageSha256sums": "281c73cfa3be770f9b3b8ab0ca81052ed0ccb5248e524b4d96829695ec5895f7",
+  "binds": "files",
+  "receipts": [
+    {
+      "path": "wrapper-pruned-identity-stage/logs/claude-wrapper-pruned-20261026T082645Z.out",
+      "sha256": "f810517b25c4a52689baf31dc9bd6e370633ef1d3c0f06ee2e56c606d7ff35ee",
+      "lines": [
+        "rc=0",
+        "BASELINE REPRODUCES BLOCKER",
+        "[queue] EXIT 0",
+        "Ran 49 tests in 0.046s",
+        "6a4d7aa5da385bf1d8dea74c37060eb1332d5d468625d54ae02ae878c7135189  overlay/wrapper/chain_service.py",
+        "045fcceb93e4a04811ba470e6324a72105cd7994c73baf3250647b89e7c98dc6  overlay/wrapper/test_l1_pruned_identity.py"
+      ],
+      "rc": "wrapper-pruned-identity-stage/logs/claude-wrapper-pruned-20261026T082645Z.rc"
+    },
+    {
+      "path": "logs/root-wrapper-pruned-live-0836.out",
+      "sha256": "c524f7e75a509f2d1caa5e29a44d943c33829ef123ebaafb25d116f21f519913",
+      "lines": [
+        "[queue] EXIT 0",
+        "Read-only live l1-ready, source 6a4d7aa5da385bf1d8dea74c37060eb1332d5d468625d54ae02ae878c7135189; no install/start/restart"
+      ],
+      "rc": "logs/root-wrapper-pruned-live-0836.rc"
+    }
+  ]
+}

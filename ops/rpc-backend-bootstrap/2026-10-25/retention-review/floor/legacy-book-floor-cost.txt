@@ -1,0 +1,11 @@
+legacy EnclaveAddressBook first-code block 48322938 -> static file 96 (48000000-48499999)
+  file 96: static_files/receipts-48000000-48499999.tar.zst + transactions: compressed 22.73 GB, extracted 40.95 GB
+  file 97: static_files/receipts-48500000-48999999.tar.zst + transactions: compressed 22.10 GB, extracted 39.78 GB
+  file 98: static_files/receipts-49000000-49499999.tar.zst + transactions: compressed 19.17 GB, extracted 35.97 GB
+  file 99: static_files/receipts-49500000-49999999.tar.zst + transactions: compressed 19.53 GB, extracted 38.17 GB
+  file 100: static_files/receipts-50000000-50499999.tar.zst + transactions: compressed 29.68 GB, extracted 56.09 GB
+  file 101: static_files/receipts-50500000-50999999.tar.zst + transactions: compressed 27.55 GB, extracted 50.89 GB
+  file 102: static_files/receipts-51000000-51499999.tar.zst + transactions: compressed 27.92 GB, extracted 51.47 GB
+  file 103: static_files/receipts-51500000-51999999.tar.zst + transactions: compressed 27.55 GB, extracted 49.95 GB
+  file 104: static_files/receipts-52000000-52499999.tar.zst + transactions: compressed 25.39 GB, extracted 46.72 GB
+extra receipts+transactions files 96..104 (9 files): compressed 221.6 GB, extracted 410.0 GB

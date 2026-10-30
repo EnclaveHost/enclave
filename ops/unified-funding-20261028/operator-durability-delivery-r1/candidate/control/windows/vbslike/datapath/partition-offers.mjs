@@ -1,0 +1,19 @@
+// partition-offers.mjs - what a per-app Hyper-V partition CAN be given, as node-bridge.mjs's isolationPlan lets it
+// through. The node's /availability features and its claim gate read this (host.mjs features), so a box on the isolated
+// backend never advertises a capability its own plan then refuses (enclave-87, from d1's live node at 013deb51:
+// secrets, secretsInConfig, configOverride and customDomains were all advertised true).
+//
+// Each value is the PLAN's answer; host.mjs ANDs it with the manager's own /health `supports`, so a feature is offered
+// only when both the node's plan and the manager would honour it. Every false here is a refusal in isolationPlan (or a
+// constant of the spawn body / the splice route), and test/windows-node-availability-flags.test.mjs holds the two together.
+export const PARTITION_OFFERS = Object.freeze({
+  secrets: true,         // ANDed with manager support for sealed, deployment-bound guest release
+  config: true,          // V5 measured config; also requires manager image capability
+  configCid: true,       // manager independently CID-verifies the public config before bundling it
+  waf: false,            // isolationPlan: protection rules need the request's plaintext, which only the partition has
+  customDomains: false,  // the splice serves only <label>.<zone> (isolatedTarget expectName); no other hostname reaches it
+  gpu: true,             // gated again by the manager's measured Shield profile
+  privateDeployments: false,   // isolationPlan: a private deployment's owner gate needs plaintext
+  egress: false,         // the spawn body carries egress "" (isolationPlan): no network options reach a partition
+  volumes: true,         // ANDed with manager supports.modelVolumes: the measured config's volumes, verified in the partition
+});

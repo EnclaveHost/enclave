@@ -1,0 +1,51 @@
+{
+  "observedAt": "2026-10-27T13:01:20.123319-07:00",
+  "scope": "read-only source, service metadata, file metadata; no production mutations",
+  "stopReceipt": "/home/steven/Documents/Codex/2026-10-26/my/outputs/tr004-metal0-temporary-stop.json",
+  "memoryMiB": {
+    "sampleMemAvailable": 95476,
+    "control": 4096,
+    "qwen": 64281,
+    "image": 6144,
+    "hostReserve": 16384,
+    "nominalPlusReserve": 90905,
+    "remainingBeforeOverheadAndRestoration": 4571
+  },
+  "capacityBytes": {
+    "vmAvailable": 77021241344,
+    "rootAvailable": 58599452672
+  },
+  "padbanks": [
+    {
+      "path": "/vm/enclave-volumes/.shield-pads/gdf2432626.padbank",
+      "dev": 64769,
+      "inode": 148242435,
+      "logicalBytes": 549755813888,
+      "allocatedBytes": 485444706304
+    },
+    {
+      "path": "/vm/enclave-volumes/.shield-pads/gd125fa739.padbank",
+      "dev": 64769,
+      "inode": 148242434,
+      "logicalBytes": 206158430208,
+      "allocatedBytes": 0
+    }
+  ],
+  "sha256": {
+    "guestd.sdshield-9d1562738cde": "9d1562738cde6d43cef9e58931cb6425542e400b26364986c209e90377759314",
+    "installed/persist.go": "5ec49e720a8fbbf5699f561b631710417230777f7855a897f30095865024d990",
+    "installed/main.go": "0731250930eb2f77d98fda33330ae24b25e059ae20959972fd06579c0c4245b4",
+    "installed/pool.go": "c1c4289eb431539bfb4295288a548046ff642220d51fe4e383c47c1f0b96a34f",
+    "installed/run-domain.sh": "b9a5dab9d7122022ef4626595d8de1d725297100dbba780a4e15b45b3909b9aa"
+  },
+  "unverified": [
+    "current chain ownership/activity/lease",
+    "binary-source reproducibility",
+    "embedded supervisor exact source match",
+    "model content hashes",
+    "fresh Shield correctness",
+    "restoration workload remaining peak",
+    "sufficient fresh padbank disk capacity"
+  ],
+  "authority": "No restart/preservation/link/copy/native probe authorization exercised"
+}

@@ -1,0 +1,6 @@
+[queue] START available=24179MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/mdbx-fixture-diagnose-1672.hhP5Jo
+mdbx_env_sync_ex(env, true, false): error -1
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

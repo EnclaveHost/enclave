@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "Recheck.test_initial_receipt_pin_and_file_trust": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "Recheck.test_initial_receipt_pin_and_file_trust"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

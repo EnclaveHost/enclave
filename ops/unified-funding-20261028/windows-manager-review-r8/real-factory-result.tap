@@ -1,0 +1,47 @@
+TAP version 13
+# Subtest: ROOT production factory opens real R18 owned runtime from its accepted config, without invented routes
+not ok 1 - ROOT production factory opens real R18 owned runtime from its accepted config, without invented routes
+  ---
+  duration_ms: 51.363206
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/real-owned-factory.test.mjs:45:1'
+  failureType: 'testCodeFailure'
+  error: 'ifError got unwanted exception: at least one explicit lifecycle route is required; omit the dispatch for legacy behavior'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual:
+  error: 'at least one explicit lifecycle route is required; omit the dispatch for legacy behavior'
+  stack: |-
+    parseLifecycleRoutes (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/r18-factory-deps/network/lifecycle-host-dispatch.mjs:107:55)
+    createLifecycleDispatch (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/r18-factory-deps/network/lifecycle-host-dispatch.mjs:186:17)
+    composeIndependentLifecycle (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/r18-factory-deps/network/lifecycle-host-authority.mjs:192:20)
+    Module.openOwnedHostRegistryLifecycle (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/r18-factory-deps/network/lifecycle-host-owned-authority.mjs:148:15)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async composition.openRuntime (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/candidate/control/windows/node/protected-authority-factory.mjs:155:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/real-owned-factory.test.mjs:83:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  operator: 'ifError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/real-owned-factory.test.mjs:100:10)
+    parseLifecycleRoutes (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/r18-factory-deps/network/lifecycle-host-dispatch.mjs:107:55)
+    createLifecycleDispatch (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/r18-factory-deps/network/lifecycle-host-dispatch.mjs:186:17)
+    composeIndependentLifecycle (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/r18-factory-deps/network/lifecycle-host-authority.mjs:192:20)
+    Module.openOwnedHostRegistryLifecycle (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/r18-factory-deps/network/lifecycle-host-owned-authority.mjs:148:15)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async composition.openRuntime (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/candidate/control/windows/node/protected-authority-factory.mjs:155:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r8/real-owned-factory.test.mjs:83:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# {"actualOwnedJournalsEstablished":true,"allThreeLocksReacquired":true,"unexpectedOperationalCalls":[],"constructorError":"at least one explicit lifecycle route is required; omit the dispatch for legacy behavior","noRoutesInjected":true}
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 257.362505

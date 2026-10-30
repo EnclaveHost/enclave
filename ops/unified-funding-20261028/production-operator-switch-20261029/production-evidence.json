@@ -1,0 +1,149 @@
+{
+  "state.json": {
+    "at": 1793239004,
+    "coverageVerified": false,
+    "environmentPreserved": true,
+    "journalsRestored": false,
+    "newIdentity": {
+      "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+      "controlGroup": "/system.slice/enclave-api-relay.service",
+      "invocationId": "049812f4b72645c09e891a09350d97c9",
+      "pid": 256324,
+      "startTicks": 49472391
+    },
+    "oldIdentity": {
+      "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+      "controlGroup": "/system.slice/enclave-api-relay.service",
+      "invocationId": "9b758b07bfa84eb5bf7fab20eecdfa2b",
+      "pid": 228946,
+      "startTicks": 43738495
+    },
+    "op": "funding-operator-switch-20261029-r2",
+    "originalSessionChanged": false,
+    "pendingTrackingRiskAccepted": true,
+    "phase": "switched-healthy-public-writes-open"
+  },
+  "pre-stop.json": {
+    "changedDuringCopy": 0,
+    "files": 726,
+    "label": "pre-stop",
+    "manifestSha256": "dd33f0bc349a4b5a8765db1c7a3cafb0769e553dedeef01b4d1faf190aac6102"
+  },
+  "post-stop.json": {
+    "changedDuringCopy": 0,
+    "files": 726,
+    "label": "post-stop",
+    "manifestSha256": "019c8acbbd10ca5da537e8485b3fbb579117454bc7b0e1bc1883f6b5920f3dfc"
+  },
+  "stop.json": {
+    "at": 1793238990,
+    "coverageVerified": false,
+    "observedStopped": true,
+    "oldIdentity": {
+      "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+      "controlGroup": "/system.slice/enclave-api-relay.service",
+      "invocationId": "9b758b07bfa84eb5bf7fab20eecdfa2b",
+      "pid": 228946,
+      "startTicks": 43738495
+    },
+    "op": "funding-operator-switch-20261029-r2",
+    "pendingTrackingRiskAccepted": true
+  },
+  "new-identity.json": {
+    "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+    "controlGroup": "/system.slice/enclave-api-relay.service",
+    "invocationId": "049812f4b72645c09e891a09350d97c9",
+    "pid": 256324,
+    "startTicks": 49472391
+  },
+  "gate.json": {
+    "backupDirectory": "/var/lib/enclave-maintenance/session-write-gate/funding-operator-switch-20261029-r2",
+    "op": "funding-operator-switch-20261029-r2",
+    "phase": "gate-verified",
+    "routesSha256": "6e1596a789e44708a4ad6f9836ef7ad6f47c8bc4b61ffb08396922d0ab15e08d"
+  },
+  "gate-restored.json": {
+    "backupDirectory": "/var/lib/enclave-maintenance/session-write-gate/funding-operator-switch-20261029-r2",
+    "op": "funding-operator-switch-20261029-r2",
+    "phase": "restore-verified",
+    "routesSha256": "26d27de76ff19c1844afcaf589e01e243fa694e816a5a6d0a1b1b91a5217025a"
+  },
+  "funding-config.json": {
+    "action": 10,
+    "adapter": "0xE5198b7BA033612C45c720d204C469D9ECe77D9e",
+    "adapterMaxEthOut": "1000000000000000n",
+    "apiScopes": {
+      "enabled": false,
+      "why": "verifyApiRequest does not serve successor sessions"
+    },
+    "chainId": 8453,
+    "enabled": true,
+    "factory": "0x83616b7fA62F8a43cfc634a25c0aCFb0CCAB76e8",
+    "feeTiers": [
+      100,
+      500,
+      3000
+    ],
+    "implementation": "0x9a869B2BA0D6FB4F297Eb140406478f0aed55F96",
+    "legacyFactory": "0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C",
+    "maxSlippageBps": 100,
+    "notAfter": "1793312474n",
+    "note": "additive successor; it does not replace the address book's sessionVaultFactory or any original vault",
+    "open": {
+      "enabled": true,
+      "why": null
+    },
+    "owner": {
+      "enabled": true,
+      "ops": [
+        "topUp",
+        "topUpWithAuthorization",
+        "extend",
+        "terminate",
+        "revokeAll",
+        "withdraw",
+        "promote",
+        "adopt",
+        "setEnvironment",
+        "release",
+        "close"
+      ],
+      "why": null
+    },
+    "pinnedBlock": "53224827n",
+    "quoter": "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
+    "relayer": "0xf4B78D91911e1c064A02E4D28C69E2De6056bE57"
+  },
+  "currentJournal": {
+    "sha256": "0ce01a81d6d6802b2eb1258ed4b8657a0f6c83556ff388ad3e2be565e6b96232",
+    "count": 89,
+    "statuses": {
+      "mined": 89
+    }
+  },
+  "gateStatus": {
+    "phase": "restore-verified",
+    "ownedGateExact": false,
+    "gateAbsent": true,
+    "routesSha256": "26d27de76ff19c1844afcaf589e01e243fa694e816a5a6d0a1b1b91a5217025a",
+    "matchesBefore": true,
+    "etag": "\"/config/apps/http/servers/control/routes b9ee5ea2f2a853a3\""
+  },
+  "r1PrestopFailure": {
+    "error": "Traceback (most recent call last):\n  File \"/var/lib/enclave-maintenance/funding-operator-switch-20261029-r1/switch.py\", line 70, in <module>\n    pre=inst.snapshot(OP,'pre-stop',ident['pid'],ident['startTicks']);save('pre-stop.json',pre)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/var/lib/enclave-maintenance/funding-operator-switch-20261029-r1/quarantine_install_r2.py\", line 755, in snapshot\n    for a in self._baseline_paths():\n             ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/var/lib/enclave-maintenance/funding-operator-switch-20261029-r1/quarantine_install_r2.py\", line 719, in _baseline_paths\n    need(stat.S_ISREG(st.st_mode) and bool(CONF_RE.match(n)), \"dropin-dir-unexpected-entry\")\n  File \"/var/lib/enclave-maintenance/funding-operator-switch-20261029-r1/quarantine_install_r2.py\", line 130, in need\n    raise Refusal(code, **facts)\nreviewed_core.Refusal: dropin-dir-unexpected-entry\n",
+    "state": {
+      "at": 1793238899,
+      "coverageVerified": false,
+      "oldIdentity": {
+        "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+        "controlGroup": "/system.slice/enclave-api-relay.service",
+        "invocationId": "9b758b07bfa84eb5bf7fab20eecdfa2b",
+        "pid": 228946,
+        "startTicks": 43738495
+      },
+      "op": "funding-operator-switch-20261029-r1",
+      "pendingTrackingRiskAccepted": true,
+      "phase": "writes-gated"
+    }
+  }
+}

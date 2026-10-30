@@ -1,0 +1,13 @@
+{
+  "actualOriginalPropertyParsing": true,
+  "originalPid": 228946,
+  "environmentFileCount": 9,
+  "dropInCount": 10,
+  "ownedLocalSystemdPreExecutionWrapper": {
+    "preExecutionFlagsForced": true,
+    "otherEnvironmentPreserved": true
+  },
+  "ownedUnitGoneOrInactive": true,
+  "noProductionMutation": true,
+  "productionCandidateStarted": false
+}

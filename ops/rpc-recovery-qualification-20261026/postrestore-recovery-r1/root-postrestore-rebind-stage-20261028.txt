@@ -1,0 +1,112 @@
+[queue] START available=94904MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "currentHostIdentity": {
+  "backing": {
+   "fsUuid": "702FE78A62B4C5DC",
+   "fstype": "ntfs3",
+   "leafDisks": [
+    {
+     "model": "TR-004 DISK00",
+     "name": "sda",
+     "rotational": true
+    }
+   ],
+   "mount": "/mnt/usb",
+   "rw": true,
+   "source": "/dev/sda1"
+  },
+  "base": {
+   "ctimeNs": 1793152612815840500,
+   "dev": 2049,
+   "ino": 929,
+   "mode": 33188,
+   "mtimeNs": 1793152612815840500,
+   "nlink": 1,
+   "path": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+   "qcow2": {
+    "backingFileOffset": 0,
+    "incompatibleFeatures": 8,
+    "version": 3,
+    "virtualSize": 4000000000000
+   },
+   "size": 1255588233216,
+   "uid": 1000
+  },
+  "hddDir": {
+   "dev": 2049,
+   "ino": 33,
+   "path": "/mnt/usb/enclave-rpc-production",
+   "uid": 1000
+  },
+  "otherDisks": {
+   "l1": {
+    "ino": 147981798,
+    "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2"
+   },
+   "os": {
+    "ino": 147981797,
+    "path": "/vm/enclave-volumes/rpc-production/os.qcow2"
+   }
+  }
+ },
+ "observation": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/postrestore-base-observation-20261028.json"
+}
+{
+ "diff": {
+  "backings.hdd.fsUuid": [
+   "489ED12D9ED11472",
+   "702FE78A62B4C5DC"
+  ],
+  "backings.hdd.leafDisks": [
+   [
+    {
+     "model": "TR-004 DISK00",
+     "name": "sda",
+     "rotational": true
+    }
+   ],
+   [
+    {
+     "model": "TR-004 DISK00",
+     "name": "sda",
+     "rotational": true
+    }
+   ]
+  ],
+  "backings.hdd.source": [
+   "/dev/sda2",
+   "/dev/sda1"
+  ],
+  "disks.base.ino": [
+   3221,
+   929
+  ]
+ },
+ "installed": false,
+ "staged": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-recovery-stage/staged-20261028",
+ "to": {
+  "guardUnitSha256": "e7d1c89fdc44a6724705a1d09c9d60add0b33a9cb7e70d55a905ccd09585f8fe",
+  "manifestSha256": "d73dcb68e2219ad85217d88b7727f5501aad2e7913f3c65eb1071d19a1229b39",
+  "qemuArgvSha256": "a6da118b3a8ef83d2f0fbb17a404db1087e0ee11cf4f119744ef80f1f291f2f4",
+  "vmUnitSha256": "52ee1b198daf6dd9bbd85eb5bf780b51395357dd72e1bc86043197f31d535e22"
+ }
+}
+{
+ "current": true,
+ "from": {
+  "guardUnitSha256": "871017a963fc970eb8d124df8d82b12bea34934bcf63ff2537d75feb6e177f5f",
+  "manifestSha256": "a28432151c9a24bd207d9adaab401ca4e24a9cdc39807489f12c3000b0936441",
+  "vmUnitSha256": "0cc99dea27d2d2816222d5da92c7669e5d8a0df493f8412460708142750a92dc"
+ },
+ "installed": false,
+ "stage": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-recovery-stage/staged-20261028",
+ "to": {
+  "guardUnitSha256": "e7d1c89fdc44a6724705a1d09c9d60add0b33a9cb7e70d55a905ccd09585f8fe",
+  "manifestSha256": "d73dcb68e2219ad85217d88b7727f5501aad2e7913f3c65eb1071d19a1229b39",
+  "qemuArgvSha256": "a6da118b3a8ef83d2f0fbb17a404db1087e0ee11cf4f119744ef80f1f291f2f4",
+  "vmUnitSha256": "52ee1b198daf6dd9bbd85eb5bf780b51395357dd72e1bc86043197f31d535e22"
+ }
+}
+[memory-guard] exit=0 peakTreeRssMiB=39 minHostAvailableMiB=94873
+[memory-guard] at peak: python3:27 python3:13
+[queue] EXIT 0

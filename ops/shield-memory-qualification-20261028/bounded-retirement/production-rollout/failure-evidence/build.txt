@@ -1,0 +1,2 @@
+app_guest /home/steven/enclave-prod/guestd-root/gd6d5c8224/guest.cpio.gz: app_id 5bac47ac3b99d9999314ac3f5ee7c2749defdde98b2a52212302d05da13d58eb, 766761652 bytes, vcpus 16
+predicted measurement: f369af4d818204a0f9ddb87d5ecba9c077f7ab13a493447cc22cdf8d1e3575e22d910f7a6ebda2a063535f500bc247c4

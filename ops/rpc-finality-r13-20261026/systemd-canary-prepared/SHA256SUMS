@@ -1,0 +1,8 @@
+705e63aff46e4bdc97b63772e6f8e49558c2a39920503fbd5d1a8afc3d526c10  ./FINAL-PINS.json
+99ee0eb61f775e81d1a6bab864868a97637d77023df0686b2481dfbd28e9b91d  ./README.md
+820a82cea0819f65515916d9c4a39b38ab315ef4409825835305ea21f0217fba  ./guest/canary_units.py
+e4656aa2110ede9cce25bdbac999988466da5fafd83ad311773bf59b6598ffca  ./guest/cleanup.sh
+ec81ab8d68d0aa85db54e544f4fcffcd8ad908afc9765ec4e12e47c42fcb0c5b  ./guest/systemd_canary.sh
+5de2fc1c8c72a47a70ab1e6e47066566917b2f7aa64a3c9fb5772ddc662fac25  ./jobs/root-offline-tests.sh
+e57a27ef1388af618db43e01f3e786b94ba6eefe550192a9cbd4153f46468a4e  ./tests/test_systemd_canary.py
+4e5cfb1201fd1b349b24abf639f7200df3cf42728b692711d51edabad4dca1e7  ./tools/assemble_canary_bundle.py

@@ -1,0 +1,18 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "FreshInitialTrust.test_l1_timing_is_bounded_and_consistent": "fail",
+  "Recheck.test_freshness_planned_anchor_and_mainnet_pins": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "FreshInitialTrust.test_l1_timing_is_bounded_and_consistent",
+  "Recheck.test_freshness_planned_anchor_and_mainnet_pins"
+ ],
+ "skipped": 0,
+ "testsRun": 2,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

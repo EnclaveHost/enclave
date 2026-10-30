@@ -1,0 +1,11 @@
+[queue] START available=22499MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+[fix/rpc-relay-consumers-20261025 920a5911d] Confirm current lease absence during owner move recovery
+ 3 files changed, 299 insertions(+), 23 deletions(-)
+ mode change 100755 => 100644 cli/enclave.mjs
+ create mode 100644 cli/move-release-confirm.mjs
+ create mode 100644 test/move-release-confirm.test.mjs
+To https://github.com/EnclaveHost/enclave.git
+   81ba66853..920a5911d  HEAD -> fix/rpc-relay-consumers-20261025
+[memory-guard] exit=0 peakTreeRssMiB=38 minHostAvailableMiB=22320
+[memory-guard] at peak: git-remote-http:16 git:9 git:6 git:4 bash:4
+[queue] EXIT 0

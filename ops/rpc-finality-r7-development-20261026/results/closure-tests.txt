@@ -1,0 +1,19 @@
+test_another_or_extra_mapped_libnode_is_refused (__main__.NodeLib.test_another_or_extra_mapped_libnode_is_refused) ... ok
+test_changed_libnode_bytes_or_unaccepted_launcher_are_refused (__main__.NodeLib.test_changed_libnode_bytes_or_unaccepted_launcher_are_refused) ... ok
+test_self_contained_node_needs_no_libnode (__main__.NodeLib.test_self_contained_node_needs_no_libnode) ... ok
+test_the_accepted_libnode_actually_mapped_is_accepted (__main__.NodeLib.test_the_accepted_libnode_actually_mapped_is_accepted) ... ok
+test_verify_side_runtime_record (__main__.NodeLib.test_verify_side_runtime_record) ... ok
+test_guest_pins_are_the_observed_identities (__main__.Runtime.test_guest_pins_are_the_observed_identities) ... ok
+test_shared_interpreter_still_needs_exactly_one_accepted_libpython (__main__.Runtime.test_shared_interpreter_still_needs_exactly_one_accepted_libpython) ... ok
+test_static_interpreter_accepted_only_with_no_libpython_mapped (__main__.Runtime.test_static_interpreter_accepted_only_with_no_libpython_mapped) ... ok
+test_unknown_interpreter_refused (__main__.Runtime.test_unknown_interpreter_refused) ... ok
+test_bad_settings_are_refused (__main__.Settings.test_bad_settings_are_refused) ... ok
+test_template_is_complete_and_loads (__main__.Settings.test_template_is_complete_and_loads) ... ok
+test_closure_manifest_pins_every_reviewed_input (__main__.Templates.test_closure_manifest_pins_every_reviewed_input) ... ok
+test_l1_authority_config_uses_the_guest_own_l1_and_leaves_the_checkpoint_to_root (__main__.Templates.test_l1_authority_config_uses_the_guest_own_l1_and_leaves_the_checkpoint_to_root) ... ok
+test_reproof_config_names_the_capture_sources (__main__.Templates.test_reproof_config_names_the_capture_sources) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.015s
+
+OK

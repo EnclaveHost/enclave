@@ -1,0 +1,3 @@
+{"event": "scheduler-held", "pid": 2526065, "startTime": 136591658, "at": 1793069365.2622485, "watchdog": 2666269}
+{"event": "native-image-admitted", "at": 1793069796.3766594}
+{"event": "scheduler-resumed", "pid": 2526065, "at": 1793069796.3943067}

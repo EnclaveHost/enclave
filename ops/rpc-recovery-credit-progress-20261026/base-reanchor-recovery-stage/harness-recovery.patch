@@ -1,0 +1,104 @@
+--- orig/a2a4.py
++++ recovery/a2a4.py
+@@ -100,7 +100,22 @@
+ # ---- config ---------------------------------------------------------------------------------------------------------------
+ KEYS = {'datadir', 'baseBinary', 'baseBinarySha256', 'rethConfig', 'workdir', 'a1Evidence', 'a1MaxAgeSec', 'N', 'outputRoot', 'game',
+         'downloadReceipt', 'manifestPath', 'snapshotMarker', 'timeouts', 'inPlaceReviewed', 'unwindChunk', 'serviceUnits', 'anchorModule',
+-        'depsRoot', 'node', 'minFreeBytes', 'backup', 'bytecodeChecker', 'bytecodeCheckerSha256', 'a1Mode', 'a1GateDir', *A1_RECHECK_KEYS}
++        'depsRoot', 'node', 'minFreeBytes', 'backup', 'bytecodeChecker', 'bytecodeCheckerSha256', 'a1Mode', 'a1GateDir', *A1_RECHECK_KEYS,
++        'reanchor'}
++# ---- re-anchor recovery (base-reanchor-recovery-stage; PREPARED). Absent `reanchor`, every path below is the first bootstrap,
++# unchanged. Present, it is a NEW launch on the SAME downloaded datadir at an A1-authenticated anchor N >= the predecessor launch's
++# anchor: the full A2 (header N authenticated) -> A3 (offline unwind of everything above N) -> A4 (full merkle rebuild validated
++# against header N) -> bytecodes -> release pipeline, with no static upper bound on N. Its bounds are DERIVED, never widened:
++#   lower: N >= reanchor.predecessorN >= STATE_FLOOR (changesets held from STATE_FLOOR: [prune.segments] before <= floor, gate_static);
++#   upper: N <= every stage checkpoint of the STOPPED DB (step_plan) and N == the A1-authenticated anchor (gate_a1 exact match).
++# gate_download is NOT relaxed: the receipt still proves this datadir's origin (the pinned download at SNAPSHOT_HEAD); its CURRENT
++# state is proven only by A4 at N.
++# Pending interface (owned by a1-capture-binding-stage, not delivered): a re-anchor receipt other than the source-pinned one is
++# accepted only if A1_CAPTURE_VERIFIER(capture_record_bytes, initial_receipt_bytes) -> {'initialSha256', 'N', 'game',
++# 'outputRoot'} (raising on any failure) binds these exact receipt bytes to a capture-bound run. Installing it is a reviewed
++# source change; None = HOLD.
++A1_CAPTURE_VERIFIER = None
++REANCHOR_KEYS = {'predecessorN', 'a1Capture', 'a1CaptureSha256'}
+ 
+ 
+ def load_config(path):
+@@ -113,8 +128,19 @@
+             refuse('bad_config', f'{k} must be an absolute path')
+     if not re.fullmatch(r'[0-9a-f]{64}', str(c.get('baseBinarySha256', ''))):
+         refuse('bad_config', 'baseBinarySha256 must be 64 hex')
+-    if not isinstance(c.get('N'), int) or not STATE_FLOOR <= c['N'] < SNAPSHOT_HEAD:
+-        refuse('bad_config', f'N must be an integer in [{STATE_FLOOR}, {SNAPSHOT_HEAD})')
++    ra = c.get('reanchor')
++    if ra is None:
++        if not isinstance(c.get('N'), int) or not STATE_FLOOR <= c['N'] < SNAPSHOT_HEAD:
++            refuse('bad_config', f'N must be an integer in [{STATE_FLOOR}, {SNAPSHOT_HEAD})')
++    else:
++        if not isinstance(ra, dict) or not set(ra) <= REANCHOR_KEYS or type(ra.get('predecessorN')) is not int or ra['predecessorN'] < STATE_FLOOR \
++                or ('a1Capture' in ra) != ('a1CaptureSha256' in ra) \
++                or ('a1Capture' in ra and not (isinstance(ra['a1Capture'], str) and os.path.isabs(ra['a1Capture'])
++                                               and re.fullmatch(r'[0-9a-f]{64}', str(ra['a1CaptureSha256'])))):
++            refuse('bad_config', f'reanchor must be {{predecessorN >= {STATE_FLOOR}[, a1Capture (absolute), a1CaptureSha256]}}')
++        if type(c.get('N')) is not int or c['N'] < ra['predecessorN']:
++            refuse('bad_config', 're-anchor N must be an integer >= reanchor.predecessorN (an anchor never moves backward); its upper '
++                   'bound is the stopped DB (step_plan) and the A1-authenticated anchor (gate_a1)')
+     if not re.fullmatch(r'0x[0-9a-f]{64}', str(c.get('outputRoot', ''))) or not re.fullmatch(r'0x[0-9a-f]{40}', str(c.get('game', ''))):
+         refuse('bad_config', 'outputRoot/game must be lowercase hex')
+     if not isinstance(c.get('a1MaxAgeSec'), int) or not 60 <= c['a1MaxAgeSec'] <= 3600:
+@@ -144,9 +170,36 @@
+                 refuse('bad_config', f'{k} must be 64 lowercase hex in original-game-recheck mode')
+     elif any(k in c for k in A1_RECHECK_KEYS):
+         refuse('bad_config', f'{list(A1_RECHECK_KEYS)} belong to a1Mode original-game-recheck only')
++    if ra is not None and c['a1Mode'] != 'original-game-recheck':
++        refuse('bad_config', 'a re-anchor runs a1Mode original-game-recheck: release re-checks the SAME initial receipt hours after A2')
+     return c
+ 
+ 
++def initial_pin(c):
++    """original-game-recheck: the initial receipt is the source-pinned one (-> 'source-pin'), or, for a re-anchor only, a receipt
++    bound to a capture-bound run by the reviewed A1_CAPTURE_VERIFIER (-> 'capture-bound'). Everything else refuses."""
++    if c['a1InitialSha256'] == A1_INITIAL_SHA256:
++        return 'source-pin'
++    ra = c.get('reanchor')
++    if ra is None:
++        refuse('a1_initial_pin', f'a1InitialSha256 is not the pinned initial A1 receipt {A1_INITIAL_SHA256[:12]}... (a source change, never config)')
++    if 'a1Capture' not in ra:
++        refuse('a1_initial_pin', 'a re-anchor receipt other than the source-pinned one needs a capture-binding record (reanchor.a1Capture)')
++    rec = _read_trusted(ra['a1Capture'], 'A1 capture record', A1_FILE_CAP)
++    if hashlib.sha256(rec).hexdigest() != ra['a1CaptureSha256']:
++        refuse('a1_capture_sha', 'the A1 capture record is not the one root reviewed (reanchor.a1CaptureSha256)')
++    if A1_CAPTURE_VERIFIER is None:
++        refuse('a1_capture_pending', 'HOLD: no reviewed A1 capture-binding verifier exists (a1-capture-binding-stage); a re-anchor '
++               'receipt other than the source-pinned one cannot be bound')
++    ini = _read_trusted(c['a1InitialEvidence'], 'initial A1 receipt', A1_FILE_CAP)
++    if hashlib.sha256(ini).hexdigest() != c['a1InitialSha256']:
++        refuse('a1_initial_pin', 'the initial receipt bytes are not a1InitialSha256')
++    want = {'initialSha256': c['a1InitialSha256'], 'N': str(c['N']), 'game': c['game'], 'outputRoot': c['outputRoot']}
++    if A1_CAPTURE_VERIFIER(rec, ini) != want:
++        refuse('a1_capture_binding', 'the capture-bound run did not produce exactly this initial receipt for the planned N/game/root')
++    return 'capture-bound'
++
++
+ # ---- command runner (every reth call goes through here; tests replace baseBinary with a fake) -----------------------------
+ def exited_unreaped(pid):
+     """True once our child `pid` exited. waitid(WNOWAIT) does NOT reap it: as an unreaped zombie its pid, which is also the
+@@ -370,8 +423,7 @@
+     if c['a1Mode'] == 'fresh-initial':
+         s = a1_node_gate(c, {'mode': 'fresh-initial', 'initial': base64.b64encode(ev).decode()})
+     else:
+-        if c['a1InitialSha256'] != A1_INITIAL_SHA256:
+-            refuse('a1_initial_pin', f'a1InitialSha256 is not the pinned initial A1 receipt {A1_INITIAL_SHA256[:12]}... (a source change, never config)')
++        initial_pin(c)
+         if hashlib.sha256(ev).hexdigest() != c['a1RecheckSha256']:
+             refuse('a1_recheck_sha', 'the recheck file is not the one root reviewed (a1RecheckSha256)')
+         ini = _read_trusted(c['a1InitialEvidence'], 'initial A1 receipt', A1_FILE_CAP)
+@@ -612,6 +664,8 @@
+     cps = head_checkpoints(c, base)
+     if cps['execution'] < c['N']:
+         refuse('below_anchor', f'execution checkpoint {cps["execution"]} is below N: sync forward first (not prepared here)')
++    if c.get('reanchor') is not None and min(cps[k] for k in ('headers', 'bodies', 'execution', 'finish')) < c['N']:
++        refuse('below_anchor', f'stage checkpoints {cps}: the stopped DB does not hold N on every stage (re-anchor upper bound)')
+     targets = list(range(cps['execution'] - c['unwindChunk'], c['N'], -c['unwindChunk'])) + [c['N']]
+     a4 = [['stage', 'drop', '--datadir', c['datadir'], '--config', c['rethConfig'], 'merkle'],
+           ['stage', 'run', '--datadir', c['datadir'], '--config', c['rethConfig'], '--from', '0', '--to', str(c['N']), '--commit', '--checkpoints', '--skip-unwind', 'merkle']]

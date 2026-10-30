@@ -1,0 +1,12 @@
+[queue] START available=22270MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+PASS r5-abi rc 0 expected 5 tests 5 pass 5 fail 0 cancelled 0 skipped 0 todo 0
+FAIL r5-policy rc 1 expected 9 tests 7 pass 6 fail 0 cancelled 1 skipped 0 todo 0
+PASS r5-proof rc 0 expected 10 tests 10 pass 10 fail 0 cancelled 0 skipped 0 todo 0
+FAIL kvm-host-admission rc 1 expected 35 tests 27 pass 26 fail 1 cancelled 0 skipped 0 todo 0
+PASS runtime-expiry rc 0 expected 7 tests 7 pass 7 fail 0 cancelled 0 skipped 0 todo 0
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/lifecycle-chain-adapter-stage/r5/logs/run-20261026T144333Z-1917184
+## stage SHA256SUMS c5fb96a92d7d00e8c206d6e1aadb9d59e4f4d275c0b1489786bf6509c057ce77
+## lifecycle-chain-adapter-r5 rc=1
+[memory-guard] exit=1 peakTreeRssMiB=521 minHostAvailableMiB=20609
+[memory-guard] at peak: node:270 anvil:185 node:57 bash:4 timeout:2 bash:2
+[queue] EXIT 1

@@ -1,0 +1,11 @@
+[queue] START available=84611MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+Running as unit: enclave-shield-fw-tests-r1-20261028.service
+ALL PASS (5282 checks)
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 389ms
+             CPU time consumed: 368ms
+                   Memory peak: 29.4M (swap: 0B)
+[memory-guard] exit=0 peakTreeRssMiB=5 minHostAvailableMiB=84573
+[memory-guard] at peak: systemd-run:5
+[queue] EXIT 0

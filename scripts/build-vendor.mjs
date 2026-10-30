@@ -160,3 +160,7 @@ for (const [file, names] of must) {
   if (missing.length) throw new Error(`${file}: bundle is missing expected export(s): ${missing.join(", ")}`);
   console.log(`[vendor] ${file}: ${fs.statSync(path.join(OUT, file)).size} bytes, exports OK ✓`);
 }
+
+// site/vendor/funding.js <- sdk/funding (client-site-repair-r2). This script emptied site/vendor/ above, so the funding
+// bundle is rebuilt here too; build-funding-vendor.mjs validates everything before it writes (and writes nothing on refusal).
+await import("./build-funding-vendor.mjs");

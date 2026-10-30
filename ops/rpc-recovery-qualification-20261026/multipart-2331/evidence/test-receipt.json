@@ -1,0 +1,20 @@
+{
+ "badMarkers": [],
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "expectedTests": 18,
+ "format": "recovery-multipart-test-receipt/r1",
+ "multipartSha256": "e248ee9992c93a70d67a528acd0e2650b3a63605cfea8d24f0fe05c562c658c7",
+ "pass": true,
+ "ran": [
+  "18"
+ ],
+ "rc": 0,
+ "stageSums": "59f7ec419a4033f4a0d69b39c7bbfc15e5991d5a540f51a3072b79fd15b6f9a9",
+ "testsSha256": "1084e16c623cce43a85860f53717cca219aabd2867534ff253ee57fff2b3eb34"
+}

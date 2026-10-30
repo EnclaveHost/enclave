@@ -1,0 +1,11 @@
+--- a/tests/test_reproof.py
++++ b/tests/test_reproof.py
+@@ -20,7 +20,7 @@
+         (self.t / 'caps').mkdir(mode=0o700, exist_ok=True); (self.t / 'run').mkdir(exist_ok=True)
+         return {'format': RP.FORMAT, 'launchDir': str(self.d), 'chainJson': str(self.t / 'chain.json'), 'rpcUrl': self.url,
+                 'statusOut': str(self.t / 'run/status.json'), 'node': TI.NODE, 'depsRoot': TI.DEPS, 'workdir': str(self.t / 'work'),
+-                'capturesRoot': str(self.t / 'caps')}
++                'capturesRoot': str(self.t / 'caps'), 'captureSources': str(self.t / 'capture-sources.json')}   # unused: capture_fn
+ 
+     def capture_fn(self, n, l1_bump=0, fail=None):
+         def cap(mode, out, initial=None):

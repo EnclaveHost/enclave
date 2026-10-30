@@ -1,0 +1,194 @@
+[queue] START available=93583MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: cold: the exact expired, owned, C9-held pair with root's cold facts yields an executable cold plan (V, cap, nonces unchanged)
+ok 1 - cold: the exact expired, owned, C9-held pair with root's cold facts yields an executable cold plan (V, cap, nonces unchanged)
+  ---
+  duration_ms: 12.714163
+  type: 'test'
+  ...
+# Subtest: cold inventory: missing, partial, duplicate or extra deployments refuse
+ok 2 - cold inventory: missing, partial, duplicate or extra deployments refuse
+  ---
+  duration_ms: 0.993543
+  type: 'test'
+  ...
+# Subtest: cold leases: a live or recently expired lease, inactive, foreign holder/owner/runner, stale expiry all refuse
+ok 3 - cold leases: a live or recently expired lease, inactive, foreign holder/owner/runner, stale expiry all refuse
+  ---
+  duration_ms: 0.941103
+  type: 'test'
+  ...
+# Subtest: cold facts: missing, false, malformed, extra fields, short stop window, and the unchanged quiesce checks refuse
+ok 4 - cold facts: missing, false, malformed, extra fields, short stop window, and the unchanged quiesce checks refuse
+  ---
+  duration_ms: 1.341929
+  type: 'test'
+  ...
+# Subtest: profile binding: a live plan never passes the cold checks and vice versa; a changed profile refuses; no cold fixture
+ok 5 - profile binding: a live plan never passes the cold checks and vice versa; a changed profile refuses; no cold fixture
+  ---
+  duration_ms: 4.461116
+  type: 'test'
+  ...
+# Subtest: production pins: C9 and ONLY the same executor; V exact; aggregate cap; chain 8453; separate sponsor
+ok 6 - production pins: C9 and ONLY the same executor; V exact; aggregate cap; chain 8453; separate sponsor
+  ---
+  duration_ms: 3.986559
+  type: 'test'
+  ...
+# Subtest: the unsigned plan at today's numbers: nonces N/N+1 and s/s+1, digests, worst-case sizes, fees within the cap
+ok 7 - the unsigned plan at today's numbers: nonces N/N+1 and s/s+1, digests, worst-case sizes, fees within the cap
+  ---
+  duration_ms: 6.559579
+  type: 'test'
+  ...
+# Subtest: fees: the aggregate cap refuses (never raises); the base-fee edge is computed, not guessed
+ok 8 - fees: the aggregate cap refuses (never raises); the base-fee edge is computed, not guessed
+  ---
+  duration_ms: 2.883268
+  type: 'test'
+  ...
+# Subtest: state refusals: not delegated, another target, sponsor code, unbound reserve, other runtimes, unsettled nonces, premise
+ok 9 - state refusals: not delegated, another target, sponsor code, unbound reserve, other runtimes, unsettled nonces, premise
+  ---
+  duration_ms: 0.845403
+  type: 'test'
+  ...
+# Subtest: quiesce refusals: root-provided only, signers listed, fresh, deadlines past on chain, leases with enough time
+ok 10 - quiesce refusals: root-provided only, signers listed, fresh, deadlines past on chain, leases with enough time
+  ---
+  duration_ms: 0.941853
+  type: 'test'
+  ...
+# Subtest: authorizations are exactly two, for C9 only, with the sponsor-executed nonce rule
+ok 11 - authorizations are exactly two, for C9 only, with the sponsor-executed nonce rule
+  ---
+  duration_ms: 0.246668
+  type: 'test'
+  ...
+# Subtest: production incident cannot omit either original deployment, including expired ones
+ok 12 - production incident cannot omit either original deployment, including expired ones
+  ---
+  duration_ms: 0.914413
+  type: 'test'
+  ...
+# Subtest: actual preparation CLI refuses empty inventory before issuing any RPC
+not ok 13 - actual preparation CLI refuses empty inventory before issuing any RPC
+  ---
+  duration_ms: 24.687661
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/metal0-cold-funding-20261028/test/protected-inventory.test.mjs:7:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /Both original metal0 deployments/. Input:
+    
+    'node:internal/modules/cjs/loader:1433\n' +
+      '  throw err;\n' +
+      '  ^\n' +
+      '\n' +
+      "Error: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/metal0-cold-funding-20261028/bin/prepare.mjs'\n" +
+      '    at Function._resolveFilename (node:internal/modules/cjs/loader:1430:15)\n' +
+      '    at defaultResolveImpl (node:internal/modules/cjs/loader:1040:19)\n' +
+      '    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1045:22)\n' +
+      '    at Function._load (node:internal/modules/cjs/loader:1216:25)\n' +
+      '    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n' +
+      '    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n' +
+      '    at node:internal/main/run_main_module:36:49 {\n' +
+      "  code: 'MODULE_NOT_FOUND',\n" +
+      '  requireStack: []\n' +
+      '}\n' +
+      '\n' +
+      'Node.js v22.23.3\n'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    node:internal/modules/cjs/loader:1433
+      throw err;
+      ^
+    
+    Error: Cannot find module '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/metal0-cold-funding-20261028/bin/prepare.mjs'
+        at Function._resolveFilename (node:internal/modules/cjs/loader:1430:15)
+        at defaultResolveImpl (node:internal/modules/cjs/loader:1040:19)
+        at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1045:22)
+        at Function._load (node:internal/modules/cjs/loader:1216:25)
+        at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+        at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+        at node:internal/main/run_main_module:36:49 {
+      code: 'MODULE_NOT_FOUND',
+      requireStack: []
+    }
+    
+    Node.js v22.23.3
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/metal0-cold-funding-20261028/test/protected-inventory.test.mjs:9:169)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: happy path verifies both transactions, exact delegation, funded balance, and unchanged lease state
+ok 14 - happy path verifies both transactions, exact delegation, funded balance, and unchanged lease state
+  ---
+  duration_ms: 522.488079
+  type: 'test'
+  ...
+# Subtest: first transaction mined, second unavailable: resume sends identical bytes without signing
+ok 15 - first transaction mined, second unavailable: resume sends identical bytes without signing
+  ---
+  duration_ms: 1540.266575
+  type: 'test'
+  ...
+# Subtest: missing approval and executable observation refuse before signing or broadcasting
+ok 16 - missing approval and executable observation refuse before signing or broadcasting
+  ---
+  duration_ms: 99.503648
+  type: 'test'
+  ...
+# Subtest: stale operator nonce refuses without signing
+ok 17 - stale operator nonce refuses without signing
+  ---
+  duration_ms: 105.867899
+  type: 'test'
+  ...
+# Subtest: changed fee quote refuses without signing
+ok 18 - changed fee quote refuses without signing
+  ---
+  duration_ms: 96.025454
+  type: 'test'
+  ...
+# Subtest: provider receipt status disagreement cannot produce success
+ok 19 - provider receipt status disagreement cannot produce success
+  ---
+  duration_ms: 278.201389
+  type: 'test'
+  ...
+# Subtest: no broadcast can occur before a durable journal exists
+ok 20 - no broadcast can occur before a durable journal exists
+  ---
+  duration_ms: 109.360842
+  type: 'test'
+  ...
+# Subtest: expired plan refuses without signing
+ok 21 - expired plan refuses without signing
+  ---
+  duration_ms: 44.869196
+  type: 'test'
+  ...
+1..21
+# tests 21
+# suites 0
+# pass 20
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2966.660002
+[memory-guard] exit=1 peakTreeRssMiB=198 minHostAvailableMiB=93466
+[memory-guard] at peak: node:102 node:61 anvil:34
+[queue] EXIT 1

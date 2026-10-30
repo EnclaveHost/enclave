@@ -1,0 +1,6 @@
+RUN ['/home/steven/.foundry/bin/forge', 'build', '--offline']
+Compiling 1 files with Solc 0.8.35
+Solc 0.8.35 finished in 26.60ms
+Compiler run successful!
+RUN ['python3', 'prepare.py']
+prepare.py: REFUSED: missing artifact EnclaveLeaseGasReserve for reserve in session-candidate/out

@@ -1,0 +1,17 @@
+abe223d6a0c6c203f7d76aaa4c68d25f8f7ecb74894e64dd838383abf6aeeadd  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/a2-v2-release-bound-prepared/stage/a2a4.py
+e6c312f4007f6d747197a6569eaeb36c8c949a0819be49738ce6a0723b999532  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/a2-v2-release-bound-prepared/stage/selection.py
+9c511ec506bdc91c4246ba8606e3d090183031295c4af82dfe3c961555d6adc6  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/a2-v2-release-bound-prepared/stage/test/test_a2a4.py
+6ee6df6b8e0cedc77330738f583c2ac6f352777549b59b14becb1971887a947a  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/a2-v2-release-bound-prepared/stage/test/fake_base.py
+43a4cee4b42f57cf9a593659bc709d8b7604aa60eb9f3a78c0d6da41a71373fb  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/a2-v2-release-bound-prepared/stage/test/make_fixture.mjs
+a41d2182b0a1d48e6610629e832b4cc717c00f1f5bae4d3dd7800af42aa67084  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r3/MANIFEST.sha256
+07276ec89e3d779f852b4d77085fe54b258f2807d063184a0f9dea83a3ad659b  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r3/wrapper/chain_service.py
+7e8d295d0cb39db59453302d472d6d031b6b8490e78ac54725aee942f88980e2  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r3/producer/base_launch.py
+ceae5e2cd1324e7e51eae2be8b2c0403da41ed78644a2a6959df76a5b6d8631f  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-launch-producer-stage/r3/tests/test_r3_launcher.py
+75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-wrapper-integration-stage/base/chain_service.py
+541342a40999cbfb4f186487540b716357423398e45e976e81a336e6c3a63330  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-wrapper-integration-stage/base/test_chain_service.py
+bdc7e38a4c5bc9779248c7b644c3e968a149f2d78596cfde99fed8f015750e8b  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/restart-review/DESIGN.md
+b008951ea9651872d13904692af7086d48c9de427bb25a356401d3fc88070f90  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/claude-finality-restart-review-result.md
+02abf9be02c762a9ac4564500e01d5258b348077b3e486a5d30673e200ee9314  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/MANIFEST.sha256
+0a5c0bd1788cf2b761dc6f2803df5451b0c8df95a9a066cf248029a91d7196aa  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/SHA256SUMS
+da8387a491ec219f500af774a1657b1fc459e325ed95a13e84bc39f8d2779f50  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/claude-a1-capture-binding-result.md
+cde762b7101ad03588df383f4d9f74b22251e6315dd190cfbc4271a327f3b62e  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/a1-capture-r2-root-review-task.txt

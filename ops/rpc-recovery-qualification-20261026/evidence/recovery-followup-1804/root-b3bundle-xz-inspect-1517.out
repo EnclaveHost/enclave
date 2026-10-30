@@ -1,0 +1,30 @@
+[queue] START available=30819MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+{
+  "signedMetadataMatched": true,
+  "xzBytes": 15037908,
+  "firstDecodedBytes": 73379142,
+  "firstEof": true,
+  "remainingBytes": 32,
+  "remainingPrefixHex": "fd377a585a000004e6d6b446000000001cdf44211fb6f37d010000000004595a",
+  "signedPlain": [
+    "687ffc969e7700137677b9cfe2f614ee2d638052a91a7c9bf31f3f6a3040a99a",
+    73379142
+  ],
+  "streams": 2,
+  "plainBytes": 73379142,
+  "plainSha256": "687ffc969e7700137677b9cfe2f614ee2d638052a91a7c9bf31f3f6a3040a99a",
+  "plainMatched": true,
+  "b3sumCandidates": [
+    {
+      "Package": "b3sum",
+      "Version": "1.2.0-1",
+      "Architecture": "amd64",
+      "Filename": "pool/universe/r/rust-b3sum/b3sum_1.2.0-1_amd64.deb",
+      "SHA256": "e6e6b98b5e22750160dbb804a2e7d8fb61daa0d6940002c45c222cf676701b7b",
+      "Size": "387898"
+    }
+  ]
+}
+[memory-guard] exit=0 peakTreeRssMiB=150 minHostAvailableMiB=30542
+[memory-guard] at peak: python3:148
+[queue] EXIT 0

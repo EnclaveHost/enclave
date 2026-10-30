@@ -1,0 +1,87 @@
+{
+  "original": {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-create-r1-20261029/author-delivery/enclave/contracts/foundry/test/WalletSessionVault.t.sol",
+    "sha256": "8e2fb9fbf89ac2bfb94c6a3453904d198ef09ebd5f2f0e9526af84ed32661f97"
+  },
+  "testCopy": {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-foundry-r1-20261029/seed/contracts/foundry/test/WalletSessionVaultRev16D.t.sol",
+    "sha256": "40c844bd60ee7b71a0e24d405068bd5391cb213207856ecd1559b7efc0170dcd"
+  },
+  "exactLedger": {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-foundry-r1-20261029/seed/contracts/foundry/test/fixtures/EnclaveDeploymentsRev16D.sol",
+    "sha256": "2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1",
+    "expectedSha256": "2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1"
+  },
+  "changes": "Separate copy only: import/type/class renamed, one root LedgerMoved owner-policy regression appended. Original author test/product unchanged. Comments within copied assertions still describe historical assumptions.",
+  "settingsMap": {
+    "ledger-rev16d": {
+      "optimizer": {
+        "enabled": true,
+        "runs": 1
+      },
+      "viaIR": true
+    },
+    "legacy-sessions-v2": {
+      "optimizer": {
+        "enabled": true,
+        "runs": 1
+      },
+      "viaIR": true
+    },
+    "catalog": {
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "viaIR": true
+    }
+  },
+  "soljson": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/solc/soljson.js",
+    "sha256": "fa4345d648d9a09c6601ffc978e78e9f5267b54e6d91e8f8c473f44c0c16323b",
+    "matchesSourceVerification": true
+  },
+  "toolchainCaveat": "Prepared test uses pinned native solc 0.8.35; deployed verification used pinned Emscripten soljson. Version/settings alignment is not fresh binary/runtime/metadata equivalence proof. Explicit Osaka is harness choice, deployment map leaves evmVersion unset. Full-source paths/local library addresses alter metadata. Local behavior/size only, no production deployment claim.",
+  "links": {
+    "deployments": {
+      "EnclaveDeployments.sol:EnclaveLedgerBandwidth": "0x3dfee18b44b7ecd389eca78da10b6ad032802215"
+    },
+    "legacySessionVaultImplementation": {
+      "SessionVault.sol:SessionVaultLib": "0x5510ae9fed97577d75c69545384af7d8bad05027"
+    }
+  },
+  "nodeReferenceFiles": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/candidate/enclave/test/wallet-session/root-discovery.test.mjs",
+      "sha256": "87020120f55b5902cac33802f9e5dc01acf38f57813d303590b83bc885261aba"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/source-pins.json",
+      "sha256": "b639c6aad3ffbc3e656035d3d772398a3d7d857b95a4978b684d1fa2b1f7dd10"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/dependency-pins.json",
+      "sha256": "74b6bf39d45a20e7bb6b0b65da646aa887c0837b8094ebe54eaae62d9f4e6356"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/dependency-packages.json",
+      "sha256": "abd17cc9488dc82a96a0e884698c6f912aed8961231c995524f736ba93f7a268"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/run.py",
+      "sha256": "f5a528b0313d1f9f47383807fbb78b435c950253a9066f8406dcc825b7e3bfd6"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/result.tap",
+      "sha256": "a52bd6e082954f1ea74e4db8d0e6de2b238c29aac0c389216bdf14be8a66ce60"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/result.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-owned-create-root-tests-r1/ROOT-REVIEW.md",
+      "sha256": "6f29654da9824ccda684bad7b57605f38e91311c4968889a7e49b256beff757b"
+    }
+  ]
+}

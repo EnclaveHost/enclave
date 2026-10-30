@@ -1,0 +1,17 @@
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r6/tests/test_forward_chain_r6.py:129: ResourceWarning: unclosed <socket.socket fd=5, family=2, type=1, proto=0, laddr=('10.0.2.2', 35545)>
+  time.sleep(0.05)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r6/tests/test_forward_chain_r6.py:129: ResourceWarning: unclosed <socket.socket fd=5, family=2, type=1, proto=0, laddr=('10.0.2.2', 57759)>
+  time.sleep(0.05)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r6/tests/test_forward_chain_r6.py:129: ResourceWarning: unclosed <socket.socket fd=5, family=2, type=1, proto=0, laddr=('10.0.2.2', 36997)>
+  time.sleep(0.05)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r6/tests/test_forward_chain_r6.py:129: ResourceWarning: unclosed <socket.socket fd=5, family=2, type=1, proto=0, laddr=('10.0.2.2', 52235)>
+  time.sleep(0.05)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+....
+----------------------------------------------------------------------
+Ran 7 tests in 0.642s
+
+OK

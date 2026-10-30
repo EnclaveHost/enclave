@@ -1,0 +1,28 @@
+TAP version 13
+# Subtest: generator: r6 and r3 inputs give one candidate; every r3 byte retained; valid JavaScript; changed input/bundle and reapplication refused
+ok 1 - generator: r6 and r3 inputs give one candidate; every r3 byte retained; valid JavaScript; changed input/bundle and reapplication refused
+  ---
+  duration_ms: 54.690091
+  type: 'test'
+  ...
+# Subtest: prepareSchema3: exact link/immutable/self pins pass; every single wrong binding fails closed before any read
+ok 2 - prepareSchema3: exact link/immutable/self pins pass; every single wrong binding fails closed before any read
+  ---
+  duration_ms: 46.894741
+  type: 'test'
+  ...
+# Subtest: schema3Emergency: pending must be the revoked previous generation with its stop flag; anything else is unknown state
+ok 3 - schema3Emergency: pending must be the revoked previous generation with its stop flag; anything else is unknown state
+  ---
+  duration_ms: 0.575955
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 280.044038

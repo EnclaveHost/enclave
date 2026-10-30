@@ -1,0 +1,38 @@
+test_batches_split_on_incomplete_listing_and_call_cap (__main__.Bounds.test_batches_split_on_incomplete_listing_and_call_cap) ... ok
+test_input_pins_output_and_crc_refusals (__main__.Bounds.test_input_pins_output_and_crc_refusals) ... ok
+test_coalesced_negatives (__main__.Coalesced.test_coalesced_negatives) ... 
+  test_coalesced_negatives (__main__.Coalesced.test_coalesced_negatives) [NC6 old generation again after T] ... FAIL
+test_coalesced_positive_and_classic_preserved (__main__.Coalesced.test_coalesced_positive_and_classic_preserved) ... ok
+test_coverage_refusals_and_group_split (__main__.Parsers.test_coverage_refusals_and_group_split) ... ok
+test_fixture_unrelated_bits_disjoint_and_r1_overlap_still_blocks (__main__.Parsers.test_fixture_unrelated_bits_disjoint_and_r1_overlap_still_blocks)
+root 1683: with r1's overlapping OTHER the checker correctly BLOCKS (7 candidate bits never seen freed, set again at C) ... ok
+test_fs_stats_refusals (__main__.Parsers.test_fs_stats_refusals) ... ok
+test_real_fs_stats_header_format (__main__.Real.test_real_fs_stats_header_format) ... ok
+test_real_inode_slot_checksum_and_size_vector (__main__.Real.test_real_inode_slot_checksum_and_size_vector) ... ok
+test_real_leaf_extent_checksum_and_decode (__main__.Real.test_real_leaf_extent_checksum_and_decode) ... ok
+test_blocks_never_seen_freed_or_freed_before_deletion_block (__main__.Scenarios.test_blocks_never_seen_freed_or_freed_before_deletion_block) ... ok
+test_clean_deletion_no_reuse (__main__.Scenarios.test_clean_deletion_no_reuse) ... ok
+test_no_explicit_completion_blocks (__main__.Scenarios.test_no_explicit_completion_blocks) ... ok
+test_reuse_after_completion (__main__.Scenarios.test_reuse_after_completion) ... ok
+test_reuse_inside_deletion_window_and_not_yet_freed_is_not_reuse (__main__.Scenarios.test_reuse_inside_deletion_window_and_not_yet_freed_is_not_reuse) ... ok
+test_window_gaps_strays_and_tail (__main__.Scenarios.test_window_gaps_strays_and_tail) ... ok
+test_depth2_index_tree_binds_through_a_second_verifier_phase (__main__.Tree.test_depth2_index_tree_binds_through_a_second_verifier_phase) ... ok
+test_s0_orphan_dtime_and_tree_block_revokes (__main__.Tree.test_s0_orphan_dtime_and_tree_block_revokes) ... ok
+test_tree_binding_negatives_block (__main__.Tree.test_tree_binding_negatives_block) ... ok
+test_tree_bound_ownership_observed_and_window_from_oldest_leaf (__main__.Tree.test_tree_bound_ownership_observed_and_window_from_oldest_leaf) ... ok
+test_unobserved_ownership_is_reported_not_invented (__main__.Tree.test_unobserved_ownership_is_reported_not_invented) ... ok
+test_window_from_the_oldest_leaf_sees_a_gap_before_the_last_live_image (__main__.Tree.test_window_from_the_oldest_leaf_sees_a_gap_before_the_last_live_image) ... ok
+
+======================================================================
+FAIL: test_coalesced_negatives (__main__.Coalesced.test_coalesced_negatives) [NC6 old generation again after T]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postdelete-bitmap-stage/r4/tests/test_postdelete_bitmap.py", line 520, in test_coalesced_negatives
+    self.assertTrue(any(want in x for x in r["blockers"]), r["blockers"])
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : ['the image after the last live one is not the old inode unlinked (links 0, orphan i_dtime = next orphan ino or 0)', 'derived last-live/deletion-start tids 15/None differ from the prior finding 12/13']
+
+----------------------------------------------------------------------
+Ran 22 tests in 2.664s
+
+FAILED (failures=1)

@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: nothing is selected by default: the wallet is the identity and acts for itself
+ok 1 - nothing is selected by default: the wallet is the identity and acts for itself
+  ---
+  duration_ms: 13.513217
+  type: 'test'
+  ...
+# Subtest: an explicit, verified selection makes the Safe the owner; the wallet becomes a payer only
+ok 2 - an explicit, verified selection makes the Safe the owner; the wallet becomes a payer only
+  ---
+  duration_ms: 2.357485
+  type: 'test'
+  ...
+# Subtest: selection is refused, and nothing stored, for an undeployed, unrecognized, mismatching or warned account
+ok 3 - selection is refused, and nothing stored, for an undeployed, unrecognized, mismatching or warned account
+  ---
+  duration_ms: 4.332354
+  type: 'test'
+  ...
+# Subtest: a stored selection is pending on load, re-verified, and refused with the reason - never the wallet
+ok 4 - a stored selection is pending on load, re-verified, and refused with the reason - never the wallet
+  ---
+  duration_ms: 2.484424
+  type: 'test'
+  ...
+# Subtest: a missing or different account description refuses the stored selection
+ok 5 - a missing or different account description refuses the stored selection
+  ---
+  duration_ms: 1.517884
+  type: 'test'
+  ...
+# Subtest: 'use my connected wallet' restores the wallet identity; session pointers are per identity
+ok 6 - 'use my connected wallet' restores the wallet identity; session pointers are per identity
+  ---
+  duration_ms: 0.649243
+  type: 'test'
+  ...
+# Subtest: a planted or malformed stored selection is not an identity
+ok 7 - a planted or malformed stored selection is not an identity
+  ---
+  duration_ms: 0.193118
+  type: 'test'
+  ...
+# Subtest: a shared-signer passkey counts only with exactly its key configured in this Safe's storage
+ok 8 - a shared-signer passkey counts only with exactly its key configured in this Safe's storage
+  ---
+  duration_ms: 1.172358
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 231.215135

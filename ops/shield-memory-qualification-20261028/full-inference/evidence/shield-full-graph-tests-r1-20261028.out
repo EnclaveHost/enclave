@@ -1,0 +1,9 @@
+[queue] START available=84596MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+....................................................................
+----------------------------------------------------------------------
+Ran 68 tests in 0.026s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

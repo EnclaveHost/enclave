@@ -1,0 +1,19 @@
+[queue] START available=32834MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+▲ [WARNING] The CommonJS "module" variable is treated as a global variable in an ECMAScript module and may not work as expected [commonjs-variable-in-esm]
+
+    Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/selfhost-topup-production-r1/source/enclave/site/js/lib/qr.js:2300:6:
+      2300 │       module.exports = factory();
+           ╵       ~~~~~~
+
+  This file is considered to be an ECMAScript module because of the "export" keyword here:
+
+    Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/selfhost-topup-production-r1/source/enclave/site/js/lib/qr.js:2306:0:
+      2306 │ export function qrSvg(text, opts){
+           ╵ ~~~~~~
+
+{"cid":"bafybeif4mvkcuo6libs4ngdcve7y2bol2s5g2pftv6qltpbte4ebrte5ie","files":1230,"preserved":1131,"delta":99,"car":{"sha256":"439db363f3a99326f39866327930683feddf3115909e951882536ed78bb64fba","bytes":56514712}}
+[memory-guard] exit=0 peakTreeRssMiB=133 minHostAvailableMiB=32723
+[memory-guard] at peak: node:133
+[memory-guard] exit=0 peakTreeRssMiB=200 minHostAvailableMiB=32659
+[memory-guard] at peak: node:144 node:52
+[queue] EXIT 0

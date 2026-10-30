@@ -1,0 +1,15 @@
+{
+  "capturedAt": "2026-10-29T19:39:31.047Z",
+  "readOnly": true,
+  "scope": "Exact sia-s3 reserve Deposited events since block53256000; canonical quorum, not finality; no signatures or submissions.",
+  "fundingError": {
+    "message": "no 2 RPCs agreed at block 53256710 (mainnet.base.org: HTTP request failed.; base-mainnet.public.blastapi.io: JSON is not a valid request object.)",
+    "failures": [
+      "mainnet.base.org: HTTP request failed.",
+      "base-mainnet.public.blastapi.io: JSON is not a valid request object."
+    ]
+  },
+  "endpoint": {
+    "error": "fetch failed"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-offline-os-writer-author-r1-20261029/seed",
+  "sourceFiles": {
+    "inspect_os_disk.py": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/inspect_os_disk.py",
+    "inspect_units.py": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-recovery-stage/r1/inspect_units.py",
+    "guest_mask.py": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1/guest_mask.py",
+    "fixture_reference.py": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-mask-fixture-r1/run.py",
+    "UNIT-PINS.json": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-offline-os-mask-prep-r1-20261029/UNIT-PINS.json"
+  },
+  "seedEntries": 5,
+  "allSeedImmutable": true,
+  "productPreEdits": 0,
+  "sourceOnly": true
+}

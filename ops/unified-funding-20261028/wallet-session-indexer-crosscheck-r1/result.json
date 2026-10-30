@@ -1,0 +1,14 @@
+[
+  {
+    "name": "delegates",
+    "error": "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+  },
+  {
+    "name": "sessions",
+    "error": "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+  },
+  {
+    "name": "anchor",
+    "error": "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+  }
+]

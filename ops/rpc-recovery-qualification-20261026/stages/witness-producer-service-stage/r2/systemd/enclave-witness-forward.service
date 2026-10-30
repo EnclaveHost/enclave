@@ -1,0 +1,21 @@
+# witness-placement r2 (PREPARED; NOT installed): relays the host-link forward to the loopback-only producer (127.0.0.1:18747,
+# the frozen r1 producer inside the RPC VM). No wildcard bind and no public peer: ingress 10.0.2.2/32 (the socket's only peer)
+# and egress 127.0.0.1/32 (the producer) only. No authority: the bytes are untrusted native input in the SNP guest.
+[Unit]
+Description=Enclave witness producer forward proxy (10.0.2.15:28747 -> 127.0.0.1:18747)
+Requires=enclave-witness-forward.socket
+After=enclave-witness-forward.socket enclave-witness-producer.service
+
+[Service]
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd --connections-max=2 127.0.0.1:18747
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+RestrictAddressFamilies=AF_INET
+IPAddressDeny=any
+IPAddressAllow=10.0.2.2/32 127.0.0.1/32
+MemoryMax=64M
+MemorySwapMax=0

@@ -1,0 +1,18 @@
+{
+ "counts": {
+  "errors": 0,
+  "expectedFailures": 0,
+  "failures": 0,
+  "skipped": 0,
+  "testsRun": 12,
+  "unexpectedSuccesses": 0
+ },
+ "expectedTests": "12",
+ "failureDetails": [],
+ "format": "historical-origin-segments-test-receipt/v2",
+ "modules": [
+  "test_capture_runners"
+ ],
+ "notPassed": [],
+ "pass": true
+}

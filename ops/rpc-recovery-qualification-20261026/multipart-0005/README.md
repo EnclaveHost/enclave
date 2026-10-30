@@ -1,0 +1,7 @@
+# Qualified preservation and read-only view fixtures
+
+The frozen multipart r3 passed 31 unit tests and seven reconstructed-ext4 integration tests through the shared queue. Tests include fresh source-prefix revalidation on resume and fresh independent verification to redeem a previously unconfirmed copy. These are actual test results, not data-integrity claims. A separately reviewed, bounded real part-0 copy was admitted with the full remaining destination reservation, 40 GiB free on each NVMe and an additional 8 GiB root native-build reservation. Its result is not yet included here. No additional parts are authorized by that canary alone. Original array writes, downloads, VM boot and RAID reset remain paused.
+
+The multipart view r3 passed five actual QEMU fixture tests. Its runtime is unchanged from r1; test fixes add read-only qemu-io, close fixture files, make enumeration deterministic, and compare logical content rather than allocation layout. The older attached Claude report correctly described its then-untested r1; the current receipts establish the later r3 result. This view still rejects production manifests until a separate adapter is qualified. Do not chmod actual preservation parts: recorded metadata includes ctime.
+
+No database bytes or journal files are included. Original-data content validity, MDBX structure, canonical blockchain state, historical blobs, synchronization, production proof serving and consumer cutover remain unverified. These successes do not complete RPC replacement or authorize destructive RAID work.

@@ -1,0 +1,21 @@
+[queue] START available=22685MiB required=18432MiB cap=1792MiB floor=16384MiB concurrentSmall=0MiB
+[ok] offline (no IPv4 route)
+[ok] stage == SHA256SUMS
+[ok] base commit present
+[ok] candidate files == CANDIDATE.sha256
+[ok] node_modules linked (absolute; package-lock identical; read-only use)
+Windows shared lease bundle: 361389 bytes, sha256:bdf8628cde758d0b28459e4a554d11a2d1f5e16934ceddc971c757bc16f8daac (verified)
+metal lease-gas conduit bundle: 41828 bytes, sha256:7735609f3e70ad15d37ce2b8dcd4f979e1f3591b43e525212c12c11fe86c3683 (verified)
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r2/run/20261026T014704Z/cand/scripts/build-host-admission.mjs:11
+  if(!Buffer.from(bytes).equals(await fs.readFile(file)))throw Error('host admission bundle is stale; run node scripts/build-host-admission.mjs');
+                                                               ^
+
+Error: host admission bundle is stale; run node scripts/build-host-admission.mjs
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/windows-chain-authority-stage/r2/run/20261026T014704Z/cand/scripts/build-host-admission.mjs:11:64
+
+Node.js v22.23.3
+[FAIL] a committed bundle is stale at aebf4c932 (regenerate in the source, never here)
+RESULT: SETUP-FAILURE (not a test verdict)
+[memory-guard] exit=20 peakTreeRssMiB=909 minHostAvailableMiB=21891
+[memory-guard] at peak: git:858 git:35 git-upload-pack:6 git:5 bash:4
+[queue] EXIT 20

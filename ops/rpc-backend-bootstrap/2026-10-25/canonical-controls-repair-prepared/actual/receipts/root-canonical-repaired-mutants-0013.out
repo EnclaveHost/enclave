@@ -1,0 +1,82 @@
+[queue] START available=23411MiB required=19456MiB cap=2560MiB floor=16384MiB concurrentSmall=256MiB
+[ok] offline: interfaces = lo only (lo )
+[ok] offline: no IPv4 route
+[tool] rustc 1.96.0 (ac68faa20 2026-05-25) binary: rustc commit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96 commit-date: 2026-05-25 host: x86_64-unknown-linux-gnu release: 1.96.0 LLVM version: 22.1.2 
+[tool] cargo 1.96.0 (30a34c682 2026-05-25)
+[tool] rustc ba4b837efb6612df cargo f30f9fd1b1d0b8fd cc cc (GCC) 16.2.1 20260810
+[ok] fresh /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-controls-repair/run/mutants-20261026T001203Z
+[ok] source repo HEAD eeffcc9
+[ok] source repo clean
+[ok] clone tree == R3x tree
+[ok] clone Cargo.lock == R3x
+[ok] base files == INPUT-MANIFEST
+[ok] patched files == PATCHED.sha256
+[ok] base archive pin 9784e20a
+[ok] vendor-inspect/base-v1.5.1 == pinned extraction c9301490
+[ok] vendor-inspect holds only base-v1.5.1
+[ok] cache-reuse: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z ended per /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/root-canonical-native-types-2345.out (rc 20)
+
+[ok] cache-reuse: exclusive lock held for this job
+[ok] cache-reuse: cargo-home/registry/cache == CH0
+[ok] cache-reuse: cargo-home/registry/src == CH0
+[ok] cache-reuse: cargo-home/git == CH0
+[ok] cache-reuse: CARGO_HOME=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/cargo-home CARGO_TARGET_DIR=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target (mutable; fresh source, patch, closure and logs in /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-controls-repair/run/mutants-20261026T001203Z)
+rustc 1.96.0 (ac68faa20 2026-05-25)
+cargo 1.96.0 (30a34c682 2026-05-25)
+== A0: locked closure (cargo metadata --offline --locked)
+[closure] 26 path packages; outside the work dir: 0
+== A0: dependency cache (cargo fetch --offline --locked, this target)
+[ok] Cargo.lock unchanged
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['canonical_block_gate']: ['error: test failed, to rerun pass `-p helios-core --test canonical_block_gate`', 'error: 1 target failed:']
+M1-gate-ignores-require-canonical: INVALID (see M1-gate-ignores-require-canonical.verdict; never a kill)
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['canonical_block_gate']: ['error: test failed, to rerun pass `-p helios-core --test canonical_block_gate`', 'error: 1 target failed:']
+M2-gate-accepts-any-block-for-hash: INVALID (see M2-gate-accepts-any-block-for-hash.verdict; never a kill)
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['canonical_block_gate', 'node_canonical_methods']: ['error: test failed, to rerun pass `-p helios-core --test canonical_block_gate`', 'error: test failed, to rerun pass `-p helios-core --test node_canonical_methods`', 'error: 2 targets failed:']
+M3-gate-no-head-age: INVALID (see M3-gate-no-head-age.verdict; never a kill)
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['block_cache_exact_hash']: ['error: test failed, to rerun pass `-p helios-core --test block_cache_exact_hash`', 'error: 1 target failed:']
+M4-cache-stale-index: INVALID (see M4-cache-stale-index.verdict; never a kill)
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['ancestor_block_hash']: ['error: test failed, to rerun pass `-p helios-core --test ancestor_block_hash`', 'error: 1 target failed:']
+M5-ancestry-by-number: INVALID (see M5-ancestry-by-number.verdict; never a kill)
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['canonical_block_gate', 'node_canonical_methods']: ['error: test failed, to rerun pass `-p helios-core --test canonical_block_gate`', 'error: test failed, to rerun pass `-p helios-core --test node_canonical_methods`', 'error: 2 targets failed:']
+M6-node-storage-post-check-removed: INVALID (see M6-node-storage-post-check-removed.verdict; never a kill)
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['block_cache_exact_hash', 'canonical_block_gate', 'node_canonical_methods']: ['error: test failed, to rerun pass `-p helios-core --test block_cache_exact_hash`', 'error: test failed, to rerun pass `-p helios-core --test canonical_block_gate`', 'error: test failed, to rerun pass `-p helios-core --test node_canonical_methods`']
+M7-cache-no-descendant-drop: INVALID (see M7-cache-no-descendant-drop.verdict; never a kill)
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['canonical_block_gate']: ['error: test failed, to rerun pass `-p helios-core --test canonical_block_gate`', 'error: 1 target failed:']
+M8-gate-by-height: INVALID (see M8-gate-by-height.verdict; never a kill)
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['canonical_block_gate']: ['error: test failed, to rerun pass `-p helios-core --test canonical_block_gate`', 'error: 1 target failed:']
+M10-gate-no-link-check: INVALID (see M10-gate-no-link-check.verdict; never a kill)
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['rpc_exact_hash_postcondition']: ['error: test failed, to rerun pass `-p helios-core --test rpc_exact_hash_postcondition`', 'error: 1 target failed:']
+M11-provider-no-exact-postcondition: INVALID (see M11-provider-no-exact-postcondition.verdict; never a kill)
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['node_canonical_methods']: ['error: test failed, to rerun pass `-p helios-core --test node_canonical_methods`', 'error: 1 target failed:']
+M12-node-recheck-disabled: INVALID (see M12-node-recheck-disabled.verdict; never a kill)
+== informational (expected SURVIVE: defence in depth; reported separately, never counted as kills or failures)
+mutant: NOT KILLED
+   reorg_a_to_b_unindexes_a: ok (not killed)
+I1-cache-filter-only-removed: SURVIVED
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['block_cache_exact_hash']: ['error: test failed, to rerun pass `-p helios-core --test block_cache_exact_hash`', 'error: 1 target failed:']
+  [note] reorg_a_to_b_unindexes_a: ok (not killed)
+I2-cache-unindex-only-removed: INVALID (see I2-cache-unindex-only-removed.verdict; never a kill)
+mutant: NOT KILLED
+   gate_root_counterexample_retained_descendant_refused: ok (not killed)
+I3-gate-no-above-head-check: SURVIVED
+== M0: the cache tests on the UNPATCHED base eeffcc9 (must fail by assertion: the stale-index defect)
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['block_cache_exact_hash']: ['error: test failed, to rerun pass `-p helios-core --test block_cache_exact_hash`', 'error: 1 target failed:']
+M0-base-eeffcc9: INVALID (see M0-base-eeffcc9.verdict; never a kill)
+[ok] Cargo.lock unchanged
+MUTANTS rc=1
+[memory-guard] exit=1 peakTreeRssMiB=686 minHostAvailableMiB=22210
+[memory-guard] at peak: rust-lld:351 rustc:171 cargo:152 bash:4 cc:3 collect2:3 timeout:2
+[queue] EXIT 1

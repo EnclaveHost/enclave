@@ -1,0 +1,6 @@
+[queue] START available=17910MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## FAIL: reanchor-bounds: rc 1, Ran ? (expected 1), last none (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10-recovery-fixture-fix-r3/logs/run-20261026T073020Z-1141224/reanchor-bounds.txt)
+## r10-recovery-fixture-fix-r3 rc=1
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

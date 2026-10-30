@@ -1,0 +1,58 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10-ops-followup/tests/test_reproof.py	2026-10-26 00:06:55.952191717 -0700
++++ tests/test_reproof.py	2026-10-26 00:16:50.747646940 -0700
+@@ -174,6 +174,55 @@
+         self.assertEqual((len(kept), h[1]['attempt']), (2, kept[-1])); self.assertFalse((self.t / 'caps' / kept[-1] / RP.IN_PROGRESS).exists())
+         self.assertEqual(self.reproof(capture_fn=self.no_capture)['action'], 'adopted')
+ 
++    # ---- r2: crash boundaries BEFORE and AFTER durable qualification / record; a kill is emulated by skipping _settle (no receipt) ----
++    def caps_ok(self, n):
++        return (self.t / 'caps' / n / 'initial').exists() and (self.t / 'caps' / n / 'recheck').exists()
++
++    def test_r2_kill_before_any_durable_qualification_is_retired_and_the_next_run_proves(self):
++        self.launched()
++        with patch.object(RP, '_settle', lambda *a, **k: None), patch.object(FS, 'qualify', side_effect=OSError('killed at the barrier')):
++            with self.assertRaises(OSError):
++                self.reproof(capture_fn=self.capture_fn(NP), now=self.at(0))
++        cut = self.pairs(); self.assertEqual(len(cut), 1); self.assertTrue((self.t / 'caps' / cut[0] / RP.QUALIFY_BARRIER).exists())
++        self.assertFalse(self.ledger.exists())
++        self.assertEqual(self.reproof(capture_fn=self.capture_fn(NP), now=self.at(5))['action'], 'reproved')
++        self.assertEqual((self.history()[0]['outcome'], self.history()[0]['phase']), ('interrupted', 'after-qualify-barrier, durable records unchanged'))
++        self.assertIn('failed-' + cut[0], self.pairs())
++
++    def test_r2_qualify_that_appends_then_raises_before_q_is_preserved_and_then_recorded(self):
++        self.launched(); real = FS.qualify
++        def append_then_raise(*a, **k):
++            real(*a, **k); raise OSError('crash after the durable qualified append, before q was bound')
++        with patch.object(FS, 'qualify', side_effect=append_then_raise), self.assertRaises(OSError):
++            self.reproof(capture_fn=self.capture_fn(NP), now=self.at(0))
++        kept = self.pairs(); self.assertEqual(len(kept), 1); self.assertEqual(self.receipt(kept[0])['outcome'], 'ambiguous')
++        self.assertTrue(self.caps_ok(kept[0]))
++        self.assertEqual(self.reproof(capture_fn=self.no_capture, now=self.at(5))['action'], 'recorded')   # no new capture
++        self.assertEqual(self.pairs(), kept); self.assertTrue(self.caps_ok(kept[0]))
++
++    def test_r2_kill_after_durable_qualification_before_record_is_preserved_and_the_next_run_records(self):
++        self.launched()
++        with patch.object(RP, '_settle', lambda *a, **k: None), patch.object(P, 'record_finality', side_effect=OSError('killed after the qualified append')):
++            with self.assertRaises(OSError):
++                self.reproof(capture_fn=self.capture_fn(NP), now=self.at(0))
++        cut = self.pairs(); self.assertTrue((self.t / 'caps' / cut[0] / RP.IN_PROGRESS).exists())          # what a SIGKILL leaves
++        self.assertEqual(self.reproof(capture_fn=self.no_capture, now=self.at(5))['action'], 'recorded')
++        self.assertEqual(self.pairs(), cut); self.assertTrue(self.caps_ok(cut[0])); self.assertFalse((self.t / 'caps' / cut[0] / RP.IN_PROGRESS).exists())
++        self.assertEqual(self.history()[0]['outcome'], 'ambiguous')
++
++    def test_r2_kill_inside_record_after_the_watermark_append_is_preserved_and_adopted(self):
++        self.launched(); self.reproof(capture_fn=self.capture_fn(NP), now=self.at(0)); self.permit(); self.handshake(); self.proc('777')
++        with patch.object(RP, '_settle', lambda *a, **k: None), patch.object(P, '_append', side_effect=OSError('killed after the watermark entry landed')):
++            with self.assertRaises(OSError):
++                self.reproof(capture_fn=self.capture_fn(NP2, l1_bump=100), now=self.at(5))
++        cut = self.pairs()[-1]
++        self.assertEqual(self.reproof(capture_fn=self.no_capture, now=self.at(10))['action'], 'adopted')
++        self.assertIn(cut, self.pairs()); self.assertTrue(self.caps_ok(cut))
++        self.assertEqual([r['outcome'] for r in self.history()], ['recorded', 'ambiguous'])
++        for i in range(RP.KEEP + 1):                                   # later prunes never remove a preserved attempt
++            RP._prune(self.t / 'caps')
++        self.assertIn(cut, self.pairs())
++
+ 
+ for _n in [n for n in dir(TI.Integration) if n.startswith('test_')]:
+     setattr(Reproof, _n, None)

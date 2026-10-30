@@ -1,0 +1,267 @@
+TAP version 13
+# Subtest: unenrolled: derivedReader bound without an enrollment -> relay serving, only the INTENDED marker, no state, no crash loop
+ok 1 - unenrolled: derivedReader bound without an enrollment -> relay serving, only the INTENDED marker, no state, no crash loop
+  ---
+  duration_ms: 4959.718728
+  type: 'test'
+  ...
+# Subtest: enrollment refusals, then an admin genesis bound to the primary's boot; a replay is refused
+not ok 2 - enrollment refusals, then an admin genesis bound to the primary's boot; a replay is refused
+  ---
+  duration_ms: 2355.178548
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:198:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"error":"not_primary","leader":2}
+    
+    409 !== 200
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 200
+  actual: 409
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:222:52)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: IPC commit: only the exact committed bytes are acknowledged; refusals say nothing was written; the role's deadline is enforced
+not ok 3 - IPC commit: only the exact committed bytes are acknowledged; refusals say nothing was written; the role's deadline is enforced
+  ---
+  duration_ms: 408.528391
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:234:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"ok":false,"code":"derived_commit_config","message":"the role's commit boot id is missing or malformed"}
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:237:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: restart: a new child gets a new boot and the COMMITTED copies; the old boot is refused
+not ok 4 - restart: a new child gets a new boot and the COMMITTED copies; the old boot is refused
+  ---
+  duration_ms: 1815.174808
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:266:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected "actual" to be strictly unequal to:
+    
+    undefined
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:270:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: seeding uses ONLY the scan of a fresh majority round: a local-only write is committed by that round (never assumed absent); a foreign local file refuses
+not ok 5 - seeding uses ONLY the scan of a fresh majority round: a local-only write is committed by that round (never assumed absent); a foreign local file refuses
+  ---
+  duration_ms: 1814.406047
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:277:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + {}
+    - {
+    -   'bridge/anchor-journal.json': 'be018a10100eda856d48da49304027c6de52edbd496369573908cfaa53bcc2f4'
+    - }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    bridge/anchor-journal.json: 'be018a10100eda856d48da49304027c6de52edbd496369573908cfaa53bcc2f4'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:282:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: client deadline: a commit not confirmed in time is OUTCOME UNKNOWN and fences; the late ack resolves nothing
+not ok 6 - client deadline: a commit not confirmed in time is OUTCOME UNKNOWN and fences; the late ack resolves nothing
+  ---
+  duration_ms: 1814.860964
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:295:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"ok":false,"code":"derived_commit_config","message":"the role's commit boot id is missing or malformed"}
+    + actual - expected
+    
+    + 'derived_commit_config'
+    - 'derived_commit_outcome_unknown'
+                      ^
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'derived_commit_outcome_unknown'
+  actual: 'derived_commit_config'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:300:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: quorum loss: no majority -> never acknowledged, the primary steps down and stops its relay; healed, every member agrees on the seeded bytes
+not ok 7 - quorum loss: no majority -> never acknowledged, the primary steps down and stops its relay; healed, every member agrees on the seeded bytes
+  ---
+  duration_ms: 37602.980638
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:308:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting for its relay with the enrollment (null)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:39:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:316:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: failover: a stopped primary's successor seeds the same committed copy
+not ok 8 - failover: a stopped primary's successor seeds the same committed copy
+  ---
+  duration_ms: 34647.646621
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:322:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting for its relay with the enrollment (null)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:39:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:327:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: crash guard: a derived child dying before serving, or soon after, disables derived (relay serving, no loop); the backoff timer retries it (M4); a rotate re-enables it
+not ok 9 - crash guard: a derived child dying before serving, or soon after, disables derived (relay serving, no loop); the backoff timer retries it (M4); a rotate re-enables it
+  ---
+  duration_ms: 31264.739234
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:333:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting for derived disabled (crash) and the relay serving without it (false)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:39:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:338:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: rotation binds the COMMITTED floor: another reader image is unenrolled until a rotate naming exactly that floor
+not ok 10 - rotation binds the COMMITTED floor: another reader image is unenrolled until a rotate naming exactly that floor
+  ---
+  duration_ms: 7.364266
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:361:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   code: 'derived_commit_config',
+    +   message: "the role's commit boot id is missing or malformed",
+    +   ok: false
+    -   ok: true
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    ok: true
+  actual:
+    ok: false
+    code: 'derived_commit_config'
+    message: "the role's commit boot id is missing or malformed"
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:363:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: enrollment quiesces the writer: a racing derived commit either lands before (the enrollment is then refused as stale) or is refused - never both
+not ok 11 - enrollment quiesces the writer: a racing derived commit either lands before (the enrollment is then refused as stale) or is refused - never both
+  ---
+  duration_ms: 235.621086
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:378:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"error":"not_enrolled","message":"rotate needs a held enrollment"}
+    + actual - expected
+    
+    + 'not_enrolled'
+    - 'wrong_state'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'wrong_state'
+  actual: 'not_enrolled'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:389:17)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: B1: the previous child's exit not CONFIRMED -> nothing is composed or seeded (journal and lock inodes untouched); retried once it exits
+not ok 12 - B1: the previous child's exit not CONFIRMED -> nothing is composed or seeded (journal and lock inodes untouched); retried once it exits
+  ---
+  duration_ms: 30041.802037
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:393:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting for derived up (null)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:39:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:395:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: B2: leadership lost during the exit wait -> the stale term composes and seeds nothing; once a majority is back, the primary seeds exactly ITS committed scan
+not ok 13 - B2: leadership lost during the exit wait -> the stale term composes and seeds nothing; once a majority is back, the primary seeds exactly ITS committed scan
+  ---
+  duration_ms: 1210.426459
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:415:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"error":"not_enrolled","message":"rotate needs a held enrollment"}
+    
+    409 !== 200
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 200
+  actual: 409
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/test/derived-state-enrollment.test.mjs:423:63)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...

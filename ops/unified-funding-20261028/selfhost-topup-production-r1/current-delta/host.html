@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>(function(){
+var heal=function(){try{
+  var k="enclave_skew_reload",last=+sessionStorage.getItem(k)||0;
+  if(Date.now()-last<240000)return;
+  sessionStorage.setItem(k,String(Date.now()));
+  setTimeout(function(){location.reload();},8000);
+}catch(e){}};
+addEventListener("error",function(e){
+  var t=e.target;
+  if(t&&(t.tagName==="SCRIPT"||(t.tagName==="LINK"&&t.rel==="modulepreload")))heal();
+},true);
+addEventListener("unhandledrejection",function(e){
+  if(/dynamically imported module|Failed to fetch|error loading/i.test(String(e.reason)))heal();
+});
+})();</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#070A0F" />
+<title>Host an enclave · Enclave</title>
+<meta name="description" content="Run an enclave on hardware you own, claim paid work from the open queue, and get paid on chain for every lease you serve. Confidential hardware sells the strongest tier; every other machine is listed at exactly the level it can prove." />
+<link rel="canonical" href="https://enclave.host/host" />
+<meta property="og:title" content="Host an enclave · Enclave" />
+<meta property="og:description" content="Run an enclave on hardware you own, claim paid work from the open queue, and get paid on chain for every lease you serve. Listed at the protection level your machine can prove." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://enclave.host/host" />
+<link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<script>
+/* Cross-document view transitions are skipped by Chromium when extensions
+   inject content scripts (MetaMask et al): the old page sees pageswap with
+   no viewTransition. Flag it, and the NEXT page (this script runs pre-paint)
+   plays the same settle-in itself (html.soft-enter, see base.css) - content
+   only, the static header stays put. */
+(function(){
+  try { if (sessionStorage.getItem("enclave_novt")) { sessionStorage.removeItem("enclave_novt"); document.documentElement.classList.add("soft-enter"); } } catch(e){}
+  addEventListener("pageswap", function(e){
+    try { if (!e.viewTransition && e.activation) sessionStorage.setItem("enclave_novt", "1"); } catch(e){}
+  });
+})();
+</script>
+<link rel="preload" as="image" href="assets/host-cinematic.webp" />
+<link rel="stylesheet" href="css/site.css" />
+<link rel="modulepreload" href="js/chunks/chunk-HW25MMVQ.js" />
+<link rel="modulepreload" href="js/chunks/chunk-TXG5D22N.js" />
+<link rel="modulepreload" href="js/chunks/chunk-26Q5DWR2.js" />
+<link rel="modulepreload" href="js/chunks/host-MQZKINCL.js" />
+<link rel="modulepreload" href="js/chunks/chunk-W7YBRHBJ.js" />
+<link rel="modulepreload" href="js/chunks/chunk-DIKDUUWR.js" />
+<link rel="modulepreload" href="js/chunks/chunk-LYBWBJPF.js" />
+<link rel="modulepreload" href="js/chunks/chunk-FMPKECEP.js" />
+<link rel="modulepreload" href="js/chunks/chunk-VC3X3CTW.js" />
+<link rel="modulepreload" href="js/chunks/chunk-26CCKM53.js" />
+<link rel="modulepreload" href="js/chunks/chunk-WDHOL2WI.js" />
+<link rel="modulepreload" href="js/chunks/chunk-D2IB3VX3.js" />
+<script type="module" src="js/boot.js"></script>
+</head>
+<body>
+<c-header current="" data-ssr><header class="nav">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="wrap nav-inner">
+    <a href="./" class="brand" aria-label="Enclave home">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+        <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+        <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkH"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkH)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="./" data-view="overview">Overview</a>
+      <a href="apps" data-view="apps">Apps</a>
+      <a href="develop" data-view="develop">Develop</a>
+      <a href="host" data-view="host">Host</a>
+      <a href="dashboard" data-view="dashboard" hidden>Dashboard</a>
+    </nav>
+    <c-wallet-button data-ssr><div class="wallet-mount" id="walletMount">
+  <button class="btn btn-primary btn-sm" id="walletBtn" type="button" aria-controls="walletPop">Sign in <span class="arr" aria-hidden="true">→</span></button>
+  <div class="wallet-pop" id="walletPop" hidden></div>
+</div></c-wallet-button>
+  </div>
+</header></c-header>
+<script>(function(){try{
+var s=JSON.parse(localStorage.getItem("enclave_session")||"null");
+var a=JSON.parse(localStorage.getItem("enclave_account")||"null");
+var wallet=s&&s.address,acct=a&&a.token;
+if(!wallet&&!acct)return;
+var dt=document.querySelector('.nav-links a[data-view="dashboard"]');if(dt)dt.hidden=false;
+var b=document.getElementById("walletBtn");if(!b)return;
+b.classList.add("connected");b.textContent="";
+var d=document.createElement("span");d.className="wdot";b.appendChild(d);
+b.appendChild(document.createTextNode(wallet?s.address.slice(0,6)+"…"+s.address.slice(-4):"Signed in"));
+b.dataset.painted="1";
+}catch(e){}})();</script>
+<main id="main" tabindex="-1">
+<h1 class="sr-only">Host an enclave</h1>
+
+<section id="host" data-view="host" aria-label="Host an enclave">
+  <div class="wrap">
+    <div class="visual-banner">
+      <c-cinematic-scene scene="host" image="assets/host-cinematic.webp" video="assets/host-cinematic.mp4" data-ssr><div class="cinema-media" aria-hidden="true">
+  <img class="cinema-image" src="assets/host-cinematic.webp" alt="" width="1672" height="941" decoding="async" />
+  <video class="cinema-video" data-src="assets/host-cinematic.mp4" muted loop playsinline preload="none" tabindex="-1"></video>
+</div>
+<div class="cinema-shade" aria-hidden="true"></div></c-cinematic-scene>
+    <c-section-head eyebrow="Host an enclave" heading="Your hardware belongs on this list." data-ssr><div class="sec-head">
+  <span class="eyebrow">Host an enclave</span>
+  <h2>Your hardware belongs on this list.</h2>
+  <p>A market for compute where buyers check what they get. Your machine is listed at the protection level it proves, at the price you set, and the ledger pays you for every lease it serves. Nobody holds your earnings on your behalf.</p>
+      <div class="hero-cta host-hero-cta">
+        <a class="btn btn-primary" data-download="windows" href="https://get.enclave.host/windows/EnclaveSetup.exe">Download for Windows <span class="arr" aria-hidden="true">↓</span></a>
+        <a class="btn btn-ghost" href="#setup">Linux server setup</a>
+      </div>
+      <!-- the primary download is the visitor's own platform (js/pages/host.js swaps it on an Android phone); the other is a line here -->
+      <p class="host-hero-note" data-platform="windows">For a Windows 11 PC with an AMD processor. <a href="#windows">What it needs&nbsp;→</a></p>
+      <p class="host-hero-note" data-platform="windows">Have a Pixel phone? <a href="https://get.enclave.host/android/Enclave.apk">Get the Android app</a> (early preview).</p>
+      <p class="host-hero-note" data-platform="android" hidden>For Pixel phones (early preview). <a href="#android">What it needs&nbsp;→</a></p>
+      <p class="host-hero-note" data-platform="android" hidden>Hosting on a PC? <a href="https://get.enclave.host/windows/EnclaveSetup.exe">Get the Windows app</a>.</p>
+</div></c-section-head>
+    </div>
+
+    <div class="hostdoc">
+
+      <h2 id="windows">On a Windows PC</h2>
+      <p>Each app runs in its own Enclave Shield partition, a Hyper-V virtual machine on a PC that has proven to the network, through its TPM, that it booted securely. Setup checks the PC, turns on Hyper-V and asks you to name your host. Joining costs nothing: once the PC proves its hardware, its first registration is paid for you.</p>
+      <p>Setup can also be run from PowerShell:</p>
+      <c-code fn="PowerShell" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">PowerShell</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>irm https://get.enclave.host/host.ps1 | iex</code></pre>
+</div></c-code>
+      <div class="doc-note">
+        <span class="nt">Needs</span>
+        <p>Windows 11 Pro, Enterprise or Education (24H2 or later), an AMD processor with its firmware TPM on, Secure Boot on, virtualization on in the firmware, and 16 GB of RAM.</p>
+      </div>
+      <div class="doc-note">
+        <span class="nt">What tenants get</span>
+        <p>Enclave Shield keeps each app apart from the others and from the rest of the PC, and the network checks the PC's TPM evidence before it sends any work. It does not encrypt memory against the PC's owner the way a confidential server does; buyers who need that choose confidential hosts.</p>
+      </div>
+
+      <h2 id="android">On an Android phone</h2>
+      <p>Each app runs in its own protected virtual machine, which Android itself cannot reach into, and the phone proves to the network which build of the app it runs before it is sent any work. Install the app and open it: it asks for the virtual-machine permission once, through the phone's Wireless debugging, makes its key and starts hosting. Its screen is the same hosting panel as the Windows app: hosting on or off, how much of the phone to share, your price, earnings and payout.</p>
+      <div class="doc-note">
+        <span class="nt">Early preview</span>
+        <p>Tested on a Pixel 10 Pro XL. Other Pixels from the Pixel 8 on have the same protected virtual machines but are untested so far. Keep the phone on its charger and on Wi-Fi. Install the download from your browser (Android asks you to allow that once); a new version is a new download for now.</p>
+      </div>
+      <div class="doc-note">
+        <span class="nt">What tenants get</span>
+        <p>The phone's protected virtual machines keep each app's memory out of reach of Android and of every other app on the phone. Phones host on their processor only: no GPU is offered.</p>
+      </div>
+
+      <h2 id="fleet">The fleet you would be joining</h2>
+      <p>Marketplace hosts show their available capacity and protection badges. Connect your wallet to also see owner-only hosts you’re authorized to use.</p>
+      <div class="host-fleet"><c-fleet-list data-ssr><div class="fleet-list"></div>
+<div class="fleet-foot"></div>
+<!-- Seller CTA: the fleet is open to anyone with confidential hardware, and
+     this list is where a new host shows up. Links to /host (what you need, the
+     CLI flow, how earning works; the repo docs are linked from there). -->
+<p class="fleet-cta">
+  <span>Your hardware belongs on this list.</span>
+  Run an enclave on a box you own, claim paid work from the open queue, and the
+  ledger pays your wallet for every lease you serve.
+  <a href="host">Host an enclave &rarr;</a>
+</p></c-fleet-list></div>
+
+      <h2>What can be listed</h2>
+      <ul class="hostdoc-list">
+        <li><b>A confidential server</b>: a CPU with a hardware TEE, optionally a GPU in confidential-computing mode. Tenants' memory is encrypted against your operating system and their TLS terminates inside the VM. It is listed with a jade <i>tee cpu</i> badge and sells the full service; the rest of this page describes it.</li>
+        <li><b>An Enclave Shield host</b>: hardware-enforced CPU isolation keeps the host OS out, even without a confidential-computing processor. It must pass the same acceptance tests before taking tenant work.</li>
+        <li><b>Any other GPU</b>, including a card beside a confidential processor: it serves through Shield's masked offload, whatever the CPU or operating system. A card in a supported confidential-computing mode runs inside the boundary instead. Admission reads proof of the card's own mode, and a card is neither advertised nor routed until Shield's checks pass.</li>
+      </ul>
+      <p>Eligibility comes from proof checked at attach, never from what a machine says about itself or which operating system it runs. A machine takes general tenant work only after marketplace admission, which for a new confidential box means a published allowlist of measurements. Owner-authorized hosting is listed separately when it has active deployments and does not grant admission. <a href="develop#contract">What each level guarantees, exactly →</a></p>
+
+      <h2>What a confidential server needs</h2>
+      <ul class="hostdoc-list">
+        <li><b>A CPU with a hardware TEE</b> and virtualisation available to the OS. Confidential VMs are what make the guarantee real; a box without one cannot sell this tier.</li>
+        <li><b>Linux with KVM</b> and a few gigabytes of RAM to give the guest. The build runs unprivileged; only the one-time device permission needs root.</li>
+        <li><b>A little gas.</b> Your box registers itself and claims work with its own key, which costs a few cents of Base ETH. The CLI funds it from your wallet in one transfer.</li>
+        <li><b>No public IP.</b> The enclave dials out and holds the connection, so a home machine behind carrier NAT works.</li>
+        <li><b>A GPU is optional.</b> CPU-only boxes serve CPU work; a GPU in confidential-computing mode sells GPU shares too.</li>
+      </ul>
+
+      <h2 id="setup">Setting it up</h2>
+      <p>Everything is one command line tool. Each step below is also a plain script in the repository if you would rather drive it yourself.</p>
+      <c-code fn="terminal" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>curl -fsSL https://get.enclave.host | sh
+
+enclave host init      <span class="tok-com"># mint this box's key, write its config</span>
+enclave host build     <span class="tok-com"># build the measured guest image</span>
+enclave host run       <span class="tok-com"># boot it, ctrl-c to stop</span>
+enclave host check     <span class="tok-com"># is it answering, is the quote real hardware</span>
+enclave host install   <span class="tok-com"># run it under systemd instead, enabled at boot</span></code></pre>
+</div></c-code>
+      <p><code>enclave host build</code> assembles the guest from a tagged release, and folds the kernel, the initramfs and the boot arguments into the launch measurement.</p>
+      <div class="doc-note">
+        <span class="nt">Reproducible</span>
+        <p>That measurement is computed from the tagged release and the kernel your box boots the guest with, so anyone with the same kernel can rebuild it and check the number your box reports.</p>
+      </div>
+
+      <h2>Getting paid</h2>
+      <p>Once the box has gas, it registers itself and claims funded deployments from the queue. The ledger escrows the runner share of each payment, credits your operator key for the time you actually hold the lease, and sweeps the balance to the wallet you named once it clears the payout threshold.</p>
+      <c-code fn="terminal" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>enclave host fund --eth 0.002   <span class="tok-com"># gas the box, one signed transfer</span>
+enclave host status             <span class="tok-com"># gas left, serving or not, earnings accrued</span></code></pre>
+</div></c-code>
+      <p>You set your own price. A box can name what it charges per hour for a full node and, if it has one, a full card. It then refuses work paying less than that, and the number is published alongside its capacity so buyers can see it.</p>
+      <c-code fn="terminal" data-ssr><div class="code">
+  <div class="codebar">
+    <span class="fn">terminal</span>
+    <button class="copybtn" type="button">⧉ copy</button>
+  </div>
+  <pre><code>enclave host init --price-cpu 2.50 <span class="tok-com"># USD per hour for a full node</span></code></pre>
+</div></c-code>
+
+      <h2>What tenants get, and what you can see</h2>
+      <p>Apps that land on a confidential server each run in their own confidential VM, and the memory of each VM is encrypted by the processor against your operating system and every process on it, root included. You host the work without being able to read it. Their TLS terminates inside the enclave too, so traffic passes through your machine as ciphertext.</p>
+      <p>That cuts both ways, and it is the point: buyers do not have to trust you, so they do not have to know who you are. What they check is the attestation your box produces, against the measurement of a published release.</p>
+      <p>One limit is told to buyers, not hidden: the processor defends memory against software, not against physical attacks with lab equipment, and you have physical access to your own machine. Buyers who need to rule that out see who runs each host and choose accordingly. <a href="develop#contract">The limit, in the architecture notes →</a></p>
+
+      <h2>Read the details</h2>
+      <p>The full protocol, the trust argument and the operator notes live with the code:</p>
+      <ul class="hostdoc-list">
+        <li><a href="https://github.com/EnclaveHost/enclave/blob/main/metal/README.md" target="_blank" rel="noopener">Enclave Metal</a>, how the self-hosted server is built and why its attestation is stronger than a managed one.</li>
+        <li><a href="https://github.com/EnclaveHost/enclave/blob/main/metal/PROTOCOL.md" target="_blank" rel="noopener">The hosting protocol</a>, how an anonymous box proves itself, claims work and is paid.</li>
+        <li><a href="develop#architecture">The Architecture tab under Develop</a>, every protection level with its mechanism, its evidence and its status.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</main>
+<c-footer data-ssr><footer aria-label="Footer">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="./" class="brand" aria-label="Enclave home">
+          <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 7.333 24 12v8L16 24.667 8 20v-8z" stroke="var(--jade)" stroke-width="1.2" opacity=".55"/>
+            <circle cx="16" cy="12.55" r="2.45" stroke="var(--jade)" stroke-width="1.6"/>
+            <path d="M16 15v6.6M16 21.6h2M16 19.4h1.5" stroke="var(--jade)" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <svg class="nm" viewBox="0 0 148 20" fill="currentColor" aria-hidden="true"><mask id="wmkF"><rect width="148" height="20" fill="#fff"/><rect y="6.4" width="148" height="1.2" fill="#000"/><rect y="12.4" width="148" height="1.2" fill="#000"/></mask><path mask="url(#wmkF)" d="M0 0h16v4h-16zM0 8h12v4h-12zM0 16h16v4h-16zM0 0h4v20h-4zM22 20V0h4.4l7.2 11V0h4.4v20h-4.4l-7.2-11v11zM44 0h16v4h-16zM44 16h16v4h-16zM44 0h4v20h-4zM66 0h4v20h-4zM66 16h16v4h-16zM88 0h16v4h-16zM88 0h4v20h-4zM100 0h4v20h-4zM92 9h8v4h-8zM110 0h4.4l3.6 13.4 3.6-13.4H126l-5.6 20h-4.8zM132 0h16v4h-16zM132 8h12v4h-12zM132 16h16v4h-16zM132 0h4v20h-4z"/></svg>
+        </a>
+        <p>Compute that cannot see your data. Paid per second, for anything that holds a key.</p>
+        <div class="foot-meta">
+          <span>built + operated by Enclave Host, Inc.</span>
+          <span>front-end: static, pinned to IPFS · <code>enclave.host</code></span>
+        </div>
+      </div>
+      <nav aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          <li><a href="./#why">What you get</a></li>
+          <li><a href="./#how">How it works</a></li>
+          <li><a href="apps">App store</a></li>
+          <li><a href="./#pricing">Pricing</a></li>
+          <li><a href="develop#architecture">Architecture</a></li>
+          <li><a href="develop#progress">Engineering evidence</a></li>
+          <li><a href="./#about">About the company</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Developers">
+        <h2>Developers</h2>
+        <ul>
+          <li><a href="develop#docs">App development guide</a></li>
+          <li><a href="develop#api">API reference</a></li>
+          <li><a href="openapi.json" id="dlSpec2">OpenAPI spec</a></li>
+          <li><a href="./#attest">Attestation guide</a></li>
+          <li><a href="develop#api">Error codes</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Trust">
+        <h2>Trust</h2>
+        <ul>
+          <li><a href="develop#contract">The isolation contract</a></li>
+          <li><a href="develop#shield">Enclave Shield</a></li>
+          <li><a href="./#attest">Verify an enclave</a></li>
+          <li><a href="develop#verify">What is measured</a></li>
+          <li><a href="develop#independent">What runs on our servers</a></li>
+          <li><a href="https://github.com/EnclaveHost/enclave" target="_blank" rel="noopener">Source on GitHub</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Contact and legal">
+        <h2>Contact</h2>
+        <ul>
+          <li><a class="foot-mail" href="mailto:support@enclave.host">Support<code>support@enclave.host</code></a></li>
+          <li><a class="foot-mail" href="mailto:security@enclave.host">Security disclosures<code>security@enclave.host</code></a></li>
+          <li><a href=".well-known/security.txt">security.txt</a></li>
+          <li><a href="terms">Terms of Service</a></li>
+          <li><a href="privacy">Privacy Policy</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Enclave Host, Inc. · content-addressed on IPFS · build <span data-build>d8365dd9* · 2026-10-26</span></span>
+      <span>designed to outlive any one operator</span>
+    </div>
+  </div>
+</footer></c-footer>
+<c-toast data-ssr><div id="toast" role="status" aria-live="polite" aria-atomic="true"></div></c-toast>
+</body>
+</html>

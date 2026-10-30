@@ -1,0 +1,42 @@
+[
+  {
+    "host": "us-west",
+    "files": 1132,
+    "priorChanged": 3,
+    "changed": [
+      "host.html",
+      "css/site.css",
+      "js/boot.js"
+    ]
+  },
+  {
+    "host": "ca-east",
+    "files": 1132,
+    "priorChanged": 3,
+    "changed": [
+      "host.html",
+      "css/site.css",
+      "js/boot.js"
+    ]
+  },
+  {
+    "host": "ap-southeast",
+    "files": 1132,
+    "priorChanged": 3,
+    "changed": [
+      "host.html",
+      "css/site.css",
+      "js/boot.js"
+    ]
+  },
+  {
+    "host": "eu-central",
+    "files": 1132,
+    "priorChanged": 3,
+    "changed": [
+      "host.html",
+      "css/site.css",
+      "js/boot.js"
+    ]
+  }
+]

@@ -1,0 +1,8 @@
+ M cli/independent.mjs
+ M mcp/independent-secrets.mjs
+ M mcp/independent.mjs
+ M test/cli-combined-independent.test.mjs
+!! contracts/foundry/cache/
+!! contracts/foundry/out/
+?? node_modules
+?? test/mcp-independent-verifier.test.mjs

@@ -1,0 +1,10 @@
+[queue] START available=22090MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
+PASS E scanner --selftest
+PASS E gitleaks-selftest
+PASS E hook-selftest
+PASS N {"pass": true, "failures": [], "scenarios": {"P0-actual-exact-path": true, "P1-wrong-digest": true, "P2-wrong-path": true, "P3-new-privateKey-entry": true, "P4-real-key-field": true, "P5-extra-content-on-listed-line": true, "P6-changed-setCoinbase-digest": true, "B0-head-actual-exact-path": true}}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/package-digest-scan-stage/runs/run-20261026T143857Z-1905915
+## package-digest-scan rc=0
+[memory-guard] exit=0 peakTreeRssMiB=104 minHostAvailableMiB=21507
+[memory-guard] at peak: gitleaks:62 python3:22 git:5 git-receive-pac:5 bash:4 bash:4 timeout:2
+[queue] EXIT 0

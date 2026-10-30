@@ -1,0 +1,11 @@
+[queue] START available=21774MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/selection-r4/runs/20261026T153051Z-1961691
+## selection-r4 rc=1
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

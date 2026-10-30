@@ -1,0 +1,8 @@
+# CURRENT ignore list (supersedes IGNORED.txt, which is kept unchanged as the record made while the build was ACTIVE)
+browser-authority-stage/r3/work-20261026T001955Z/        private clone(s) of the stopped first unit attempt (git objects, node_modules link)
+browser-authority-stage/r3/work-20261026T002009Z/        private clones regen/, tree-base/, tree/ of the passing unit retry
+browser-authority-stage/r3/build-work-20261026T002047Z/  private build clones incl. both site/dist trees (236 files, 28.5 MB each) and the
+                                                         drifted build outputs site/css/site.css + site/js/gen/contract-artifacts.js: dist,
+                                                         compiled outputs, caches and git objects are NEVER published; only their sha256
+                                                         index (build-smoke.json distIndex) is
+(now PUBLISHED: the build logs directory root-r3-build-20261026T002047Z -> build-0021-pass/run/, and logs/root-browser-r3-build-0021.*)

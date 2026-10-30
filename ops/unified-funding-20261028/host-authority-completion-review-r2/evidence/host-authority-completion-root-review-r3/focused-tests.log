@@ -1,0 +1,148 @@
+TAP version 13
+# Subtest: positive: final read returns unchanged authority and a valid real signature
+ok 1 - positive: final read returns unchanged authority and a valid real signature
+  ---
+  duration_ms: 38.373397
+  type: 'test'
+  ...
+# Subtest: final awaited read: closed must prevent signature release
+ok 2 - final awaited read: closed must prevent signature release
+  ---
+  duration_ms: 21.411863
+  type: 'test'
+  ...
+# Subtest: final awaited read: fenced must prevent signature release
+ok 3 - final awaited read: fenced must prevent signature release
+  ---
+  duration_ms: 15.964384
+  type: 'test'
+  ...
+# Subtest: final awaited read: expired must prevent signature release
+ok 4 - final awaited read: expired must prevent signature release
+  ---
+  duration_ms: 16.496119
+  type: 'test'
+  ...
+# Subtest: final awaited read: app-denied must prevent signature release
+ok 5 - final awaited read: app-denied must prevent signature release
+  ---
+  duration_ms: 14.918763
+  type: 'test'
+  ...
+# Subtest: final awaited read: readiness-extension must prevent signature release
+ok 6 - final awaited read: readiness-extension must prevent signature release
+  ---
+  duration_ms: 45.533332
+  type: 'test'
+  ...
+# Subtest: 1 real v2 permit end to end: collector -> witness quorum -> gate -> runtime producer; positive fresh queued start
+ok 7 - 1 real v2 permit end to end: collector -> witness quorum -> gate -> runtime producer; positive fresh queued start
+  ---
+  duration_ms: 67.334791
+  type: 'test'
+  ...
+# Subtest: 2 same app generation: host gen1 -> Offline -> recovered gen2 (missed) drops tracked resources; old signatures refused; restart keeps the floor
+ok 8 - 2 same app generation: host gen1 -> Offline -> recovered gen2 (missed) drops tracked resources; old signatures refused; restart keeps the floor
+  ---
+  duration_ms: 132.802219
+  type: 'test'
+  ...
+# Subtest: 3 same host generation, legitimate owner revision increase: old grant withdrawn, explicit handoff then serve; lower/conflicting refuse
+ok 9 - 3 same host generation, legitimate owner revision increase: old grant withdrawn, explicit handoff then serve; lower/conflicting refuse
+  ---
+  duration_ms: 96.684531
+  type: 'test'
+  ...
+# Subtest: 4 tampering, omission, downgrade, unsafe uint64 and unqualified/nested-verified evidence never sign or grant
+ok 10 - 4 tampering, omission, downgrade, unsafe uint64 and unqualified/nested-verified evidence never sign or grant
+  ---
+  duration_ms: 9.949409
+  type: 'test'
+  ...
+# Subtest: 7a owner change DURING witness readiness/signing: no signature released, no grant
+ok 11 - 7a owner change DURING witness readiness/signing: no signature released, no grant
+  ---
+  duration_ms: 13.283218
+  type: 'test'
+  ...
+# Subtest: 7b host-wide advance, rollback handoff, latched persistence, malformed/lost sidecar: no grant or binding resurrection
+ok 12 - 7b host-wide advance, rollback handoff, latched persistence, malformed/lost sidecar: no grant or binding resurrection
+  ---
+  duration_ms: 47.499803
+  type: 'test'
+  ...
+# Subtest: 8 v1 default unchanged: no servingPermit pins -> v1 typed data, no host authority, servingContextOf undefined
+ok 13 - 8 v1 default unchanged: no servingPermit pins -> v1 typed data, no host authority, servingContextOf undefined
+  ---
+  duration_ms: 0.720433
+  type: 'test'
+  ...
+# Subtest: C1 same-generation Offline (real signed envelope) cannot be undone by an older Online context, survives reopen; qualified gen2 restores
+ok 14 - C1 same-generation Offline (real signed envelope) cannot be undone by an older Online context, survives reopen; qualified gen2 restores
+  ---
+  duration_ms: 150.24127
+  type: 'test'
+  ...
+# Subtest: C2 two simultaneous app grants: another host's authority/Offline preserves both; THIS host's Offline withdraws both
+ok 15 - C2 two simultaneous app grants: another host's authority/Offline preserves both; THIS host's Offline withdraws both
+  ---
+  duration_ms: 94.286404
+  type: 'test'
+  ...
+# Subtest: C3 witness FINAL asynchronous read: Offline or close during it wins (no obsolete signature, durable Offline); unchanged state still signs
+ok 16 - C3 witness FINAL asynchronous read: Offline or close during it wins (no obsolete signature, durable Offline); unchanged state still signs
+  ---
+  duration_ms: 85.820112
+  type: 'test'
+  ...
+# Subtest: C4 a hold while gate.install awaits verification supersedes it; no grant
+ok 17 - C4 a hold while gate.install awaits verification supersedes it; no grant
+  ---
+  duration_ms: 69.965798
+  type: 'test'
+  ...
+# Subtest: C5 v2 is mandatory for the new profile at direct protocol entry points; v1 runtime refuses new-profile snapshots
+ok 18 - C5 v2 is mandatory for the new profile at direct protocol entry points; v1 runtime refuses new-profile snapshots
+  ---
+  duration_ms: 3.597937
+  type: 'test'
+  ...
+# Subtest: C6 repaired dispatch incarnation sidecar: same-gen Offline persists, lost/malformed refuse, post-rename dir fsync latches, explicit recover, owned coupling
+ok 19 - C6 repaired dispatch incarnation sidecar: same-gen Offline persists, lost/malformed refuse, post-rename dir fsync latches, explicit recover, owned coupling
+  ---
+  duration_ms: 4.192311
+  type: 'test'
+  ...
+# Subtest: C7 gate/witness sidecar: Offline floor survives reopen, marker loss refuses, owned coupling refuses, and the runtime flock excludes a second writer
+ok 20 - C7 gate/witness sidecar: Offline floor survives reopen, marker loss refuses, owned coupling refuses, and the runtime flock excludes a second writer
+  ---
+  duration_ms: 12.586854
+  type: 'test'
+  ...
+# Subtest: ROOT: accepted authority for another host cannot revoke this host grants
+ok 21 - ROOT: accepted authority for another host cannot revoke this host grants
+  ---
+  duration_ms: 43.235362
+  type: 'test'
+  ...
+# Subtest: ROOT: actual adapter verified field must reach the real permit context conversion
+ok 22 - ROOT: actual adapter verified field must reach the real permit context conversion
+  ---
+  duration_ms: 50.592895
+  type: 'test'
+  ...
+# Subtest: ROOT: same-generation Offline denial cannot be undone by an older Online context
+ok 23 - ROOT: same-generation Offline denial cannot be undone by an older Online context
+  ---
+  duration_ms: 63.644905
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 23
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1349.596869

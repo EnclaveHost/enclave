@@ -1,0 +1,54 @@
+diff --git a/test/derived-state-enrollment.test.mjs b/test/derived-state-enrollment.test.mjs
+index 8f7cd77..0646c84 100644
+--- a/test/derived-state-enrollment.test.mjs
++++ b/test/derived-state-enrollment.test.mjs
+@@ -439,7 +439,9 @@ test("M3: a rejecting replica commit is a plain failure: the child's commit is O
+   await waitFor("derived up", async () => (await relay(l, "GET", "/env"))?.descriptor);
+   let unhandled = 0; const onU = () => { unhandled++; }; process.on("unhandledRejection", onU);
+   const node = l.role.node(), real = node.commit;
+-  node.commit = () => Promise.reject(new Error("injected replica failure"));
++  // ONLY the calls under test reject (the role's derived commit and barrier: commit() without heartbeat); the replica's own
++  // heartbeat / fresh-scan rounds keep the real commit, so the lease is not lost by the injection (root 1457: r7 lost it)
++  node.commit = (o) => (o && o.heartbeat ? real.call(node, o) : Promise.reject(new Error("injected replica failure")));
+   try {
+     const r = await relay(l, "POST", "/commit", { file: BR, text: JSON.stringify({ m3: 1 }) });
+     assert.equal(r.code, "derived_commit_outcome_unknown", JSON.stringify(r));
+@@ -448,21 +450,29 @@ test("M3: a rejecting replica commit is a plain failure: the child's commit is O
+   } finally { node.commit = real; }
+   await sleep(200); process.off("unhandledRejection", onU);
+   assert.equal(unhandled, 0);
+-  await waitFor("a primary with its relay", () => leader());
++  assert.equal(l.role.status().role, "leader", "the injection did not cost the lease");
++  // the outcome-unknown commit FENCED this child's committer (by design, for its whole life): leave a fresh child behind
++  await restartChild(l);
++  assert.equal(await relay(await live(), "GET", "/status"), null, "the new child's committer starts unfenced");
+ });
+ 
+ test("stop with a commit IN FLIGHT (review item 7): the commit completes under the role lock, the reply to the dead child is harmless, the restart's seed carries exactly the committed bytes", { timeout: 90000 }, async () => {
+-  const l = await live();
++  // self-contained: a fresh child (an earlier outcome-unknown commit fences a committer for its life)
++  let l = await live(); await restartChild(l); l = await live();
+   await waitFor("derived up", async () => (await relay(l, "GET", "/env"))?.descriptor);
++  const st0 = await relay(l, "GET", "/status");
++  assert.ok(st0 === null || st0.fenced === null, `precondition: an unfenced committer (${JSON.stringify(st0)})`);
+   const T = JSON.stringify({ inflight: Date.now() });
+   await sleep(1200);                                                             // past the crash guard's stable window
+-  NET.delayMs = 400;                                                             // the majority round now takes > 800 ms
+-  const pending = relay(l, "POST", "/commit", { file: BR, text: T }).catch((e) => ({ transport: e.message }));
+-  // exactly IN FLIGHT: the role has written the bytes (under its lock) and awaits the delayed majority round
+-  await waitFor("written, awaiting the majority", () => { try { return fs.readFileSync(path.join(l.roleCfg.dirs.data, DS.STATE_DIR, BR), "utf8") === T; } catch { return false; } }, 5000);
+-  const old = childPid(l); process.kill(old, "SIGKILL");
+-  const r = await pending;
+-  NET.delayMs = 0;
++  let r, old;
++  try {
++    NET.delayMs = 400;                                                           // the majority round now takes > 800 ms
++    const pending = relay(l, "POST", "/commit", { file: BR, text: T }).catch((e) => ({ transport: e.message }));
++    // exactly IN FLIGHT: the role has written the bytes (under its lock) and awaits the delayed majority round
++    await waitFor("written, awaiting the majority", () => { try { return fs.readFileSync(path.join(l.roleCfg.dirs.data, DS.STATE_DIR, BR), "utf8") === T; } catch { return false; } }, 5000);
++    old = childPid(l); process.kill(old, "SIGKILL");
++    r = await pending;
++  } finally { NET.delayMs = 0; }
+   assert.notEqual(r?.ok, true, "the killed child never reported an acknowledgement");
+   const e = await waitFor("the restarted child with derived", async () => { const x = await live(); if (childPid(x) === old) return null; const y = await relay(x, "GET", "/env"); return y?.descriptor ? y : null; });
+   assert.equal(e.seeded[BR], sha(T), "the in-flight commit completed and the next seed (queued behind it on the lock) carries it");

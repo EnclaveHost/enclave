@@ -1,0 +1,213 @@
+[queue] NOT STARTED: small allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: available=19521MiB required=20992MiB cap=256MiB
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: available=19580MiB required=20992MiB cap=256MiB
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: available=19707MiB required=20992MiB cap=256MiB
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 9 not started; sleep 30
+[queue] NOT STARTED: available=19807MiB required=20992MiB cap=256MiB
+[q.sh] try 10 not started; sleep 30
+[queue] NOT STARTED: available=20495MiB required=20992MiB cap=256MiB
+[q.sh] try 11 not started; sleep 30
+[queue] NOT STARTED: available=20485MiB required=20992MiB cap=256MiB
+[q.sh] try 12 not started; sleep 30
+[queue] START available=20749MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+d94dd37d5b1388af8e2c06fb4414472e56926fae110307da24968e4cb970373b  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/network/wg-provider/attested-authority.mjs
+8b3d065463d8b2879ac813785b644434f812272e95dec2fdf8d85e5b58b8e9cc  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/attested-provider-collateral.test.mjs
+eab07f86acc54f5411fb2e9148b155d0ccc7e12bc608453c8f73b9869181f7b6  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/verifier/collateral-cache.mjs
+c2be31edf2d6a2154f5e220c5cc1bcaa16a7f9e06065fd1290e06387e55a057f  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/verifier/collateral.mjs
+fec9145e5a108a6336b1b34149cb5f2e9d4402987b18bfdfac75eeb6d22f661d  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/network/attested-verifier-client.mjs
+ee1ce2534a5dd5095874caab9439e47e857b620decf3f00aff61ba6b7dc1fb15  orig/attested-authority.mjs
+=== focused collateral test + existing attested route composition, paid provider, collateral cache
+TAP version 13
+# Subtest: config: ONE explicit authority; a paid attested provider needs a valid own backend; the quorum is unchanged; the packaged provider reports it
+ok 1 - config: ONE explicit authority; a paid attested provider needs a valid own backend; the quorum is unchanged; the packaged provider reports it
+  ---
+  duration_ms: 1292.863552
+  type: 'test'
+  ...
+# Subtest: R2 backend answers are checked STRICTLY: exactly this id, JSON-RPC 2.0, exactly one of result or a well-formed error; anything else is no answer
+ok 2 - R2 backend answers are checked STRICTLY: exactly this id, JSON-RPC 2.0, exactly one of result or a well-formed error; anything else is no answer
+  ---
+  duration_ms: 46.082577
+  type: 'test'
+  ...
+# Subtest: attested QUALIFICATION + PRICE flow on the real contracts: reads, simulation, nonce and receipts from the attested verifier; the own backend only submits
+ok 3 - attested QUALIFICATION + PRICE flow on the real contracts: reads, simulation, nonce and receipts from the attested verifier; the own backend only submits
+  ---
+  duration_ms: 30216.685983
+  type: 'test'
+  ...
+# Subtest: PRE-SIGN gates: a refused, unavailable, unbound, behind or wrong-chain backend, a stale or down verifier, a foreign pending nonce, a revert (incl. the registry ban), caps and funds sign NOTHING
+ok 4 - PRE-SIGN gates: a refused, unavailable, unbound, behind or wrong-chain backend, a stale or down verifier, a foreign pending nonce, a revert (incl. the registry ban), caps and funds sign NOTHING
+  ---
+  duration_ms: 8994.346385
+  type: 'test'
+  ...
+# Subtest: LOST broadcast reply and RESTART: the same signed bytes are re-broadcast, never re-signed; a returned hash or a pool entry is not a receipt
+ok 5 - LOST broadcast reply and RESTART: the same signed bytes are re-broadcast, never re-signed; a returned hash or a pool entry is not a receipt
+  ---
+  duration_ms: 3898.797644
+  type: 'test'
+  ...
+# Subtest: R1 a backend REFUSAL is not proof that nothing is pending: forwarded-then-refused bytes stay recorded and are retried identically after restart; R2 malformed broadcast answers are unknown
+ok 6 - R1 a backend REFUSAL is not proof that nothing is pending: forwarded-then-refused bytes stay recorded and are retried identically after restart; R2 malformed broadcast answers are unknown
+  ---
+  duration_ms: 525.901739
+  type: 'test'
+  ...
+# Subtest: CHANGED NONCE: another transaction of the operator key consumes the recorded nonce - resolved from the verifier as "not landed", never as success
+ok 7 - CHANGED NONCE: another transaction of the operator key consumes the recorded nonce - resolved from the verifier as "not landed", never as success
+  ---
+  duration_ms: 1692.217972
+  type: 'test'
+  ...
+# Subtest: RESTART state: an invalid, foreign or non-regular send record REFUSES every send (never cleared or overwritten); a record that cannot be written is never broadcast
+ok 8 - RESTART state: an invalid, foreign or non-regular send record REFUSES every send (never cleared or overwritten); a record that cannot be written is never broadcast
+  ---
+  duration_ms: 189.911923
+  type: 'test'
+  ...
+# Subtest: EXISTING paid-provider behaviour (the quorum branch's plain viem wallet and client over one node, unchanged): setHost, qualify, no resend
+ok 9 - EXISTING paid-provider behaviour (the quorum branch's plain viem wallet and client over one node, unchanged): setHost, qualify, no resend
+  ---
+  duration_ms: 8028.485859
+  type: 'test'
+  ...
+# Subtest: a VERIFIED REVERTED receipt: a qualify that passed the verified simulation reverts on inclusion - the caller sees the revert, the record resolves
+ok 10 - a VERIFIED REVERTED receipt: a qualify that passed the verified simulation reverts on inclusion - the caller sees the revert, the record resolves
+  ---
+  duration_ms: 324.721293
+  type: 'test'
+  ...
+# Subtest: ZERO public calls: every connection this file made went to loopback (the attested route, the own backend proxy, the test node)
+ok 11 - ZERO public calls: every connection this file made went to loopback (the attested route, the own backend proxy, the test node)
+  ---
+  duration_ms: 0.304989
+  type: 'test'
+  ...
+# Subtest: the DEFECT, reproduced on the old composition: layered(pre-seed, KDS) serves the expired seed CRL first and KDS is never asked
+ok 12 - the DEFECT, reproduced on the old composition: layered(pre-seed, KDS) serves the expired seed CRL first and KDS is never asked
+  ---
+  duration_ms: 2.735143
+  type: 'test'
+  ...
+# Subtest: stale pre-seed + fresh KDS: the provider fetches the fresh CRL, verifies, and caches only what it authenticated
+not ok 13 - stale pre-seed + fresh KDS: the provider fetches the fresh CRL, verifies, and caches only what it authenticated
+  ---
+  duration_ms: 6.294782
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/attested-provider-collateral.test.mjs:64:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the chain comes from the reviewed pre-seed, never KDS
+    + actual - expected
+    
+    + 'cache:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/provider-collateral-FhnqD2/case-2/cache/Genoa/chain.pem'
+    - 'file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/provider-collateral-FhnqD2/case-2/seed/amd/Genoa-cert_chain.pem'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/provider-collateral-FhnqD2/case-2/seed/amd/Genoa-cert_chain.pem'
+  actual: 'cache:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/collateral-rollout-stage/tmp/provider-collateral-FhnqD2/case-2/cache/Genoa/chain.pem'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/attested-provider-collateral.test.mjs:69:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: fresh, warm, offline and restart: a warm cache verifies with KDS down and no network, also from a NEW instance (restart)
+ok 14 - fresh, warm, offline and restart: a warm cache verifies with KDS down and no network, also from a NEW instance (restart)
+  ---
+  duration_ms: 12.917982
+  type: 'test'
+  ...
+# Subtest: stale + KDS outage: rejected (CRL required), never accepted; no CRL anywhere: rejected
+ok 15 - stale + KDS outage: rejected (CRL required), never accepted; no CRL anywhere: rejected
+  ---
+  duration_ms: 8.819676
+  type: 'test'
+  ...
+# Subtest: restoration without restart: KDS back, or (no network) the operator replaces the seed CRL; the same instance verifies again
+ok 16 - restoration without restart: KDS back, or (no network) the operator replaces the seed CRL; the same instance verifies again
+  ---
+  duration_ms: 14.258633
+  type: 'test'
+  ...
+# Subtest: forged and revoked collateral are refused: a CRL under another ARK, a forged pre-seeded chain, another chip's VCEK, an authentic CRL revoking the ASK
+not ok 17 - forged and revoked collateral are refused: a CRL under another ARK, a forged pre-seeded chain, another chip's VCEK, an authentic CRL revoking the ASK
+  ---
+  duration_ms: 3.801127
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/attested-provider-collateral.test.mjs:110:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'verified'
+    - 'rejected'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'rejected'
+  actual: 'verified'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/attested-provider-collateral.test.mjs:114:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: configuration: legacy { dir } unchanged; { dir, kds: true } refused with the migration; cacheDir absolute and separate; nothing names a root
+ok 18 - configuration: legacy { dir } unchanged; { dir, kds: true } refused with the migration; cacheDir absolute and separate; nothing names a root
+  ---
+  duration_ms: 1.232373
+  type: 'test'
+  ...
+# Subtest: the provider authority is ONE explicit choice: the quorum is unchanged; mixed, paid, root-naming and policy-RPC configs refuse
+ok 19 - the provider authority is ONE explicit choice: the quorum is unchanged; mixed, paid, root-naming and policy-RPC configs refuse
+  ---
+  duration_ms: 22.368704
+  type: 'test'
+  ...
+# Subtest: host-services ADMISSION through the attested verifier, every public provider down: admit, ban, unban, owner rotation, rollback; outage never falls back
+ok 20 - host-services ADMISSION through the attested verifier, every public provider down: admit, ban, unban, owner rotation, rollback; outage never falls back
+  ---
+  duration_ms: 1226.590536
+  type: 'test'
+  ...
+# [parity] [["admit",[true,true]],["ban",[false,false]],["unban",[true,true]],["previous-owner-doc",[false,false]],["current-owner-ban",[false,false]],["current-owner-unban",[true,true]],["rollback-anchor",[false,false]],["re-anchor",[true,true]]]
+# Subtest: PARITY: the legacy QUORUM runtime and the attested runtime give the same decision at every step of one policy history
+ok 21 - PARITY: the legacy QUORUM runtime and the attested runtime give the same decision at every step of one policy history
+  ---
+  duration_ms: 1553.529573
+  type: 'test'
+  ...
+# Subtest: registry/app/OWNER reads: the provider's reader (built as main.mjs builds it) verifies ERC-1271 and SessionVault owners through the attested verifier
+ok 22 - registry/app/OWNER reads: the provider's reader (built as main.mjs builds it) verifies ERC-1271 and SessionVault owners through the attested verifier
+  ---
+  duration_ms: 12319.471259
+  type: 'test'
+  ...
+# Subtest: collateral PRE-SEED: the provider's file collateral attests fully; an EXPIRED pre-seeded CRL refuses (fail closed)
+ok 23 - collateral PRE-SEED: the provider's file collateral attests fully; an EXPIRED pre-seeded CRL refuses (fail closed)
+  ---
+  duration_ms: 31.01115
+  type: 'test'
+  ...
+
+[memory-guard] STOPPING own job: process tree RSS 405 MiB > 256 MiB
+[memory-guard] exit=SIGTERM peakTreeRssMiB=405 minHostAvailableMiB=20631 STOPPED: process tree RSS 405 MiB > 256 MiB
+[memory-guard] at peak: node:118 esbuild:117 node:72 node:64 anvil:25 jobs.sh:4 timeout:2 jobs.sh:2
+[queue] EXIT 99

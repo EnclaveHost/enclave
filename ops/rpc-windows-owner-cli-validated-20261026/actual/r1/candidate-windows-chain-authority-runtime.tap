@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: chain.mjs, verifier + own backend: reads -> verifier, pending nonce + one submission -> backend, no public request
+ok 1 - chain.mjs, verifier + own backend: reads -> verifier, pending nonce + one submission -> backend, no public request
+  ---
+  duration_ms: 533.113459
+  type: 'test'
+  ...
+# Subtest: chain.mjs refusals: verifier down, no backend, invalid selections - nothing sent, no public fallback; legacy unchanged
+ok 2 - chain.mjs refusals: verifier down, no backend, invalid selections - nothing sent, no public fallback; legacy unchanged
+  ---
+  duration_ms: 1984.157788
+  type: 'test'
+  ...
+# Subtest: shielded startup reader: the same reader contract through the ONE verifier, no public request; policy kept
+ok 3 - shielded startup reader: the same reader contract through the ONE verifier, no public request; policy kept
+  ---
+  duration_ms: 290.996783
+  type: 'test'
+  ...
+# Subtest: shielded startup reader refuses a reorg during the read, a stale block, and a down verifier - with no fallback
+ok 4 - shielded startup reader refuses a reorg during the read, a stale block, and a down verifier - with no fallback
+  ---
+  duration_ms: 847.752615
+  type: 'test'
+  ...
+# Subtest: privacy agent chain: production-shaped enrollment (trusted checkers) -> {addressBook, authority, verifier}; the agent's REAL LeaseReader completes a verified read at head - 2
+ok 5 - privacy agent chain: production-shaped enrollment (trusted checkers) -> {addressBook, authority, verifier}; the agent's REAL LeaseReader completes a verified read at head - 2
+  ---
+  duration_ms: 270.374749
+  type: 'test'
+  ...
+# Subtest: wallet host admission: the repository's REAL contract pins, rpc [] under the verifier builds; legacy rpc [] and a bad pins document refuse with their exact errors
+ok 6 - wallet host admission: the repository's REAL contract pins, rpc [] under the verifier builds; legacy rpc [] and a bad pins document refuse with their exact errors
+  ---
+  duration_ms: 648.631833
+  type: 'test'
+  ...
+# Subtest: owner-signature reader: pinned -> quorum reader (unchanged); explicit verifier -> that verifier; legacy -> clients path
+ok 7 - owner-signature reader: pinned -> quorum reader (unchanged); explicit verifier -> that verifier; legacy -> clients path
+  ---
+  duration_ms: 2.767105
+  type: 'test'
+  ...
+# Subtest: contract-wallet owners under the verifier: the verified read succeeds at head - 2, then ERC-1271 and SessionVault verify; no public request
+ok 8 - contract-wallet owners under the verifier: the verified read succeeds at head - 2, then ERC-1271 and SessionVault verify; no public request
+  ---
+  duration_ms: 62.386704
+  type: 'test'
+  ...
+# Subtest: contract-wallet refusals with their exact causes: head-only answers (the r3 cause), stale, wrong chain, refused signature, verifier down - never a public fallback
+ok 9 - contract-wallet refusals with their exact causes: head-only answers (the r3 cause), stale, wrong chain, refused signature, verifier down - never a public fallback
+  ---
+  duration_ms: 53.434878
+  type: 'test'
+  ...
+# Subtest: paid settlement under the verifier: reads/receipts -> verifier, the gated submission -> own backend (bound first), backend acceptance is never success
+ok 10 - paid settlement under the verifier: reads/receipts -> verifier, the gated submission -> own backend (bound first), backend acceptance is never success
+  ---
+  duration_ms: 4066.167219
+  type: 'test'
+  ...
+# Subtest: paid settlement refusals: a backend on another chain sends nothing; RPC under the verifier, no backend, a txBackend in legacy mode, a non-HTTPS legacy RPC all refuse
+ok 11 - paid settlement refusals: a backend on another chain sends nothing; RPC under the verifier, no backend, a txBackend in legacy mode, a non-HTTPS legacy RPC all refuse
+  ---
+  duration_ms: 7.974294
+  type: 'test'
+  ...
+# Subtest: enrollment of paid settlement: legacy keeps its RPC; the explicit authority gets the own backend and NO rpc; no backend -> paid not configured
+ok 12 - enrollment of paid settlement: legacy keeps its RPC; the explicit authority gets the own backend and NO rpc; no backend -> paid not configured
+  ---
+  duration_ms: 28.982571
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 17517.610336

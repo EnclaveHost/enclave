@@ -1,0 +1,17 @@
+cf5e290a77ad618df6122766edb49cf1c534300700f65c6d4387b0c9cde8044a  ./INTEGRATION.md
+e0b1e1eca709c8262b2b1e41bca7890945165fd0d2aef354347dcb9ff95d7421  ./README.md
+caf898f97b1cbff94dd5dda2e8830cf496fc8f1fb54048348e88bb3d3e21d8cf  ./canary/COMPOSED-STAGE-PINS.json
+14cb58184f6ad946353083cec3931e9eb61f214eab021d373458f9600fc8e7ae  ./canary/guest/canary.sh
+ae6a897a1dd9effb0cec8b8f00913b957e34821e24ef3749f9d07b40272a06b9  ./canary/guest/canary_driver.py
+34fd446e9a2f26b70e393223021d8bf5dcf56e87e92f5baeb34ec5a2fd832dbc  ./canary/guest/cleanup.sh
+e34fe8af4402307879e7fb538f4661d24cfa36c4905f86cbd133b487ed66cde8  ./canary/jobs/root-cold-proof-canary.sh
+61ba3daf39768232572f34cf9266723ab04cc3264c3dd565c60f841d795c3dae  ./canary/tools/assemble_canary_bundle.py
+7dd7aa0d626a20fa7a3e09c03503e03a316fc6982899cf58d5a44839115eeb29  ./integration/a1-read.mjs.patch
+6380738bbfed53d3e7583f654548285a4882432283fbfc390ad0244095ffa4c6  ./integration/a1-recheck-read.mjs.patch
+0dca22a68435e0726d04c44609b2187805ae5936a4ddd2f8214354689f227bd2  ./integration/r2-to-r3.diff
+4d07a5d85d642163fa4e0b0d2a34dd95d601801292d168897bee90090885ba29  ./jobs/root-cold-proof-tests.sh
+da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85  ./src/a1-original-game-prepared/a1-read.mjs
+78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825  ./src/a1-original-game-prepared/a1-recheck-read.mjs
+da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85  ./src/l1-anchor-a1/a1-read.mjs
+d869de4fdfb0dbc1df02809183f1b58dee16e31ef27c6b89ef0945330f74310c  ./tests/test_cold_proof_transport.mjs
+507480f044e7d1dac3cb4c4004cd54bf4332716124619f51494d48bcb54751db  ./tools/cascade_plan.py

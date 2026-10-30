@@ -1,0 +1,215 @@
+--- r4/test/fixtures/LifecycleR4Doubles.sol	2026-10-26 07:23:53.689675740 -0700
++++ r5/test/fixtures/LifecycleR5Doubles.sol	2026-10-26 07:37:15.057483857 -0700
+@@ -1,5 +1,5 @@
+ // SPDX-License-Identifier: UNLICENSED
+-// TEST DOUBLES ONLY (lifecycle-chain-adapter-stage r4). The LEDGER, CONTROLLER and IDENTITY in the r4 suites are the REAL candidate
++// TEST DOUBLES ONLY (lifecycle-chain-adapter-stage r5; r4 doubles corrected to the ACTUAL ABIs, proven by test/deployment-chain-adapter-r5-abi.test.mjs). The LEDGER, CONTROLLER and IDENTITY in the r4 suites are the REAL candidate
+ // artifacts (deploy/lifecycle/artifacts/*.json); these doubles reproduce only external surfaces around them:
+ //   - registry / catalog / address book / L1 oracle views (34a3c0d6 shapes, as the r2 doubles),
+ //   - a 6-decimals USDC (approve/transfer/transferFrom) for the real ledger's fund(),
+@@ -9,7 +9,7 @@
+ pragma solidity 0.8.35;
+ struct Enclave {
+     string endpoint; string repo; bytes32 measurement; address operator; uint64 registeredAt; uint64 lastSeen; bool active;
+-    uint64 cpuPricePerSec6; uint64 gpuPricePerSec6; address proofKey; address payoutWallet;
++    uint64 cpuPricePerSec6; uint64 gpuPricePerSec6; address proofKey; address payoutWallet; uint64 caps; string region;   // 34a3 EnclaveRegistry ABI: 13 fields
+ }
+ struct App { bytes32 appId; address publisher; string slug; string name; string description; uint32 versionCount; uint64 createdAt; uint64 updatedAt; bool active; }
+ struct Version { string cid; string version; uint32 vramMb; uint32 gpuGflops; uint32 memMb; uint32 cpuGflops; uint64 createdAt; bool verified; bool yanked; string ports; uint8 approval; string config; }
+@@ -75,10 +75,15 @@
+     constructor(address k, address r, address u) { keyAttestations = k; router = r; usdc = u; }
+     function init(address b, address f) external { require(factory == address(0)); book = b; factory = f; }
+ }
+-contract R4Vault { address public owner; constructor(address o) { owner = o; } }
++contract R4Vault {
++    address public owner; constructor(address o) { owner = o; }
++    function exec(address t, bytes calldata d) external returns (bytes memory r) { require(msg.sender == owner); bool ok; (ok, r) = t.call(d); require(ok); }
++}
+ contract R4VaultFactory {
+-    address[3] public authorityPins; address public immutable implementation;
++    address internal immutable pinLedger; address internal immutable pinCatalog; address internal immutable pinAuthority; address public immutable implementation;
+     mapping(address => bool) public isVault; mapping(address => address) public vaultFor;
+-    constructor(address[3] memory p, address impl) { authorityPins = p; implementation = impl; }
++    constructor(address[3] memory p, address impl) { pinLedger = p[0]; pinCatalog = p[1]; pinAuthority = p[2]; implementation = impl; }
++    // dependencies-r1 PinnedSessionVaultFactory: authorityPins() returns (address ledger, address catalog, address authority)
++    function authorityPins() external view returns (address ledger, address catalog, address authority) { return (pinLedger, pinCatalog, pinAuthority); }
+     function make(address o) external returns (address v) { v = address(new R4Vault(o)); isVault[v] = true; vaultFor[o] = v; }
+ }
+--- r4/test/fixtures/r4-world.mjs	2026-10-26 07:25:38.293688687 -0700
++++ r5/test/fixtures/r5-world.mjs	2026-10-26 07:39:02.409253408 -0700
+@@ -1,4 +1,4 @@
+-// r4 shared test world: the REAL candidate ledger (deploy/lifecycle/artifacts/EnclaveDeployments.json), controller and identity on a
++// r5 shared test world (r4 world with ACTUAL-ABI doubles; optional SessionVault-owned deployment): the REAL candidate ledger (deploy/lifecycle/artifacts/EnclaveDeployments.json), controller and identity on a
+ // loopback anvil (chain-id 8453, prague), wired to the LifecycleR4Doubles.sol surfaces. TEST DOUBLES (labelled): `testAuthority`
+ // (labels ONE uncached anvil block as the authority's block), `anvilReceipts` (the untrusted location/header/block source) and the
+ // host-policy document store. Nothing here is evidence; the adapter checks everything it is given.
+@@ -9,7 +9,7 @@
+ import os from 'node:os';
+ import path from 'node:path';
+ import solc from 'solc';
+-import { createPublicClient, createWalletClient, encodeDeployData, encodeEventTopics, encodeFunctionData, getAddress, http, keccak256,
++import { createPublicClient, createWalletClient, decodeFunctionResult, encodeDeployData, encodeEventTopics, encodeFunctionData, getAddress, http, keccak256,
+   parseEther, toBytes } from 'viem';
+ import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+ import { createLifecycleChainAdapter } from '../../network/deployment-chain-adapter.mjs';
+@@ -38,7 +38,7 @@
+     S.pub = createPublicClient({ cacheTime: 0, transport: http(url, { retryCount: 0 }) }); S.wallet = createWalletClient({ transport: http(url, { retryCount: 0 }) });
+     for (let i = 0; ; ++i) { try { if (await S.pub.getChainId() === 8453) break; } catch { if (i > 100) throw Error('anvil did not start'); } await new Promise(r => setTimeout(r, 100)); }
+     const out = JSON.parse(solc.compile(JSON.stringify({ language: 'Solidity',
+-      sources: { 'D.sol': { content: fs.readFileSync(new URL('./LifecycleR4Doubles.sol', import.meta.url), 'utf8') } },
++      sources: { 'D.sol': { content: fs.readFileSync(new URL('./LifecycleR5Doubles.sol', import.meta.url), 'utf8') } },
+       settings: { evmVersion: 'prague', outputSelection: { '*': { '*': ['abi', 'evm.bytecode'] } } } })));
+     if (out.errors?.some(e => e.severity === 'error')) throw Error(JSON.stringify(out.errors));
+     S.K = out.contracts['D.sol'];
+@@ -81,9 +81,11 @@
+ }
+ 
+ // opts: payout 'owner' (self-hosted, rate 0) | 'vault' (owner's SessionVault: sameOwner, rate 0) | 'other' (paid at PAID6/s);
+-//       isPublic, approval, appVersion (string, e.g. '0' or '007'), fund6 (USDC funded right after create, while d.rate is the cap)
++//       isPublic, approval, appVersion (string, e.g. '0' or '007'), fund6 (USDC funded right after create, while d.rate is the cap),
++//       ownedBy 'eoa' (the human creates) | 'vault' (the human's SessionVault creates: ledger owner = vault, owner authority = human)
+ export async function world(opts = {}) {
+-  const o = { payout: 'owner', isPublic: false, approval: 1, appVersion: '0', fund6: 0n, ...opts }, K = S.K;
++  const o = { payout: 'owner', isPublic: false, approval: 1, appVersion: '0', fund6: 0n, ownedBy: 'eoa', staleDep: null, deposit: true, ...opts }, K = S.K;
++  // staleDep: one primary dependency deliberately bound to the LEGACY ledger (the pins still say THIS ledger) -> must refuse at runtime
+   const [admin, human, operator, relay, other, ...ws] = await Promise.all([account(), account(), account(), account(), account(), account(), account(), account()]);
+   const witnesses = ws.sort((a, b) => (BigInt(a.address) < BigInt(b.address) ? -1 : 1));
+   const ext = { keyAttestations: (await account()).address, router: (await account()).address, enclaveOwner: (await account()).address };
+@@ -93,23 +95,24 @@
+   const ledger = await deployRaw(admin, LEDGER.abi, LEDGER.bytecode, [usdc, admin.address, registry, ZERO], 25_000_000n);
+   const lifecycle = await deployRaw(admin, LIFECYCLE.abi, LIFECYCLE.bytecode, [ledger, l1Oracle]);
+   const impl = await dep(admin, 'R4SessionVaultImplementation', [ext.keyAttestations, ext.router, usdc]);
+-  const psa = await dep(admin, 'R4PinnedSessionAuthority', [catalog, ledger]);
++  const L = k => (o.staleDep === k ? legacyLedger : ledger);
++  const psa = await dep(admin, 'R4PinnedSessionAuthority', [catalog, L('pinnedSessionAuthority')]);
+   const factory = await dep(admin, 'R4VaultFactory', [[legacyLedger, catalog, psa], impl]);
+   await tx(admin, psa, K.R4PinnedSessionAuthority.abi, 'init', [factory]);
+   await tx(admin, impl, K.R4SessionVaultImplementation.abi, 'init', [psa, factory]);
+   const identity = await deployRaw(admin, IDENTITY.abi, IDENTITY.bytecode, [[{ factory, codeHash: await codeHash(factory) }]]);
+   await tx(admin, ledger, LEDGER.abi, 'bindLifecycle', [lifecycle, identity]);
+-  const proofOfTime = await dep(admin, 'R4ProofOfTime', [ledger, registry, admin.address]);
++  const proofOfTime = await dep(admin, 'R4ProofOfTime', [L('proofOfTime'), registry, admin.address]);
+   const contracts = { lifecycle, ledger, identity, registry, l1Oracle, catalog, addressBook, hostOwnership, usdc, legacyLedger,
+-    connectivity: await dep(admin, 'R4Connectivity', [ledger, registry]), pinnedSessionAuthority: psa, proofOfTime,
+-    secretVaultV2: await dep(admin, 'R4SecretVaultV2', [psa, ledger, ext.enclaveOwner, hostOwnership, registry, factory]),
+-    sessionVaultFactory: factory, sessionVaultImplementation: impl, verificationFees: await dep(admin, 'R4VerificationFees', [ledger, proofOfTime, usdc]) };
++    connectivity: await dep(admin, 'R4Connectivity', [L('connectivity'), registry]), pinnedSessionAuthority: psa, proofOfTime,
++    secretVaultV2: await dep(admin, 'R4SecretVaultV2', [psa, L('secretVaultV2'), ext.enclaveOwner, hostOwnership, registry, factory]),
++    sessionVaultFactory: factory, sessionVaultImplementation: impl, verificationFees: await dep(admin, 'R4VerificationFees', [L('verificationFees'), proofOfTime, usdc]) };
+   for (const [k, a] of Object.entries(contracts)) if (k !== 'addressBook') await tx(admin, addressBook, K.TestAddressBook.abi, 'put', [keccak256(toBytes(k)), a]);
+   await tx(admin, factory, K.R4VaultFactory.abi, 'make', [human.address]);
+   const vault = getAddress(await read(factory, K.R4VaultFactory.abi, 'vaultFor', [human.address]));
+   const payoutOf = p => (p === 'owner' ? human.address : p === 'vault' ? vault : other.address);
+   const enclave = e => ({ endpoint: 'https://h', repo: 'r', measurement: MEAS, operator: operator.address, registeredAt: 1n, lastSeen: 1n, active: true,
+-    cpuPricePerSec6: PAID6, gpuPricePerSec6: 0n, proofKey: operator.address, payoutWallet: payoutOf(o.payout), ...e });
++    cpuPricePerSec6: PAID6, gpuPricePerSec6: 0n, proofKey: operator.address, payoutWallet: payoutOf(o.payout), caps: 0n, region: 'test', ...e });
+   await tx(admin, registry, K.TestRegistry.abi, 'set', [HOST, enclave({})]);
+   await tx(admin, hostOwnership, K.TestHostOwnership.abi, 'set', [HOST, operator.address, 1n, ZERO32]);   // host owner: no policy (allow)
+   const appId = keccak256(toBytes(`app-${idn}`)), app = a => ({ appId, publisher: admin.address, slug: 's', name: 'n', description: 'd', versionCount: 1, createdAt: 1n, updatedAt: 1n, active: true, ...a });
+@@ -118,12 +121,21 @@
+   // the deployment: created by the owner on the REAL ledger (working rate = the cap until a start prices it)
+   const appRef = `catalog://${appId}/${o.appVersion}`;
+   const createArgs = [appRef, 0, 1000, 8080, '', o.isPublic, '', ZERO, 0n, CAP6];
+-  const { result: id } = await S.pub.simulateContract({ account: human, address: ledger, abi: LEDGER.abi, functionName: 'create', args: createArgs });
+-  await tx(human, ledger, LEDGER.abi, 'create', createArgs); idn++;
++  let id;
++  if (o.ownedBy === 'vault') {                                                    // the SessionVault is the ledger owner (exec by its owner)
++    const data = encodeFunctionData({ abi: LEDGER.abi, functionName: 'create', args: createArgs });
++    const { result } = await S.pub.simulateContract({ account: human, address: vault, abi: K.R4Vault.abi, functionName: 'exec', args: [ledger, data] });
++    id = decodeFunctionResult({ abi: LEDGER.abi, functionName: 'create', data: result });
++    await tx(human, vault, K.R4Vault.abi, 'exec', [ledger, data]);
++  } else {
++    ({ result: id } = await S.pub.simulateContract({ account: human, address: ledger, abi: LEDGER.abi, functionName: 'create', args: createArgs }));
++    await tx(human, ledger, LEDGER.abi, 'create', createArgs);
++  }
++  idn++;
+   if (o.fund6 > 0n) { await tx(admin, usdc, K.TestUSDC.abi, 'mint', [human.address, o.fund6]); await tx(human, usdc, K.TestUSDC.abi, 'approve', [ledger, o.fund6]);
+     await tx(human, ledger, LEDGER.abi, 'fund', [id, o.fund6]); }
+   const configureTx = await tx(human, lifecycle, LIFECYCLE.abi, 'configure', [id, witnesses.map(w => w.address), 3, MAX_T, RESERVE, MAX_GAS]);
+-  await tx(human, lifecycle, LIFECYCLE.abi, 'deposit', [id], parseEther('1'));
++  if (o.deposit) await tx(human, lifecycle, LIFECYCLE.abi, 'deposit', [id], parseEther('1'));
+   const w = { admin, human, operator, relay, other, witnesses, vault, ext, id, appId, appRef, app, ver, enclave, payoutOf, contracts, configureTx,
+     sent: [], mined: [], hooks: {}, policyDocs: new Map(), auth: { pin: null, tier: 'l1-finalized-derived', proof: true } };
+   w.receipts = anvilReceipts(w.hooks);
+@@ -134,7 +146,7 @@
+     proofOfTime: B('proofOfTime', { deployments: 'ledger', owner: 'admin:proofOfTimeOwner', pendingOwner: 'admin:proofOfTimePendingOwner', registry: 'registry' }),
+     secretVaultV2: B('secretVaultV2', { book: 'pinnedSessionAuthority', deploymentLedger: 'ledger', enclaveOwner: 'external:enclaveOwner',
+       hostOwnership: 'hostOwnership', hostRegistry: 'registry', sessionVaultFactory: 'sessionVaultFactory' }),
+-    sessionVaultFactory: B('sessionVaultFactory', { 'authorityPins[0]': 'legacyLedger', 'authorityPins[1]': 'catalog', 'authorityPins[2]': 'pinnedSessionAuthority',
++    sessionVaultFactory: B('sessionVaultFactory', { 'authorityPins.ledger': 'legacyLedger', 'authorityPins.catalog': 'catalog', 'authorityPins.authority': 'pinnedSessionAuthority',
+       implementation: 'sessionVaultImplementation' }),
+     sessionVaultImplementation: B('sessionVaultImplementation', { book: 'pinnedSessionAuthority', factory: 'sessionVaultFactory',
+       keyAttestations: 'external:keyAttestations', owner: 'zero', router: 'external:router', usdc: 'usdc' }),
+@@ -161,7 +173,7 @@
+ }
+ export async function step(w, target, reason) { const a = w.adapter(), intent = await a.prepare(w.id, await a.read(w.id), target, reason); await a.submit(w.id, intent); return intent; }
+ export function runnerFor(w, t) {
+-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r4-runner-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r5-runner-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+   const journal = openLifecycleJournal(path.join(dir, 'j.json')), calls = [];
+   const runtime = { fence: async () => calls.push('fence'), stop: async () => { calls.push('stop'); return true; },
+     health: async () => ({ ready: true, ended: false, instance: 'i' }), serve: async () => calls.push('serve'),
+--- r4/test/deployment-chain-adapter-r4-policy.test.mjs	2026-10-26 07:28:22.453589022 -0700
++++ r5/test/deployment-chain-adapter-r5-policy.test.mjs	2026-10-26 07:38:08.757902553 -0700
+@@ -1,10 +1,13 @@
+-// r4 review corrections F1-F7 on the REAL candidate ledger + controller + identity (test/fixtures/r4-world.mjs; doubles labelled there).
++// r4 review corrections F1-F7 on the REAL candidate ledger + controller + identity (test/fixtures/r5-world.mjs; doubles labelled there).
++// r5 deltas vs r4 (patches/r4-to-r5-tests.diff): authorityPins is the ACTUAL tuple getter (r4's indexed-array cases replaced), and the
++// F2 test also checks the COMPOSED KVM host-admission-r1 consumer (lifecycleHostAdmitted) and a global catalog ban in anchor.enabled.
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import { getAddress, keccak256, toBytes } from 'viem';
+-import { useAnvil, world, step, warp, mine, read, dep, tx, codeHash, S, HOST, LEDGER, LIFECYCLE, ZERO, PAID6 } from './fixtures/r4-world.mjs';
++import { useAnvil, world, step, warp, mine, read, dep, tx, codeHash, S, HOST, LEDGER, LIFECYCLE, ZERO, PAID6 } from './fixtures/r5-world.mjs';
+ import { hostAdmissionPolicyHash } from '../network/host-admission-policy.mjs';
+ import { verifyGenerationChain } from '../network/deployment-generation-certificate.mjs';
++import { lifecycleHostAdmitted } from '../network/deployment-authority-window.mjs';
+ 
+ useAnvil();
+ const MAX = Number.MAX_SAFE_INTEGER;
+@@ -31,6 +34,11 @@
+   Object.assign(g2.head, { anchorHash: g2.anchor.hash, number: g2.anchor.number, hash: g2.anchor.hash, timestamp: g2.anchor.timestamp });
+   const ok = await verifyGenerationChain([], { ...g2, pins: { chainId: 8453, lifecycle: w.contracts.lifecycle }, nowSec: now() });
+   assert.equal(ok.assignment.generation, 1);
++  assert.equal(lifecycleHostAdmitted(g.anchor, HOST), false);                       // the COMPOSED KVM consumer reads the per-host field
++  assert.throws(() => lifecycleHostAdmitted(g.anchor, `0x${'1'.repeat(64)}`), /missing/); // another candidate host is never admitted by it
++  await tx(w.admin, w.contracts.catalog, S.K.TestCatalog.abi, 'set', [w.app({}), w.ver({ yanked: true })]);
++  const y = (await w.adapter({ generation }).read(w.id)).generationAuthority.anchor;
++  assert.deepEqual([y.enabled, y.admitted], [false, false]);                        // a global ban stays global for the composed runner
+ });
+ 
+ test('F1 self-hosted (payout = owner) and free owner (payout = owner\'s SessionVault): unfunded balance, rate 0 -> funded, admitted, unbounded; real start = uint64.max', async () => {
+@@ -129,10 +137,12 @@
+   assert.throws(() => w.adapter({ pins: P(withB('pinnedSessionAuthority', { ...C.pinnedSessionAuthority.bindings, deployments: 'legacyLedger' })) }), /must be THIS ledger/);
+   const { router, ...noRouter } = C.sessionVaultImplementation.bindings;
+   assert.throws(() => w.adapter({ pins: P(withB('sessionVaultImplementation', noRouter)) }), /sessionVaultImplementation\.router is not reviewed/);
+-  const { 'authorityPins[2]': _, ...two } = C.sessionVaultFactory.bindings;
+-  await assert.rejects(w.adapter({ pins: P(withB('sessionVaultFactory', two)) }).read(w.id), /authorityPins\[2\] exists but is not reviewed/);
+-  await assert.rejects(w.adapter({ pins: P(withB('sessionVaultFactory', { ...C.sessionVaultFactory.bindings, 'authorityPins[0]': 'ledger' })) }).read(w.id),
+-    /binding sessionVaultFactory\.authorityPins\[0\] differs/);                   // the old factory's legacy pin is verified, never rewritten
++  const { 'authorityPins.authority': _, ...two } = C.sessionVaultFactory.bindings;   // every named output of the tuple getter is reviewed
++  assert.throws(() => w.adapter({ pins: P(withB('sessionVaultFactory', two)) }), /sessionVaultFactory\.authorityPins\.authority is not reviewed/);
++  assert.throws(() => w.adapter({ pins: P(withB('sessionVaultFactory', { ...two, 'authorityPins[0]': 'legacyLedger', 'authorityPins.authority': 'pinnedSessionAuthority' })) }),
++    /authorityPins\[0\] is not an address getter/);                              // r4's indexed-array model is not the actual ABI
++  await assert.rejects(w.adapter({ pins: P(withB('sessionVaultFactory', { ...C.sessionVaultFactory.bindings, 'authorityPins.ledger': 'ledger' })) }).read(w.id),
++    /binding sessionVaultFactory\.authorityPins\.ledger differs/);                // the old factory's legacy pin is verified, never rewritten
+   const stale = await dep(w.admin, 'R4Connectivity', [w.contracts.legacyLedger, w.contracts.registry]);
+   const p1 = P({ connectivity: { ...C.connectivity, address: stale, codeHash: await codeHash(stale) } });
+   p1.addressBook = { ...p1.addressBook }; // book still names the reviewed connectivity -> F7 refuses before any read
+--- r4/test/deployment-chain-adapter-r4-proof.test.mjs	2026-10-26 07:28:44.059132680 -0700
++++ r5/test/deployment-chain-adapter-r5-proof.test.mjs	2026-10-26 07:38:08.757961183 -0700
+@@ -1,10 +1,10 @@
+-// r4 ADAPTED BASELINE: the ten r3 exact receipt/transaction proof + fee-bound tests, test bodies unchanged except `pub` -> `S.pub`,
+-// now on the REAL candidate ledger/controller/identity world of r4 (test/fixtures/r4-world.mjs, self-hosted host: rate 0) with the
+-// r4 adapter (complete closure pins, host policy source). Diff vs r3: patches/r3-proof-tests-adapted.diff.
++// r5 (unchanged from r4 except the fixture path) ADAPTED BASELINE: the ten r3 exact receipt/transaction proof + fee-bound tests, test bodies unchanged except `pub` -> `S.pub`,
++// now on the REAL candidate ledger/controller/identity world of r4 (test/fixtures/r5-world.mjs, self-hosted host: rate 0) with the
++// r5 adapter (complete closure pins, host policy source). Diff vs r3: patches/r3-proof-tests-adapted.diff.
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import { encodeEventTopics, keccak256, toBytes } from 'viem';
+-import { useAnvil, world, step, runnerFor, rpc, mine, warp, S, LIFECYCLE, MAX_T, MAX_GAS } from './fixtures/r4-world.mjs';
++import { useAnvil, world, step, runnerFor, rpc, mine, warp, S, LIFECYCLE, MAX_T, MAX_GAS } from './fixtures/r5-world.mjs';
+ 
+ useAnvil();
+ const queue = w => step(w, 'queued', 'enroll');

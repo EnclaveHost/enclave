@@ -1,0 +1,19 @@
+[queue] START available=24773MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## bound test receipt /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postdelete-bitmap-stage/r5/runs/tests-20261026T213931Z-2383195/receipt.json
+{"written": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postdelete-bitmap-stage/r5/runs/check-20261026T214046Z-2384076/result.json", "verdict": "REUSE_OBSERVED"}
+cdd290f7808cb558afe712832ff41249841c863acab6d5453e815286fa37ea8d  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postdelete-bitmap-stage/r5/runs/check-20261026T214046Z-2384076/result.json
+## verdict REUSE_OBSERVED
+## blockers []
+## boundary mode/P/deletionStart/firstObservedCompletion/R coalesced 17169 None 17170 17170 | coalesced: no committed intermediate unlinked image; deletion start NOT observed
+## coalesced {"T": 17170, "groupsWithTImage": 8749, "groupsWithoutTImage": [], "groupsWithoutTImageTotal": 0, "oldBitsSetInT": 0} treeBlocksInMasks 28 groupsChecked 8749
+## recoveryAcceptance False
+## tree {"bound": true, "boundLeaves": 27, "depth": 2, "indexBlocks": [{"block": 499155449, "tid": 16490}], "leaves": 27}
+## window {"from": 14665, "lastLiveTid": 17169, "newestProven": 17669, "newestCommitSec": 1793030435, "sSequence": 17671, "sHead": 131627, "contiguous": true, "gapsTotal": 0, "strayHeaderTids": [], "failedTids": [], "tail": "s_sequence - 1 never committed: clean unmount (jbd2_journal_destroy: j_tail_sequence = ++j_transaction_sequence), no header of that tid anywhere, s_head = the block after the newest commit"}
+## fs lastWriteTime / lastMountTime Mon Oct 26 09:00:38 2026 / Sun Oct 25 10:54:48 2026
+## bitmaps {"groups": 8748, "dataBlocks": 276959557, "reusedBlocks": 2, "notObservedFreedBlocks": 0, "preDeletionClearBlocks": 0, "observedSetToClearBlocks": 11955765, "clearWithoutObservedSetBlocks": 265003820}
+## verifierCalls 6 imagesRead 20845
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postdelete-bitmap-stage/r5/runs/check-20261026T214046Z-2384076
+## pdb-r5-check rc=4
+[memory-guard] exit=4 peakTreeRssMiB=287 minHostAvailableMiB=24475
+[memory-guard] at peak: python3:282 bash:4 timeout:2
+[queue] EXIT 4

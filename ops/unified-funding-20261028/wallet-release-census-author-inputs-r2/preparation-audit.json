@@ -1,0 +1,12 @@
+{
+  "status": "PREPARATION_ONLY",
+  "preparedSha256": "cfa72e246f89e682064cf71354cf1cea98f0db6cc0a6b3e6bb8f01b38b88933d",
+  "seedEntries": 121,
+  "candidateExtraFiles": 0,
+  "preAuthorProductEdits": 0,
+  "readonlyPins": 312,
+  "inputDrift": [],
+  "runnerASTOnly": true,
+  "authAuthorTestsBuildsRpcLiveFinance": false,
+  "preLaunchRepinReason": "root-authorized r3 three-provider creation witnesses; complete history still unqualified"
+}

@@ -1,0 +1,8 @@
+# base-finality-proof-stage/r6 (SOURCE ONLY): sample continuously (one sampler run takes ~15 min with the defaults)
+[Unit]
+Description=Base RPC readiness sampling
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=30s
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,29 @@
+[queue] START available=24558MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{"written": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/ext4-recovery-checksum-stage/r2/runs/real-20261026T203730Z-2323458/ext4-candidate-checksums.json", "bytes": 1663807}
+{
+ "metadataChecksumsValid": true,
+ "recoveryProven": false,
+ "problems": []
+}
+{
+ "accounted": true,
+ "dataBlocks": 276959557,
+ "endLogical": 276959557,
+ "extents": 9001,
+ "extentsBeyondSize": false,
+ "holeBlocks": 0,
+ "holes": 0,
+ "iBlocksFsBlocks": 276959585,
+ "mapDigest": "02595309a17c6b12e4b45978cbc34d23813687b35eeefc51b2e648709e6216be",
+ "overlaps": 0,
+ "sizeBlocks": 277872640,
+ "sparseTailBytes": 3739987968,
+ "treeBlocks": 28,
+ "unwrittenExtents": 0
+}
+chosenInode {"checksumComputed": "72b56bba", "checksumHiUsed": true, "checksumStored": "72b56bba", "checksumValid": true, "commitSec": 1793027739, "committed": true, "ctime": 1793026311, "dtime": 0, "extraIsize": 32, "flags": 524288, "generation": 3326586236, "iBlocks512": 2215676680, "journalBlock": 118422, "links": 1, "mode": 33188, "mtime": 1793026311, "rootDigest": "ba04a41b6946d85e", "sequence": 17169, "size": 1138166333440, "txIntact": true}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/ext4-recovery-checksum-stage/r2/runs/real-20261026T203730Z-2323458
+## ext4-checksum-r2-real rc=0
+[memory-guard] exit=0 peakTreeRssMiB=113 minHostAvailableMiB=24545
+[memory-guard] at peak: python3:107 bash:4 timeout:2
+[queue] EXIT 0

@@ -1,0 +1,8 @@
+{
+  "unit": "ActiveState=inactive\nMainPID=0\n",
+  "knownProcessesGone": true,
+  "files": 243,
+  "hashesMatch": true,
+  "at": "2026-10-29T19:55:30Z",
+  "preparationFailure": "Optional first-mutation-manifest.json absent; copy stopped before runner creation/execution; actual mutation-audit retained. No candidate edits."
+}

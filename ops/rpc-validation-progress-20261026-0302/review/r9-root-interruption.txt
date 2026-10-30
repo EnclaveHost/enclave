@@ -1,0 +1,2 @@
+2026-10-26T02:46:27.766052+00:00
+Root deliberately interrupted r9 after completed component phase plus initial E2 tests: real bundle/auditor failures and one route regression already established. E2 repeats many identical tree/file tests already completed; further full regression will run on corrected r10. This is INCOMPLETE/INTERRUPTED, never PASS. Existing raw outputs preserved; no live service affected. Queue's reviewed SIGINT handler cleans only owned descendants before releasing lock.

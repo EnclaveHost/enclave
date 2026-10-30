@@ -1,0 +1,6 @@
+test/lease-pinned-relay-config.test.mjs
+test/lease-seams-conduit.test.mjs
+test/lease-seams-windows.test.mjs
+test/metal-lease-gas-conduit.test.mjs
+test/metal-measured-control.test.mjs
+test/move-release-confirm.test.mjs

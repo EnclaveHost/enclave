@@ -1,0 +1,8 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/CANARY-R3-RECIPE.md	2026-10-25 23:53:09.433408029 -0700
++++ CANARY-R3-RECIPE.md	2026-10-26 00:25:59.526597812 -0700
+@@ -21,3 +21,5 @@
+    - `inputs/a1-config.json` `elUrl` = `http://127.0.0.1:18645` in **both** captures;
+    - `verify` returns `python` = the guest 3.12 entry and `runtimePolicy.libnode` = `ce7cb9cd…`;
+    - `finality_state.py runtime-verify /usr/bin/node` reports node `f3f93db3` + libnode `ce7cb9cd`.
++
++**r11:** the capture module, harness, tool, producer, wrapper and every bundle entry are byte-identical to r10 (`capture/a1_capture.py` `47c49b11`), so a canary r3 run on the r10 recipe is valid for r11 (r11 changes only reproof retention, the installer, forward_sync log naming and tests).

@@ -1,0 +1,33 @@
+{
+  "time": "2026-10-25T19:24:02.138905+00:00",
+  "oldSha256": "dc9f4ad9740602820e9419bfe8cc23f96b3c1e9deb74a09a694477a640d5c276",
+  "newSha256": "713b0ddf4c99d12ca38e32e0e7b83a6ccb312230c70033ece976b8f7f11a4f57",
+  "identity": {
+    "baseBinarySha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+    "bootstrapManifestSha256": "c35ec24b39b4cff06a72c00a5fcc032a035658d314771f9072b881f9258a0fb7",
+    "chainConfigSha256": "d01a2dcbb9c4d31aec0fd6446b09f78fcb80a891a94228aca9086f6ef71823b2",
+    "evidenceDir": "/etc/enclave-rpc/coverage",
+    "kzgcheckSha256": "00b3eeb94efece39e4f2cf8e34d5d3450d532328ccc667a6a74e83b151be10eb",
+    "snapshotManifestSha256": "1f0c4e6c259d4353f598a94ac75a0540321ced2b52b464fb4e11c2ec34c649f2",
+    "snapshotManifestUrl": "https://mainnet-v2-snapshots.base.org/1792886410/manifest.json"
+  },
+  "coverageCheckExit": 1,
+  "coverageCheckRefusal": "Base snapshot blob coverage not approved",
+  "coverageVerified": false,
+  "chainConfigOnlyRetentionChanged": true,
+  "retentionPolicyConfigured": true,
+  "retentionPolicy": {
+    "historyFromBlock": 48000000,
+    "stateHistoryFromBlock": 52500000
+  },
+  "legacyCreationOwnChainCheckPending": true,
+  "extraHistoryDownloadPending": true,
+  "oldChainConfigFileSha256": "369f2a620391fda7914b8ef6f050a1edd4a62de3d9b2d5cee1ba14e4791c7ee0",
+  "newChainConfigFileSha256": "81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7",
+  "protectedPidsUnchanged": {
+    "enclave-l1-el.service": "847",
+    "enclave-l1-cl.service": "898",
+    "enclave-rpc-base-snapshot.service": "4061"
+  },
+  "baseStillDisabled": true
+}

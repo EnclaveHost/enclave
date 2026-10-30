@@ -1,0 +1,80 @@
+TAP version 13
+# Subtest: legacy default is unchanged: state and transaction work go to BASE_RPCS; the verifier is never asked
+ok 1 - legacy default is unchanged: state and transaction work go to BASE_RPCS; the verifier is never asked
+  ---
+  duration_ms: 337.108093
+  type: 'test'
+  ...
+# Subtest: verifier mode: every state read asks only the verifier (a refusal stays a refusal); pool/fee/submission work refuses without the bound own backend
+ok 2 - verifier mode: every state read asks only the verifier (a refusal stays a refusal); pool/fee/submission work refuses without the bound own backend
+  ---
+  duration_ms: 349.35464
+  type: 'test'
+  ...
+# Subtest: verifier mode + own backend: pool work goes ONLY to the backend, nothing is sent before the backend is bound, BASE_RPCS never
+ok 3 - verifier mode + own backend: pool work goes ONLY to the backend, nothing is sent before the backend is bound, BASE_RPCS never
+  ---
+  duration_ms: 328.486283
+  type: 'test'
+  ...
+# Subtest: verifier mode with the OBSOLETE ENCLAVE_CHAIN_TX_RPCS: the selection is refused explicitly - nothing is read or sent, no request anywhere
+ok 4 - verifier mode with the OBSOLETE ENCLAVE_CHAIN_TX_RPCS: the selection is refused explicitly - nothing is read or sent, no request anywhere
+  ---
+  duration_ms: 317.989601
+  type: 'test'
+  ...
+# Subtest: an ambiguous, remote or malformed authority REFUSES every chain read (INTENTIONAL API CHANGE: a refusing authority, not a load-time throw), and the agent does not start
+ok 5 - an ambiguous, remote or malformed authority REFUSES every chain read (INTENTIONAL API CHANGE: a refusing authority, not a load-time throw), and the agent does not start
+  ---
+  duration_ms: 1454.079628
+  type: 'test'
+  ...
+# Subtest: chain-reader: the verifier reader is the shared LeaseReader and builds no RPC client; the legacy quorum still does
+ok 6 - chain-reader: the verifier reader is the shared LeaseReader and builds no RPC client; the legacy quorum still does
+  ---
+  duration_ms: 6.124333
+  type: 'test'
+  ...
+# Subtest: check-endpoint (the installer's own ownership check) refuses through the verifier and never contacts its --rpc list
+ok 7 - check-endpoint (the installer's own ownership check) refuses through the verifier and never contacts its --rpc list
+  ---
+  duration_ms: 280.538689
+  type: 'test'
+  ...
+# Subtest: network enrollment: the agent's chain section carries the verifier instead of the RPC list; a switch restarts the agent once
+not ok 8 - network enrollment: the agent's chain section carries the verifier instead of the RPC list; a switch restarts the agent once
+  ---
+  duration_ms: 5.40332
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/windows-chain-authority.test.mjs:148:1'
+  failureType: 'testCodeFailure'
+  error: 'rpcs is not defined'
+  code: 'ERR_TEST_FAILURE'
+  name: 'ReferenceError'
+  stack: |-
+    Object.pass (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/windows/node/network-enroll.mjs:238:26)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/windows-chain-authority.test.mjs:171:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: session API snapshot mode: each request's factory, session and owner facts come from ONE snapshot and are never cached
+ok 9 - session API snapshot mode: each request's factory, session and owner facts come from ONE snapshot and are never cached
+  ---
+  duration_ms: 25.696792
+  type: 'test'
+  ...
+# Subtest: the shipped deploy-files closure carries the new reader module and bundle; a staged copy loads the verifier authority
+ok 10 - the shipped deploy-files closure carries the new reader module and bundle; a staged copy loads the verifier authority
+  ---
+  duration_ms: 314.294387
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 9
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3703.317018

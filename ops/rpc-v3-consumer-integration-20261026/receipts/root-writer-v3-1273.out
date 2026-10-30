@@ -1,0 +1,13 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=18480MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+startup no-verifier: OK (rc 1, needs the relay's verifier authority)
+startup bad-value: OK (rc 1, must be "derived" or unset)
+startup url-config: OK (rc 1, absolute file path)
+startup not-composed: OK (rc 1, not composed)
+startup unset: OK (rc 124; existing writer_authority_unproven refusal logged, no selector fatal)
+{"ok":true,"checks":6,"names":["lifecycle exports startDerivedLifecycleReader","lifecycle journal has the bridge's readAnchor/acceptAnchor","provider exports createDerivedProvider/startDerivedReader with readDerivedLogs (R3)","committed v3 build pin is root's native v3 binary 49f4d7e3","relay selector -> committed startDerivedLifecycleReader: refused by KVM on an unqualified native pin, nothing created","the writer's 120 s ceiling is independent of the reader config's 1800 s bridge bound"]}
+{"ok": true, "stage": "r3", "kvmCommit": "34a3c0d6d4c5aebffffb2492437487c9de74fb66", "apiCompositionRc": 0, "startupOk": 5, "head": "64156dcd91ff1e769e74f9c26a846be19254c716", "nodeCheck": 0, "testRc": 0, "counts": {"tests": 23, "pass": 23, "fail": 0, "cancelled": 0, "skipped": 0, "todo": 0}, "startupRc": 0, "bundleNote": "relay/network-runtime.bundle.mjs is the candidate tree's generated copy (bundle.sha256)", "scope": "adapter logic (fakes), ABI, the COMMITTED KVM 34a3 coverage store + API composition (fixture coverage: completeness and mainnet NOT proven here), real api-relay.js startup refusals"}
+[memory-guard] exit=0 peakTreeRssMiB=147 minHostAvailableMiB=18075
+[memory-guard] at peak: node:77 node:64 bash:4 timeout:2
+[queue] EXIT 0

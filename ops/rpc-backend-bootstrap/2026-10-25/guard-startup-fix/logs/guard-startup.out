@@ -1,0 +1,38 @@
+[queue] START available=87550MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+38f8dc891bfa9f5f74fcd8eb4ba50ea6f5f70342c49e3c7e2944a10c504436d7  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/../provision_vm.py
+## test_guard_startup
+test_absent_forever_fails_closed_after_exactly_300s (test_guard_startup.InitialGrace.test_absent_forever_fails_closed_after_exactly_300s) ... ok
+test_capacity_pause_and_check_failure_during_startup_refuse_immediately (test_guard_startup.InitialGrace.test_capacity_pause_and_check_failure_during_startup_refuse_immediately) ... ok
+test_capacity_shutdown_level_during_startup_refuses_immediately (test_guard_startup.InitialGrace.test_capacity_shutdown_level_during_startup_refuses_immediately) ... ok
+test_delayed_greeting_then_runtime_policy_unchanged (test_guard_startup.InitialGrace.test_delayed_greeting_then_runtime_policy_unchanged) ... ok
+test_qemu_gone_after_seen_exits_0_unchanged (test_guard_startup.InitialGrace.test_qemu_gone_after_seen_exits_0_unchanged) ... ok
+test_qmp_command_failure_while_present_exits_3_unchanged (test_guard_startup.InitialGrace.test_qmp_command_failure_while_present_exits_3_unchanged) ... ok
+test_reconnect_after_seen_keeps_60s_not_300s (test_guard_startup.InitialGrace.test_reconnect_after_seen_keeps_60s_not_300s) ... ok
+test_unsafe_capacity_after_connect_still_pauses (test_guard_startup.InitialGrace.test_unsafe_capacity_after_connect_still_pauses) ... ok
+test_waits_without_socket_and_without_deadline_as_before (test_guard_startup.InitialGrace.test_waits_without_socket_and_without_deadline_as_before) ... ok
+test_no_greeting_is_controlled_failure_not_traceback (test_guard_startup.PowerdownHandshake.test_no_greeting_is_controlled_failure_not_traceback) ... ok
+test_guard_survives_stalled_real_monitor (test_guard_startup.RealQemuStalledMonitor.test_guard_survives_stalled_real_monitor) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/provision_vm.py:1260: ResourceWarning: unclosed <socket.socket fd=3, family=1, type=1, proto=0, raddr=/tmp/gs-ppqnr5a7/rj2yy_k_j/qmp>
+  q = None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_accepted_no_greeting_times_out_and_closes (test_guard_startup.RealSocketQmp.test_accepted_no_greeting_times_out_and_closes) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py:246: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/gs-ppqnr5a7/qka82x54z/m.log' mode='r' encoding='UTF-8'>
+  return open(self.log).read().split()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_guard_loop_real_delayed_greeting (test_guard_startup.RealSocketQmp.test_guard_loop_real_delayed_greeting) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/provision_vm.py:1260: ResourceWarning: unclosed <socket.socket fd=3, family=1, type=1, proto=0, raddr=/tmp/gs-ppqnr5a7/qt4xxz2jt/m>
+  q = None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_malformed_reply_is_oserror_and_closes (test_guard_startup.RealSocketQmp.test_malformed_reply_is_oserror_and_closes) ... ok
+test_never_accepted_backlog_full_no_fd_leak (test_guard_startup.RealSocketQmp.test_never_accepted_backlog_full_no_fd_leak) ... ok
+test_success_restores_runtime_timeout (test_guard_startup.RealSocketQmp.test_success_restores_runtime_timeout) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 19.336s
+
+OK
+## test_guard_startup rc=0
+## aggregate rc=0
+[memory-guard] exit=0 peakTreeRssMiB=65 minHostAvailableMiB=87483
+[memory-guard] at peak: qemu-system-x86:34 python3:24 bash:4 timeout:2
+[queue] EXIT 0

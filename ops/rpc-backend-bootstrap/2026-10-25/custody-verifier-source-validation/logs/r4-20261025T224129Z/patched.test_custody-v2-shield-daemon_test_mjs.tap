@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: default off: the measured module has no opt-in, the Shield routes are an unknown route, /info is unchanged, a Shield document is unsupported
+ok 1 - default off: the measured module has no opt-in, the Shield routes are an unknown route, /info is unchanged, a Shield document is unsupported
+  ---
+  duration_ms: 45.524723
+  type: 'test'
+  ...
+# Subtest: every pre-existing route, method, bound and error mapping is the router's, unchanged
+ok 2 - every pre-existing route, method, bound and error mapping is the router's, unchanged
+  ---
+  duration_ms: 36.835851
+  type: 'test'
+  ...
+# Subtest: on: the node's session client attests over HTTP to THIS custodian's key, and a release over HTTP opens only for the guest's R
+ok 3 - on: the node's session client attests over HTTP to THIS custodian's key, and a release over HTTP opens only for the guest's R
+  ---
+  duration_ms: 85.643908
+  type: 'test'
+  ...
+# Subtest: on: attest replay, another party, default/SNP rules and a wrong ledger owner are each refused over HTTP
+ok 4 - on: attest replay, another party, default/SNP rules and a wrong ledger owner are each refused over HTTP
+  ---
+  duration_ms: 176.509106
+  type: 'test'
+  ...
+# Subtest: the adapter's party is this custodian's own encKey, never a configured one
+ok 5 - the adapter's party is this custodian's own encKey, never a configured one
+  ---
+  duration_ms: 12.486543
+  type: 'test'
+  ...
+# Subtest: attest's measured body bound (declared and streamed), its concurrency bound, and 256 KiB on the challenge route
+ok 6 - attest's measured body bound (declared and streamed), its concurrency bound, and 256 KiB on the challenge route
+  ---
+  duration_ms: 343.822044
+  type: 'test'
+  ...
+# Subtest: the host config cannot carry the opt-in, and the daemon builds the adapter from MEASURED only and serves the shared router
+ok 7 - the host config cannot carry the opt-in, and the daemon builds the adapter from MEASURED only and serves the shared router
+  ---
+  duration_ms: 1.17545
+  type: 'test'
+  ...
+# Subtest: one TPM cannot fill the live session table with endpoints it does not hold: each EK keeps at most 4 sessions
+ok 8 - one TPM cannot fill the live session table with endpoints it does not hold: each EK keeps at most 4 sessions
+  ---
+  duration_ms: 164.731158
+  type: 'test'
+  ...
+# Subtest: a squatter's own genuine TPM and key, attesting for the lease holder's endpoint, never displaces its session or releases
+ok 9 - a squatter's own genuine TPM and key, attesting for the lease holder's endpoint, never displaces its session or releases
+  ---
+  duration_ms: 212.458335
+  type: 'test'
+  ...
+# Subtest: over HTTP at the custodian: malicious EKs take no pending slot; the genuine host challenges, attests and its guest is released; replayed and expired sessions refused
+ok 10 - over HTTP at the custodian: malicious EKs take no pending slot; the genuine host challenges, attests and its guest is released; replayed and expired sessions refused
+  ---
+  duration_ms: 122.173112
+  type: 'test'
+  ...
+# Subtest: the rate key is the TCP peer by default: a client-chosen x-forwarded-for neither escapes nor splits its bucket; only a measured forwarder's rightmost entry counts
+ok 11 - the rate key is the TCP peer by default: a client-chosen x-forwarded-for neither escapes nor splits its bucket; only a measured forwarder's rightmost entry counts
+  ---
+  duration_ms: 58.126454
+  type: 'test'
+  ...
+# Subtest: the certificate clock boundary, deterministically: one ms before an EK's notBefore it is not yet valid; at notBefore the on-die rule decides
+ok 12 - the certificate clock boundary, deterministically: one ms before an EK's notBefore it is not yet valid; at notBefore the on-die rule decides
+  ---
+  duration_ms: 84.099261
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1816.622087

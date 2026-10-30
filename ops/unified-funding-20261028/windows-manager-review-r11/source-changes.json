@@ -1,0 +1,50 @@
+{
+  "changes": {
+    "RELEASE-CLOSURE-R11.json": {
+      "seedSha256": null,
+      "finalSha256": "49671b368fae50925646f6ef6f428fc1198eb62151afce817f0578b9fae42bc3",
+      "kind": "new"
+    },
+    "REPORT-WINDOWS-PERMIT-R11.md": {
+      "seedSha256": null,
+      "finalSha256": "9ce90854b07e5390b4f9870eef0f96a2b8a66828b9e9ae86e77b3c8b73614969",
+      "kind": "new"
+    },
+    "control/network/lifecycle-host-dispatch.mjs": {
+      "seedSha256": "e95cf087422c83f690160f2a08899f85c4b857d6d80e45cf6a574d5b9fee9f08",
+      "finalSha256": "bb291ad6d595537d11efbe4b244702da29a641e19799e9c2f7ae806b3fd5a41e",
+      "kind": "modified"
+    },
+    "control/windows/node/chain.mjs": {
+      "seedSha256": "b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225",
+      "finalSha256": "63c80c0173ab8164f12058c80dea534c3be4a549c9a83cc81102c16d6895d559",
+      "kind": "modified"
+    },
+    "control/windows/node/host.mjs": {
+      "seedSha256": "5a8445d32199b1842f87f7ab249838af16ee1133027b6da4ae3c6e2710d3e7d6",
+      "finalSha256": "d7b0de584a9aa017b8a67b055c44dad0214376d1d4189eb6b96c9935f20ca94b",
+      "kind": "modified"
+    },
+    "control/windows/node/protected-authority-factory.mjs": {
+      "seedSha256": "d535d3cec78a1daac6152fe91347ec311b1b294d4af5a05ab29c5498fbf100cd",
+      "finalSha256": "3d3aa224b793532d54e3d2ebb23ede3303722fa8481e44e5c9151ae998fbf221",
+      "kind": "modified"
+    },
+    "control/windows/node/protected-supervisor.mjs": {
+      "seedSha256": "4a53faa2133dbd655a4915f1ccd10b260d7b1bb26c281441ad8c830b5c8b5f91",
+      "finalSha256": "85ebb0f253848d8317df01a882dc49ada122bce6688be564f4b71d77180912b4",
+      "kind": "modified"
+    },
+    "test/windows-permit/r10-host-independence.test.mjs": {
+      "seedSha256": "39b38ee7b44736c077af2c90c171009dc34c2a089f570495ee5a19412a4e5eff",
+      "finalSha256": "feef7113ee3c13dcdba5883639ce73bdb8eb9e55341862f97485af0f08c5f8f1",
+      "kind": "modified"
+    },
+    "test/windows-permit/r11-policy-send-boundary.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "d1a59bd3576e3c7f01bfef4240aaa9a9edeeedf66f9ff21dcb419cefed7a1ede",
+      "kind": "new"
+    }
+  },
+  "removed": []
+}

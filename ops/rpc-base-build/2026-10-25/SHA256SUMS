@@ -1,0 +1,10 @@
+14f1b6d467f9813df364a3669b29116ef5b7d5b42c5024bd4f63f3f4fd34f796  ./README.md
+7927c0f5eb336fca29f4db0e28ab0c97645c42a7cb8e1168276a87f69c3ac486  ./prechecks/build-dry.guard
+7625ee4e656822b78a8df9e3e42d885535b4b1547bb2409d8a5c1966675b3b21  ./prechecks/build-dry.out
+93ff7811a209e2a8479230bbb9b6bc19f7f311d3af383ec350c1db2a7e7d5494  ./prechecks/build-dry.rc
+fd323d856c47160c698092b13e4e5af40dacfcf78257e4f926cafb2d67895658  ./prechecks/dry-check.guard
+0292f1fcd23d81800217c33be48f5d8297a80b2e980d85664393cec2e785b850  ./prechecks/dry-check.out
+93ff7811a209e2a8479230bbb9b6bc19f7f311d3af383ec350c1db2a7e7d5494  ./prechecks/dry-check.rc
+86b44a0b2bede91f833b309d6fb2bd74bdd7ad1540e0cfc626a2b39322fbf094  ./recipe/ROOT-REVIEW.txt
+2ee8b8dec0a64331e261f0fe2fcafed5c899554322a2a0a9bd9c236202d409ec  ./recipe/build.sh
+7a373ccbe8e56a0f323ab3198a8088e49941c2025b725ead38edc27242c08aee  ./recipe/dry-check.sh

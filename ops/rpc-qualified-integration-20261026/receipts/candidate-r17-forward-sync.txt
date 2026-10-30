@@ -1,0 +1,53 @@
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmp6ozrqd6i/srv/data", "publicExecutionRpc": false}
+.{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpfn_gs4a4/srv/data", "publicExecutionRpc": false}
+.{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmphuiq1w8b/srv/data", "publicExecutionRpc": false}
+.{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmpduoom_3a/srv/data", "publicExecutionRpc": false}
+.{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmp16hctmt0/srv/data", "publicExecutionRpc": false}
+.{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmp5bnp_k_8/srv/data", "publicExecutionRpc": false}
+.{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmprx2v_ifl/srv/data", "publicExecutionRpc": false}
+.{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/historical-origin-segments-stage/r6/compose/r17-candidate/logs/root-finality-r14-witness-tests-20261026T122944Z-1691437/tmp/tmp9lygm7a3/srv/data", "publicExecutionRpc": false}
+.
+----------------------------------------------------------------------
+Ran 8 tests in 54.005s
+
+OK

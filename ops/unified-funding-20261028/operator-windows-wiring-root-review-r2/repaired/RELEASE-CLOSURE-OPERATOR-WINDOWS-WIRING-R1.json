@@ -1,0 +1,136 @@
+{
+  "schema": "enclave-release-closure/operator-windows-wiring-r1",
+  "status": "SOURCE_ONLY_AUTHORED_NOT_RUN",
+  "claims": {
+    "testsRun": false,
+    "testsPassed": null,
+    "buildsRun": false,
+    "windowsQualified": false,
+    "installed": false,
+    "activated": false,
+    "migrationComplete": false,
+    "hashesComputedByAuthor": false,
+    "note": "Coordinator computes all hashes, runs every test/build/qualification and decides any production action."
+  },
+  "baseline": {
+    "seed": "Exact243 root-repaired operator r2 (seed-provenance.json seedManifestSha256 52061e23b93bcb20d85609c4f255095f8681b5e28ec57d7df3ef97fc8d79ad23)",
+    "rootChainQuarantineSha256Preserved": "79771c6c85fb26e1e91cb1f99eaa006586a52082b45f6d5d7b9d7e3376870cfd",
+    "identicalTupleReplayException": "NOT restored",
+    "shippedLeaseBundleSha256Preserved": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d",
+    "rootR12RepairsPreserved": {
+      "control/isolation/m4/guestd/control-client.mjs": "df77d6dbbcab2d57729e6cb6b70e5f8fab006c8c1ac5be9eb7baf1440df934b4",
+      "control/windows/node/protected-isolation.mjs": "bfbab051a4784bb45d1510596b7d8a337d80b0bccf45447149c6181ecb65f160",
+      "control/windows/node/protected-supervisor.mjs": "1cd9be0545bd0284ffb26c12131c4233b340d1e6773872fecdff8f8f540e8408"
+    }
+  },
+  "added": [
+    "control/windows/node/operator-effects-config.mjs",
+    "control/windows/node/install-operator-effects.mjs",
+    "test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+    "REPORT-OPERATOR-WINDOWS-WIRING-R1.md",
+    "RELEASE-CLOSURE-OPERATOR-WINDOWS-WIRING-R1.json"
+  ],
+  "modified": {
+    "control/windows/node/agent.mjs": { "previousPin": "4105b28e33751a1191f936578fdff600b5e124c5dc695b9d5eeb345d8304d0b5", "change": "import operatorEffectsForHost; seam before new Host; operatorEffects: OPERATOR_EFFECTS.option; /v1/health operatorEffects {state, available}" },
+    "control/windows/node/host.mjs": { "change": "constructor honours operatorEffects.file and records operatorEffectsRefusal (neither key reaches openOperatorEffects); operatorEffectsReadiness(); new-claim gate on refusal before any chain call; status field operatorEffects" },
+    "control/windows/node/initialize-operator-effects.mjs": { "previousPin": "e4d0165280581eb24efa72ff05d296b7c898bbda7fd90b45bedb8b5d057519ae", "change": "refuses on win32 (use install-operator-effects.mjs); Linux unchanged; psrun import edge removed" }
+  },
+  "untouched": [
+    "control/windows/node/chain.mjs",
+    "control/windows/node/operator-effects.mjs",
+    "control/windows/vbslike/manager/win-durable.mjs",
+    "control/windows/vbslike/manager/win-exclusion.mjs",
+    "control/windows/vbslike/manager/psrun.mjs",
+    "control/network/owned-durable-state.mjs",
+    "control/network/runtime-lock.mjs",
+    "control/windows/node/lease-gas-runtime.bundle.mjs",
+    "control/windows/node/host-admission.bundle.mjs",
+    "control/isolation/m4/guestd/control-client.mjs",
+    "control/windows/node/protected-isolation.mjs",
+    "control/windows/node/protected-supervisor.mjs",
+    "control/windows/vbslike/guard/*",
+    "all pre-existing tests (incl. od-r1/od-r2 quarantine, state-loss, shipped-client, root assertions)",
+    "all historical REPORT-*/RELEASE-CLOSURE-* files",
+    "package.json, package-lock.json"
+  ],
+  "newProjectImportEdges": [
+    { "from": "control/windows/node/agent.mjs", "to": "control/windows/node/operator-effects-config.mjs" },
+    { "from": "control/windows/node/operator-effects-config.mjs", "to": "control/windows/vbslike/manager/win-durable.mjs" },
+    { "from": "control/windows/node/operator-effects-config.mjs", "to": "control/windows/vbslike/manager/win-exclusion.mjs" },
+    { "from": "control/windows/node/operator-effects-config.mjs", "to": "control/windows/vbslike/manager/psrun.mjs" },
+    { "from": "control/windows/node/operator-effects-config.mjs", "to": "control/windows/node/operator-effects.mjs" },
+    { "from": "control/windows/node/install-operator-effects.mjs", "to": "control/windows/node/operator-effects-config.mjs" },
+    { "from": "control/windows/node/install-operator-effects.mjs", "to": "control/windows/node/operator-effects.mjs" },
+    { "from": "control/windows/node/install-operator-effects.mjs", "to": "control/windows/vbslike/manager/win-durable.mjs" },
+    { "from": "control/windows/node/install-operator-effects.mjs", "to": "control/windows/vbslike/manager/win-exclusion.mjs" }
+  ],
+  "removedProjectImportEdges": [
+    { "from": "control/windows/node/initialize-operator-effects.mjs", "to": "control/windows/vbslike/manager/psrun.mjs" }
+  ],
+  "additiveExternalDependencies": [],
+  "runtimeEntryChain": [
+    "node.exe NODE_RUNTIME_PIN v24.16.0 b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3",
+    "agent.mjs operatorEffectsForHost({ env: process.env, actualDomain: actual operatorAddress() + publicClient().chain.id })",
+    "new Host({ operatorEffects: option }) -> chain.setOperatorEffects(file, options)",
+    "first operator effect -> chain operatorEffects() -> openOperatorEffects(file, {...options, domain: actual})",
+    "storage.run: domain gate -> powershellRunner(timeoutMs 60000, maxOutputBytes 65536) storageProbeScript -> checkWindowsStorage (exact SDDLs, NTFS, Fixed, no reparse)",
+    "openOwnedLog -> checkLocalPath -> exclusion.open: domain gate -> windowsNumericExclusion.open (same-process second-open refusal)"
+  ],
+  "configTrustChain": {
+    "configSchema": "enclave-operator-effects-config/1",
+    "env": ["ENCLAVE_OPERATOR_EFFECTS_CONFIG", "ENCLAVE_OPERATOR_EFFECTS_CONFIG_SHA256"],
+    "envSetBy": "separately reviewed activation step; never the installer",
+    "configFields": ["schema", "store", "domain{account,chainId}", "storage{sddl,parentSddl}", "runtime{version,execPath,execSha256} == NODE_RUNTIME_PIN", "exclusion{kind=numeric-qualified,flag=268435456,qualificationFile,qualificationSha256,evidenceFile,evidenceSha256}"],
+    "qualification": "record bytes pinned by config; validateExlockQualification; record.evidenceSha256 == config.evidenceSha256; evidence bytes present and pinned; launcher/probe artifact hashes refused",
+    "identity": "actual loaded operator account + actual chain client id must equal config domain before any probe/open; store refuses foreign established domain; no key read by loader/installer",
+    "test": "explicit TEST argument labelled TEST-ONLY-NOT-WINDOWS only; refused on win32; production:false"
+  },
+  "installer": {
+    "entry": "control/windows/node/install-operator-effects.mjs",
+    "defaultMode": "plan (read-only, writes none)",
+    "applyRequires": "--apply --confirm install-operator-effects-store",
+    "applySteps": ["create-state-directory", "verify-state-directory", "create-journal", "observe-and-pin-journal-acl", "establish-domain", "verify-runtime-open", "validate-config-bytes", "write-config", "verify-config", "write-receipt"],
+    "rerun": "AlreadyEstablished (matching receipt) or IncompleteInstall (anything else); never deletes/resets/replaces",
+    "notPerformed": ["service/task registration", "machine environment activation", "service or app restart", "host cutover", "grant changes", "network"]
+  },
+  "authoredTestsNotRun": {
+    "file": "test/windows-permit/ow-r1-operator-windows-wiring.test.mjs",
+    "groups": {
+      "A": "shared loader: positive exact options; 29 refusal cases; Windows path rules; identity gate; Linux numeric-exclusion honest refusal; missing journal never created",
+      "B": "agent source seam static check; actual Host + actual chain.mjs (inert viem doubles): configured -> exact store probe first then refused, no write; refused -> zero probes/writes/signatures, readiness refused, store never created",
+      "C": "installer: read-only plan; 14 preflight refusals for plan and apply; confirmation required; TEST apply in disposable storage (TEST_inProcessExclusion labelled) with exact config bytes and non-destructive rerun; preserved partial install refusing reruns; CLI parsing"
+    },
+    "notWindowsEvidence": true
+  },
+  "qualificationBoundaries": {
+    "launcherSha256": "94a8483ed8eb40734cf578c7b2ffa5c3e6f83357d8268950acff5c47723e8d7c",
+    "probeSha256": "6c8d02e90b5596122095021d9a51f6b77d11487f1610e2f32eca84010a0f660b",
+    "artifactsAreWindowsEvidence": false,
+    "rebuiltOrRun": false,
+    "admission": "NOT ADMITTED (qualification-admission-plan.json)",
+    "guestdFloorMiB": 18432,
+    "launcherCutoff17408MiB": "unresolved gap; not permission to lower the floor",
+    "unboundedTerms": ["P pending commitments", "O independent death observer (proposed 64 MiB, unenforced)", "E early setup"],
+    "staleObservations": ["historical journal zero", "capacity snapshot before Sia 8504 MiB running guest"],
+    "requiredTargetMeasurements": [
+      "Job containment/limits/inheritance/independent owner-death on exact target with fresh admission",
+      "native EXLOCK: cross-process open/rename/delete refused while held, holder death releases, same-process second open refused, raw errors + positive control",
+      "service identity Read+Write (no DELETE) suffices for O_RDWR|0x10000000 open and FlushFileBuffers",
+      "Get-Volume -FilePath on a directory; CreateDirectory(path, DirectorySecurity) + SetOwner(BA) in Windows PowerShell 5.1",
+      "observed journal SDDL stable across agent restarts; probe completes within 60 s; node.exe startup hash time",
+      "config/receipt directory denies the service identity write"
+    ],
+    "separateFollowOn": ["power-loss/FlushFileBuffers", "guard/reboot", "native/full useful workloads", "manual uncertain-state recovery", "capacity maintenance/compaction", "platform migration", "activation and canary"]
+  },
+  "mutationChronology": [
+    "create control/windows/node/operator-effects-config.mjs",
+    "edit control/windows/node/host.mjs (4 edits)",
+    "edit control/windows/node/agent.mjs (3 edits)",
+    "rewrite control/windows/node/initialize-operator-effects.mjs",
+    "create control/windows/node/install-operator-effects.mjs (+1 edit)",
+    "create test/windows-permit/ow-r1-operator-windows-wiring.test.mjs (+4 edits)",
+    "create REPORT-OPERATOR-WINDOWS-WIRING-R1.md",
+    "create RELEASE-CLOSURE-OPERATOR-WINDOWS-WIRING-R1.json"
+  ],
+  "writesOutsideCandidate": false
+}

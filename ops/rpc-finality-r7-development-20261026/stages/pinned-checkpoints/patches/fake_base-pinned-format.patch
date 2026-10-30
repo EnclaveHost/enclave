@@ -1,0 +1,18 @@
+--- a2-v2-release-bound-prepared/stage/test/fake_base.py
++++ pinned-checkpoint-parser/fixtures/fake_base.py
+@@ -29,7 +29,14 @@
+     rest = a[5:] if a[3:4] == ['--config'] else a[3:]   # db --datadir D [--config F] ...
+     if rest[:2] == ['settings', 'get']: print(f"StorageSettings {{ storage_v2: {str(st['v2']).lower()} }}"); sys.exit(0)
+     if rest[:2] == ['stage-checkpoints', 'get']:
+-        for k, v in st['cp'].items(): print(f'{k}: Some(StageCheckpoint {{ block_number: {v}, stage_checkpoint: None }})')
++        # pinned reth 7134be3 format (db/stage_checkpoints.rs None branch: `{StageId}: {StageCheckpoint:?}`, id.rs Display names), the
++        # state tip rows the real table also holds, and Finish's partial_state_trie when the fixture state sets 'finishPartial'
++        D = {'headers': 'Headers', 'bodies': 'Bodies', 'execution': 'Execution', 'merkle-execute': 'MerkleExecute', 'finish': 'Finish'}
++        for k, v in st['cp'].items():
++            d = 'None' if k != 'finish' or st.get('finishPartial') is None else f"Some(Finish(FinishCheckpoint {{ partial_state_trie: Some({st['finishPartial']}) }}))"
++            print(f'{D[k]}: StageCheckpoint {{ block_number: {v}, stage_checkpoint: {d} }}')
++        for extra in ('SenderRecovery', 'AccountHashing', 'StorageHashing'):
++            print(f"{extra}: StageCheckpoint {{ block_number: {st['cp']['execution']}, stage_checkpoint: None }}")
+         sys.exit(0)
+     if rest[:3] == ['get', 'static-file', 'headers']:
+         n = int(rest[3]); h = st['headers'].get(str(n))

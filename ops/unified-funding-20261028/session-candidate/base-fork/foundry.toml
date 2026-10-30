@@ -1,0 +1,14 @@
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = ["../../../../contracts/foundry/lib"]
+remappings = ["forge-std/=../../../../contracts/foundry/lib/forge-std/src/", "session-src/=src/", "dex-r1/=../../dex-candidate/"]
+allow_paths = ["../../../../contracts/foundry/lib", "src", "../../dex-candidate/src"]
+solc = "0.8.35"
+optimizer = true
+optimizer_runs = 1
+via_ir = true
+evm_version = "osaka"
+bytecode_hash = "none"

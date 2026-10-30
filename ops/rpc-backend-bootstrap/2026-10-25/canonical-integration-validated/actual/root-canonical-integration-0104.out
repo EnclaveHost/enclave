@@ -1,0 +1,67 @@
+[queue] START available=23457MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB
+[ok] offline (lo only, no route)
+[ok] stage files == SHA256SUMS
+[ok] recorded inputs unchanged (jobs/INPUT-PINS.sha256)
+[ok] source commit 77d6cc859fbd3dba0fcf28d372e8fe463e5a589c present
+[ok] candidate files: 77d6cc859 'before' blobs as recorded
+[ok] fresh /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-integration-actual/run/regress-20261026T005955Z
+== B: NEW chain-verifier-inputs (frozen prepare script; old dir only read)
+[ok] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-integration-actual/run/regress-20261026T005955Z/chain-verifier-inputs: 7 pinned files + PINS.sha256 d68833a7a85317b037d385026db4a01748de394750500bee275542c92fd46bc1; helios 8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378
+== C: trees (git archive of 77d6cc859fbd3dba0fcf28d372e8fe463e5a589c; candidate = base + the 5 reviewed files)
+[ok] candidate differs from base in exactly CHANGED-FILES
+== D: regression (offline)
+== D1-provenance
+----------------------------------------------------------------------
+Ran 4 tests in 0.301s
+
+OK
+## D1-provenance rc=0
+== D2-source-updater
+----------------------------------------------------------------------
+Ran 10 tests in 1.018s
+
+OK
+## D2-source-updater rc=0
+== D3-pin-candidate
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 559.0344
+## D3-pin-candidate rc=0
+== D4-existing-cand
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 18354.691936
+## D4-existing-cand rc=0
+== D5-existing-base-control
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 17296.527159
+## D5-existing-base-control rc=0
+== D6-overlay-cand-newinputs
+----------------------------------------------------------------------
+Ran 19 tests in 26.250s
+
+OK
+## D6-overlay-cand-newinputs rc=0
+== D7-overlay-base-oldinputs-control
+----------------------------------------------------------------------
+Ran 19 tests in 25.883s
+
+OK
+## D7-overlay-base-oldinputs-control rc=0
+== D8-NEG-overlay-cand-oldinputs
+----------------------------------------------------------------------
+Ran 1 test in 0.396s
+
+FAILED (errors=1)
+## D8-NEG-overlay-cand-oldinputs rc=1
+== E: NOT RUN (GUEST_ROOTFS/RIG_CHAIN_NODE not provided)
+## summary: D1-provenance=0 D2-source-updater=0 D3-pin-candidate=0 D4-existing-cand=0 D5-existing-base-control=0 D6-overlay-cand-newinputs=0 D7-overlay-base-oldinputs-control=0 D8-NEG-overlay-cand-oldinputs=1  E=NOT RUN (GUEST_ROOTFS/RIG_CHAIN_NODE not provided)
+PASS: complete positive summaries, zero skips, exact old-artifact pin rejection
+## rc=0 (candidate pin replacement regressions passed offline; E: NOT RUN (GUEST_ROOTFS/RIG_CHAIN_NODE not provided); NOT committed, NOT an image, NOT measured, NOT SNP-qualified)
+[memory-guard] exit=0 peakTreeRssMiB=654 minHostAvailableMiB=22418
+[memory-guard] at peak: node:130 node:122 node:86 node:86 node:82 node:69 node:64 openssl:9
+[queue] EXIT 0

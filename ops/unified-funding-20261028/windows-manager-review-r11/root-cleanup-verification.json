@@ -1,0 +1,37 @@
+{
+  "candidateFilesUnchanged": 225,
+  "units": {
+    "focused": {
+      "ActiveState": "failed",
+      "InvocationID": "e53b22481d5d4045a89056d06aff6462",
+      "MainPID": "0",
+      "Result": "exit-code"
+    },
+    "isolated": {
+      "ActiveState": "failed",
+      "InvocationID": "07d91154ad8a4ab8946355265d064973",
+      "MainPID": "0",
+      "Result": "exit-code"
+    },
+    "fixture": {
+      "ActiveState": "inactive",
+      "InvocationID": "",
+      "MainPID": "0",
+      "Result": "success"
+    }
+  },
+  "ownedTempDirectories": {
+    "focused": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/r11-vpa20ey8",
+      "exists": false
+    },
+    "isolated": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/r11-wm7t4lj6",
+      "exists": false
+    },
+    "fixture": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/r11-d_9m9lks",
+      "exists": false
+    }
+  }
+}

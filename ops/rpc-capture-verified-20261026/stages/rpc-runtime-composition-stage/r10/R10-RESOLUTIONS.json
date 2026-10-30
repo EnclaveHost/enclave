@@ -1,0 +1,41 @@
+{
+ "base": "82ec7d455cc6e9957c1500f6e58ffde557093392",
+ "credit": "12b41d4592f4a8d216c827b1bccc8f4d79b51c07",
+ "files": {
+  "network/enclave-network-host.mjs": {
+   "r9": "37556486bb756695b0d51de058a6373a0ee347da",
+   "result": "147f9d9a6ab457e2e9a27b121f3dbc9a4f4260ba",
+   "why": "restores route's createNetworkHost challengeOptions={} parameter (r8 took e4f's copy of the signature line inside the ownerSignatureReader hunk; route code at :223 uses it -> 'challengeOptions is not defined' in challenge-front-managed test 2)"
+  },
+  "network/wg-provider/attested-authority.mjs": {
+   "r9": "526ebb6a783f4a4b47e00b8c4221067f360cf226",
+   "result": "faeb7cb2d5262d62a949385e4a0d4123cf8869cd",
+   "why": "chainVerifier refusal text restored to route's wording; host services under the local-verifier provider mode REFUSED (r9 routed them to the quorum branch = mixed authority)"
+  },
+  "scripts/build-site.mjs": {
+   "r9": "a3964459f6125d0c1ca3c96ac7f5850bad08f85b",
+   "result": "b1834e45ac9a396423b08b221ec9b5488a737069",
+   "why": "consumer 12b41d459 exactly (root 0228 12/12, 0230 both credit bundle modes, 0232 applied); r9 had b6ac's blob"
+  },
+  "site/credit/credit.js": {
+   "r9": "9e743f6c3f5113b44e0ad0b44dcfeaf0377b725c",
+   "result": "d2bb1d9e59e2ce80e5033752fece3d47eec1f42b",
+   "why": "consumer 12b41d459 exactly (root 0228 12/12, 0230 both credit bundle modes, 0232 applied); r9 had b6ac's blob"
+  },
+  "site/js/core/read-authority.js": {
+   "r9": "06c2b03f54f7e50cf7a8ae7b8ba8a10ff574dc76",
+   "result": "4f66b44a50bef2c62cb88f22184d633c7bcca1e6",
+   "why": "consumer 12b41d459 exactly (root 0228 12/12, 0230 both credit bundle modes, 0232 applied); r9 had b6ac's blob"
+  },
+  "test/attested-route-composition.test.mjs": {
+   "r9": "2ff9767107a6412fb258e9c45e0cb1d9632519af",
+   "result": "4434b5ff983fdb3d0dc48a188df028605e1b76b3",
+   "why": "route coverage kept; the verifier-mode line adapted (INTENTIONAL API CHANGE marker) and extended: an unknown mode refuses, host services under the local verifier refuse (never mixed)"
+  },
+  "test/credit-read-authority.test.mjs": {
+   "r9": null,
+   "result": "2a632e8462c27a747f2687055fb9746a4fae7512",
+   "why": "consumer 12b41d459 exactly (root 0228 12/12, 0230 both credit bundle modes, 0232 applied); r9 had b6ac's blob"
+  }
+ }
+}

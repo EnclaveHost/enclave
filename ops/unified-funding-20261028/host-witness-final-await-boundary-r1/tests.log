@@ -1,0 +1,96 @@
+TAP version 13
+# Subtest: positive: final read returns unchanged authority and a valid real signature
+ok 1 - positive: final read returns unchanged authority and a valid real signature
+  ---
+  duration_ms: 73.89871
+  type: 'test'
+  ...
+# Subtest: final awaited read: closed must prevent signature release
+not ok 2 - final awaited read: closed must prevent signature release
+  ---
+  duration_ms: 23.146115
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-witness-final-await-boundary-r1/final-await.test.mjs:73:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: closed: signed response must not leave the witness'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-witness-final-await-boundary-r1/final-await.test.mjs:79:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: final awaited read: fenced must prevent signature release
+not ok 3 - final awaited read: fenced must prevent signature release
+  ---
+  duration_ms: 16.042962
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-witness-final-await-boundary-r1/final-await.test.mjs:73:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: fenced: signed response must not leave the witness'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-witness-final-await-boundary-r1/final-await.test.mjs:79:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: final awaited read: expired must prevent signature release
+not ok 4 - final awaited read: expired must prevent signature release
+  ---
+  duration_ms: 15.901273
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-witness-final-await-boundary-r1/final-await.test.mjs:73:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: expired: signed response must not leave the witness'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-witness-final-await-boundary-r1/final-await.test.mjs:79:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: final awaited read: app-denied must prevent signature release
+not ok 5 - final awaited read: app-denied must prevent signature release
+  ---
+  duration_ms: 18.513523
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-witness-final-await-boundary-r1/final-await.test.mjs:73:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: app-denied: signed response must not leave the witness'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-witness-final-await-boundary-r1/final-await.test.mjs:79:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: final awaited read: readiness-extension must prevent signature release
+not ok 6 - final awaited read: readiness-extension must prevent signature release
+  ---
+  duration_ms: 30.246368
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-witness-final-await-boundary-r1/final-await.test.mjs:73:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: readiness-extension: signed response must not leave the witness'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/host-witness-final-await-boundary-r1/final-await.test.mjs:79:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 1
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 371.165913

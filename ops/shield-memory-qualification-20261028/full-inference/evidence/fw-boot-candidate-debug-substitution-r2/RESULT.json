@@ -1,0 +1,132 @@
+{
+  "scope": "GPU-free boot/rejection qualification; not inference or independently verified attestation",
+  "spec": {
+    "target": "candidate-debug",
+    "case": "substitution",
+    "firmware_sha256": "0598d551eea4e8becd54cb80aa5c7964ee46f21e50936fc06809ed171672594c",
+    "image_sha256": "7a71d50dfe4282a895d677377347f47f0230b0fc69000b697f38c6a3da8846ec",
+    "qemu": "/home/steven/.cache/enclave-isolation/parallel-vmsa-qemu-hashtest/build/qemu-system-x86_64",
+    "qemu_sha256": "80907c75de32a16b469c0476f994b4db5ff2df4a45743dd74e0698c674e32ccc",
+    "guest_mib": 4096,
+    "cap_mib": 6144,
+    "no_gpu": true,
+    "no_disks": true,
+    "no_network": true,
+    "override_sha256": "459df8724f83fbcfc143d429e9e0edd8ce37b2665289616a51bc0c71e8d18e07"
+  },
+  "argv": [
+    "systemd-run",
+    "--user",
+    "--unit",
+    "fullbench-f20b00e4cb9844d6-fw.service",
+    "--service-type=exec",
+    "-p",
+    "MemoryMax=6144M",
+    "-p",
+    "MemorySwapMax=0",
+    "-p",
+    "CPUQuota=200%",
+    "-p",
+    "TasksMax=128",
+    "-p",
+    "RuntimeMaxSec=120",
+    "-p",
+    "TimeoutStopSec=10",
+    "-p",
+    "KillMode=control-group",
+    "--setenv=LD_LIBRARY_PATH=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/test-qemu-compat",
+    "--setenv=ENCLAVE_TEST_HASH_INITRD=/home/steven/.cache/enclave-isolation/parallel-review-m4b/measinit-probe0.cpio.gz",
+    "--",
+    "/home/steven/.cache/enclave-isolation/parallel-vmsa-qemu-hashtest/build/qemu-system-x86_64",
+    "-machine",
+    "q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1",
+    "-object",
+    "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on",
+    "-object",
+    "memory-backend-memfd,id=ram1,size=4096M,share=true",
+    "-cpu",
+    "host",
+    "-smp",
+    "2",
+    "-m",
+    "4096M",
+    "-bios",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fwbuild-candidate-r1/OVMF.candidate-debug.fd",
+    "-kernel",
+    "/home/steven/enclave-prod/release-5cab66e4/kernel",
+    "-initrd",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/full-images-build-r1/A.cpio.gz",
+    "-append",
+    "console=ttyS0 rdinit=/init loglevel=3",
+    "-nodefaults",
+    "-no-user-config",
+    "-nic",
+    "none",
+    "-monitor",
+    "none",
+    "-display",
+    "none",
+    "-serial",
+    "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fw-boot-candidate-debug-substitution-r2/serial.log",
+    "-debugcon",
+    "file:/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/fw-boot-candidate-debug-substitution-r2/debug.log",
+    "-global",
+    "isa-debugcon.iobase=0x402",
+    "-no-reboot"
+  ],
+  "samples": [
+    {
+      "t": 1793169177.2600465,
+      "host_available": 88856305664
+    },
+    {
+      "t": 1793169178.2748241,
+      "host_available": 88878231552
+    },
+    {
+      "t": 1793169179.3014162,
+      "host_available": 88449966080
+    },
+    {
+      "t": 1793169180.3297033,
+      "host_available": 86447517696
+    },
+    {
+      "t": 1793169181.347256,
+      "host_available": 84518973440
+    },
+    {
+      "t": 1793169182.3624525,
+      "host_available": 84512661504
+    },
+    {
+      "t": 1793169183.3777132,
+      "host_available": 84517072896
+    },
+    {
+      "t": 1793169184.3930876,
+      "host_available": 84497801216
+    }
+  ],
+  "outcome": "explicit_verifier_refusal",
+  "identity": {
+    "unit": "fullbench-f20b00e4cb9844d6-fw.service",
+    "binary": "/home/steven/.cache/enclave-isolation/parallel-vmsa-qemu-hashtest/build/qemu-system-x86_64",
+    "created_by_us": true,
+    "invocation": "ff040b89f9f048f0b4dff28e500d70b0",
+    "main_pid": 4186468,
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/fullbench-f20b00e4cb9844d6-fw.service",
+    "pid_start": "147429094"
+  },
+  "cleanup_errors": [],
+  "cleanup": "clean",
+  "kernel_entered": false,
+  "fallback": false,
+  "substitution_active": true,
+  "verifier_success": {
+    "kernel": true,
+    "initrd": false,
+    "cmdline": false
+  },
+  "accepted": true
+}

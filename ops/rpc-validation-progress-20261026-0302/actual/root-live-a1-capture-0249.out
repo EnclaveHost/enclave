@@ -1,0 +1,12 @@
+[queue] START available=22615MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+{
+  "startedAt": "2026-10-26T02:50:24.091286+00:00",
+  "productionActivated": false,
+  "localIdentity": "user namespace root mapped to existing operator user; not host-root or attested identity",
+  "sourceSha256": "2352df7b27c39299011038bab9aace681756c2eaef5cf216c665d82f9149d277",
+  "captureOk": false,
+  "finishedAt": "2026-10-26T02:51:05.219843+00:00"
+}
+[memory-guard] exit=1 peakTreeRssMiB=225 minHostAvailableMiB=22278
+[memory-guard] at peak: python3:97 node:77 3:50
+[queue] EXIT 1

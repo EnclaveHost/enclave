@@ -1,0 +1,22 @@
+{
+  "HANDOFF-20261029-2313.md": "9c605da4c4a14814188b3396c9c3f69f414872567c7cc4697684fb03d41fa451",
+  "ROOT-REVIEW.md": "90ea083e5b0afc5be488fca181bc2ae4e7392c5b7bef6c98d9763bd2bbb264d5",
+  "SOURCE-PINS.json": "a7da42de8a28700a67bdece307fb12106d55260e13964bd5e5712edda149a2ac",
+  "expanded-host-audit/inner.log": "79688d53470ff81abd41a2f1c21295eb665362486dd1857c0f8f41e2d6d275e8",
+  "expanded-host-audit/queue.log": "99a12b03e9ddc98374a90f0c7a1e05f412091f1cfce78329d839ebb86759c5ed",
+  "expanded-host-audit/read.mjs": "12bc3d63316267e8e32f959b38794e03d0b9f760ec48b140aa15594d0f329a85",
+  "expanded-host-audit/result.json": "57ea1d724084d7b4380758ba4743d63e589c49aba06d43a97ae3981756985574",
+  "inner.log": "abbb0e7e79e57bda2dde4c85fe288ca637a550340ce3a6b53537827a3f02c524",
+  "queue.log": "3a5b7242915a6d5b35e2766fb19cb118f3def9d27f8417772eb511a235a435b0",
+  "read.mjs": "272e1bb79df525aef5dbc1f41b845bec54d56aeab7cdfb41e8ca9f87dc472284",
+  "result.json": "53eab6a432b8a4e16a8f1c40786e8fdc88a07aac7a7a001ad1fd239ae2e0d7a9",
+  "single-provider-diagnostic/inner.log": "78c4ebf5cc533d32ccb11d6217f8ed52cd4fe3f1a9298fdad3b209b11b6331a7",
+  "single-provider-diagnostic/queue.log": "11854df30dc8ad9f48f4371c3cb0644234742176b68c26501f3a12f19c35f446",
+  "single-provider-diagnostic/read.mjs": "02ec6c89783c7949b9f30574590a6c1666d7afe09f71cd3ac90e2b4ee5103f6d",
+  "single-provider-diagnostic/result.json": "238e55b44037443a94b56be542efb135f8f508cd26b1c8c4e955c77c448de407",
+  "unit-observation.txt": "f152692f3ad5d23ae9c4ff78e578686c7573eb4808e4b2d524bd3d73ff060fba",
+  "vault-diagnostic/inner.log": "7e38403b1a1f6ec2f06137a51d2850ed6bcb33a3c19ab3cd4d41bf54c8a23fb3",
+  "vault-diagnostic/queue.log": "c256ea7d096479813ad85f70d2a391d7961a99d732a8ede284983ea95f14ba80",
+  "vault-diagnostic/read.mjs": "fe0f26bed1ba31898636d540dfb64fb7114797c9cd6eeb8f0ac8b3dd49a72063",
+  "vault-diagnostic/result.json": "a8a3462e1613df3bb8e4eeeaff06a0fd8b8c6e57918cefae2c2ba8ccd652cd6f"
+}

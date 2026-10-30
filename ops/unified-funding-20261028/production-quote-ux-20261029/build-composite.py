@@ -1,0 +1,5 @@
+from pathlib import Path
+import subprocess,hashlib
+p=Path(__file__).resolve().parent;u=p.parent
+args=['node',str(u/'production-composite-release-r1/build-composite.mjs'),'--base-tree','/home/steven/Documents/Codex/2026-10-23/it/work/restore-queued-20261028/live-site-preserved-bafybeifidl','--inventory','/home/steven/Documents/Codex/2026-10-23/it/work/restore-queued-20261028/live-site-public/tree-us-west.json','--addon',str(p/'artifact'),'--addon-pins',str(p/'pins-reviewed.json'),'--site-release-dir','/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/scripts/site-release','--base-cid','bafybeifidlcmnobifev33hflaicusmzjpcqgwutobbzilaoc6tgylwlzcm','--expect-files','1126','--expect-bytes','74403175','--expect-inventory-sha256','9269fe1f19b3d4e32aa109717c8e187ddfd4300294ef1d52e52bfc65642fa372','--expect-addon-manifest-sha256',hashlib.sha256((p/'artifact/MANIFEST.json').read_bytes()).hexdigest(),'--base-source-commit','48a812d22','--base-source-dirty','true','--out',str(p/'composite')]
+raise SystemExit(subprocess.run(args,timeout=900).returncode)

@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: source default: no release authority, legacy pool exactly as before
+ok 1 - source default: no release authority, legacy pool exactly as before
+  ---
+  duration_ms: 1.230367
+  type: 'test'
+  ...
+# Subtest: own-rpc: only the authority's endpoints, the dev override is not mixed in
+ok 2 - own-rpc: only the authority's endpoints, the dev override is not mixed in
+  ---
+  duration_ms: 0.788642
+  type: 'test'
+  ...
+# Subtest: an invalid or mislabelled authority pins NO endpoint (never the public pool)
+ok 3 - an invalid or mislabelled authority pins NO endpoint (never the public pool)
+  ---
+  duration_ms: 1.527204
+  type: 'test'
+  ...
+# Subtest: a user's independent profile keeps precedence; the wallet fallback never uses a public default outside legacy
+ok 4 - a user's independent profile keeps precedence; the wallet fallback never uses a public default outside legacy
+  ---
+  duration_ms: 0.264947
+  type: 'test'
+  ...
+# Subtest: hosted sessions RPC: legacy unchanged; own-rpc ignores a relay-supplied RPC; invalid refuses (no SDK public default)
+ok 5 - hosted sessions RPC: legacy unchanged; own-rpc ignores a relay-supplied RPC; invalid refuses (no SDK public default)
+  ---
+  duration_ms: 0.319687
+  type: 'test'
+  ...
+# Subtest: build seam: flags both-or-neither, reviewed digest, exactly one declaration in the real source
+ok 6 - build seam: flags both-or-neither, reviewed digest, exactly one declaration in the real source
+  ---
+  duration_ms: 2.029798
+  type: 'test'
+  ...
+# Subtest: fixture closure: the real relative-import closure, including the network/ modules the site imports
+ok 7 - fixture closure: the real relative-import closure, including the network/ modules the site imports
+  ---
+  duration_ms: 0.203648
+  type: 'test'
+  ...
+# Subtest: integration own-rpc: reads go only to the own endpoints; the wallet signing config is unchanged
+ok 8 - integration own-rpc: reads go only to the own endpoints; the wallet signing config is unchanged
+  ---
+  duration_ms: 25.45365
+  type: 'test'
+  ...
+# Subtest: integration own-rpc outage: every attempt stays on the own endpoints, then the read fails (no public fallback)
+ok 9 - integration own-rpc outage: every attempt stays on the own endpoints, then the read fails (no public fallback)
+  ---
+  duration_ms: 712.707981
+  type: 'test'
+  ...
+# Subtest: integration invalid authority: the pool is empty and every read refuses without contacting anyone
+ok 10 - integration invalid authority: the pool is empty and every read refuses without contacting anyone
+  ---
+  duration_ms: 11.479339
+  type: 'test'
+  ...
+# Subtest: integration legacy (no release authority): the existing public pool and dev-override rules are unchanged
+ok 11 - integration legacy (no release authority): the existing public pool and dev-override rules are unchanged
+  ---
+  duration_ms: 9.268732
+  type: 'test'
+  ...
+# Subtest: credit page contract (unchanged): its quorum reader refuses a single origin, so a credit cutover needs two own endpoints
+ok 12 - credit page contract (unchanged): its quorum reader refuses a single origin, so a credit cutover needs two own endpoints
+  ---
+  duration_ms: 0.362626
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 843.085096

@@ -1,0 +1,9 @@
+# Windows repair author r2 admission
+
+One source-only Claude run launched after root read the complete task and runner, independently verified the required Max account and all586 read-only pins and145 seed files. Final PREPARED hash c9bf5e51539ca0bcd063d9b32861a52df7f61c113707bceb37979ea6c69971f5. Runtime1800 seconds/55turns, outer2100, shared1536MiB/1408RSS/floor27648/oneCPU/noSwap. Only Read/Grep/Write; no author execution or production changes. Exclusive attempt record prevents repeat. These are tool/task restrictions, not a claim of OS filesystem isolation.
+
+Actual active unit enclave-windows-manager-permit-r2-20261029, invocation1125667fd094442ab411673d7786d79a, main1493975, runner1493990, Claude1494007; start1793280713.575628. No implementation result is claimed at admission. Peer collects this same run when terminal; no duplicate author.
+
+The task preserves the complete decentralization objective. First fix the three independently reproduced recovery defects, correct two test helper failures, then complete actual supervisor/control integration and independently verified read-only authority, preserving all supported workload boundaries. Disabled capabilities are not completion. The prior author rationale about needing fake financial privileges to construct the real chain adapter was incorrect: the exact generated constructor does not require actorSigner/approvals/relay; they are used later in write operations. A genuinely read-only exposure must prove zero financial calls while retaining chain proof checks. Linux-only derived-reader and Windows proof/journal qualification remain separate unresolved requirements.
+
+This directory preserves reviewed inputs and admission, not a deployment artifact. The live author directory is /home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-repair-r2-20261029. Prior frozen source, failed tests, and all production state remain unchanged.

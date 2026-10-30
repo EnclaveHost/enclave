@@ -1,0 +1,7 @@
+{
+  "archive": "/home/steven/Documents/Codex/2026-10-23/it/work/native-manager-sidecar-v12/source.zip",
+  "archiveSha256": "d2f00b2e8dd7cf564deb37e7ac86da427d9b93d76df787eb45c0b375f7a369b0",
+  "entries": 119,
+  "serverSha256": "09085ceecb8dedab1c569b67db4998b8c46e5d360fc8aa2f83425b835c0db0dc",
+  "scope": "Archive source matches independently inspected installed Windows manager server hash; local fake backend only, not live Windows execution or new permit enforcement."
+}

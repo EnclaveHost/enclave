@@ -1,0 +1,2 @@
+Root reviewed optimized no-LTO candidate only. Fixed shell same-export expansion so CXXFLAGS gets the new CFLAGS; bounded RUN to 1|2 before creating/removing own paths. All original source/patch/input checks preserved. No live binary pin change.
+Executed recipe SHA256 2ee8b8dec0a64331e261f0fe2fcafed5c899554322a2a0a9bd9c236202d409ec

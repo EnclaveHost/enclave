@@ -1,0 +1,20 @@
+{
+  "ledger-rev16d": {
+    "commit": "4b7419bb0955ffd02a6ce8d75809dac0a18f302f",
+    "originalPath": "contracts/EnclaveDeployments.sol",
+    "sha256": "2771a5248ed7a68f5521b08dbde466603b02c29ccd961d55fd9eceabe1d11cd1",
+    "reviewCopy": "ledger-rev16d-EnclaveDeployments.sol"
+  },
+  "legacy-sessions-v2": {
+    "commit": "4aea7d8986681bb7ccfef27067e7222a8eafbcdf",
+    "originalPath": "contracts/SessionVault.sol",
+    "sha256": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c",
+    "reviewCopy": "legacy-sessions-v2-SessionVault.sol"
+  },
+  "catalog": {
+    "commit": "f2e9a71d0fb25b67a774be76b29081f6cb6f8ec3",
+    "originalPath": "contracts/EnclaveAppCatalog.sol",
+    "sha256": "b31744361efbb43fcf60152a5eaaa185d1af07bdc27f077af0a2b48e7de3b191",
+    "reviewCopy": "catalog-EnclaveAppCatalog.sol"
+  }
+}

@@ -1,0 +1,17 @@
+--- a/units/consumer-requires-base-ready.conf
++++ b/units/consumer-requires-base-ready.conf
+@@ -1,7 +1,11 @@
+-# base-finality-proof-stage/r6 (SOURCE ONLY): drop-in for EACH Base RPC consumer unit listed in /etc/enclave-rpc/base-consumer-units.
+-# The consumer stops with the Base node and never starts unless the readiness report is fresh READY with post-anchor finality.
++# base-finality-proof-stage/r6-ops-fixes (SOURCE ONLY): drop-in for EACH reviewed Base RPC consumer unit listed in
++# /etc/enclave-rpc/base-consumer-units (never an app VM unit). Requisite= (not BindsTo=/Requires=): starting a consumer NEVER starts the
++# Base holder, so a deliberately stopped or permit-refused node stays down. PartOf=: an explicit stop/restart of the holder stops/restarts
++# the consumer (a restart re-runs ExecCondition, which refuses until a post-restart proof). A holder CRASH is caught by the gate timer
++# (enforce, every 30 s: the live-holder check fails) and by ExecCondition on any start.
+ [Unit]
+-BindsTo=enclave-base-holder.service
++Requisite=enclave-base-holder.service
+ After=enclave-base-holder.service
++PartOf=enclave-base-holder.service
+ [Service]
+ ExecCondition=/usr/bin/python3 -I -B /opt/enclave-rpc/readiness/require_ready.py check

@@ -1,0 +1,46 @@
+{
+  "readOnly": true,
+  "purpose": "Diagnose absent production promotion offer; no signature, wallet or mutation",
+  "at": "2026-10-30T02:18:44.458Z",
+  "block": {
+    "number": "53268690",
+    "hash": "0x86e46734c0f381d4d980cd1e9bf6564c0799fafbbd4bc5a5a17964a1112d5901",
+    "timestamp": "1793326727"
+  },
+  "catalog": [
+    {
+      "origin": "https://api.enclave.host/rpc/base",
+      "result": {
+        "ok": true,
+        "catalog": "0x18419ca2b502d423a8de6269aeee171a378626e3",
+        "codeHash": "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f",
+        "appId": "0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06",
+        "index": "0",
+        "app": "enclavedns",
+        "name": "EnclaveDNS",
+        "publisher": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+        "appActive": true,
+        "versionLabel": "0.1.0",
+        "versionCid": "bafybeieb3m4oamjpkncokihkqitigleizsdmqvhtxqz6awrwo2rlul44ue",
+        "yanked": false
+      }
+    },
+    {
+      "origin": "https://rpc.baseazul.dev",
+      "result": {
+        "ok": true,
+        "catalog": "0x18419ca2b502d423a8de6269aeee171a378626e3",
+        "codeHash": "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f",
+        "appId": "0x85f28c21b1545a05aee6661faf4b149b5dd18377fce59ad290e9f19857baab06",
+        "index": "0",
+        "app": "enclavedns",
+        "name": "EnclaveDNS",
+        "publisher": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+        "appActive": true,
+        "versionLabel": "0.1.0",
+        "versionCid": "bafybeieb3m4oamjpkncokihkqitigleizsdmqvhtxqz6awrwo2rlul44ue",
+        "yanked": false
+      }
+    }
+  ]
+}

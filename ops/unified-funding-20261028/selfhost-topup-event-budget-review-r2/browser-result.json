@@ -1,0 +1,20 @@
+{
+  "kind": "actual Chromium TEST fixture observation",
+  "passed": 12,
+  "mockSends": 1,
+  "productionSends": 0,
+  "tab": "723101001",
+  "ownedServerStopped": true,
+  "portClosed": 38481,
+  "limitations": [
+    "Mock SDK/RPC/settlement, no real wallet or production request",
+    "Real helper and state/flows, fixture wrapper rather than full dashboard integration",
+    "No deployment, automatic refill or new lifecycle authority qualification"
+  ],
+  "sha256": {
+    "browser-fixture.html": "02d0761a84372e4f6dfae0cfecfa1fb02bb4f411554c337edf204da9348cbe14",
+    "serve-test.py": "1bc69d5133a7483eef34874d9a75be16ba776fed60481fd36054adccdd328aee",
+    "browser-DOM.txt": "4b29e07ecac343e41a02f4bedcdda9e0ba1707f71307a56431060a1111d6f47e"
+  },
+  "screenshotSha256": "9e403485963fdd571d435b33b7afa617a6abc50f49a7b9604a65312525a85ba2"
+}

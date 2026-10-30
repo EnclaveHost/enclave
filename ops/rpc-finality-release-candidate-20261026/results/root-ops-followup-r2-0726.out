@@ -1,0 +1,16 @@
+[queue] NOT STARTED: available=17495MiB required=18176MiB cap=1536MiB
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: available=18043MiB required=18176MiB cap=1536MiB
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: available=17857MiB required=18176MiB cap=1536MiB
+[q.sh] try 3 not started; sleep 30
+[queue] START available=18243MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+manifest = r10 with reproof.py -> cc9ff0b41dc0
+## FAIL: ops-installer: rc 1, Ran 18 (expected 18), last FAILED (failures=1) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10-ops-followup-r2/logs/root-r10-ops-followup-r2-tests-20261026T072804Z-1136677/ops-installer.txt)
+PASS reproof Ran 17 (expected 17)
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10-ops-followup-r2/logs/root-r10-ops-followup-r2-tests-20261026T072804Z-1136677
+## r10-ops-followup-r2 SHA256SUMS f072202a6fcaf10a81d47f8d2b0dd8f0ab3c2697def93668789d2c8c0336a0b5
+## r10-ops-followup-r2 rc=1
+[memory-guard] exit=1 peakTreeRssMiB=187 minHostAvailableMiB=17865
+[memory-guard] at peak: python3:102 node:66 python3.14:12 bash:4 bash:2 timeout:2
+[queue] EXIT 1

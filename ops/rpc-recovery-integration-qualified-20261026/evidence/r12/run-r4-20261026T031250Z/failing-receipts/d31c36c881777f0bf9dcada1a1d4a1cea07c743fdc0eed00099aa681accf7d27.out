@@ -1,0 +1,105 @@
+TAP version 13
+# Subtest: discovery: two designated relays verified; the fleet's ad excluded, the impostor rejected, an administrator's ban honoured
+not ok 1 - discovery: two designated relays verified; the fleet's ad excluded, the impostor rejected, an administrator's ban honoured
+  ---
+  duration_ms: 3725.70088
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:173:1'
+  failureType: 'hookFailed'
+  error: "The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'"
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    async loadHost (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:109:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:162:11)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: a ZERO-ETH host with no relay of its own: cold claim, relay A LOST, renew and release through relay B - each paid by the app's reserve
+not ok 2 - a ZERO-ETH host with no relay of its own: cold claim, relay A LOST, renew and release through relay B - each paid by the app's reserve
+  ---
+  duration_ms: 0.531734
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:215:1'
+  failureType: 'hookFailed'
+  error: "The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'"
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    async loadHost (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:109:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:162:11)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: operator authority is judged at EVERY signature: the cached relay list never carries it; a fresh ban, an unusable or undecided policy refuse at once
+not ok 3 - operator authority is judged at EVERY signature: the cached relay list never carries it; a fresh ban, an unusable or undecided policy refuse at once
+  ---
+  duration_ms: 0.080749
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:248:1'
+  failureType: 'hookFailed'
+  error: "The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'"
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    async loadHost (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:109:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:162:11)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: both designated relays lost: the operation fails NotRelayed within a bound, nothing is sent, the host still holds no ETH
+not ok 4 - both designated relays lost: the operation fails NotRelayed within a bound, nothing is sent, the host still holds no ETH
+  ---
+  duration_ms: 0.055819
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:290:1'
+  failureType: 'hookFailed'
+  error: "The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'"
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    async loadHost (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:109:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:162:11)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: the packaged role: only the pinned bytes run, no key in configuration, the key is created once and never replaced
+not ok 5 - the packaged role: only the pinned bytes run, no key in configuration, the key is created once and never replaced
+  ---
+  duration_ms: 0.058769
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:305:1'
+  failureType: 'hookFailed'
+  error: "The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'"
+  code: 'ERR_TEST_FAILURE'
+  name: 'SyntaxError'
+  stack: |-
+    ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    async loadHost (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:109:13)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/lease-designated-relays.test.mjs:162:11)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 0
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4123.111691

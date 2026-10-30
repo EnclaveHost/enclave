@@ -1,0 +1,32 @@
+{
+  "exit": 0,
+  "writerResult": {
+    "status": "READY",
+    "receipt": "/vm/enclave-volumes/rpc-production-maint/synthetic-private-az9cy5hn/result/RESULT.json",
+    "error": null
+  },
+  "syntheticOnly": true,
+  "mocks": [
+    "vm_stopped only for exact fresh never-booted fixture"
+  ],
+  "actualGlobalHolderScan": true,
+  "unreadableBeforeCount": 563,
+  "unreadableAfterCount": 564,
+  "privateReceipt": {
+    "status": "PRIVATE-PREPARED",
+    "publishable": false
+  },
+  "negative": {
+    "exit": 2,
+    "refusal": {
+      "refused": {
+        "phase": "access",
+        "message": "access: /vm/enclave-volumes/rpc-production-maint/synthetic-private-az9cy5hn: security identity differs from the reviewed pin in ['mode']"
+      }
+    },
+    "noWorkCreated": true
+  },
+  "sourceBackupUnchanged": true,
+  "fixture": "/vm/enclave-volumes/rpc-production-maint/synthetic-private-az9cy5hn",
+  "productionQualified": false
+}

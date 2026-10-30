@@ -1,0 +1,8 @@
+{
+  "launchAuthorized": true,
+  "preparedSha256": "0b2f1fe90bf30ada28a925429a69a3d5fb1338c1eaecae84940e550a8373b030",
+  "oneAttemptOnly": true,
+  "compileThenSizeThenTests": true,
+  "maxMemoryMiB": 512,
+  "maxRssMiB": 450
+}

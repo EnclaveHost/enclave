@@ -1,0 +1,13 @@
+{
+  "invocation": "3d1d7c73e6124dfeacdb467e78830648",
+  "mainPID": 0,
+  "result": {
+    "tests": 78,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "success": true
+  },
+  "temporaryDirectoryGone": true,
+  "scope": "Original53+new25; unit/mocked metadata and real temporary file/owned child only; not native full workflow."
+}

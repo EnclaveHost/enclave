@@ -1,0 +1,45 @@
+# enclave-base-retention.service (base-retention-stage/activation; PREPARED by 50cf). The SECOND, cached Base snapshot download:
+# retention backfill to history >= 48000000 / state history >= 52500000 (tested v2 policy, 18 archives). NOT readiness.
+# Started ONLY by root via retention_activate.sh start (no [Install]: never enabled, never auto-started; Restart=no: never retried
+# automatically). It never stops or restarts the first download. Its root guard REFUSES unless the first download finished
+# successfully, the holder is stopped and NOT enabled, and nothing uses the datadir. Conflicts=enclave-base-holder.service makes
+# concurrent mutation impossible: if anything pulls the holder in while this runs, systemd stops THIS download first (resumable),
+# never runs both. (A runtime mask is not used: /run has lower precedence than the installed /etc unit.) Holder unit files untouched.
+[Unit]
+Description=Enclave base retention backfill (second cached snapshot download; not production readiness)
+Wants=network-online.target
+After=network-online.target enclave-rpc-base-snapshot.service enclave-base-holder.service
+Conflicts=enclave-base-holder.service
+RequiresMountsFor=/srv/enclave-base-holder
+ConditionPathIsMountPoint=/srv/enclave-base-holder
+ConditionPathExists=/srv/enclave-base-holder/snapshot-complete
+ConditionPathExists=!/srv/enclave-base-holder/retention-complete
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+User=rpcbase
+Group=rpcbase
+Environment=HOME=/srv/enclave-base-holder/data TMPDIR=/srv/enclave-base-holder/tmp
+WorkingDirectory=/srv/enclave-base-holder
+ExecStartPre=/usr/bin/mountpoint -q /srv/enclave-base-holder
+ExecStartPre=+/usr/bin/python3 -I /opt/enclave-rpc/retention/retention_guard.py pre
+ExecStart=/opt/enclave-rpc/bin/base snapshot download --chain base --manifest-path /opt/enclave-rpc/snapshots/base-1792886410-manifest.json --datadir /srv/enclave-base-holder/data --with-txs-since 48000000 --with-receipts-since 48000000 --with-state-history-since 52500000 --download-concurrency 8 --resumable=true -y
+ExecStartPost=/usr/bin/sync -f /srv/enclave-base-holder/data
+ExecStartPost=+/usr/bin/python3 -I /opt/enclave-rpc/retention/retention_guard.py post
+TimeoutStartSec=infinity
+TimeoutStopSec=120
+KillMode=control-group
+Restart=no
+MemoryMax=4G
+MemorySwapMax=0
+OOMScoreAdjust=700
+TasksMax=1024
+LimitNOFILE=65536
+Nice=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/srv/enclave-base-holder/data /srv/enclave-base-holder/tmp
+PrivateTmp=yes
+UMask=0027

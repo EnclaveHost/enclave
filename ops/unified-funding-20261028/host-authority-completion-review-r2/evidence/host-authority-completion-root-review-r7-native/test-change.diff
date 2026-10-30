@@ -1,0 +1,15 @@
+--- r6-native/test.mjs
++++ r7-native/test.mjs
+@@ -256,6 +256,6 @@
+-  const restart = r1.journal.decision(w.id, chainNow());
+-  console.log('ROOT restart evidence', JSON.stringify({restart,now:chainNow(),row:r1.journal.read(w.id)}));
+-  if (!restart.start && restart.reason === 'restart backoff') {
+-    assert.ok(Number.isSafeInteger(restart.nextAt));
+-    await warp(Math.max(1, Math.ceil((restart.nextAt-chainNow())/1000)+1)); // advance ONLY the owned TEST chain/clock beyond actual policy backoff
+-  }
++  const restart = r1.journal.decision(w.id, chainNow()), assignment = (await w.adapter().read(w.id)).assignment;
++  assert.equal(assignment.crashHeld, false, 'no owner resume bypass');
++  const nextAt = Math.max(restart.nextAt ?? 0, assignment.startAfter ?? 0);
++  assert.ok(Number.isSafeInteger(nextAt));
++  console.log('ROOT policy-clock evidence', JSON.stringify({restart,assignment,now:chainNow(),nextAt}));
++  if (nextAt > chainNow()) await warp(Math.ceil((nextAt-chainNow())/1000)+1); // ONLY owned TEST clocks, exact existing restart + canonical generation fence

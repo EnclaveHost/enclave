@@ -1,0 +1,8 @@
+{
+  "commit": "04bfc56803e25ec32b45e3ecfe1b381fd403d76b",
+  "candidate": "ops/unified-funding-20261028/host-ownership-completion-review-r5/candidate",
+  "overlayFiles": [
+    "test/root-ownership-lifecycle.test.mjs",
+    "src/network/lifecycle-host-owned-authority.mjs"
+  ]
+}

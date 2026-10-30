@@ -1,0 +1,12 @@
+M	network/onchain-qualification.mjs
+A	network/op-receipts-root.mjs
+M	network/wg-provider/attested-authority.mjs
+M	network/wg-provider/attested-submission.mjs
+A	network/wg-provider/derived-anchor-floor.mjs
+A	network/wg-provider/derived-runtime.mjs
+A	network/wg-provider/derived-submission.mjs
+M	network/wg-provider/install.sh
+M	network/wg-provider/main.mjs
+M	scripts/network/build-consumers.mjs
+A	test/paid-derived-adapter.test.mjs
+A	test/paid-derived-packaging.test.mjs

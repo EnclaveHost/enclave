@@ -1,0 +1,337 @@
+[queue] START available=89043MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# Subtest: provider 0 answering a different block number than requested refused
+ok 1 - provider 0 answering a different block number than requested refused
+  ---
+  duration_ms: 63.44358
+  type: 'test'
+  ...
+# Subtest: provider 1 answering a different block number than requested refused
+ok 2 - provider 1 answering a different block number than requested refused
+  ---
+  duration_ms: 19.217322
+  type: 'test'
+  ...
+# Subtest: header without a number refused
+ok 3 - header without a number refused
+  ---
+  duration_ms: 13.158102
+  type: 'test'
+  ...
+# Subtest: missing header refused
+ok 4 - missing header refused
+  ---
+  duration_ms: 12.437338
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on the block hash refused
+ok 5 - providers disagreeing on the block hash refused
+  ---
+  duration_ms: 12.444469
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on the block timestamp refused
+ok 6 - providers disagreeing on the block timestamp refused
+  ---
+  duration_ms: 12.158331
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on the base fee refused
+ok 7 - providers disagreeing on the base fee refused
+  ---
+  duration_ms: 14.288113
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp "0x06ae2f4ec" refused
+ok 8 - non-strict / non-positive header timestamp "0x06ae2f4ec" refused
+  ---
+  duration_ms: 11.840073
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp "1793300000" refused
+ok 9 - non-strict / non-positive header timestamp "1793300000" refused
+  ---
+  duration_ms: 12.056282
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp "-0x1" refused
+ok 10 - non-strict / non-positive header timestamp "-0x1" refused
+  ---
+  duration_ms: 11.910802
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp "0x" refused
+ok 11 - non-strict / non-positive header timestamp "0x" refused
+  ---
+  duration_ms: 11.414346
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp "0X6AE2F4EC" refused
+ok 12 - non-strict / non-positive header timestamp "0X6AE2F4EC" refused
+  ---
+  duration_ms: 11.258428
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp "0x0" refused
+ok 13 - non-strict / non-positive header timestamp "0x0" refused
+  ---
+  duration_ms: 11.307387
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp 1793300000 refused
+ok 14 - non-strict / non-positive header timestamp 1793300000 refused
+  ---
+  duration_ms: 11.224358
+  type: 'test'
+  ...
+# Subtest: non-strict / non-positive header timestamp null refused
+ok 15 - non-strict / non-positive header timestamp null refused
+  ---
+  duration_ms: 11.281387
+  type: 'test'
+  ...
+# Subtest: uppercase / short block hash refused
+ok 16 - uppercase / short block hash refused
+  ---
+  duration_ms: 11.353427
+  type: 'test'
+  ...
+# Subtest: mismatched response id refused (identity check retained)
+ok 17 - mismatched response id refused (identity check retained)
+  ---
+  duration_ms: 11.320847
+  type: 'test'
+  ...
+# Subtest: both provider walks run (parallel), each fully checked; a binding refusal writes nothing
+ok 18 - both provider walks run (parallel), each fully checked; a binding refusal writes nothing
+  ---
+  duration_ms: 12.422368
+  type: 'test'
+  ...
+# Subtest: per-provider pacing retained: every request after a client's first waits >= ~2500ms on that client
+ok 19 - per-provider pacing retained: every request after a client's first waits >= ~2500ms on that client
+  ---
+  duration_ms: 11.574375
+  type: 'test'
+  ...
+# Subtest: FULL prepare() happy path: actual inputs, actual parsers + loader, TEST observation
+ok 20 - FULL prepare() happy path: actual inputs, actual parsers + loader, TEST observation
+  ---
+  duration_ms: 59.592252
+  type: 'test'
+  ...
+# Subtest: the generated DRAFT (reviewedBy null) is refused
+ok 21 - the generated DRAFT (reviewedBy null) is refused
+  ---
+  duration_ms: 12.111891
+  type: 'test'
+  ...
+# Subtest: development relayer refused
+ok 22 - development relayer refused
+  ---
+  duration_ms: 11.390267
+  type: 'test'
+  ...
+# Subtest: implementation other than the deployment observation refused
+ok 23 - implementation other than the deployment observation refused
+  ---
+  duration_ms: 11.07712
+  type: 'test'
+  ...
+# Subtest: observation edited after pinning refused
+ok 24 - observation edited after pinning refused
+  ---
+  duration_ms: 10.862081
+  type: 'test'
+  ...
+# Subtest: existing --out refused
+ok 25 - existing --out refused
+  ---
+  duration_ms: 10.029208
+  type: 'test'
+  ...
+# Subtest: stale observation refused (age > 900s)
+ok 26 - stale observation refused (age > 900s)
+  ---
+  duration_ms: 11.124749
+  type: 'test'
+  ...
+# Subtest: pinned block more than 300s older than the capture refused
+ok 27 - pinned block more than 300s older than the capture refused
+  ---
+  duration_ms: 11.308047
+  type: 'test'
+  ...
+# Subtest: single provider refused
+ok 28 - single provider refused
+  ---
+  duration_ms: 10.528864
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on block number refused
+ok 29 - providers disagreeing on block number refused
+  ---
+  duration_ms: 11.808133
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on block hash refused
+ok 30 - providers disagreeing on block hash refused
+  ---
+  duration_ms: 11.154148
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on block timestamp refused
+ok 31 - providers disagreeing on block timestamp refused
+  ---
+  duration_ms: 11.052469
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on block baseFeePerGas refused
+ok 32 - providers disagreeing on block baseFeePerGas refused
+  ---
+  duration_ms: 11.125539
+  type: 'test'
+  ...
+# Subtest: non-strict unsigned block timestamp "0x6ae2f4ec" refused
+ok 33 - non-strict unsigned block timestamp "0x6ae2f4ec" refused
+  ---
+  duration_ms: 11.034549
+  type: 'test'
+  ...
+# Subtest: non-strict unsigned block timestamp "-20" refused
+ok 34 - non-strict unsigned block timestamp "-20" refused
+  ---
+  duration_ms: 11.089139
+  type: 'test'
+  ...
+# Subtest: non-strict unsigned block timestamp "1793299980.0" refused
+ok 35 - non-strict unsigned block timestamp "1793299980.0" refused
+  ---
+  duration_ms: 13.275551
+  type: 'test'
+  ...
+# Subtest: non-strict unsigned block timestamp "1.79e9" refused
+ok 36 - non-strict unsigned block timestamp "1.79e9" refused
+  ---
+  duration_ms: 10.840081
+  type: 'test'
+  ...
+# Subtest: non-strict unsigned block timestamp " 1793299980" refused
+ok 37 - non-strict unsigned block timestamp " 1793299980" refused
+  ---
+  duration_ms: 10.882721
+  type: 'test'
+  ...
+# Subtest: non-strict unsigned block timestamp "" refused
+ok 38 - non-strict unsigned block timestamp "" refused
+  ---
+  duration_ms: 10.557843
+  type: 'test'
+  ...
+# Subtest: providers disagreeing on a read refused
+ok 39 - providers disagreeing on a read refused
+  ---
+  duration_ms: 10.850561
+  type: 'test'
+  ...
+# Subtest: synthetic code at a confirmed receipt address refused
+ok 40 - synthetic code at a confirmed receipt address refused
+  ---
+  duration_ms: 10.766232
+  type: 'test'
+  ...
+# Subtest: relayer balance below 1e14 wei refused
+ok 41 - relayer balance below 1e14 wei refused
+  ---
+  duration_ms: 17.647016
+  type: 'test'
+  ...
+# Subtest: relayer pending nonce refused
+ok 42 - relayer pending nonce refused
+  ---
+  duration_ms: 15.718792
+  type: 'test'
+  ...
+# Subtest: relayer with code refused
+ok 43 - relayer with code refused
+  ---
+  duration_ms: 13.706658
+  type: 'test'
+  ...
+# Subtest: base fee + tip above maxFeePerGas refused
+ok 44 - base fee + tip above maxFeePerGas refused
+  ---
+  duration_ms: 17.458377
+  type: 'test'
+  ...
+# Subtest: measured execute whose queue gas exceeds the 1M cap refused
+ok 45 - measured execute whose queue gas exceeds the 1M cap refused
+  ---
+  duration_ms: 17.531766
+  type: 'test'
+  ...
+# Subtest: tx.maxAttempts above the host queue refused
+ok 46 - tx.maxAttempts above the host queue refused
+  ---
+  duration_ms: 17.559366
+  type: 'test'
+  ...
+# Subtest: unlisted sequencer grace weakening refused
+ok 47 - unlisted sequencer grace weakening refused
+  ---
+  duration_ms: 17.987792
+  type: 'test'
+  ...
+# Subtest: unlisted maxFee6 raise refused
+ok 48 - unlisted maxFee6 raise refused
+  ---
+  duration_ms: 17.884184
+  type: 'test'
+  ...
+# Subtest: quoter.factory() not the adapter's DEX factory refused
+ok 49 - quoter.factory() not the adapter's DEX factory refused
+  ---
+  duration_ms: 14.192974
+  type: 'test'
+  ...
+# Subtest: oracle implementation code drift since the reviewed fee observation refused
+ok 50 - oracle implementation code drift since the reviewed fee observation refused
+  ---
+  duration_ms: 17.262489
+  type: 'test'
+  ...
+# Subtest: sequencer proxy code drift refused
+ok 51 - sequencer proxy code drift refused
+  ---
+  duration_ms: 26.318305
+  type: 'test'
+  ...
+# Subtest: sequencer aggregator code drift refused
+ok 52 - sequencer aggregator code drift refused
+  ---
+  duration_ms: 26.477554
+  type: 'test'
+  ...
+1..52
+# tests 52
+# suites 0
+# pass 52
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1059.453105
+{
+  "status": "PREPARED_NOT_APPROVED",
+  "outputs": {
+    "owner-controls.json": "85f760b12491cecffae4a7a9f158d10a590205d05c4039c9d7b7295a5628f3c5",
+    "intake-manifest.json": "2fb3fcced1e297e3efe420a127c65b597924c09ac5aaae8958783988fb0e067c",
+    "fee-policy.json": "efb44bc31c5a30dfa1078cf4b9a4d9af66e8449fc9167943e410766bad8013e3"
+  },
+  "feeConfigHash": "0x7d5404fd392c73f68fe881e9cb36076b9beede8fbd12dd4b6a5eaa9d87f97ee7"
+}
+[memory-guard] exit=0 peakTreeRssMiB=159 minHostAvailableMiB=88925
+[memory-guard] at peak: node:86 node:61 python3:13
+[memory-guard] exit=0 peakTreeRssMiB=210 minHostAvailableMiB=88926
+[memory-guard] at peak: node:86 node:61 node:50 python3:13
+[queue] EXIT 0

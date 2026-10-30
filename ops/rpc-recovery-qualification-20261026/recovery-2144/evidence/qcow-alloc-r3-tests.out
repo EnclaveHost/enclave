@@ -1,0 +1,22 @@
+[queue] START available=24408MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+test_1_long_socket_path_known_regions_classified_exactly_image_unchanged (__main__.Alloc.test_1_long_socket_path_known_regions_classified_exactly_image_unchanged) ... ok
+test_2_chunking_and_clipping (__main__.Alloc.test_2_chunking_and_clipping) ... ok
+test_3_refusals_write_a_complete_receipt (__main__.Alloc.test_3_refusals_write_a_complete_receipt) ... ok
+test_4_sigterm_mid_run_ends_the_server_and_writes_the_complete_receipt (__main__.Alloc.test_4_sigterm_mid_run_ends_the_server_and_writes_the_complete_receipt) ... ok
+test_5_sigkill_of_the_checker_ends_its_server_by_pdeathsig (__main__.Alloc.test_5_sigkill_of_the_checker_ends_its_server_by_pdeathsig) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 14.684s
+
+OK
+{"rc": 0, "refused": null, "stopReason": null, "totals": {"allocatedData": 262144, "zeroNotHole": 0, "hole": 0, "holeZero": 196608}, "rangesWithHoleOrZero": 1, "imageUnchanged": true, "cleanupComplete": true}
+{"rc": 0, "refused": null, "stopReason": null, "totals": {"allocatedData": 262144, "zeroNotHole": 0, "hole": 0, "holeZero": 3932160}, "rangesWithHoleOrZero": 1, "imageUnchanged": true, "cleanupComplete": true}
+{"rc": 3, "refused": "Refused: a range ends beyond the export size 4194304", "stopReason": null, "totals": null, "rangesWithHoleOrZero": null, "imageUnchanged": true, "cleanupComplete": true}
+{"rc": 3, "refused": "Refused: ranges overlap", "stopReason": null, "totals": null, "rangesWithHoleOrZero": null, "imageUnchanged": true, "cleanupComplete": true}
+{"rc": 3, "refused": "Refused: ranges must be 1..100000 [start, end) integer pairs", "stopReason": null, "totals": null, "rangesWithHoleOrZero": null, "imageUnchanged": true, "cleanupComplete": true}
+{"rc": 3, "refused": "Refused: qemu-nbd is not the pinned binary", "stopReason": null, "totals": null, "rangesWithHoleOrZero": null, "imageUnchanged": null, "cleanupComplete": true}
+{"rc": 3, "refused": "Refused: image must be a regular file that this user cannot write", "stopReason": null, "totals": null, "rangesWithHoleOrZero": null, "imageUnchanged": null, "cleanupComplete": true}
+## qcow-alloc-r3-tests rc=1
+[memory-guard] exit=1 peakTreeRssMiB=97 minHostAvailableMiB=24332
+[memory-guard] at peak: python3:46 python3:33 qemu-nbd:9 bash:4 bash:2 timeout:2
+[queue] EXIT 1

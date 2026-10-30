@@ -1,0 +1,25 @@
+[queue] START available=22491MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB
+[ok] offline (lo only, no route)
+[ok] r3 files == SHA256SUMS
+[ok] private refs == REFS.txt
+[ok] candidate pins SEAM-RESOLUTIONS.json + root receipt
+[ok] stage 2 pins RESOLUTIONS-r3.json
+[ok] fresh /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r3/run/r3-20261026T014716Z
+warning: You appear to have cloned an empty repository.
+warning: You appear to have cloned an empty repository.
+warning: You appear to have cloned an empty repository.
+warning: You appear to have cloned an empty repository.
+warning: You appear to have cloned an empty repository.
+warning: You appear to have cloned an empty repository.
+== C. generated bundles (dependency order; attested-guest-verify is pinned to image commit 0235e7d9: check only)
+[pre] build-host-admission --check rc 1
+[pre] build-metal-lease-gas --check rc 1
+[pre] build-host-service-packages --check rc 1
+[pre] build-mcp-guest-bundle --check rc 1
+[pre] build-platform-api-guest-bundle --check rc 1
+[pre] build-attested-guest-verify --check rc 2
+[FAIL] regenerate build-host-service-packages (pass 1)
+RESULT: FAIL (bundle)
+[memory-guard] exit=1 peakTreeRssMiB=206 minHostAvailableMiB=22138
+[memory-guard] at peak: esbuild:108 node:91 bash:4 timeout:2
+[queue] EXIT 1

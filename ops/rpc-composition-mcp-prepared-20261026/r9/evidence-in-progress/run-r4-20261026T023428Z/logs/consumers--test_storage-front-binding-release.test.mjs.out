@@ -1,0 +1,91 @@
+TAP version 13
+# [secrets] enabled (0 deployments with stored secrets)
+# Subtest: the production release carries the lease's finalized writer authority, for THIS lease holder
+not ok 1 - the production release carries the lease's finalized writer authority, for THIS lease holder
+  ---
+  duration_ms: 199.64217
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/storage-front-binding-release.test.mjs:109:1'
+  failureType: 'hookFailed'
+  error: "ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/contracts/foundry/out/SessionMocks.sol/MockUSDC3009.json'"
+  code: 'ENOENT'
+  stack: |-
+    Object.readFileSync (node:fs:440:20)
+    startLease16dRig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/helpers/lease16d-rig.mjs:65:35)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/storage-front-binding-release.test.mjs:55:9)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: a claim not final yet: the release still goes out, WITHOUT the fact (never a 503 that would kill the guest)
+not ok 2 - a claim not final yet: the release still goes out, WITHOUT the fact (never a 503 that would kill the guest)
+  ---
+  duration_ms: 0.851794
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/storage-front-binding-release.test.mjs:121:1'
+  failureType: 'hookFailed'
+  error: "ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/contracts/foundry/out/SessionMocks.sol/MockUSDC3009.json'"
+  code: 'ENOENT'
+  stack: |-
+    Object.readFileSync (node:fs:440:20)
+    startLease16dRig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/helpers/lease16d-rig.mjs:65:35)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/storage-front-binding-release.test.mjs:55:9)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: the relay's verifier authority REFUSES the writer authority (unproven history): the release goes out with the lease holder only, the refusal logged by code
+not ok 3 - the relay's verifier authority REFUSES the writer authority (unproven history): the release goes out with the lease holder only, the refusal logged by code
+  ---
+  duration_ms: 0.07784
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/storage-front-binding-release.test.mjs:131:1'
+  failureType: 'hookFailed'
+  error: "ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/contracts/foundry/out/SessionMocks.sol/MockUSDC3009.json'"
+  code: 'ENOENT'
+  stack: |-
+    Object.readFileSync (node:fs:440:20)
+    startLease16dRig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/helpers/lease16d-rig.mjs:65:35)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/storage-front-binding-release.test.mjs:55:9)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: a config that does not refer to the name: no fact and no lease-generation read
+not ok 4 - a config that does not refer to the name: no fact and no lease-generation read
+  ---
+  duration_ms: 0.040479
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/storage-front-binding-release.test.mjs:147:1'
+  failureType: 'hookFailed'
+  error: "ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/contracts/foundry/out/SessionMocks.sol/MockUSDC3009.json'"
+  code: 'ENOENT'
+  stack: |-
+    Object.readFileSync (node:fs:440:20)
+    startLease16dRig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/helpers/lease16d-rig.mjs:65:35)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/storage-front-binding-release.test.mjs:55:9)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: the release's writer-authority deadline CANCELS the read: the release goes out on time, the pending requests are closed, nothing is sent after
+not ok 5 - the release's writer-authority deadline CANCELS the read: the release goes out on time, the pending requests are closed, nothing is sent after
+  ---
+  duration_ms: 0.05672
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/storage-front-binding-release.test.mjs:158:1'
+  failureType: 'hookFailed'
+  error: "ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/contracts/foundry/out/SessionMocks.sol/MockUSDC3009.json'"
+  code: 'ENOENT'
+  stack: |-
+    Object.readFileSync (node:fs:440:20)
+    startLease16dRig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/helpers/lease16d-rig.mjs:65:35)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r9/run/r4-20261026T023428Z/trees/consumers/test/storage-front-binding-release.test.mjs:55:9)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 0
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1703.941711

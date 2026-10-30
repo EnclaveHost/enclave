@@ -1,0 +1,121 @@
+TAP version 13
+# Subtest: ROOT terminal record does not conceal another unattributed protected VM
+not ok 1 - ROOT terminal record does not conceal another unattributed protected VM
+  ---
+  duration_ms: 211.429958
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r4/root-inventory-auth.test.mjs:4:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    terminal old row concealed unmatched protected domain
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r4/root-inventory-auth.test.mjs:10:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: ROOT unsigned DELETE cannot stop an authenticated serving instance
+not ok 2 - ROOT unsigned DELETE cannot stop an authenticated serving instance
+  ---
+  duration_ms: 514.903792
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r4/root-inventory-auth.test.mjs:12:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    unsigned request reached protected Stop path
+    
+    200 !== 401
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 401
+  actual: 200
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r4/root-inventory-auth.test.mjs:16:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+ROOT_READY_DIAGNOSTIC {"result":{"action":"held","instance":{"id":"pp2d31c042c10014e28c826e67587f0731","name":"0xe6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6","status":"starting"},"leaseFree":false,"reason":"protected: staging not yet ready"},"record":{"instanceId":"pp51d36c25469576a635ab17c1cd6abec9","deployment":"0xe6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6","generation":5,"launchEpoch":"e3559d94c8f9a6c8079bede2fc61c159","managerEpoch":"e13484db7e6df89e29e1998630bde9d7","state":"removed","stagingWallUntil":1793285779183,"vmId":"5032abdf-66df-464e-ae14-e2317d819902","appId":"708e640945d196df5829aa4ea490774c18ef6876a0d9239f574986ad18ae3782","runtimeId":"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd","image":"abababababababababababababababababababababababababababababababab","recordSha256":"412675336810f73e40327f049ed9ad46a189e374d57d5582ae3bdf022fd6ba2d","permit":null,"reason":"authenticated controller hold","error":null,"at":1793285749200,"confirmed":{"by":"survey","at":1793285749200,"vmId":"5032abdf-66df-464e-ae14-e2317d819902"}},"manager":null}
+# Subtest: R4 DIRECT: host lifecycle -> supervisor -> r18 runtime -> GuestdControl -> manager: stage, readiness, permit, I/O, Stop, removal
+not ok 3 - R4 DIRECT: host lifecycle -> supervisor -> r18 runtime -> GuestdControl -> manager: stage, readiness, permit, I/O, Stop, removal
+  ---
+  duration_ms: 178.364545
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r4/root-supervisor-diagnostic.test.mjs:105:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /readiness-verified/. Input:
+    
+    'protected: staging not yet ready'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: 'protected: staging not yet ready'
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r4/root-supervisor-diagnostic.test.mjs:116:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: R4 legacy neighbour: an unenrolled deployment keeps the legacy path (no protected stage)
+ok 4 - R4 legacy neighbour: an unenrolled deployment keeps the legacy path (no protected stage)
+  ---
+  duration_ms: 102.404638
+  type: 'test'
+  ...
+# Subtest: R4 native role keeps its pins on the protected stage; general role never gets them
+ok 5 - R4 native role keeps its pins on the protected stage; general role never gets them
+  ---
+  duration_ms: 95.882134
+  type: 'test'
+  ...
+# Subtest: R4 DELETE through an unreadable journal withdraws first and answers 500 (actual MAC/TCP)
+ok 6 - R4 DELETE through an unreadable journal withdraws first and answers 500 (actual MAC/TCP)
+  ---
+  duration_ms: 129.083035
+  type: 'test'
+  ...
+# Subtest: ROOT protected enrollment does not fall through to legacy on manager-origin change
+not ok 7 - ROOT protected enrollment does not fall through to legacy on manager-origin change
+  ---
+  duration_ms: 208.728501
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r4/root-supervisor-diagnostic.test.mjs:170:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    enrolled deployment reached legacy lookup on different origin
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r4/root-supervisor-diagnostic.test.mjs:174:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 3
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1751.317718

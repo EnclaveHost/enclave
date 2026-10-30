@@ -1,0 +1,7 @@
+[queue] START available=34369MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{"time": 1793335973.9186387, "preparedSha256": "b236ed834117574c1da5603e33ca3089dbdfb3fcd72299077022aa27eac6ab0a", "readonlyPins": 256, "seedEntries": 114, "inputDrift": [], "seedDrift": [], "account": {"loggedIn": true, "email": "steven.r.batchelor@gmail.com", "subscriptionType": "max"}, "otherExactExecutableProcesses": [], "cpuAffinity": [1], "sourceOnly": true}
+[memory-guard] exit=0 peakTreeRssMiB=19 minHostAvailableMiB=34332
+[memory-guard] at peak: python3:19
+[memory-guard] exit=0 peakTreeRssMiB=79 minHostAvailableMiB=34333
+[memory-guard] at peak: node:59 python3:21
+[queue] EXIT 0

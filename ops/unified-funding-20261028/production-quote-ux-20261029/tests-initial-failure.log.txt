@@ -1,0 +1,88 @@
+[queue] START available=92875MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+TAP version 13
+# (node:1001866) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Get quote after idle re-verifies the context and re-reads the finite scope (no scope_stale)
+ok 1 - Get quote after idle re-verifies the context and re-reads the finite scope (no scope_stale)
+  ---
+  duration_ms: 20.346609
+  type: 'test'
+  ...
+# Subtest: countdown ticks once a second, price stays fixed, expiry disables Fund with a fresh-quote instruction
+ok 2 - countdown ticks once a second, price stays fixed, expiry disables Fund with a fresh-quote instruction
+  ---
+  duration_ms: 12.030741
+  type: 'test'
+  ...
+# Subtest: countdown timers are cleaned up on re-render, wallet events, input changes and detached DOM
+not ok 3 - countdown timers are cleaned up on re-render, wallet events, input changes and detached DOM
+  ---
+  duration_ms: 10.948349
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/funding-quote-ux-root-review-r1/funding-page.test.mjs:300:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /Choices changed; the previous quote was dropped\./. Input:
+    
+    'No quote yet. Press Get quote to see the exact gas maximum, relay fee and total for these choices. Fund unlocks only while a reviewed quote is valid.'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: 'No quote yet. Press Get quote to see the exact gas maximum, relay fee and total for these choices. Fund unlocks only while a reviewed quote is valid.'
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/funding-quote-ux-root-review-r1/funding-page.test.mjs:314:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: typed inputs survive re-render, failed quotes and reload for the exact context only; default unchanged otherwise
+ok 4 - typed inputs survive re-render, failed quotes and reload for the exact context only; default unchanged otherwise
+  ---
+  duration_ms: 31.757485
+  type: 'test'
+  ...
+# Subtest: a wallet change drops the stored draft; switching back shows the default
+ok 5 - a wallet change drops the stored draft; switching back shows the default
+  ---
+  duration_ms: 10.368364
+  type: 'test'
+  ...
+# Subtest: inputs changed while a quote is pending: the quote is discarded and cannot be funded
+ok 6 - inputs changed while a quote is pending: the quote is discarded and cannot be funded
+  ---
+  duration_ms: 15.275987
+  type: 'test'
+  ...
+# Subtest: a wallet change while a quote is pending: nothing is kept or rendered for the old context
+ok 7 - a wallet change while a quote is pending: nothing is kept or rendered for the old context
+  ---
+  duration_ms: 7.869522
+  type: 'test'
+  ...
+# Subtest: Fund sends exactly the shown quote once, never re-quotes, then asks for a new quote
+ok 8 - Fund sends exactly the shown quote once, never re-quotes, then asks for a new quote
+  ---
+  duration_ms: 12.09875
+  type: 'test'
+  ...
+# Subtest: intake off: gas funding paused, owner controls unchanged, no quote UI or timer
+ok 9 - intake off: gas funding paused, owner controls unchanged, no quote UI or timer
+  ---
+  duration_ms: 5.801306
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 8
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 181.904522
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1

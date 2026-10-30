@@ -1,0 +1,25 @@
+{
+  "status": "PREPARATION_ONLY",
+  "preparedSha256": "345020a832acfaf5429884daa4618e29ae9d2f6a63cde1822120b76a5f2931d4",
+  "seedFiles": 252,
+  "extraFiles": 0,
+  "preAuthorProductEdits": 0,
+  "readonlyPins": 17283,
+  "readonlyDrift": [],
+  "chainQuarantinePreserved": true,
+  "r12RepairsPreserved": true,
+  "shippedBundlesPreservedByExactSeed": true,
+  "helperASTOnly": true,
+  "authorTestsBuildsNativeRemoteLiveFinance": false,
+  "independentAccountValidation": "root must repeat Max preflight before launch; runner independently checks again, no auth command run here",
+  "bounds": {
+    "turns": 55,
+    "childSec": 1800,
+    "outerSec": 2100,
+    "hardMiB": 1536,
+    "rssMiB": 1408,
+    "floorMiB": 27648,
+    "cpuIndex": 1,
+    "swapMiB": 0
+  }
+}

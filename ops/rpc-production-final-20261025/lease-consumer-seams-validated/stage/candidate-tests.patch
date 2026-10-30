@@ -1,0 +1,16 @@
+--- a/test/metal-lease-gas-conduit.test.mjs
++++ b/test/metal-lease-gas-conduit.test.mjs
+@@ -229,7 +229,12 @@
+ test("gsup and the launcher wire the conduit, and only the conduit", () => {
+   const gsup = fs.readFileSync(path.join(REPO, "metal/guest/gsup.mjs"), "utf8"), launcher = fs.readFileSync(path.join(REPO, "metal/enclave-metal.mjs"), "utf8");
+   assert.match(gsup, /^import \{ leaseGasGuest, withLeaseGasEnv \} from '\.\/lease-gas-conduit\.bundle\.mjs';$/m);
+-  assert.match(gsup, /const LEASE_GAS = CONTROL \? null : leaseGasGuest\(fw\.leaseGas\);/);
++  // lease-consumer-seams: the guest's lease-gas transit is checked verifier-bound EXACTLY when its own fw_cfg chainVerifier is
++  // present - the same field that makes the supervisor's chain authority (CHAIN_VERIFIER below; chain-verifier.mjs)
++  assert.match(gsup, /const LEASE_GAS = CONTROL \? null : leaseGasGuest\(fw\.leaseGas, \{ verifierBound: fw\.chainVerifier !== undefined && fw\.chainVerifier !== null \}\);/);
++  assert.match(gsup, /const CHAIN_VERIFIER = CONTROL \? null : guestChainVerifier\(fw\.chainVerifier\);/);
++  assert.equal((gsup.match(/leaseGasGuest\(/g) || []).length, 1, "one conduit call");
++  assert.match(launcher, /leaseGasTransit\(cfg\.leaseGas, \{ readFile: \(f\) => fs\.readFileSync\(f\),\n  verifierBound: cfg\.chainVerifier !== undefined && cfg\.chainVerifier !== null \}\)/);
+   // the lease-gas names come from the conduit only; the owner nomination's wrapper adds/drops only its own name (owner-nomination.mjs)
+   // (and the platform policy carriers' wrapper, applied last, adds/drops only its own name: measured-control.mjs withPolicyCarriersEnv)
+   assert.match(gsup, /start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], withChainVerifierEnv\(MC_LEGACY\.withPolicyCarriersEnv\(withOwnerNominationEnv\(withLeaseGasEnv\(supEnv, LEASE_GAS\), OWNER_NOMINATION\.nomination\), POLICY_CARRIERS\), CHAIN_VERIFIER\), \{ cwd: '\/app' \}\);/);

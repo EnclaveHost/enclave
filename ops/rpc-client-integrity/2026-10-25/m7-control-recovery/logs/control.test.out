@@ -1,0 +1,55 @@
+
+running 14 tests
+test chain_provider::tests::altered_log_is_refused ... FAILED
+test chain_provider::tests::forged_header_cannot_vouch_for_forged_receipts ... FAILED
+test chain_provider::tests::omitted_receipt_is_refused_and_not_cached ... FAILED
+test chain_provider::tests::test_from_alloy_chain_provider_error ... ok
+test chain_provider::tests::reordered_receipts_are_refused ... FAILED
+test chain_provider::tests::trusted_rpc_keeps_upstream_behaviour ... ok
+test chain_provider::tests::transactions_must_match_the_verified_transactions_root ... FAILED
+test chain_provider::tests::verified_receipts_are_returned_and_cached ... ok
+test l2_chain_provider::tests::test_block_by_number_exhausts_null_retry_budget ... ok
+test l2_chain_provider::tests::test_block_by_number_retries_nulls_then_succeeds ... ok
+test l2_chain_provider::tests::test_from_alloy_l2_chain_provider_error ... ok
+test l2_chain_provider::tests::test_block_by_number_transport_error_does_not_retry ... ok
+test l2_chain_provider::tests::test_l2_block_info_by_number_bypasses_number_cache ... ok
+test l2_chain_provider::tests::test_l2_chain_provider_callers_preserve_transport_errors ... ok
+
+failures:
+
+---- chain_provider::tests::altered_log_is_refused stdout ----
+
+thread 'chain_provider::tests::altered_log_is_refused' (3877881) panicked at crates/consensus/providers/src/chain_provider.rs:469:73:
+called `Result::unwrap_err()` on an `Ok` value: [Receipt { status: Eip658(true), cumulative_gas_used: 21000, logs: [Log { address: 0x4242424242424242424242424242424242424242, data: LogData { topics: [0x0707070707070707070707070707070707070707070707070707070707070707], data: 0x01 } }] }, Receipt { status: Eip658(true), cumulative_gas_used: 42000, logs: [Log { address: 0x4242424242424242424242424242424242424242, data: LogData { topics: [0x0707070707070707070707070707070707070707070707070707070707070707], data: 0x03 } }] }]
+
+---- chain_provider::tests::forged_header_cannot_vouch_for_forged_receipts stdout ----
+
+thread 'chain_provider::tests::forged_header_cannot_vouch_for_forged_receipts' (3877882) panicked at crates/consensus/providers/src/chain_provider.rs:491:73:
+called `Result::unwrap_err()` on an `Ok` value: [Receipt { status: Eip658(true), cumulative_gas_used: 21000, logs: [Log { address: 0x4242424242424242424242424242424242424242, data: LogData { topics: [0x0707070707070707070707070707070707070707070707070707070707070707], data: 0x01 } }] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- chain_provider::tests::omitted_receipt_is_refused_and_not_cached stdout ----
+
+thread 'chain_provider::tests::omitted_receipt_is_refused_and_not_cached' (3877885) panicked at crates/consensus/providers/src/chain_provider.rs:456:50:
+called `Result::unwrap_err()` on an `Ok` value: [Receipt { status: Eip658(true), cumulative_gas_used: 21000, logs: [Log { address: 0x4242424242424242424242424242424242424242, data: LogData { topics: [0x0707070707070707070707070707070707070707070707070707070707070707], data: 0x01 } }] }]
+
+---- chain_provider::tests::reordered_receipts_are_refused stdout ----
+
+thread 'chain_provider::tests::reordered_receipts_are_refused' (3877886) panicked at crates/consensus/providers/src/chain_provider.rs:479:73:
+called `Result::unwrap_err()` on an `Ok` value: [Receipt { status: Eip658(true), cumulative_gas_used: 42000, logs: [Log { address: 0x4242424242424242424242424242424242424242, data: LogData { topics: [0x0707070707070707070707070707070707070707070707070707070707070707], data: 0x02 } }] }, Receipt { status: Eip658(true), cumulative_gas_used: 21000, logs: [Log { address: 0x4242424242424242424242424242424242424242, data: LogData { topics: [0x0707070707070707070707070707070707070707070707070707070707070707], data: 0x01 } }] }]
+
+---- chain_provider::tests::transactions_must_match_the_verified_transactions_root stdout ----
+
+thread 'chain_provider::tests::transactions_must_match_the_verified_transactions_root' (3877888) panicked at crates/consensus/providers/src/chain_provider.rs:516:69:
+called `Result::unwrap_err()` on an `Ok` value: (BlockInfo { hash: 0xe8e04e3425e6e0f3b495e869f88e7709fca6700958fb8d3d37dc514f4b41618e, number: 100, parent_hash: 0x0000000000000000000000000000000000000000000000000000000000000000, timestamp: 1700000000 }, [])
+
+
+failures:
+    chain_provider::tests::altered_log_is_refused
+    chain_provider::tests::forged_header_cannot_vouch_for_forged_receipts
+    chain_provider::tests::omitted_receipt_is_refused_and_not_cached
+    chain_provider::tests::reordered_receipts_are_refused
+    chain_provider::tests::transactions_must_match_the_verified_transactions_root
+
+test result: FAILED. 9 passed; 5 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.20s
+

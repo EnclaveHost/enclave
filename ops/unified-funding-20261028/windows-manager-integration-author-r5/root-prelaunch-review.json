@@ -1,0 +1,14 @@
+{
+  "at": 1793286161.640109,
+  "preparedSha256": "d651b0468c948af2d402c301bd0e67d62db7a7b918dfd19d5a6066d6352099db",
+  "seedCount": 156,
+  "readonlyCount": 1609,
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "reviewed": true,
+  "sourceOnly": true,
+  "productionApprovedByThisRecord": false
+}

@@ -1,0 +1,1 @@
+Prepared additive build only. Source/source-pins intentionally absent until reviewed final delivery. No build or deployment executed. Preserve all1231current files except boot entry; boot retains exact search-clear module import and newest CSS/HostCopy remain unchanged. Edge state must be refreshed before any activation.

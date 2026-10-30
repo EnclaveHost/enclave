@@ -1,0 +1,32 @@
+{
+  "listener": 9600,
+  "ownerSid": "S-1-5-18",
+  "knownAgentEntry": true,
+  "known": true,
+  "files": [
+    {
+      "sha256": "a41ca4cd59252d6a00648fda88232e97fe92049c8142dc1bf7910ae38ecae1a4",
+      "name": "agent.mjs",
+      "bytes": 93212,
+      "modified": "2026-10-26T17:15:54.9295109Z"
+    },
+    {
+      "sha256": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24",
+      "name": "host.mjs",
+      "bytes": 319366,
+      "modified": "2026-10-26T17:15:57.5365963Z"
+    },
+    {
+      "sha256": "b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225",
+      "name": "chain.mjs",
+      "bytes": 60398,
+      "modified": "2026-10-23T17:08:49.7792829Z"
+    }
+  ],
+  "limitations": "Disk hashes and stable process identity, not proof of loaded module bytes. No code execution in agent, state mutation, key/env access or financial action.",
+  "pid": 41272,
+  "created": "2026-10-27T08:24:45.0989590Z",
+  "observedAt": "2026-10-30T04:28:42.5013591Z",
+  "readOnly": true,
+  "sshExit": 0
+}

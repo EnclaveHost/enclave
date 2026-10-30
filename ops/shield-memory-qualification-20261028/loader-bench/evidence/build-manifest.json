@@ -1,0 +1,190 @@
+{
+  "arms": {
+    "A": {
+      "entries": [
+        {
+          "mode": "40755",
+          "path": "bin",
+          "rdev": null,
+          "size": 0
+        },
+        {
+          "mode": "100755",
+          "path": "bin/shieldmodel",
+          "rdev": null,
+          "size": 3010366
+        },
+        {
+          "mode": "40755",
+          "path": "dev",
+          "rdev": null,
+          "size": 0
+        },
+        {
+          "mode": "20600",
+          "path": "dev/console",
+          "rdev": "5:1",
+          "size": 0
+        },
+        {
+          "mode": "100755",
+          "path": "init",
+          "rdev": null,
+          "size": 3219793
+        },
+        {
+          "mode": "40755",
+          "path": "models",
+          "rdev": null,
+          "size": 0
+        },
+        {
+          "mode": "40755",
+          "path": "models/qwen3.8-27b-mtp-q4-vl-gguf",
+          "rdev": null,
+          "size": 0
+        },
+        {
+          "mode": "40755",
+          "path": "proc",
+          "rdev": null,
+          "size": 0
+        },
+        {
+          "mode": "40755",
+          "path": "rt",
+          "rdev": null,
+          "size": 0
+        },
+        {
+          "mode": "100444",
+          "path": "rt/shield-original-source-reclaim.enabled",
+          "rdev": null,
+          "size": 2
+        },
+        {
+          "mode": "40755",
+          "path": "sys",
+          "rdev": null,
+          "size": 0
+        }
+      ],
+      "initramfs": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-build-r1/images/arm-A.initramfs.cpio.gz",
+      "sha256": "80d28b6f957c232cf9d721b2b6ef1a1d9af0d1c81356440d59914e140e262d9e"
+    },
+    "B": {
+      "entries": [
+        {
+          "mode": "40755",
+          "path": "bin",
+          "rdev": null,
+          "size": 0
+        },
+        {
+          "mode": "100755",
+          "path": "bin/shieldmodel",
+          "rdev": null,
+          "size": 3010366
+        },
+        {
+          "mode": "40755",
+          "path": "dev",
+          "rdev": null,
+          "size": 0
+        },
+        {
+          "mode": "20600",
+          "path": "dev/console",
+          "rdev": "5:1",
+          "size": 0
+        },
+        {
+          "mode": "100755",
+          "path": "init",
+          "rdev": null,
+          "size": 3219793
+        },
+        {
+          "mode": "40755",
+          "path": "models",
+          "rdev": null,
+          "size": 0
+        },
+        {
+          "mode": "40755",
+          "path": "models/qwen3.8-27b-mtp-q4-vl-gguf",
+          "rdev": null,
+          "size": 0
+        },
+        {
+          "mode": "40755",
+          "path": "proc",
+          "rdev": null,
+          "size": 0
+        },
+        {
+          "mode": "40755",
+          "path": "rt",
+          "rdev": null,
+          "size": 0
+        },
+        {
+          "mode": "100444",
+          "path": "rt/shield-model-drop-cache.enabled",
+          "rdev": null,
+          "size": 2
+        },
+        {
+          "mode": "100444",
+          "path": "rt/shield-original-source-reclaim.enabled",
+          "rdev": null,
+          "size": 2
+        },
+        {
+          "mode": "40755",
+          "path": "sys",
+          "rdev": null,
+          "size": 0
+        }
+      ],
+      "initramfs": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-build-r1/images/arm-B.initramfs.cpio.gz",
+      "sha256": "bade714371254c63a6e64f7e2a5706dc7049c1ae0035b331aa4bd0ad03ce8497"
+    }
+  },
+  "cmdline": "console=ttyS0 rdinit=/init loglevel=3 panic=-1",
+  "inputs": {
+    "firmware": {
+      "path": "/home/steven/enclave-prod/release-5cab66e4/firmware.fd",
+      "sha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9"
+    },
+    "init": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-build-r1/init",
+      "sha256": "773a9ae9b4c28fb166c049c3e0d45a5082e28a2241fe190ca85d5209964fe77f"
+    },
+    "kernel": {
+      "path": "/home/steven/enclave-prod/release-5cab66e4/kernel",
+      "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+    },
+    "loader": {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-build-r1/shieldmodel",
+      "sha256": "acd688ecd7fdd1bca3a2e6269a948bab36fa066e8dca2b91b1886d4fe4c68d28"
+    }
+  },
+  "kind": "shield-loader-only-snp-ab-build",
+  "model": {
+    "host_check": "stat identity only",
+    "path": "/home/steven/Projects/enclave-models/qwen3.8-27b-mtp-q4-vl-gguf/Qwen3.8-27B-UD-Q4_K_XL.gguf",
+    "sha256": "3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e",
+    "size": 17559178144
+  },
+  "note": "stage only; model never read on the host, verified in guest by shieldmodel",
+  "sources": {
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-harness/benchlib.py": "9e02c4c0fc4344b07e9ed8a5c10b2990f4a20264e2d26f7a44b9b9225ff8a53f",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-harness/build_initramfs.py": "bfc2374c9bdd42b2e97463fddd1db94e52823c4311d24e5f319de3e7840005c2",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-harness/init/main.go": "4321e965d4b7d5d9649b08d4783a1c66ce093ee370b23cf849e7eb765bdc40a7",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/bench-harness/init/main_test.go": "33e0d7eec3e03be30f8dd546359bd06d92bbb7c10ffe2631668d5663a075bd66",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/loader-candidate/fadvise_linux_amd64.go": "7b78900ab779002a9fb26be8f29a5bb7aa63293eef9f8dc9a07994531625c8de",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/loader-candidate/main.go": "5fabc993bfe2c63ea4abe8701a833d91554af4b717bdd549226cb344f43c8157",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/shield-memory-20261028/loader-candidate/main_test.go": "8a30f8d9a4322cad0310506ee651ea3bf0293f9ee5733842163a74a2d087c1cc"
+  }
+}

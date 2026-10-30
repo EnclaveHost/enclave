@@ -1,0 +1,327 @@
+--- a/custody/chain.mjs
++++ b/custody/chain.mjs
+@@ -48,6 +48,7 @@
+ export const endpointIdOf = (endpoint) => keccak256(toBytes(endpoint));   // EnclaveRegistry: id = keccak256(bytes(endpoint))
+ 
+ const ZERO = "0x0000000000000000000000000000000000000000";
++const VERIFIER_MARK = Symbol.for("enclave.chain-authority.local-verifier");   // network/chain-authority.mjs VERIFIER_CLIENT
+ const b = (h) => hexToBytes(h === "0x" ? "0x" : h);
+ const err = (code, message, status = 503) => Object.assign(new Error(message), { code, status });
+ 
+@@ -91,6 +92,9 @@
+   const clients = given || (rpcs || []).map((url) => createPublicClient({ transport: http(url, { timeout: timeoutMs, retryCount: 1 }) }));
+   if (!clients.length) throw new Error("chain: no RPC configured");
+   if (!Number.isInteger(minAgree) || minAgree < 1 || minAgree > clients.length) throw new Error(`chain: minAgree must be 1..${clients.length} (state it explicitly)`);
++  // the local verifier is ONE authority (custody/chain-source.mjs): never a vote among RPCs, never mixed with them
++  if (clients.some((c) => !!c && !!c[VERIFIER_MARK]) && (clients.length !== 1 || minAgree !== 1 || (rpcs && rpcs.length)))
++    throw new Error("chain: the local verifier is one chain authority: clients [verifier], minAgree 1, no RPC URLs");
+   async function agreed(fn) {
+     const heads = await Promise.allSettled(clients.map((c) => c.getBlockNumber({ cacheTime: 0 })));   // never a cached head: it would read a state older than the caller knows
+     const ok = heads.filter((h) => h.status === "fulfilled").map((h) => h.value);
+--- a/custody/custodian-daemon.mjs
++++ b/custody/custodian-daemon.mjs
+@@ -29,6 +29,7 @@
+ import { base } from "viem/chains";
+ import { openKeyFile, sealKeyFile, generateKeys, readKeyFile, writeKeyFile } from "./keystore.mjs";
+ import { createChainReader, VAULT_ABI } from "./chain.mjs";
++import { custodyChainSource } from "./chain-source.mjs";
+ import { createCustodian, serveCustodian } from "./custodian.mjs";
+ import { productionVerifiers } from "./verifiers.mjs";
+ import { makeDeal, receiveDeals } from "./reshare.mjs";
+@@ -52,6 +53,17 @@
+ function config() {
+   const vault = String(env.CUSTODY_VAULT || "").toLowerCase();
+   if (!/^0x[0-9a-f]{40}$/.test(vault)) die("CUSTODY_VAULT must be the vault's address");
++  const maxAgeSecV = env.CUSTODY_MAX_AGE_SEC === "off" ? null : parseInt(env.CUSTODY_MAX_AGE_SEC || "120", 10);
++  const chainSource = String(env.CUSTODY_CHAIN_SOURCE || "quorum").trim();
++  const verifier = String(env.CUSTODY_CHAIN_VERIFIER || "").trim(), txBackend = String(env.CUSTODY_TX_BACKEND || "").trim();
++  if (chainSource === "verifier") {        // explicit opt-in; the legacy RPC settings must be absent (no fallback, no mix)
++    if (String(env.CUSTODY_RPCS || "").trim() || String(env.CUSTODY_MIN_AGREE || "").trim())
++      die("CUSTODY_CHAIN_SOURCE=verifier: CUSTODY_RPCS and CUSTODY_MIN_AGREE must be unset (the local verifier is the one chain authority)");
++    if (!verifier) die("CUSTODY_CHAIN_SOURCE=verifier needs CUSTODY_CHAIN_VERIFIER (the local verifier URL)");
++    return { vault, chainSource, verifier, txBackend: txBackend || null, maxAgeSec: maxAgeSecV, chainId: parseInt(env.CUSTODY_CHAIN_ID || "8453", 10), stateDir: path.resolve(env.CUSTODY_STATE_DIR || "custodian-state") };
++  }
++  if (chainSource !== "quorum") die("CUSTODY_CHAIN_SOURCE must be quorum (default) or verifier");
++  if (verifier || txBackend) die("CUSTODY_CHAIN_VERIFIER / CUSTODY_TX_BACKEND are set but CUSTODY_CHAIN_SOURCE is not verifier");
+   const rpcs = String(env.CUSTODY_RPCS || "").split(",").map((s) => s.trim()).filter(Boolean);
+   const minAgree = parseInt(env.CUSTODY_MIN_AGREE || "2", 10);
+   if (rpcs.length < minAgree) die(`CUSTODY_RPCS names ${rpcs.length} RPC(s) and CUSTODY_MIN_AGREE is ${minAgree}`);
+@@ -71,6 +83,12 @@
+   };
+ }
+ 
++// the chain reader for this configuration: the legacy RPC quorum (default, unchanged) or the explicit local verifier
++function readerFor(c, extra = {}) {
++  const src = custodyChainSource(c);
++  return { src, reader: createChainReader({ rpcs: src.rpcs, clients: src.clients, minAgree: src.minAgree, vault: c.vault, ...extra }) };
++}
++
+ const cmd = process.argv[2];
+ if (cmd === "keygen") {
+   const out = arg("--out") || die("keygen --out <file>");
+@@ -85,20 +103,22 @@
+ } else if (cmd === "serve") {
+   const c = config(), k = keys();
+   const collateral = cachedCollateral({ dir: path.join(c.stateDir, "amd"), upstream: httpCollateral({ timeoutMs: 8000 }) });
++  const { src, reader: chainReader } = readerFor(c, { maxAgeSec: c.maxAgeSec });
+   const custodian = createCustodian({ chainId: c.chainId, vault: c.vault, encPrivateKey: k.encPrivateKey,
+-    chain: createChainReader({ rpcs: c.rpcs, vault: c.vault, minAgree: c.minAgree, maxAgeSec: c.maxAgeSec }),
++    chain: chainReader,
+     verifiers: productionVerifiers({ collateral }), highWater: fileHighWater(c.stateDir) });
+   const [host, port] = String(env.CUSTODY_LISTEN || "127.0.0.1:8787").split(":");
+   // behind the TLS proxy every request comes from the proxy: CUSTODY_CLIENT_HEADER names the header it sets (x-forwarded-for)
+   const hdr = String(env.CUSTODY_CLIENT_HEADER || "").toLowerCase();
+   const clientOf = hdr ? (req) => String(req.headers[hdr] || "").split(",")[0].trim() || req.socket.remoteAddress : undefined;
+   const srv = await serveCustodian(custodian, { host, port: Number(port), clientOf, info: { vault: c.vault, chainId: c.chainId, operator: k.operator } });
+-  console.log(`custodian: share key 0x${k.encKey.slice(0, 16)}…, operator ${k.operator}, vault ${c.vault}, ${c.rpcs.length} RPCs (${c.minAgree} must agree), listening on ${host}:${srv.address().port}`);
++  console.log(`custodian: share key 0x${k.encKey.slice(0, 16)}…, operator ${k.operator}, vault ${c.vault}, ${src.mode === "verifier" ? "the local verifier (one authority, unsafe tier, no L1 finality)" : `${c.rpcs.length} RPCs (${c.minAgree} must agree)`}, listening on ${host}:${srv.address().port}`);
+ } else if (["approve-epoch", "deal", "receive"].includes(cmd)) {
+   const c = config(), k = keys();
+   const account = privateKeyToAccount(k.operatorPrivateKey);
+-  const reader = createChainReader({ rpcs: c.rpcs, vault: c.vault, minAgree: c.minAgree });
+-  const wallet = createWalletClient({ account, chain: { ...base, id: c.chainId }, transport: http(c.rpcs[0]) });
++  const { src, reader } = readerFor(c);
++  // verifier: prepared through the verifier, sent ONLY to the bound own backend (refused without one); quorum: unchanged
++  const wallet = createWalletClient({ account, chain: { ...base, id: c.chainId }, transport: src.mode === "verifier" ? src.authority.transport : http(c.rpcs[0]) });
+   const send = async (abi, functionName, args) => {
+     const hash = await wallet.writeContract({ address: c.vault, abi, functionName, args });
+     console.log(`custodian: ${functionName} sent ${hash}`);
+--- a/custody/v2/quorum.mjs
++++ b/custody/v2/quorum.mjs
+@@ -5,6 +5,7 @@
+ const fail = (code, message) => Object.assign(new Error(message), {code, status:503});
+ const fingerprint = value => JSON.stringify(value, (_, v) => typeof v === 'bigint' ? `n${v}` : v instanceof Uint8Array ? `x${bytesToHex(v)}` : v);
+ const hashPattern = /^0x[0-9a-fA-F]{64}$/;
++const VERIFIER_MARK = Symbol.for('enclave.chain-authority.local-verifier');   // network/chain-authority.mjs VERIFIER_CLIENT
+ export const MAX_RPCS = 16;
+ // Policy bounds: finite, and small enough that a misconfiguration cannot silently disable freshness or block forever.
+ const POLICY = { confirmations: [0, 1000], timeoutMs: [1, 300_000], maxAgeSec: [0, 7 * 86400], maxFutureSec: [0, 3600] };
+@@ -38,6 +39,9 @@
+     if (!c || typeof c !== 'object' || needs.some((m) => typeof c[m] !== 'function')) throw Error(`chain: RPC client ${i + 1} is malformed (needs ${needs.join(', ')})`);
+   });
+   if (new Set(clients).size !== clients.length) throw Error('chain: distinct RPC clients required');
++  // the local verifier is ONE authority (custody/chain-source.mjs): never a vote among RPCs
++  if (clients.some((c) => !!c[VERIFIER_MARK]) && (clients.length !== 1 || minAgree !== 1))
++    throw Error('chain: the local verifier is one chain authority: clients [verifier], minAgree 1');
+   // A client that exposes its transport URL (viem http) is identified by it; a custom transport without one is known by
+   // its object identity only. An exposed URL that is not a valid http(s) URL is refused, never ignored.
+   const origins = clients.flatMap((c) => {
+--- /dev/null
++++ b/custody/chain-source.mjs
+@@ -0,0 +1,77 @@
++// Custody chain source: which chain authority a custodian (v1 custodian-daemon, v2 readers given `clients`) reads through.
++//
++//   quorum (DEFAULT, unchanged): the configured RPC URLs and an explicit minAgree, exactly as before. No verifier setting
++//     may be present.
++//   verifier (explicit opt-in): the operator's LOCAL VERIFIER (network/chain-authority.mjs, loopback only) as the ONE chain
++//     authority: state is executed/proven against the state root of a block on the verifier's sequencer-signed head chain,
++//     blocks come from that chain. NO provider RPC may be configured with it (no fallback, no mixed quorum: a verifier is
++//     never one vote among RPCs), minAgree is 1, submissions go only to the operator's own backend after it is bound to
++//     the verifier's head (txBackend; without it nothing is sent).
++// Trust change (stated, not hidden): a quorum trusts that a majority of the configured RPCs is honest; the verifier trusts
++// its own proof checks and the sequencer's unsafe-block signature. NEITHER mode has L1 finality: every custody reader keeps
++// its own confirmations / maxAgeSec / high-water / checkpoint rules unchanged on top of either source.
++// v2 reads pin blocks by hash (EIP-1898 {blockHash, requireCanonical: true}); the verifier's support for that form is not
++// established, so the verifier client translates it: the hash must be a block the verifier knows AND the canonical block at
++// that number on the verifier's chain, before and after the read; the read itself is made at that number. Anything else in
++// a block parameter object is refused.
++import { base } from "viem/chains";
++import { createPublicClient, custom } from "viem";
++import { createChainAuthority, isVerifierClient, VERIFIER_CLIENT } from "../network/chain-authority.mjs";
++
++export const CHAIN_SOURCES = Object.freeze(["quorum", "verifier"]);
++const PROVIDER_KEYS = ["rpcs", "rpc", "bindingRpcs", "fallbackRpcs", "minAgree"];
++const VERIFIER_KEYS = ["verifier", "txBackend"];
++const HASH = /^0x[0-9a-fA-F]{64}$/;
++const lc = (s) => String(s).toLowerCase();
++const bad = (m) => Object.assign(new Error(`custody chain source: ${m}`), { code: "bad_config", status: 500 });
++const fail = (code, m) => Object.assign(new Error(m), { code, status: 503 });
++const has = (cfg, k) => cfg[k] !== undefined && cfg[k] !== null && String(cfg[k]).trim() !== "";
++
++/** -> { mode: "quorum", rpcs, minAgree, clients: null } | { mode: "verifier", rpcs: null, minAgree: 1, clients: [client], authority } */
++export function custodyChainSource(cfg = {}, { chain = base, createAuthority = createChainAuthority, ...authorityOpts } = {}) {
++  const mode = cfg.chainSource ?? "quorum";
++  if (!CHAIN_SOURCES.includes(mode)) throw bad("chainSource must be quorum or verifier");
++  if (mode === "quorum") {
++    const stray = VERIFIER_KEYS.filter((k) => has(cfg, k));
++    if (stray.length) throw bad(`${stray.join(", ")} set but chainSource is not verifier`);
++    return { mode, rpcs: cfg.rpcs, minAgree: cfg.minAgree, clients: null, authority: null };
++  }
++  const mixed = PROVIDER_KEYS.filter((k) => has(cfg, k));
++  if (mixed.length) throw bad(`chainSource verifier: ${mixed.join(", ")} must be unset (the local verifier is the one authority: no RPC fallback, no mixed quorum)`);
++  if (!has(cfg, "verifier")) throw bad("chainSource verifier needs verifier (the local verifier URL)");
++  if (cfg.chainId !== undefined && cfg.chainId !== null && Number(cfg.chainId) !== chain.id) throw bad(`chainId ${cfg.chainId} is not the verifier's chain ${chain.id}`);
++  const authority = createAuthority({ verifier: cfg.verifier, backend: cfg.txBackend || null, chain, ...authorityOpts });
++  if (!isVerifierClient(authority.client)) throw bad("the chain authority did not yield a verifier client");
++  return { mode, rpcs: null, minAgree: 1, clients: [blockHashPinnedClient(authority.client)], authority };
++}
++
++/** A verifier client that answers EIP-1898 block-hash reads (eth_call, eth_getCode) only for blocks canonical on the
++ *  verifier's own chain, re-checked after the read. Marked as the same single verifier authority. */
++export function blockHashPinnedClient(inner) {
++  if (!isVerifierClient(inner)) throw bad("blockHashPinnedClient needs a verifier client");
++  const rq = (method, params) => inner.request({ method, params });
++  async function canonicalNumber(hash) {
++    const blk = await rq("eth_getBlockByHash", [hash, false]);
++    if (!blk || lc(blk.hash) !== lc(hash)) throw fail("chain_unconfirmed", "the verifier does not know that block");
++    const at = await rq("eth_getBlockByNumber", [blk.number, false]);
++    if (!at || lc(at.hash) !== lc(hash)) throw fail("chain_unconfirmed", "that block is not canonical on the verifier's chain");
++    return blk.number;
++  }
++  async function request({ method, params = [] }) {
++    const p = params[1];
++    if ((method === "eth_call" || method === "eth_getCode") && p !== null && typeof p === "object") {
++      const { blockHash, requireCanonical, ...rest } = p;
++      if (Object.keys(rest).length || !HASH.test(String(blockHash)) || requireCanonical !== true)
++        throw fail("chain_refused", `${method}: only {blockHash, requireCanonical: true} block objects are accepted`);
++      const n = await canonicalNumber(blockHash);
++      const out = await rq(method, [params[0], n, ...params.slice(2)]);
++      const after = await rq("eth_getBlockByNumber", [n, false]);
++      if (!after || lc(after.hash) !== lc(blockHash)) throw fail("chain_unconfirmed", "the verifier's chain moved during the read");
++      return out;
++    }
++    return rq(method, params);
++  }
++  const client = createPublicClient({ chain: inner.chain, transport: custom({ request }, { key: "local-verifier-pinned", name: "Local verifier (block-hash pinned)", retryCount: 0 }) });
++  Object.defineProperty(client, VERIFIER_CLIENT, { value: inner[VERIFIER_CLIENT], enumerable: false });
++  return client;
++}
+--- /dev/null
++++ b/test/custody-chain-source.test.mjs
+@@ -0,0 +1,136 @@
++// custody/chain-source.mjs: the explicit local-verifier custody chain source (legacy quorum default unchanged). The
++// verifier is the REAL network/chain-authority.mjs client; only its HTTP peer is faked (injected fetch: a small signed-
++// chain model answering eth_chainId / eth_blockNumber / eth_getBlockBy{Number,Hash} / eth_call), so every refusal below
++// is the reviewed authority's or the custody readers' own behaviour, not the fake's.
++import test from "node:test";
++import assert from "node:assert/strict";
++import { keccak256, toHex, encodeFunctionResult, decodeFunctionData } from "viem";
++import { custodyChainSource, blockHashPinnedClient } from "../custody/chain-source.mjs";
++import { createChainReader, VAULT_ABI } from "../custody/chain.mjs";
++import { createQuorumReader } from "../custody/v2/quorum.mjs";
++
++const VERIFIER = "http://127.0.0.1:8545";
++const VAULT = "0x" + "11".repeat(20), BOOK = "0x" + "22".repeat(20), OWNER = "0x" + "33".repeat(20), ZERO = "0x" + "00".repeat(20);
++const ID = "0x" + "44".repeat(32), CID = "0x" + "55".repeat(32);
++const BOOK_ABI = [{ type: "function", name: "addr", stateMutability: "view", inputs: [{ name: "key", type: "bytes32" }], outputs: [{ type: "address" }] }];
++const ABI = [...VAULT_ABI, ...BOOK_ABI];
++
++function fakeVerifier() {
++  const st = { head: 1000n, lagSec: 0n, paused: false, down: false, fork: "", urls: new Set(), callBlocks: [] };
++  const hashOf = (n, fork = st.fork) => keccak256(toHex(`block:${n}:${fork}`));
++  const block = (n, fork) => ({ number: toHex(n), hash: hashOf(n, fork), parentHash: hashOf(n - 1n, fork), transactions: [], gasLimit: "0x1c9c380", gasUsed: "0x0",
++    timestamp: toHex(BigInt(Math.floor(Date.now() / 1000)) - (st.head - n) * 2n - st.lagSec), baseFeePerGas: "0x1", miner: ZERO, difficulty: "0x0", extraData: "0x", size: "0x1", uncles: [] });
++  const call = ({ to, data }) => {
++    const { functionName, args } = decodeFunctionData({ abi: ABI, data });
++    const out = {
++      policyOf: [OWNER, 3n, 7n, CID, st.paused, "0x"], bundleOf: [7n, 0, "0x"], book: BOOK, beneficialOwnerOf: OWNER, addr: ZERO, committeeOf: [OWNER, 2],
++    }[functionName];
++    if (out === undefined || (functionName === "addr" ? to.toLowerCase() !== BOOK : to.toLowerCase() !== VAULT)) throw new Error(`fake: no ${functionName} at ${to} ${args}`);
++    return encodeFunctionResult({ abi: ABI, functionName, result: out });
++  };
++  const answer = ({ method, params }) => {
++    if (method === "eth_chainId") return "0x2105";
++    if (method === "eth_blockNumber") return toHex(st.head);
++    if (method === "eth_getBlockByNumber") { const n = BigInt(params[0]); return n <= st.head ? block(n) : null; }
++    if (method === "eth_getBlockByHash") {
++      for (const fork of [st.fork, "sibling"]) for (let n = st.head; n > st.head - 50n; n--) if (hashOf(n, fork) === params[0]) return block(n, fork);
++      return null;
++    }
++    if (method === "eth_call") { st.callBlocks.push(params[1]); return call(params[0]); }
++    throw new Error(`fake: ${method}`);
++  };
++  const fetch = async (url, init) => {
++    st.urls.add(String(url));
++    if (st.down) throw new Error("connect ECONNREFUSED");
++    const body = JSON.parse(init.body);
++    try { return new Response(JSON.stringify({ jsonrpc: "2.0", id: body.id, result: answer(body) }), { headers: { "content-type": "application/json" } }); }
++    catch (e) { return new Response(JSON.stringify({ jsonrpc: "2.0", id: body.id, error: { code: -32000, message: e.message } }), { headers: { "content-type": "application/json" } }); }
++  };
++  return { st, fetch, hashOf };
++}
++// viem wraps a transport error; the custody code is on the cause chain
++const codeIn = (e, code) => { for (let x = e; x; x = x.cause) if (x.code === code) return true; return false; };
++const verifierSource = (fake, extra = {}) => custodyChainSource({ chainSource: "verifier", verifier: VERIFIER, chainId: 8453, ...extra }, { fetch: fake.fetch });
++
++test("legacy default and explicit quorum are unchanged; verifier settings are refused there", () => {
++  const cfg = { rpcs: ["https://a.example", "https://b.example"], minAgree: 2 };
++  assert.deepEqual(custodyChainSource(cfg), { mode: "quorum", rpcs: cfg.rpcs, minAgree: 2, clients: null, authority: null });
++  assert.equal(custodyChainSource({ ...cfg, chainSource: "quorum" }).mode, "quorum");
++  for (const k of ["verifier", "txBackend"]) assert.throws(() => custodyChainSource({ ...cfg, [k]: VERIFIER }), /not verifier/, k);
++});
++
++test("verifier mode refuses mixed or public-fallback configuration", () => {
++  const fake = fakeVerifier();
++  for (const [k, v] of [["rpcs", ["https://mainnet.base.org"]], ["rpc", "https://mainnet.base.org"], ["bindingRpcs", ["https://x.example"]], ["fallbackRpcs", ["https://x.example"]], ["minAgree", 2]])
++    assert.throws(() => verifierSource(fake, { [k]: v }), /must be unset/, k);
++  assert.throws(() => custodyChainSource({ chainSource: "verifier" }, { fetch: fake.fetch }), /needs verifier/);
++  assert.throws(() => verifierSource(fake, { verifier: "https://mainnet.base.org" }), /loopback|verifier/i, "a public RPC is never the verifier");
++  assert.throws(() => verifierSource(fake, { chainId: 1 }), /not the verifier's chain/);
++  assert.throws(() => custodyChainSource({ chainSource: "public" }), /quorum or verifier/);
++  assert.equal(fake.st.urls.size, 0, "nothing was contacted while refusing");
++});
++
++test("a verifier is never one vote in a quorum (v1 and v2 readers)", () => {
++  const [v] = verifierSource(fakeVerifier()).clients;
++  const other = { getBlockNumber: async () => 1n, getBlock: async () => ({}), getChainId: async () => 8453, readContract: async () => null };
++  assert.throws(() => createChainReader({ clients: [v, other], minAgree: 1, vault: VAULT }), /one chain authority/);
++  assert.throws(() => createChainReader({ clients: [v, other], minAgree: 2, vault: VAULT }), /one chain authority/);
++  assert.throws(() => createChainReader({ clients: [v], rpcs: ["https://a.example"], minAgree: 1, vault: VAULT }), /one chain authority/);
++  assert.throws(() => createQuorumReader({ clients: [v, other, { ...other }], minAgree: 2 }), /one chain authority/);
++  assert.ok(createChainReader({ clients: [v], minAgree: 1, vault: VAULT }));
++  assert.ok(createQuorumReader({ clients: [v], minAgree: 1, chainId: 8453 }));
++});
++
++test("v1 reads go through the verifier at head - confirmations and see a revoked (paused) policy at once", async () => {
++  const fake = fakeVerifier(), src = verifierSource(fake);
++  const r = createChainReader({ clients: src.clients, minAgree: src.minAgree, vault: VAULT, confirmations: 3, maxAgeSec: 120 });
++  const a = await r.readState({ id: ID });
++  assert.equal(a.blockNumber, 997n); assert.equal(a.policy.paused, false); assert.equal(a.policy.owner, OWNER);
++  fake.st.paused = true; fake.st.head = 1001n; fake.st.callBlocks.length = 0;
++  const b = await r.readState({ id: ID });
++  assert.equal(b.blockNumber, 998n); assert.equal(b.policy.paused, true, "the owner's pause is seen at the next verified block");
++  assert.ok(fake.st.callBlocks.length > 0 && fake.st.callBlocks.every((x) => x === toHex(998n)), "every state read is pinned to that block number");
++  assert.ok(fake.st.urls.size > 0 && [...fake.st.urls].every((u) => u.startsWith(VERIFIER)), "only the verifier was asked");
++});
++
++test("a stale verifier head and a rolled-back checkpoint fail closed", async () => {
++  const fake = fakeVerifier(), src = verifierSource(fake);
++  fake.st.lagSec = 1000n;
++  const r = createChainReader({ clients: src.clients, minAgree: 1, vault: VAULT, maxAgeSec: 120 });
++  await assert.rejects(r.readState({ id: ID }), (e) => e.code === "chain_stale");
++  const q = createQuorumReader({ clients: src.clients, minAgree: 1, chainId: 8453, maxAgeSec: 120 });
++  await assert.rejects(q(async () => ({})), (e) => e.code === "chain_unconfirmed" && /chain_stale/.test(e.message));
++  fake.st.lagSec = 0n;
++  const saved = { blockNumber: "2000", blockHash: fake.hashOf(2000n), blockTimestamp: Math.floor(Date.now() / 1000) };
++  const q2 = createQuorumReader({ clients: src.clients, minAgree: 1, chainId: 8453, checkpoint: { load: async () => saved, save: async () => {} } });
++  await assert.rejects(q2(async () => ({})), (e) => e.code === "chain_rollback", "a verifier behind the sealed checkpoint is refused");
++});
++
++test("verifier outage fails closed and never falls back to another server", async () => {
++  const fake = fakeVerifier(), src = verifierSource(fake);
++  fake.st.down = true;
++  await assert.rejects(createChainReader({ clients: src.clients, minAgree: 1, vault: VAULT }).readState({ id: ID }), (e) => e.code === "chain_unconfirmed");
++  await assert.rejects(createQuorumReader({ clients: src.clients, minAgree: 1, chainId: 8453 })(async () => ({})), (e) => e.code === "chain_unconfirmed");
++  assert.ok([...fake.st.urls].every((u) => u.startsWith(VERIFIER)), "no other URL was ever contacted");
++});
++
++test("no finality is invented: safe/finalized are refused, a wrong chain pin is refused", async () => {
++  const fake = fakeVerifier(), [v] = verifierSource(fake).clients;
++  for (const tag of ["safe", "finalized"])
++    await assert.rejects(v.request({ method: "eth_getBlockByNumber", params: [tag, false] }), /no safe or finalized tier/);
++  await assert.rejects(createQuorumReader({ clients: [v], minAgree: 1, chainId: 10 })(async () => ({})), (e) => e.code === "chain_unconfirmed");
++});
++
++test("v2 block-hash reads: only blocks canonical on the verifier's chain, re-checked after the read", async () => {
++  const fake = fakeVerifier(), [v] = verifierSource(fake).clients;
++  const data = "0x" + "00".repeat(0);
++  const q = createQuorumReader({ clients: [v], minAgree: 1, chainId: 8453, confirmations: 2 });
++  const got = await q(async (client, block) => ({ book: await client.request({ method: "eth_call", params: [{ to: VAULT, data: (await import("viem")).encodeFunctionData({ abi: ABI, functionName: "book" }) }, { blockHash: block.blockHash, requireCanonical: true }] }) }));
++  assert.equal(got.blockNumber, 998n); assert.equal(fake.st.callBlocks.at(-1), toHex(998n), "the hash read is made at its verified number");
++  const call = (blk) => v.request({ method: "eth_call", params: [{ to: VAULT, data }, blk] });
++  await assert.rejects(call({ blockHash: "0x" + "ab".repeat(32), requireCanonical: true }), (e) => codeIn(e, "chain_unconfirmed") && /does not know/.test(e.message));
++  await assert.rejects(call({ blockHash: fake.hashOf(990n, "sibling"), requireCanonical: true }), (e) => codeIn(e, "chain_unconfirmed") && /not canonical/.test(e.message), "a sibling-fork block (another authority's chain) is refused");
++  await assert.rejects(call({ blockHash: fake.hashOf(990n), requireCanonical: false }), (e) => codeIn(e, "chain_refused"));
++  await assert.rejects(call({ blockHash: fake.hashOf(990n), requireCanonical: true, blockNumber: "0x1" }), (e) => codeIn(e, "chain_refused"));
++  assert.throws(() => blockHashPinnedClient({ request: async () => null }), /needs a verifier client/);
++});

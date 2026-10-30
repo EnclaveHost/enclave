@@ -1,0 +1,109 @@
+[
+  {
+    "url": "http://127.0.0.1:25052/eth/v1/beacon/states/head/finality_checkpoints",
+    "observedAt": "2026-10-25T19:37:39.537481+00:00",
+    "http": 200,
+    "body": {
+      "execution_optimistic": false,
+      "finalized": false,
+      "data": {
+        "previous_justified": {
+          "epoch": "484719",
+          "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094"
+        },
+        "current_justified": {
+          "epoch": "484720",
+          "root": "0x4bdfdc663dca65cbbc7a23aee58b2bb9bfd0e67fba56f8a7e31c3549648c31af"
+        },
+        "finalized": {
+          "epoch": "484719",
+          "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094"
+        }
+      }
+    }
+  },
+  {
+    "url": "https://mainnet.checkpoint.sigp.io/eth/v1/beacon/states/head/finality_checkpoints",
+    "observedAt": "2026-10-25T19:37:39.537680+00:00",
+    "http": 200,
+    "body": {
+      "data": {
+        "finalized": {
+          "epoch": "484719",
+          "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094"
+        },
+        "current_justified": {
+          "epoch": "484720",
+          "root": "0x4bdfdc663dca65cbbc7a23aee58b2bb9bfd0e67fba56f8a7e31c3549648c31af"
+        },
+        "previous_justified": {
+          "epoch": "484719",
+          "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094"
+        }
+      }
+    }
+  },
+  {
+    "url": "https://sync-mainnet.beaconcha.in/eth/v1/beacon/states/head/finality_checkpoints",
+    "observedAt": "2026-10-25T19:37:39.537268+00:00",
+    "http": 200,
+    "body": {
+      "data": {
+        "finalized": {
+          "epoch": "484719",
+          "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094"
+        },
+        "current_justified": {
+          "epoch": "484720",
+          "root": "0x4bdfdc663dca65cbbc7a23aee58b2bb9bfd0e67fba56f8a7e31c3549648c31af"
+        },
+        "previous_justified": {
+          "epoch": "484719",
+          "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094"
+        }
+      }
+    }
+  },
+  {
+    "url": "https://beaconstate.ethstaker.cc/eth/v1/beacon/states/head/finality_checkpoints",
+    "observedAt": "2026-10-25T19:37:39.536764+00:00",
+    "http": 200,
+    "body": {
+      "data": {
+        "finalized": {
+          "epoch": "484719",
+          "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094"
+        },
+        "current_justified": {
+          "epoch": "484720",
+          "root": "0x4bdfdc663dca65cbbc7a23aee58b2bb9bfd0e67fba56f8a7e31c3549648c31af"
+        },
+        "previous_justified": {
+          "epoch": "484719",
+          "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094"
+        }
+      }
+    }
+  },
+  {
+    "url": "https://beaconstate-mainnet.chainsafe.io/eth/v1/beacon/states/head/finality_checkpoints",
+    "observedAt": "2026-10-25T19:37:39.538191+00:00",
+    "http": 200,
+    "body": {
+      "data": {
+        "finalized": {
+          "epoch": "484719",
+          "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094"
+        },
+        "current_justified": {
+          "epoch": "484720",
+          "root": "0x4bdfdc663dca65cbbc7a23aee58b2bb9bfd0e67fba56f8a7e31c3549648c31af"
+        },
+        "previous_justified": {
+          "epoch": "484719",
+          "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094"
+        }
+      }
+    }
+  }
+]

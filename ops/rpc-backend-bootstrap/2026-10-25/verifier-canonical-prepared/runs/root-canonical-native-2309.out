@@ -1,0 +1,35 @@
+[queue] START available=23371MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB
+[ok] offline: interfaces = lo only (lo )
+[ok] offline: no IPv4 route
+[tool] rustc 1.96.0 (ac68faa20 2026-05-25) binary: rustc commit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96 commit-date: 2026-05-25 host: x86_64-unknown-linux-gnu release: 1.96.0 LLVM version: 22.1.2 
+[tool] cargo 1.96.0 (30a34c682 2026-05-25)
+[tool] rustc ba4b837efb6612df cargo f30f9fd1b1d0b8fd cc cc (GCC) 16.2.1 20260810
+[ok] fresh /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T230954Z
+[ok] source repo HEAD eeffcc9
+[ok] source repo clean
+[ok] clone tree == R3x tree
+[ok] clone Cargo.lock == R3x
+[ok] base files == INPUT-MANIFEST
+[ok] patched files == PATCHED.sha256
+[ok] cargo-home copy == original
+rustc 1.96.0 (ac68faa20 2026-05-25)
+cargo 1.96.0 (30a34c682 2026-05-25)
+== A: compile preflight (a failure here is a COMPILE/FETCH failure, never a test result)
+error: failed to load manifest for workspace member `/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T230954Z/helios/cli`
+referenced by workspace at `/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T230954Z/helios/Cargo.toml`
+
+Caused by:
+  failed to load manifest for dependency `helios-opstack`
+
+Caused by:
+  failed to load manifest for dependency `base-common-chains`
+
+Caused by:
+  failed to read `/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T230954Z/vendor-inspect/base-v1.5.1/crates/common/chains/Cargo.toml`
+
+Caused by:
+  No such file or directory (os error 2)
+RESULT: COMPILE-FAILURE (not a test verdict)
+[memory-guard] exit=20 peakTreeRssMiB=34 minHostAvailableMiB=22903
+[memory-guard] at peak: sort:9 sha256sum:7 sha256sum:6 bash:4 xargs:2 cut:2 bash:2 bash:2
+[queue] EXIT 20

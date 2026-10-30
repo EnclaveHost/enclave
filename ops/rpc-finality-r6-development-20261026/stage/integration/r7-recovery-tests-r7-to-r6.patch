@@ -1,0 +1,82 @@
+--- a/tests/test_reanchor_recovery.py
++++ b/tests/test_reanchor_recovery.py
+@@ -58,6 +58,9 @@
+         self.assertFalse(hasattr(R, 'A1_CAPTURE_VERIFIER'), 'the placeholder interface must remain removed')
+         self.assertFalse(R.A1_CAPTURE_REVIEWED, 'capture activation must remain on HOLD outside each fixture')
+         self.archive = self.d / 'etc/base-bootstrap-archive'; self.store = self.d / 'etc/base-finality-watermark'; self.gen = 0
++        # finality r4 port (only change): `arm` requires the harness ledger to be the wrapper's SHARED A1_ADMISSION_LEDGER
++        p = patch.object(W, 'A1_ADMISSION_LEDGER', self.d / 'etc/base-a1-admission.jsonl'); p.start(); self.addCleanup(p.stop)
++        q = patch.object(R, 'A1_ADMISSION_LEDGER', self.d / 'etc/base-a1-admission.jsonl'); q.start(); self.addCleanup(q.stop)   # r5 harness
+ 
+     def tearDown(self):
+         super().tearDown()
+@@ -538,6 +541,61 @@
+         self.step_refused('a3', 'marker')
+ 
+ 
++class FinalityRestart(Recovery):
++    """finality r5: `permit-restart` over the REAL harness (gate_static, stage checkpoints, header at the floor) on the fixture's
++    fake reth, and the r5 wrapper consuming the permit. The recorded floor is put with the wrapper's own durable appends (a
++    TEST stand-in for record-finality, which test_finality_integration.py covers with the real finality tool)."""
++    def bootstrapped(self):
++        self.launched(); self.assertEqual(self.start(), 'exec')
++        self.node_ran(extra_headers=[(N2, FX2['header'])])
++        c = A.load_config(self.d / 'cfg.json'); fh = A.header_hash(c, FX2['header'])
++        os.makedirs(self.store, mode=0o755, exist_ok=True)
++        es = W.watermark_append(self.store, self.uid, W.watermark_entries(self.store, self.uid, self.top), N2, fh, 'finality-proof', 'ab' * 32, 'at', self.top)
++        js = W.journal_entries(self.out / 'journal', self.uid, self.lsha, self.top)
++        W.journal_append(self.out / 'journal', self.uid, self.lsha, js, 'bootstrapped', {'watermarkEntrySha256': es[-1][0], 'finalityEntrySha256': 'ab' * 32,
++                         'number': N2, 'blockHash': fh}, 'at', self.top)
++        return fh
++
++    def permit(self):
++        return P.permit_restart(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, watermark=self.store)
++
++    def last(self):
++        return W.journal_entries(self.out / 'journal', self.uid, self.lsha, self.top)[-1][1]
++
++    def test_permit_then_one_ordinary_restart_without_the_anchor(self):
++        self.bootstrapped()
++        self.assertIn('permit-restart', self.start())                              # bootstrapped alone never starts
++        r = self.permit(); self.assertEqual(self.last()['event'], 'restart-permitted'); self.assertEqual(r['event'], 'restart-permitted')
++        n = len(self.execs()); self.assertEqual(self.start(), 'exec'); self.assertEqual(self.last()['event'], 'restarted')
++        self.assertNotIn('--bootstrap.anchor', ' '.join(map(str, self.execs()[n:])), 'the anchor is never replayed')
++        self.assertIn('permit-restart', self.start())                              # the permit is consumed: a crash needs a new one
++
++    def test_in_place_rollback_below_the_floor_refuses_same_inode(self):
++        self.bootstrapped(); ino = os.stat(self.d / 'datadir/db/mdbx.dat').st_ino
++        self.state['cp'] = {k: N2 - 100 for k in self.state['cp']}; self.state['headersTip'] = N2 - 100; self.write()
++        self.assertEqual(os.stat(self.d / 'datadir/db/mdbx.dat').st_ino, ino, 'the same DB file (inode) - rolled back in place')
++        self.refused(self.permit, 'below_floor'); self.assertEqual(self.last()['event'], 'bootstrapped')
++
++    def test_another_block_at_the_floor_refuses(self):
++        self.bootstrapped(); other = dict(FX2['header'], parentHash='0x' + '42' * 32)
++        self.state['headers'][str(N2)] = other; self.write()
++        self.refused(self.permit, 'floor_conflict')
++
++    def test_db_written_after_the_permit_refuses_the_start(self):
++        self.bootstrapped(); self.permit()
++        (self.d / 'datadir/db/mdbx.dat').write_bytes(b'restored or rolled back after the permit')
++        self.assertIn('changed since the restart permit', self.start()); self.assertEqual(self.last()['event'], 'restart-permitted')
++
++    def test_permit_only_for_a_bootstrapped_launch_and_rollback_stays_terminal(self):
++        self.launched(); self.assertEqual(self.start(), 'exec')
++        self.refused(self.permit, 'transition')                                    # consumed (no finality): r7 rules unchanged
++        self.rollback('crash'); self.refused(self.permit, 'transition')
++
++
++
++for _n in [n for n in dir(Recovery) if n.startswith('test_')]:   # r6: run only FinalityRestart's own tests (r5 re-ran 14 inherited)
++    setattr(FinalityRestart, _n, None)
++
+ class Ledger(unittest.TestCase):
+     """admit_captures() alone, with the REAL capture module's admit() rule; no capture needed (summaries are the three ids)."""
+     def setUp(self):
+@@ -545,6 +603,7 @@
+         self.p = self.tmp / 'etc/a1-admission.jsonl'; self.lock = self.tmp / 'etc/a1-admission.jsonl.lock'
+         st = contextlib.ExitStack(); self.addCleanup(st.close); self.addCleanup(shutil.rmtree, self.tmp, True)
+         st.enter_context(patch.object(R, 'A1_CAPTURE_REVIEWED', True)); st.enter_context(patch.object(R, 'A1_CAPTURE_SOURCE', CAP_SRC))
++        st.enter_context(patch.object(R, 'A1_ADMISSION_LEDGER', self.p))           # finality r5 port: the harness's shared-ledger path
+         self.n = 0
+ 
+     def c(self, workdir='w0'):

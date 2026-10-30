@@ -1,0 +1,18 @@
+[queue] START available=92986MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+  7a977ec8d21fc84ec913b1038a4fed528cfb85ef78948766d2dbbe734f805af7      7598  funding.html
+  c7ed42015a638323dcfcec69d3adcfc11bacd3184a8ec61572e74b92dbdb426e    171229  js/funding-cutover-r1/funding.c7ed42015a638323.js
+  9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997    342282  vendor/sessions.funding-cutover-r1.9dda76f6c22ef102.js
+  69242be6e8d8d5d3fb7c74e6f838796aa9c6b733108c8ba38dbdd7ff426672ff    377771  vendor/funding.funding-cutover-r1.69242be6e8d8d5d3.js
+  4b52a34c258c6cf5469e4f531040b57b826fd04ec16089cec8e35a79e4cdf2b3    152540  css/site.funding-cutover-r1.4b52a34c258c6cf5.css
+[funding-cutover-addon] proposed pins -> /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/funding-quote-ux-release-r1/pins-proposed.json (review, set reviewed:true)
+  7a977ec8d21fc84ec913b1038a4fed528cfb85ef78948766d2dbbe734f805af7      7598  funding.html
+  c7ed42015a638323dcfcec69d3adcfc11bacd3184a8ec61572e74b92dbdb426e    171229  js/funding-cutover-r1/funding.c7ed42015a638323.js
+  9dda76f6c22ef102e9dce27b7e61731c83a7e41905a611587578e305bc758997    342282  vendor/sessions.funding-cutover-r1.9dda76f6c22ef102.js
+  69242be6e8d8d5d3fb7c74e6f838796aa9c6b733108c8ba38dbdd7ff426672ff    377771  vendor/funding.funding-cutover-r1.69242be6e8d8d5d3.js
+  4b52a34c258c6cf5469e4f531040b57b826fd04ec16089cec8e35a79e4cdf2b3    152540  css/site.funding-cutover-r1.4b52a34c258c6cf5.css
+[funding-cutover-addon] additions -> /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/funding-quote-ux-release-r1/artifact
+[memory-guard] exit=0 peakTreeRssMiB=102 minHostAvailableMiB=92962
+[memory-guard] at peak: node:66 esbuild:23 python3:13
+[memory-guard] exit=0 peakTreeRssMiB=146 minHostAvailableMiB=92969
+[memory-guard] at peak: node:65 node:50 esbuild:18 python3:13
+[queue] EXIT 0

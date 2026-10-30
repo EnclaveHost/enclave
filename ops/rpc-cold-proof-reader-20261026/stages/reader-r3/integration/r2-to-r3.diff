@@ -1,0 +1,427 @@
+diff -ruN -x logs -x SHA256SUMS -x r2-to-r3.diff r2/INTEGRATION.md r3/INTEGRATION.md
+--- r2/INTEGRATION.md	2026-10-26 00:52:56.160098364 -0700
++++ r3/INTEGRATION.md	2026-10-26 00:58:43.768919449 -0700
+@@ -1,12 +1,12 @@
+-# Integration recipe, cold-proof-timeout-stage/r2 (for 50cf; PROPOSAL until root's tests + composition qualification + canary pass)
+-r2 supersedes r1 (r1 had no post-run budget check). Base: r12-final, root qualification PASS, pushed cc30bb890e7f910e99d017f741917735dd3e2d56, NOT activated; never edited.
++# Integration recipe, cold-proof-timeout-stage/r3 (for 50cf; PROPOSAL until root's tests + composition qualification + canary pass)
++r3 supersedes r1/r2 (r1: no post-run budget check; r2: test spawnSync deadlock + fractional AbortSignal timeout). Base: r12-final, root qualification PASS, pushed cc30bb890e7f910e99d017f741917735dd3e2d56, NOT activated; never edited.
+ 
+ ## 0. Order
+-1. root: `python3 -u ../claude-test-queue.py --mib 256 --log cold-proof-timeout-stage/r2/logs/root-cold-proof-tests.guard -- unshare -rn bash cold-proof-timeout-stage/r2/jobs/root-cold-proof-tests.sh` -> `PASS cold-proof-tests r2 transport 12 a1-anchor N/N a1-recheck M ...`.
++1. root: `python3 -u ../claude-test-queue.py --mib 256 --log cold-proof-timeout-stage/r3/logs/root-cold-proof-tests.guard -- unshare -rn bash cold-proof-timeout-stage/r3/jobs/root-cold-proof-tests.sh` -> `PASS cold-proof-tests r3 transport 13 a1-anchor N/N a1-recheck M ...`.
+ 2. 50cf: (r12-final qualification PASS; r12-final is never edited), compose a NEW stage from r12-final + this stage's readers.
+ 3. root: that stage's own qualification job (its suites incl. capture-r10 / capture-closure / integration / reproof re-run on the new capture pins).
+ 4. fill `canary/COMPOSED-STAGE-PINS.json` from the frozen composed stage, re-freeze this stage (SHA256SUMS changes), re-run step 1 (the canary gate requires a PASS RESULT for the CURRENT stage bytes), then the canary (queue 768):
+-   `python3 -u ../claude-test-queue.py --mib 768 --log cold-proof-timeout-stage/r2/canary/logs/root-cold-proof-canary.guard -- bash cold-proof-timeout-stage/r2/canary/jobs/root-cold-proof-canary.sh`
++   `python3 -u ../claude-test-queue.py --mib 768 --log cold-proof-timeout-stage/r3/canary/logs/root-cold-proof-canary.guard -- bash cold-proof-timeout-stage/r3/canary/jobs/root-cold-proof-canary.sh`
+    Cold recovery is VERIFIED only if the receipt shows the capture flow passed AND `coldProof.exercised == true` (a proof request > 20 s
+    succeeded through the relay). Even then it shows a > 20 s proof was survived, NOT that the OS page cache was cold. A pass with
+    `exercised == false` (warm) does NOT prove the fix; re-run later after the finalized
+@@ -15,9 +15,9 @@
+ ## 1. New origins (bundle-origin.json entries; origins = THIS stage, never source/)
+ | bundle entry | new origin | sha256 |
+ |---|---|---|
+-| bundle/a1-capture/l1-anchor-a1/a1-read.mjs | cold-proof-timeout-stage/r2/src/l1-anchor-a1/a1-read.mjs | 991f1ae07a3d32747c9df6a2b5978e4faeab0244d6ba0d4ba659198ddcc8a699 |
+-| bundle/a1-capture/a1-original-game-prepared/a1-read.mjs | cold-proof-timeout-stage/r2/src/a1-original-game-prepared/a1-read.mjs | 991f1ae07a3d32747c9df6a2b5978e4faeab0244d6ba0d4ba659198ddcc8a699 |
+-| bundle/a1-capture/a1-original-game-prepared/a1-recheck-read.mjs | cold-proof-timeout-stage/r2/src/a1-original-game-prepared/a1-recheck-read.mjs | 6ead7f0da19459e8726abe0d5deb5fc8a9ef4de8c90acf1c24f66a63b3f5862a |
++| bundle/a1-capture/l1-anchor-a1/a1-read.mjs | cold-proof-timeout-stage/r3/src/l1-anchor-a1/a1-read.mjs | da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85 |
++| bundle/a1-capture/a1-original-game-prepared/a1-read.mjs | cold-proof-timeout-stage/r3/src/a1-original-game-prepared/a1-read.mjs | da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85 |
++| bundle/a1-capture/a1-original-game-prepared/a1-recheck-read.mjs | cold-proof-timeout-stage/r3/src/a1-original-game-prepared/a1-recheck-read.mjs | 78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825 |
+ 
+ ## 2. Exact pin cascade (output of `python3 -I tools/cascade_plan.py`, read-only, over r12-final at SHA256SUMS 9de0d8d7...)
+ Re-pin in this order; each edited file's NEW sha replaces its old sha in every later file. Historical `integration*/` patch files of
+@@ -25,20 +25,20 @@
+ qualification strings change to the new stage name (as in r12-final). No other product logic changes.
+ ```
+  1. bundle-origin.json  [current sha 3b4f5ad66aafeb05]
+-      names a501a3ec56ebd56e... (a1-read.mjs (both copies) -> 991f1ae07a3d32747c9df6a2b5978e4faeab0244d6ba0d4ba659198ddcc8a) at lines [7, 35]
+-      names 41b83975e96fc816... (a1-recheck-read.mjs -> 6ead7f0da19459e8726abe0d5deb5fc8a9ef4de8c90acf1c24f66a63b3f5862a) at lines [27]
++      names a501a3ec56ebd56e... (a1-read.mjs (both copies) -> da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274) at lines [7, 35]
++      names 41b83975e96fc816... (a1-recheck-read.mjs -> 78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825) at lines [27]
+  2. capture/a1_capture.py  [current sha 47c49b114e6d596a]
+-      names a501a3ec56ebd56e... (a1-read.mjs (both copies) -> 991f1ae07a3d32747c9df6a2b5978e4faeab0244d6ba0d4ba659198ddcc8a) at lines [56, 61]
+-      names 41b83975e96fc816... (a1-recheck-read.mjs -> 6ead7f0da19459e8726abe0d5deb5fc8a9ef4de8c90acf1c24f66a63b3f5862a) at lines [54]
++      names a501a3ec56ebd56e... (a1-read.mjs (both copies) -> da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274) at lines [56, 61]
++      names 41b83975e96fc816... (a1-recheck-read.mjs -> 78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825) at lines [54]
+  3. harness/a2a4.py  [current sha 6c1d0b1bf767aceb]
+-      names a501a3ec56ebd56e... (a1-read.mjs (both copies) -> 991f1ae07a3d32747c9df6a2b5978e4faeab0244d6ba0d4ba659198ddcc8a) at lines [76]
+-      names 41b83975e96fc816... (a1-recheck-read.mjs -> 6ead7f0da19459e8726abe0d5deb5fc8a9ef4de8c90acf1c24f66a63b3f5862a) at lines [74]
++      names a501a3ec56ebd56e... (a1-read.mjs (both copies) -> da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274) at lines [76]
++      names 41b83975e96fc816... (a1-recheck-read.mjs -> 78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825) at lines [74]
+  4. harness-first/a2a4.py  [current sha dbd4cbe37f9f3e43]
+-      names a501a3ec56ebd56e... (a1-read.mjs (both copies) -> 991f1ae07a3d32747c9df6a2b5978e4faeab0244d6ba0d4ba659198ddcc8a) at lines [75]
+-      names 41b83975e96fc816... (a1-recheck-read.mjs -> 6ead7f0da19459e8726abe0d5deb5fc8a9ef4de8c90acf1c24f66a63b3f5862a) at lines [73]
++      names a501a3ec56ebd56e... (a1-read.mjs (both copies) -> da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274) at lines [75]
++      names 41b83975e96fc816... (a1-recheck-read.mjs -> 78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825) at lines [73]
+  5. install/MANIFEST.json  [current sha c8da92df2cb6eb9a]
+-      names a501a3ec56ebd56e... (a1-read.mjs (both copies) -> 991f1ae07a3d32747c9df6a2b5978e4faeab0244d6ba0d4ba659198ddcc8a) at lines [259, 301]
+-      names 41b83975e96fc816... (a1-recheck-read.mjs -> 6ead7f0da19459e8726abe0d5deb5fc8a9ef4de8c90acf1c24f66a63b3f5862a) at lines [289]
++      names a501a3ec56ebd56e... (a1-read.mjs (both copies) -> da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274) at lines [259, 301]
++      names 41b83975e96fc816... (a1-recheck-read.mjs -> 78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825) at lines [289]
+  6. CANARY-R3-RECIPE.md  [current sha 5cf1b7363547db1d]
+       names 47c49b114e6d596a... (capture/a1_capture.py (re-pinned)) at lines [3]
+  7. COMPOSITION.tsv  [current sha 3e48b7dcb6f1c660]
+@@ -81,8 +81,8 @@
+       names 218bbfe56caec03e... (src/finality_state.py (re-pinned)) at lines [25]
+ 
+ 19 files to re-pin in a composition derived from r12-final; new reader shas:
+-  a501a3ec56ebd56e... a1-read.mjs (both copies) -> 991f1ae07a3d32747c9df6a2b5978e4faeab0244d6ba0d4ba659198ddcc8a699
+-  41b83975e96fc816... a1-recheck-read.mjs -> 6ead7f0da19459e8726abe0d5deb5fc8a9ef4de8c90acf1c24f66a63b3f5862a
++  a501a3ec56ebd56e... a1-read.mjs (both copies) -> da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85
++  41b83975e96fc816... a1-recheck-read.mjs -> 78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825
+ ```
+ Core chain: a1-read/a1-recheck-read -> capture/a1_capture.py MODULES (initial/recheck reader pins) -> A1_CAPTURE_SHA256 + reader pins in
+ harness/a2a4.py and harness-first/a2a4.py -> HARNESS pins in src/finality_state.py, producer/base_launch.py, recovery/forward_sync.py ->
+diff -ruN -x logs -x SHA256SUMS -x r2-to-r3.diff r2/README.md r3/README.md
+--- r2/README.md	2026-10-26 00:52:56.160182333 -0700
++++ r3/README.md	2026-10-26 00:58:43.769049850 -0700
+@@ -1,13 +1,15 @@
+-# cold-proof-timeout-stage/r2 (PROPOSED fix; PREPARED; FROZEN; nothing run by Claude). Supersedes r1 (stage-root files, frozen, untouched).
+-r2 = r1 + root review correction: the 200 s read budget is MONOTONIC (performance.now; separate from the wall clock used for the
++# cold-proof-timeout-stage/r3 (PROPOSED fix; FROZEN; offline tests run by Claude under root's authorization; see logs/). Supersedes r1, r2
++(both frozen, untouched). r3 = r2 + root review fixes: (1) the test runs the REAL reader CLIs (initial AND recheck) as ASYNC children
++(r2's spawnSync blocked the in-process mock server); (2) the per-request deadline is floored to whole ms (fractional performance.now
++budget; AbortSignal.timeout needs an integer) and < 1 ms left refuses before fetch; new fractional-budget test. r2 (kept) = the 200 s read budget is MONOTONIC (performance.now; separate from the wall clock used for the
+ finalized-header age) and is enforced AGAIN after the last request, parsing, proof crypto and A1/recheck evaluation, immediately before
+ evidence is emitted, in BOTH readers (finishRead: read_budget_exceeded, then finalized_stale_after_read / finalized_future /
+ no_l1_timestamp). Unchanged from r1: 60 s per proof-bearing request (eth_getProof, eth_call), 20 s for every other request, one attempt per
+ request (no retry, no fallback, no `latest`, loopback only, same envelope/byte-cap rules); a1-anchor.mjs / a1-recheck.mjs / a1gate untouched;
+ capture()'s 240 s remains the hard kill.
+-  src/l1-anchor-a1/a1-read.mjs = src/a1-original-game-prepared/a1-read.mjs  a501a3ec... -> 991f1ae0...
+-  src/a1-original-game-prepared/a1-recheck-read.mjs                        41b83975... -> 6ead7f0d...
+-Tests (jobs/root-cold-proof-tests.sh, queue 256, offline): 12 transport/budget/freshness tests + the EXISTING pinned A1 suite
++  src/l1-anchor-a1/a1-read.mjs = src/a1-original-game-prepared/a1-read.mjs  a501a3ec... -> da9a9e9c...
++  src/a1-original-game-prepared/a1-recheck-read.mjs                        41b83975... -> 78df2211...
++Tests (jobs/root-cold-proof-tests.sh, queue 256, offline): 13 transport/budget/freshness tests + the EXISTING pinned A1 suite
+ (a1-anchor.test.mjs: runA1 malformed/forged-proof/stale/future refusals, rpc()/loopback/byte-cap/timeout) on the pinned original AND with
+ the new reader (same pass count, 0 fail) + the EXISTING original-game recheck policy suite (a1-recheck.test.mjs) on its pinned tree.
+ INTEGRATION.md = exact 19-file pin cascade over r12-final (tools/cascade_plan.py, read-only). canary/ = cold-recovery canary against the
+diff -ruN -x logs -x SHA256SUMS -x r2-to-r3.diff r2/canary/COMPOSED-STAGE-PINS.json r3/canary/COMPOSED-STAGE-PINS.json
+--- r2/canary/COMPOSED-STAGE-PINS.json	2026-10-26 00:52:15.832674241 -0700
++++ r3/canary/COMPOSED-STAGE-PINS.json	2026-10-26 00:58:25.480435724 -0700
+@@ -1,5 +1,5 @@
+ {
+- "note": "Filled ONLY after 50cf freezes the composition that integrates cold-proof-timeout-stage/r2 (stage path relative to work/rpc-production-final-20261025) AND root's qualification of it passes. Any null refuses. a1Read/a1RecheckRead are this stage's reviewed reader bytes and must be what the composition installs. Re-freeze cold-proof-timeout-stage/r2 after filling.",
++ "note": "Filled ONLY after 50cf freezes the composition that integrates cold-proof-timeout-stage/r3 (stage path relative to work/rpc-production-final-20261025) AND root's qualification of it passes. Any null refuses. a1Read/a1RecheckRead are this stage's reviewed reader bytes and must be what the composition installs. Re-freeze cold-proof-timeout-stage/r3 after filling.",
+  "stage": null,
+  "stageSha256sums": null,
+  "manifest": null,
+@@ -7,6 +7,6 @@
+  "captureModule": null,
+  "finalityState": null,
+  "finalityCore": null,
+- "a1Read": "991f1ae07a3d32747c9df6a2b5978e4faeab0244d6ba0d4ba659198ddcc8a699",
+- "a1RecheckRead": "6ead7f0da19459e8726abe0d5deb5fc8a9ef4de8c90acf1c24f66a63b3f5862a"
++ "a1Read": "da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85",
++ "a1RecheckRead": "78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825"
+ }
+diff -ruN -x logs -x SHA256SUMS -x r2-to-r3.diff r2/canary/jobs/root-cold-proof-canary.sh r3/canary/jobs/root-cold-proof-canary.sh
+--- r2/canary/jobs/root-cold-proof-canary.sh	2026-10-26 00:52:15.832518172 -0700
++++ r3/canary/jobs/root-cold-proof-canary.sh	2026-10-26 00:57:48.438276602 -0700
+@@ -3,14 +3,14 @@
+ # (COMPOSED-STAGE-PINS.json) with the cold-proof readers, plus a transparent logging relay so the receipt shows whether COLD (> 20 s)
+ # proofs occurred and succeeded (coldProof.exercised). A pass with exercised=false proves nothing about the cold path. Below: r3 notes.
+ # Guest capture canary r3 (host side; r3 = r10 bytes only, initial + recheck-capture + core compatibility; PREPARED, NOT run by Claude). ROOT runs it through the shared queue (host floor 16 GiB):
+-#   python3 -u ../claude-test-queue.py --mib 768 --log cold-proof-timeout-stage/r2/canary/logs/root-guest-capture-canary.guard -- bash cold-proof-timeout-stage/r2/canary/jobs/root-guest-capture-canary.sh
++#   python3 -u ../claude-test-queue.py --mib 768 --log cold-proof-timeout-stage/r3/canary/logs/root-guest-capture-canary.guard -- bash cold-proof-timeout-stage/r3/canary/jobs/root-guest-capture-canary.sh
+ # Bootstrap anchor = the EXISTING authentic weak-subjectivity checkpoint record, used UNCHANGED (default; overridable only by an
+ # identical-hash file): CHECKPOINT_FILE (sha 2e8502e6...) + PROVENANCE_FILE (sha c8629825...; five HTTP-200 observations, own
+ # Lighthouse + 4 independent providers, root 0xb5d80340... epoch 484719 = slot 15511008). No external RPC is contacted by this job.
+ # Guest: private dir + transient scope (MemoryMax=512M, MemorySwapMax=0, CPUQuota=100%, 2700 s). Owned cleanup runs on ANY exit
+ # (success, failure, interrupt) AFTER diagnostics are fetched; it removes only this run's canary paths, never a shared production path.
+ set -uo pipefail
+-P=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025; S=$P/cold-proof-timeout-stage/r2/canary
++P=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025; S=$P/cold-proof-timeout-stage/r3/canary
+ OUTS=/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025
+ CK=${CHECKPOINT_FILE:-$OUTS/l1-authority-live-1941/checkpoint.json}; PV=${PROVENANCE_FILE:-$OUTS/l1-caught-up/fresh-finality-provenance-1941.json}
+ SSH=(ssh -F /home/steven/.local/state/enclave-rpc-production/ssh_config -o ConnectTimeout=10 -o BatchMode=yes enclave-rpc)
+@@ -28,9 +28,9 @@
+   fi
+   echo "## guest-canary rc=$rc"; }
+ trap cleanup EXIT; trap 'exit 130' INT; trap 'exit 143' TERM
+-(cd $S/.. && sha256sum -c --quiet SHA256SUMS) || die "cold-proof-timeout-stage/r2 != SHA256SUMS (pins filled after the composition require a re-freeze)"
++(cd $S/.. && sha256sum -c --quiet SHA256SUMS) || die "cold-proof-timeout-stage/r3 != SHA256SUMS (pins filled after the composition require a re-freeze)"
+ G=$(ls -1 $S/../logs/cold-proof-tests-*/RESULT 2>/dev/null | sort | tail -1)
+-[ -n "$G" ] && grep -qxE "PASS cold-proof-tests r2 transport 12 a1-anchor ([0-9]+)/\1 a1-recheck [0-9]+ stage-sums $(sha256sum < $S/../SHA256SUMS | cut -c1-64)" "$G" || die "no PASS cold-proof-tests r2 RESULT for these exact stage bytes"
++[ -n "$G" ] && grep -qxE "PASS cold-proof-tests r3 transport 13 a1-anchor ([0-9]+)/\1 a1-recheck [0-9]+ stage-sums $(sha256sum < $S/../SHA256SUMS | cut -c1-64)" "$G" || die "no PASS cold-proof-tests r3 RESULT for these exact stage bytes"
+ CS=$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["stage"] or "")' $S/COMPOSED-STAGE-PINS.json); [ -n "$CS" ] || die "composed stage pending"
+ (cd $P/$CS && sha256sum -c --quiet SHA256SUMS) || die "$CS changed after its freeze"
+ [ "$(sha256sum < "$CK" | cut -c1-64)" = 2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33 ] || die "checkpoint record is not the pinned 2e8502e6"
+diff -ruN -x logs -x SHA256SUMS -x r2-to-r3.diff r2/integration/a1-read.mjs.patch r3/integration/a1-read.mjs.patch
+--- r2/integration/a1-read.mjs.patch	2026-10-26 00:51:53.897275084 -0700
++++ r3/integration/a1-read.mjs.patch	2026-10-26 00:58:25.460182612 -0700
+@@ -1,6 +1,6 @@
+ --- ../../source/ops/rpc-backend-bootstrap/2026-10-25/l1-anchor-a1/a1-read.mjs	2026-10-25 12:45:00.922118521 -0700
+-+++ src/l1-anchor-a1/a1-read.mjs	2026-10-26 00:51:07.735663692 -0700
+-@@ -4,10 +4,27 @@
+++++ src/l1-anchor-a1/a1-read.mjs	2026-10-26 00:57:36.089625568 -0700
++@@ -4,10 +4,29 @@
+  // CONFIG: { heliosUrl, elUrl, portal, asr, portalAsrGetter, expectedChainId: 1, pinBy?, proofSlots?, asrCandidates? }
+  // heliosUrl = the l1-authority Helios loopback listener (the VERIFIER); elUrl = our own reth (an UNTRUSTED proof source).
+  // Both must be http://<loopback literal>:<port>: no public RPC, no names, no credentials. JSON-RPC POST only (reads).
+@@ -15,6 +15,8 @@
+ +// r2 (root review): the read budget is MONOTONIC (performance.now, independent of the wall clock used for header age) and is checked
+ +// AGAIN after the last request, parsing, proof crypto and evaluation, immediately before evidence is emitted (finishRead): a read
+ +// that exceeded READ_BUDGET_MS refuses read_budget_exceeded even if no further request was due. capture()'s 240 s stays the hard kill.
+++// r3 (root review): the monotonic clock is fractional, so the per-request deadline is FLOORED to whole ms (AbortSignal.timeout needs an
+++// integer) and a request with < 1 ms of budget left is refused before any fetch.
+  import fs from "node:fs";
+  import { keccak_256 } from "./test/deps.mjs";
+  import { headerHash } from "./vendor/anchor-bootstrap.mjs";
+@@ -29,7 +31,7 @@
+  
+  export function loopbackUrl(u, what) {
+    let x; try { x = new URL(u); } catch { throw new A1Error("bad_config", `${what} is not a URL`); }
+-@@ -16,12 +33,17 @@
++@@ -16,12 +35,16 @@
+      throw new A1Error("bad_config", `${what} must be http://127.0.0.1:<port> or http://[::1]:<port>`);
+    return x.href;
+  }
+@@ -40,16 +42,15 @@
+    let id = 0;
+    return async (method, params) => {
+      const rid = ++id;
+-+    const left = deadline - now();
+-+    if (!(left > 0)) throw new Error(`A1 read budget exhausted before ${method}`);
+-+    const ms = Math.min(PROOF_METHODS.includes(method) ? proofTimeoutMs : timeoutMs, left);
+++    const ms = Math.floor(Math.min(PROOF_METHODS.includes(method) ? proofTimeoutMs : timeoutMs, deadline - now()));
+++    if (!(ms >= 1)) throw new Error(`A1 read budget exhausted before ${method}`);
+      const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, redirect: "error",
+ -      body: JSON.stringify({ jsonrpc: "2.0", id: rid, method, params }), signal: AbortSignal.timeout(timeoutMs) });
+ +      body: JSON.stringify({ jsonrpc: "2.0", id: rid, method, params }), signal: AbortSignal.timeout(ms) });
+      if (!r.ok) { try { await r.body?.cancel(); } catch {} throw new Error(`HTTP ${r.status}`); }
+      const declared = Number(r.headers.get("content-length"));
+      if (declared > maxBytes) { try { await r.body?.cancel(); } catch {} throw new Error("reply too large (declared)"); }
+-@@ -41,12 +63,37 @@
++@@ -41,12 +64,37 @@
+      return j.result;
+    };
+  }
+diff -ruN -x logs -x SHA256SUMS -x r2-to-r3.diff r2/integration/a1-recheck-read.mjs.patch r3/integration/a1-recheck-read.mjs.patch
+--- r2/integration/a1-recheck-read.mjs.patch	2026-10-26 00:51:53.898275074 -0700
++++ r3/integration/a1-recheck-read.mjs.patch	2026-10-26 00:58:25.462553269 -0700
+@@ -1,11 +1,11 @@
+ --- ../../source/ops/rpc-backend-bootstrap/2026-10-25/a1-original-game-prepared/a1-recheck-read.mjs	2026-10-25 14:08:24.508556715 -0700
+-+++ src/a1-original-game-prepared/a1-recheck-read.mjs	2026-10-26 00:51:07.735831510 -0700
+++++ src/a1-original-game-prepared/a1-recheck-read.mjs	2026-10-26 00:57:36.089766629 -0700
+ @@ -2,22 +2,24 @@
+  // A1 original-game recheck runner for root (READ-ONLY; never run by this stage). Usage:
+  //   ANCHOR_DEPS_ROOT=<checkout> node a1-recheck-read.mjs RECHECK_CONFIG.json INITIAL_A1_EVIDENCE.json > recheck.json
+  // Transport is the pinned A1 rpc(): loopback-only URLs, streamed byte cap, timeout, redirect:error, JSON-RPC envelope
+ -// checks (./a1-read.mjs sha256 a501a3ec..., unmodified). heliosUrl = our own pinned Helios (verifier); elUrl = our own
+-+// checks (./a1-read.mjs: cold-proof-timeout-stage r2 per-class deadlines + monotonic read budget checked before emission +
+++// checks (./a1-read.mjs: cold-proof-timeout-stage r3 per-class deadlines + monotonic read budget checked before emission +
+ +// end-of-read age check). heliosUrl = our own pinned Helios (verifier); elUrl = our own
+  // reth (UNTRUSTED proof source). No public RPC, no fallback. Exit 3 = refused (JSON names the code).
+  import fs from "node:fs";
+diff -ruN -x logs -x SHA256SUMS -x r2-to-r3.diff r2/jobs/root-cold-proof-tests.sh r3/jobs/root-cold-proof-tests.sh
+--- r2/jobs/root-cold-proof-tests.sh	2026-10-26 00:51:53.894275116 -0700
++++ r3/jobs/root-cold-proof-tests.sh	2026-10-26 00:57:48.438153181 -0700
+@@ -1,8 +1,9 @@
+ #!/bin/bash
+-# cold-proof-timeout-stage/r2: root's LOCAL, OFFLINE test job (PREPARED; NOT run by Claude). r1 frozen and superseded (no post-run budget).
+-#   python3 -u ../claude-test-queue.py --mib 256 --log cold-proof-timeout-stage/r2/logs/root-cold-proof-tests.guard -- unshare -rn bash cold-proof-timeout-stage/r2/jobs/root-cold-proof-tests.sh
++# cold-proof-timeout-stage/r3: root's LOCAL, OFFLINE test job. r1/r2 frozen and superseded (r1: no post-run budget; r2: spawnSync CLI
++# deadlock in the test, fractional AbortSignal timeout). Claude was authorized to run THIS job only (queue 512, unshare -Urn).
++#   python3 -u ../claude-test-queue.py --mib 256 --log cold-proof-timeout-stage/r3/logs/root-cold-proof-tests.guard -- unshare -rn bash cold-proof-timeout-stage/r3/jobs/root-cold-proof-tests.sh
+ # Three suites, all in a private 0700 dir removed on ANY exit (no network; mocks bind 127.0.0.1):
+-#   1 tests/test_cold_proof_transport.mjs, exactly 12 (deadline classes, monotonic total budget incl. AFTER the last request, no retry,
++#   1 tests/test_cold_proof_transport.mjs, exactly 13 (fractional budget flooring + async real CLIs of BOTH readers; deadline classes, monotonic total budget incl. AFTER the last request, no retry,
+ #     envelope/size, malformed proofs, loopback, stale/future/missing-timestamp after read, both readers wired through finishRead);
+ #   2 the EXISTING pinned A1 suite l1-anchor-a1/test/a1-anchor.test.mjs (runA1 malformed/forged-proof/stale/future/finality refusals +
+ #     a1-read rpc()/loopback/byte-cap/timeout) run on the pinned ORIGINAL tree (baseline) and on the tree with THIS stage's readers:
+@@ -13,7 +14,7 @@
+ set -uo pipefail
+ export PATH=/usr/bin:/bin
+ ip link set lo up 2>/dev/null; ip -o addr show lo 2>/dev/null | grep -q '127.0.0.1' || { echo "## SETUP: loopback is not up"; exit 9; }
+-P=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025; S=$P/cold-proof-timeout-stage/r2; F=$P/base-finality-proof-stage/r12-final
++P=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025; S=$P/cold-proof-timeout-stage/r3; F=$P/base-finality-proof-stage/r12-final
+ A=$P/source/ops/rpc-backend-bootstrap/2026-10-25
+ CFG=/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/a1-capture-live-0252/initial/capture/inputs/a1-config.json
+ OUT=$S/logs/cold-proof-tests-$(date -u +%Y%m%dT%H%M%SZ)-$$; PW=""; rc=0
+@@ -21,7 +22,7 @@
+ pin() { [ "$(sha256sum < "$1" | cut -c1-64)" = "$2" ] || die "$1 is not $2"; }
+ trap '[ -n "$PW" ] && rm -rf --one-file-system -- "$PW"' EXIT
+ ip -o route 2>/dev/null | grep -q . && die "network route present: run under unshare -rn"
+-(cd $S && sha256sum -c --quiet SHA256SUMS) || die "r2 != SHA256SUMS"; SUMS=$(sha256sum < $S/SHA256SUMS | cut -c1-64)
++(cd $S && sha256sum -c --quiet SHA256SUMS) || die "r3 != SHA256SUMS"; SUMS=$(sha256sum < $S/SHA256SUMS | cut -c1-64)
+ pin $F/SHA256SUMS 9de0d8d7664516fac691f6cd8dc1d984c00e79ba175c406b6cda9ec97037bd7e
+ pin $CFG e72f271ea0c7a4a691f0260303fd12639b60c916dcf76ff6c4dd6d479a0811d1
+ pin $P/source/package-lock.json 9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20
+@@ -39,7 +40,7 @@
+ print('policy files == r12-final pins')
+ PY
+ [ ! -e "$OUT" ] && mkdir -p "$OUT" || die "output dir"
+-PW=$(mktemp -d /tmp/coldproof2.XXXXXXXX) && chmod 0700 $PW || die "private dir"
++PW=$(mktemp -d /tmp/coldproof3.XXXXXXXX) && chmod 0700 $PW || die "private dir"
+ for v in orig new; do for d in l1-anchor-a1 a1-original-game-prepared; do mkdir -p $PW/$v/$d && (cd $A/$d && tar -cf - $(sed 's#^[0-9a-f]*  \./##' SHA256SUMS | grep -E '^(a1-[a-z-]+\.mjs|vendor/|test/)')) | (cd $PW/$v/$d && tar -xf -) || die "tree $v/$d"; done; done
+ cp $S/src/l1-anchor-a1/a1-read.mjs $PW/new/l1-anchor-a1/a1-read.mjs && cp $S/src/a1-original-game-prepared/a1-read.mjs $S/src/a1-original-game-prepared/a1-recheck-read.mjs $PW/new/a1-original-game-prepared/ || die overlay
+ NODE=$(command -v node) && NODE=$(realpath -e "$NODE") || die "node not found"
+@@ -51,9 +52,9 @@
+ (cd $PW/new/l1-anchor-a1 && "${E[@]}" timeout 600 $NODE --test --test-reporter=tap test/a1-anchor.test.mjs < /dev/null) > $OUT/a1-anchor-new-reader.txt 2>&1; r3=$?
+ (cd $PW/orig/a1-original-game-prepared && "${E[@]}" timeout 600 $NODE --test --test-reporter=tap test/a1-recheck.test.mjs < /dev/null) > $OUT/a1-recheck-policy.txt 2>&1; r4=$?
+ T=$(cnt $OUT/cold-proof-transport.txt pass); B=$(cnt $OUT/a1-anchor-baseline.txt pass); N=$(cnt $OUT/a1-anchor-new-reader.txt pass); G=$(cnt $OUT/a1-recheck-policy.txt pass)
+-[ $r1 = 0 ] && [ "$T" = 12 ] && clean $OUT/cold-proof-transport.txt || { echo "## FAIL: cold-proof-transport rc $r1 pass ${T:-?} (expected 12)"; rc=1; }
++[ $r1 = 0 ] && [ "$T" = 13 ] && clean $OUT/cold-proof-transport.txt || { echo "## FAIL: cold-proof-transport rc $r1 pass ${T:-?} (expected 13)"; rc=1; }
+ [ $r2 = 0 ] && [ -n "$B" ] && [ "$B" -gt 0 ] && clean $OUT/a1-anchor-baseline.txt || { echo "## FAIL: a1-anchor baseline (pinned original) rc $r2 pass ${B:-?}"; rc=1; }
+ [ $r3 = 0 ] && [ "$N" = "$B" ] && clean $OUT/a1-anchor-new-reader.txt || { echo "## FAIL: a1-anchor with the new reader rc $r3 pass ${N:-?} (baseline ${B:-?})"; rc=1; }
+ [ $r4 = 0 ] && [ -n "$G" ] && [ "$G" -gt 0 ] && clean $OUT/a1-recheck-policy.txt || { echo "## FAIL: a1-recheck policy suite rc $r4 pass ${G:-?}"; rc=1; }
+-[ $rc = 0 ] && echo "PASS cold-proof-tests r2 transport 12 a1-anchor $N/$B a1-recheck $G stage-sums $SUMS" | tee $OUT/RESULT
+-echo "## cold-proof-tests r2 rc=$rc"; exit $rc
++[ $rc = 0 ] && echo "PASS cold-proof-tests r3 transport 13 a1-anchor $N/$B a1-recheck $G stage-sums $SUMS" | tee $OUT/RESULT
++echo "## cold-proof-tests r3 rc=$rc"; exit $rc
+diff -ruN -x logs -x SHA256SUMS -x r2-to-r3.diff r2/src/a1-original-game-prepared/a1-read.mjs r3/src/a1-original-game-prepared/a1-read.mjs
+--- r2/src/a1-original-game-prepared/a1-read.mjs	2026-10-26 00:51:07.735757771 -0700
++++ r3/src/a1-original-game-prepared/a1-read.mjs	2026-10-26 00:57:36.089699818 -0700
+@@ -15,6 +15,8 @@
+ // r2 (root review): the read budget is MONOTONIC (performance.now, independent of the wall clock used for header age) and is checked
+ // AGAIN after the last request, parsing, proof crypto and evaluation, immediately before evidence is emitted (finishRead): a read
+ // that exceeded READ_BUDGET_MS refuses read_budget_exceeded even if no further request was due. capture()'s 240 s stays the hard kill.
++// r3 (root review): the monotonic clock is fractional, so the per-request deadline is FLOORED to whole ms (AbortSignal.timeout needs an
++// integer) and a request with < 1 ms of budget left is refused before any fetch.
+ import fs from "node:fs";
+ import { keccak_256 } from "./test/deps.mjs";
+ import { headerHash } from "./vendor/anchor-bootstrap.mjs";
+@@ -39,9 +41,8 @@
+   let id = 0;
+   return async (method, params) => {
+     const rid = ++id;
+-    const left = deadline - now();
+-    if (!(left > 0)) throw new Error(`A1 read budget exhausted before ${method}`);
+-    const ms = Math.min(PROOF_METHODS.includes(method) ? proofTimeoutMs : timeoutMs, left);
++    const ms = Math.floor(Math.min(PROOF_METHODS.includes(method) ? proofTimeoutMs : timeoutMs, deadline - now()));
++    if (!(ms >= 1)) throw new Error(`A1 read budget exhausted before ${method}`);
+     const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, redirect: "error",
+       body: JSON.stringify({ jsonrpc: "2.0", id: rid, method, params }), signal: AbortSignal.timeout(ms) });
+     if (!r.ok) { try { await r.body?.cancel(); } catch {} throw new Error(`HTTP ${r.status}`); }
+diff -ruN -x logs -x SHA256SUMS -x r2-to-r3.diff r2/src/a1-original-game-prepared/a1-recheck-read.mjs r3/src/a1-original-game-prepared/a1-recheck-read.mjs
+--- r2/src/a1-original-game-prepared/a1-recheck-read.mjs	2026-10-26 00:51:07.735831510 -0700
++++ r3/src/a1-original-game-prepared/a1-recheck-read.mjs	2026-10-26 00:57:36.089766629 -0700
+@@ -2,7 +2,7 @@
+ // A1 original-game recheck runner for root (READ-ONLY; never run by this stage). Usage:
+ //   ANCHOR_DEPS_ROOT=<checkout> node a1-recheck-read.mjs RECHECK_CONFIG.json INITIAL_A1_EVIDENCE.json > recheck.json
+ // Transport is the pinned A1 rpc(): loopback-only URLs, streamed byte cap, timeout, redirect:error, JSON-RPC envelope
+-// checks (./a1-read.mjs: cold-proof-timeout-stage r2 per-class deadlines + monotonic read budget checked before emission +
++// checks (./a1-read.mjs: cold-proof-timeout-stage r3 per-class deadlines + monotonic read budget checked before emission +
+ // end-of-read age check). heliosUrl = our own pinned Helios (verifier); elUrl = our own
+ // reth (UNTRUSTED proof source). No public RPC, no fallback. Exit 3 = refused (JSON names the code).
+ import fs from "node:fs";
+diff -ruN -x logs -x SHA256SUMS -x r2-to-r3.diff r2/src/l1-anchor-a1/a1-read.mjs r3/src/l1-anchor-a1/a1-read.mjs
+--- r2/src/l1-anchor-a1/a1-read.mjs	2026-10-26 00:51:07.735663692 -0700
++++ r3/src/l1-anchor-a1/a1-read.mjs	2026-10-26 00:57:36.089625568 -0700
+@@ -15,6 +15,8 @@
+ // r2 (root review): the read budget is MONOTONIC (performance.now, independent of the wall clock used for header age) and is checked
+ // AGAIN after the last request, parsing, proof crypto and evaluation, immediately before evidence is emitted (finishRead): a read
+ // that exceeded READ_BUDGET_MS refuses read_budget_exceeded even if no further request was due. capture()'s 240 s stays the hard kill.
++// r3 (root review): the monotonic clock is fractional, so the per-request deadline is FLOORED to whole ms (AbortSignal.timeout needs an
++// integer) and a request with < 1 ms of budget left is refused before any fetch.
+ import fs from "node:fs";
+ import { keccak_256 } from "./test/deps.mjs";
+ import { headerHash } from "./vendor/anchor-bootstrap.mjs";
+@@ -39,9 +41,8 @@
+   let id = 0;
+   return async (method, params) => {
+     const rid = ++id;
+-    const left = deadline - now();
+-    if (!(left > 0)) throw new Error(`A1 read budget exhausted before ${method}`);
+-    const ms = Math.min(PROOF_METHODS.includes(method) ? proofTimeoutMs : timeoutMs, left);
++    const ms = Math.floor(Math.min(PROOF_METHODS.includes(method) ? proofTimeoutMs : timeoutMs, deadline - now()));
++    if (!(ms >= 1)) throw new Error(`A1 read budget exhausted before ${method}`);
+     const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, redirect: "error",
+       body: JSON.stringify({ jsonrpc: "2.0", id: rid, method, params }), signal: AbortSignal.timeout(ms) });
+     if (!r.ok) { try { await r.body?.cancel(); } catch {} throw new Error(`HTTP ${r.status}`); }
+diff -ruN -x logs -x SHA256SUMS -x r2-to-r3.diff r2/tests/test_cold_proof_transport.mjs r3/tests/test_cold_proof_transport.mjs
+--- r2/tests/test_cold_proof_transport.mjs	2026-10-26 00:51:07.735903139 -0700
++++ r3/tests/test_cold_proof_transport.mjs	2026-10-26 00:57:36.089884790 -0700
+@@ -1,4 +1,4 @@
+-// Offline tests for the cold-proof-timeout reader change (PREPARED; NOT run by Claude: r2 jobs/root-cold-proof-tests.sh, exactly 12).
++// Offline tests for the cold-proof-timeout reader change (PREPARED; NOT run by Claude: r3 jobs/root-cold-proof-tests.sh, exactly 13).
+ // The job assembles PRIVATE copies of the pinned l1-anchor-a1/ and a1-original-game-prepared/ trees (r12-final bundle origins) with
+ // THIS stage's two readers overlaid, and runs: node --test --test-reporter=tap. env: A1_DIR, RECHECK_DIR (private trees),
+ // ANCHOR_DEPS_ROOT (pinned deps), CFG (a REAL derived a1-config.json, sha-pinned by the job). Mock JSON-RPC servers bind 127.0.0.1 only.
+@@ -7,7 +7,7 @@
+ import http from "node:http";
+ import fs from "node:fs";
+ import path from "node:path";
+-import { spawnSync } from "node:child_process";
++import { spawn } from "node:child_process";
+ import { pathToFileURL } from "node:url";
+ const D = process.env.A1_DIR, RD = process.env.RECHECK_DIR;
+ const R = await import(pathToFileURL(path.join(D, "a1-read.mjs")).href);
+@@ -15,6 +15,16 @@
+ const { keccak_256 } = await import(pathToFileURL(path.join(D, "test/deps.mjs")).href);
+ const CFG = JSON.parse(fs.readFileSync(process.env.CFG, "utf8"));
+ 
++// the REAL reader CLIs run as ASYNC children (r3: spawnSync blocked this process's mock-server event loop), bounded, output collected
++function runCli(args, env, timeoutMs = 60000) {
++  return new Promise((resolve, reject) => {
++    const p = spawn(process.execPath, args, { env, stdio: ["ignore", "pipe", "pipe"] }); let out = "", err = "";
++    p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));
++    const k = setTimeout(() => { p.kill("SIGKILL"); reject(new Error(`CLI timed out after ${timeoutMs} ms; stderr: ${err.slice(-300)}`)); }, timeoutMs);
++    p.on("error", (e) => { clearTimeout(k); reject(e); });
++    p.on("close", (code, signal) => { clearTimeout(k); resolve({ code, signal, out, err }); });
++  });
++}
+ // behaviour per method: { delay, status, raw, result, error }
+ async function mock(plan) {
+   const seen = [];
+@@ -112,20 +122,32 @@
+   assert.throws(() => R.checkFreshAfterRead({ l1: { timestamp: t - 100 } }, { ...CFG, maxFinalizedAgeSec: 30 }, now), (e) => e.code === "bad_config");
+ });
+ 
+-test("both readers use the production transport: CLI refusal path through a1io, recheck reader wired to a1io + end-of-read check", async () => {
++test("both REAL reader CLIs (initial and original-game recheck) refuse through a1io against a live mock: wrong_chain, exit 3, one request", async () => {
++  const tmp = fs.mkdtempSync(path.join(process.env.TMPDIR || "/tmp", "cli-")), env = { PATH: "/usr/bin:/bin", ANCHOR_DEPS_ROOT: process.env.ANCHOR_DEPS_ROOT };
+   const m = await mock({ eth_chainId: { result: "0x2" } });
+   try {
+-    const cfg = path.join(fs.mkdtempSync(path.join(process.env.TMPDIR || "/tmp", "cfg-")), "a1-config.json");
+-    fs.writeFileSync(cfg, JSON.stringify({ ...CFG, heliosUrl: m.url, elUrl: m.url }));
+-    const p = spawnSync(process.execPath, [path.join(D, "a1-read.mjs"), cfg], { env: { PATH: "/usr/bin:/bin", ANCHOR_DEPS_ROOT: process.env.ANCHOR_DEPS_ROOT }, encoding: "utf8", timeout: 60000 });
+-    assert.equal(p.status, 3, p.stderr); const o = JSON.parse(p.stdout);
+-    assert.equal(o.verdict, "refused"); assert.equal(o.code, "wrong_chain"); assert.deepEqual(m.seen, ["eth_chainId"]);
+-  } finally { m.close(); }
++    const cfg = path.join(tmp, "a1-config.json"); fs.writeFileSync(cfg, JSON.stringify({ ...CFG, heliosUrl: m.url, elUrl: m.url }));
++    const p = await runCli([path.join(D, "a1-read.mjs"), cfg], env);
++    assert.equal(p.code, 3, p.err); const o = JSON.parse(p.out);
++    assert.equal(o.verdict, "refused"); assert.equal(o.code, "wrong_chain", p.out); assert.deepEqual(m.seen, ["eth_chainId"]);
++  } finally { m.close(); }
++  const m2 = await mock({ eth_chainId: { result: "0x2" } });
++  try {
++    const ini = path.join(RD, "test/fixtures/initial-a1-evidence-1958.json"), rc = path.join(tmp, "recheck-config.json");
++    fs.writeFileSync(rc, JSON.stringify({ heliosUrl: m2.url, elUrl: m2.url, expectedChainId: 1, pinBy: "hash",
++      portal: "0x49048044d57e1c92a77f79988d21fa8faf74e97e", asr: "0x909f6cf47ed12f010a796527f562bfc26c7f4e72", portalAsrGetter: "anchorStateRegistry()",
++      maxFinalizedAgeSec: 1800, initialEvidenceSha256: "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c",
++      originalGame: "0x343b3a99527af07d2cfb2652747b9e37715e21ac", originalN: "52866960",
++      originalOutputRoot: "0xa996c517b0e797b56426059d57c93ac8352b21b61e04b2fc66866dd61d056700" }));
++    const p = await runCli([path.join(RD, "a1-recheck-read.mjs"), rc, ini], env);
++    assert.equal(p.code, 3, p.err); const o = JSON.parse(p.out);
++    assert.equal(o.verdict, "refused"); assert.equal(o.code, "wrong_chain", p.out); assert.deepEqual(m2.seen, ["eth_chainId"]);
++  } finally { m2.close(); }
+   const src = fs.readFileSync(path.join(RD, "a1-recheck-read.mjs"), "utf8");
+   assert.match(src, /const io = a1io\(cfg\);/); assert.match(src, /runRecheck\(cfg, initial, io,/); assert.match(src, /finishRead\(io, out, cfg, end\)/);
+   assert.doesNotMatch(src, /\brpc\(loopbackUrl/);
+   const main = fs.readFileSync(path.join(D, "a1-read.mjs"), "utf8"); assert.match(main, /runA1\(cfg, io,/); assert.match(main, /finishRead\(io, out, cfg, end\)/);
+-  assert.equal(fs.readFileSync(path.join(RD, "a1-read.mjs"), "utf8"), fs.readFileSync(path.join(D, "a1-read.mjs"), "utf8"));
++  assert.equal(fs.readFileSync(path.join(RD, "a1-read.mjs"), "utf8"), main);
+ });
+ 
+ test("r2: the total MONOTONIC budget is enforced AFTER the last request (parse/crypto/evaluate time counts) and before emission", async () => {
+@@ -152,3 +174,17 @@
+   const real = R.a1io({ heliosUrl: "http://127.0.0.1:9", elUrl: "http://127.0.0.1:9" });  // default clock is monotonic performance.now
+   assert.ok(real.checkBudget() >= 0 && real.checkBudget() < 1000);
+ });
++
++test("r3: a FRACTIONAL remaining budget is floored to whole ms (valid AbortSignal), < 1 ms refuses before fetch, the real monotonic clock works", async () => {
++  const m = await mock({ eth_getProof: { delay: 400 }, eth_call: { result: "0x2" } });
++  try {
++    let t = 1000.25; const io = R.rpc(m.url, { timeoutMs: 20000, proofTimeoutMs: 60000, deadline: 1151, now: () => t });
++    await assert.rejects(io("eth_getProof", []), (e) => e?.name === "TimeoutError" && !(e instanceof TypeError));   // 150.75 -> 150 ms
++    t = 1000.5; assert.equal(await io("eth_call", []), "0x2");                                                      // 150.5 -> 150 ms, fast reply
++    const n = m.seen.length; t = 1150.1;                                                                            // 0.9 ms left
++    await assert.rejects(io("eth_call", []), /budget exhausted/); assert.equal(m.seen.length, n, "nothing sent with < 1 ms left");
++    const real = R.a1io({ heliosUrl: m.url, elUrl: m.url });                                                        // performance.now: fractional
++    assert.equal(await real.el("eth_call", []), "0x2"); assert.equal(await real.helios("eth_call", []), "0x2");
++    assert.ok(real.checkBudget() < R.READ_BUDGET_MS);
++  } finally { m.close(); }
++});

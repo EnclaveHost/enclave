@@ -1,0 +1,69 @@
+--- /home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-create-r1-20261029/author-delivery/enclave/contracts/foundry/test/WalletSessionVault.t.sol
++++ /home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-foundry-r1-20261029/seed/contracts/foundry/test/WalletSessionVaultRev16D.t.sol
+@@ -1,3 +1,4 @@
++// ROOT PREPARED EXACT-REV16D FIXTURE. Original author assertions retained below; NOT RUN.
+ // SPDX-License-Identifier: MIT
+ pragma solidity ^0.8.20;
+ 
+@@ -9,9 +10,9 @@
+ import { CreateArgs, ISVToken, ISVBook, ISVRouter, ISVKeyAttestations } from "../../SessionVault.sol";
+ import { WalletSessionVault, WalletSessionVaultFactory } from "../../WalletSessionVault.sol";
+ import { WalletSessionPolicy as WP } from "../../WalletSessionPolicy.sol";
+-import { EnclaveDeployments as LedgerR15D } from "../../../deploy/ledger/EnclaveDeployments.sol";
+-
+-contract WalletSessionVaultTest is SessionRig {
++import { EnclaveDeployments as LedgerR16D } from "./fixtures/EnclaveDeploymentsRev16D.sol";
++
++contract WalletSessionVaultRev16DTest is SessionRig {
+     uint8 constant CREATE = 0; uint8 constant FUND = 1; uint8 constant SET_APPREF = 2; uint8 constant SET_CONFIG = 3;
+     uint8 constant SET_SHARES = 4; uint8 constant SET_MAXRATE = 5; uint8 constant SET_ACTIVE = 6; uint8 constant REFUND = 7;
+     uint8 constant PUBLISH = 8;
+@@ -22,13 +23,13 @@
+         "uint256 maxFeePerOp,uint256 maxAppFeePerHour,uint256 maxRatePerHour,uint64 expiresAt,bytes32 measurement,"
+         "address ledger,bytes32 grantNonce,uint64 signBefore)");
+ 
+-    LedgerR15D led;
++    LedgerR16D led;
+     WalletSessionVaultFactory wf;
+     WalletSessionVault wv;
+ 
+     function setUp() public override {
+         super.setUp();
+-        led = new LedgerR15D(address(usdc), payout, address(reg), address(0));
++        led = new LedgerR16D(address(usdc), payout, address(reg), address(0));
+         led.setProofRequiredFrom(0);
+         book.set("deployments", address(led));
+         wf = new WalletSessionVaultFactory(ISVToken(address(usdc)), ISVBook(address(book)), ISVRouter(address(router)),
+@@ -160,7 +161,7 @@
+ 
+     function test_fundingFailureUnwindsCreateTransferAndBinding() public {
+         bytes32 sid = _wopen(_anyBoth());
+-        vm.mockCallRevert(address(led), abi.encodeWithSelector(LedgerR15D.fundFor.selector), "boom");
++        vm.mockCallRevert(address(led), abi.encodeWithSelector(LedgerR16D.fundFor.selector), "boom");
+         _wexecRevert(sid, 0, CREATE, _cargs(freeRef, 1, 1e6), bytes("boom"));
+         vm.clearMockedCalls();
+         assertEq(wv.seqOf(sid, 0), 0, "nonce rolled back");
+@@ -173,7 +174,7 @@
+ 
+     function test_transferFailureUnwinds() public {
+         bytes32 sid = _wopen(_anyBoth());
+-        vm.mockCallRevert(address(led), abi.encodeWithSelector(LedgerR15D.transferDeployment.selector), "no-transfer");
++        vm.mockCallRevert(address(led), abi.encodeWithSelector(LedgerR16D.transferDeployment.selector), "no-transfer");
+         _wexecRevert(sid, 0, CREATE, _cargs(freeRef, 1, 0), bytes("no-transfer"));
+         assertEq(wv.seqOf(sid, 0), 0);
+     }
+@@ -334,4 +335,14 @@
+         vm.expectRevert(abi.encodeWithSignature("NotVault()"));
+         wf.noteCreated(keccak256("x"));
+     }
++
++    // Root regression: policy-owner checks must read the pinned ledger, never a moved address-book ledger.
++    function test_rootOwnerPolicyRejectsMovedLedgerBeforeOwnershipRead() public {
++        bytes32 sid = _wopen(_anyBoth());
++        bytes32 id = abi.decode(_wexec(sid, 0, CREATE, _cargs(freeRef, 1, 0), 0), (bytes32));
++        book.set("deployments", address(ledger));
++        vm.expectRevert(abi.encodeWithSignature("LedgerMoved()"));
++        vm.prank(owner);
++        wv.setEnvironment(id, "prod", 1, bytes32(0), 0, "");
++    }
+ }

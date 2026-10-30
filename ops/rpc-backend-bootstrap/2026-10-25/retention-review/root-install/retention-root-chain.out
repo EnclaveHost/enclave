@@ -1,0 +1,14 @@
+[queue] START available=20631MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+.................{"starting": "cl", "datadir": "/srv/enclave-l1-pair/cl", "publicExecutionRpc": false}
+.......{"starting": "el", "datadir": "/srv/enclave-l1-pair/data", "publicExecutionRpc": false}
+{"starting": "el", "datadir": "/srv/enclave-l1-pair/data", "publicExecutionRpc": false}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+...
+----------------------------------------------------------------------
+Ran 27 tests in 0.013s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

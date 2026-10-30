@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: the relay reader runtime builds reproducibly: committed reader inside, pinned reader beside, never the shared network runtime
+ok 1 - the relay reader runtime builds reproducibly: committed reader inside, pinned reader beside, never the shared network runtime
+  ---
+  duration_ms: 203.194252
+  type: 'test'
+  ...
+# Subtest: the PACKAGED runtime starts the committed reader in-process and yields the writer capability; with no derived anchor the writer refuses
+ok 2 - the PACKAGED runtime starts the committed reader in-process and yields the writer capability; with no derived anchor the writer refuses
+  ---
+  duration_ms: 667.580428
+  type: 'test'
+  ...
+# Subtest: the relay entrypoint loads the committed reader under the derived selector and stops with KVM's own refusal; unset is unchanged
+ok 3 - the relay entrypoint loads the committed reader under the derived selector and stops with KVM's own refusal; unset is unchanged
+  ---
+  duration_ms: 26686.259309
+  type: 'test'
+  ...
+# Subtest: the MEASURED guest ships the runtime: platform-api sidecars carry it (hashed), the guest resolves it beside itself and loads it, a missing pin refuses
+ok 4 - the MEASURED guest ships the runtime: platform-api sidecars carry it (hashed), the guest resolves it beside itself and loads it, a missing pin refuses
+  ---
+  duration_ms: 213.237436
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 28062.090811

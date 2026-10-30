@@ -1,0 +1,78 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-maintenance-os-prepare-r2/evidence/PREPARED.json",
+    "sha256": "8e9d30ea104ea99c9c8328b9a936f23c59550d4d1413b14fad8cac9c02e878da"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-backup-readonly-layout-r1/RESULT.json",
+    "sha256": "50d5505402799f6259a9bcc55c5b680dd893af6351c7bed36da0b9428aa0fc78"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-backup-unit-metadata-r1/RESULT.json",
+    "sha256": "b22e4eac8fc152dc072fd61ff570d40580fdee679da63e0ef4a519f6b899e113"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-backup-readonly-fsck-r1/fsck.stdout",
+    "sha256": "a0a63b3e34600e516eb71f046869a98f6b53f6f3f9b658ffa4b8ce645c219754"
+  },
+  {
+    "path": "/usr/bin/debugfs",
+    "sha256": "9b27184084383c8607eee03b43c80eca4ef912acf4887b40a7cc420e267ad8a8"
+  },
+  {
+    "path": "/usr/bin/e2fsck",
+    "sha256": "a9ea133a844edd695b5172abadc8bbbbb03aaedad80fc24d039bdbf4563a125c"
+  },
+  {
+    "path": "/usr/bin/fusermount3",
+    "sha256": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f"
+  },
+  {
+    "path": "/usr/bin/nbdfuse",
+    "sha256": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01"
+  },
+  {
+    "path": "/usr/bin/qemu-img",
+    "sha256": "3a57bce6765bfb73a75591dba2ac40d985cccde97d371e95537ecbf16d949d30"
+  },
+  {
+    "path": "/usr/bin/qemu-nbd",
+    "sha256": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934"
+  },
+  {
+    "path": "/usr/bin/systemctl",
+    "sha256": "6e727451366c75070ab02f02d945e3c83f8774ddf7e1661c5d71cbbf0d59b3cc"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+    "sha256": "969d9273e53c79abf8604c363daa58b41a462bc4b7f3d03d813980edb771f6f4"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+    "sha256": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-slow-link-root-repaired-r1/candidate/UNIT-PINS.json",
+    "sha256": "17ae0820e6d33ffbc9d5e424ccfde38f10f1037b8f4a1abe465219cbd2a2bc38"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-actual-os-private-prepare-r3/PLAN-TEMPLATE.json",
+    "sha256": "aa638e2987e1a172c08528fd35c450f926ebbc597019d6a40b45501526a7cc8c"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-actual-os-private-prepare-r3/pathAccess.json",
+    "sha256": "53dddf85511f1ec57bfad2a00a1a02f22a33cb247a402058ca8f273a8a5f5c08"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-actual-os-private-prepare-r3/coordination.json",
+    "sha256": "16e3bab73f51586d095683ce845ee4336794ab63476f8570856acec177f58476"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-actual-os-private-prepare-r3/run.py",
+    "sha256": "8c7bade891fda926a455322d965200149f41cc2492f83f70c66c3d0bfac609f1"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-escaped-unit-root-repaired-r1/candidate/offline_mask.py",
+    "sha256": "2ac02fe85db023fe86e9ebc46047f685ce9654f40cd143e50cc763bf8ea1a2d1"
+  }
+]

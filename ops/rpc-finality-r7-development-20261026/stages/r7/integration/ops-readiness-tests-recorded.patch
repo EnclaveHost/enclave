@@ -1,0 +1,52 @@
+--- a/tests/test_ops_readiness.py
++++ b/tests/test_ops_readiness.py
+@@ -14,6 +14,7 @@
+ PUB = load(TREE / 'readiness/publish_readiness.py', 'pub_ops')
+ UID = os.getuid()
+ ENTRY, BH = 'e' * 64, '0x' + 'b' * 64
++ACC = 'ac' * 32                     # r7: the recorded acceptance (the launch journal's `bootstrapped` sha)
+ PID, START = 4242, '987654'
+ 
+ 
+@@ -36,14 +37,14 @@
+         (self.proc / str(pid) / 'stat').write_text(f'{pid} (op-reth) S ' + ' '.join(['0'] * 18 + [start, '0', '0']) + '\n')
+ 
+     def write_report(self, started, finished, info=None, overall='READY'):
+-        info = {'pid': PID, 'startTime': START, 'entrySha256': ENTRY, 'freshN': 100, 'freshBlockHash': BH} if info is None else info
++        info = {'pid': PID, 'startTime': START, 'entrySha256': ENTRY, 'freshN': 100, 'freshBlockHash': BH, 'recordedAs': ACC} if info is None else info
+         self.report.write_text(json.dumps({'overall': overall, 'acceptance': overall == 'READY', 'startedAt': started, 'finishedAt': finished,
+                                            'gates': {'post-anchor-finality': {'status': 'pass', 'info': info}}}))
+         os.chmod(self.report, 0o644)
+ 
+     def write_status(self, **over):
+         s = {'format': 'enclave-base-finality-status/v1', 'state': 'qualified', 'qualified': True, 'entrySha256': ENTRY, 'freshN': 100,
+-             'freshBlockHash': BH, 'process': {'pid': PID, 'startTime': START}, 'publishedAt': iso(self.now - 60)}
++             'freshBlockHash': BH, 'process': {'pid': PID, 'startTime': START}, 'publishedAt': iso(self.now - 60), 'recordedAs': ACC}
+         s.update(over); self.status.write_text(json.dumps(s)); os.chmod(self.status, 0o644)
+ 
+     def ready(self, **kw):
+@@ -90,6 +91,15 @@
+ 
+     def test_changed_status_entry_or_block_refuses(self):
+         self.write_status(entrySha256='f' * 64); self.refuses(r'another proof entry')
++
++    def test_r7_proven_but_unrecorded_proof_is_never_admitted(self):
++        self.write_report(self.now - 70, self.now - 10, info={'pid': PID, 'startTime': START, 'entrySha256': ENTRY, 'freshN': 100, 'freshBlockHash': BH,
++                                                              'recordedAs': None})
++        self.write_status(recordedAs=None); self.refuses(r'not durably recorded')
++
++    def test_r7_changed_or_withdrawn_acceptance_is_refused(self):
++        self.write_report(self.now - 70, self.now - 10); self.write_status(recordedAs='bd' * 32); self.refuses(r'acceptance changed')
++        self.write_status(recordedAs=None); self.refuses(r'not durably recorded')
+         self.write_status(freshBlockHash='0x' + 'c' * 64); self.refuses(r'another proof entry')
+ 
+     def test_status_for_another_process_refuses(self):
+@@ -226,7 +236,7 @@
+         (d / str(PID) / 'stat').write_text(f'{PID} (op-reth) S ' + ' '.join(['0'] * 18 + [START, '0']) + '\n')
+         st = d / 'status.json'
+         st.write_text(json.dumps({'format': rs.FINALITY_STATUS_FORMAT, 'state': 'qualified', 'qualified': True, 'entrySha256': ENTRY,
+-                                  'freshN': 100, 'freshBlockHash': BH, 'process': {'pid': PID, 'startTime': START},
++                                  'freshN': 100, 'freshBlockHash': BH, 'process': {'pid': PID, 'startTime': START}, 'recordedAs': ACC,
+                                   'publishedAt': iso(time.time() - 5)})); os.chmod(st, 0o644)
+         a = types.SimpleNamespace(finality_status=str(st), finality_status_uid=UID, proc_root=str(d), max_finality_status_age=900)
+         info = rs.validate_finality_status(a)

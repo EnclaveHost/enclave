@@ -1,0 +1,124 @@
+TAP version 13
+# Subtest: source default: no release authority, legacy pool exactly as before
+ok 1 - source default: no release authority, legacy pool exactly as before
+  ---
+  duration_ms: 1.686142
+  type: 'test'
+  ...
+# Subtest: own-rpc: only the authority's endpoints, the dev override is not mixed in
+ok 2 - own-rpc: only the authority's endpoints, the dev override is not mixed in
+  ---
+  duration_ms: 0.9984
+  type: 'test'
+  ...
+# Subtest: an invalid or mislabelled authority pins NO endpoint (never the public pool)
+ok 3 - an invalid or mislabelled authority pins NO endpoint (never the public pool)
+  ---
+  duration_ms: 2.956809
+  type: 'test'
+  ...
+# Subtest: a user's independent profile keeps precedence; the wallet fallback never uses a public default outside legacy
+ok 4 - a user's independent profile keeps precedence; the wallet fallback never uses a public default outside legacy
+  ---
+  duration_ms: 0.344247
+  type: 'test'
+  ...
+# Subtest: hosted sessions RPC: legacy unchanged; own-rpc ignores a relay-supplied RPC; invalid refuses (no SDK public default)
+ok 5 - hosted sessions RPC: legacy unchanged; own-rpc ignores a relay-supplied RPC; invalid refuses (no SDK public default)
+  ---
+  duration_ms: 0.420336
+  type: 'test'
+  ...
+# Subtest: build seam: flags both-or-neither, reviewed digest, exactly one declaration in the real source
+ok 6 - build seam: flags both-or-neither, reviewed digest, exactly one declaration in the real source
+  ---
+  duration_ms: 2.468894
+  type: 'test'
+  ...
+# Subtest: integration own-rpc: reads go only to the own endpoints; the wallet signing config is unchanged
+not ok 7 - integration own-rpc: reads go only to the own endpoints; the wallet signing config is unchanged
+  ---
+  duration_ms: 12.032282
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/tree/test/browser-read-authority.test.mjs:118:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot find module '/tmp/network/host-policy-mirrors.mjs' imported from /tmp/site-js-0Ty40h/js/core/independent.js"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    moduleResolve (node:internal/modules/esm/resolve:865:10)
+    defaultResolve (node:internal/modules/esm/resolve:989:11)
+    #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    ModuleJob._link (node:internal/modules/esm/module_job:182:49)
+  ...
+# Subtest: integration own-rpc outage: every attempt stays on the own endpoints, then the read fails (no public fallback)
+not ok 8 - integration own-rpc outage: every attempt stays on the own endpoints, then the read fails (no public fallback)
+  ---
+  duration_ms: 5.416122
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/tree/test/browser-read-authority.test.mjs:130:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot find module '/tmp/network/host-policy-mirrors.mjs' imported from /tmp/site-js-zlHAGl/js/core/independent.js"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    moduleResolve (node:internal/modules/esm/resolve:865:10)
+    defaultResolve (node:internal/modules/esm/resolve:989:11)
+    #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    ModuleJob._link (node:internal/modules/esm/module_job:182:49)
+  ...
+# Subtest: integration invalid authority: the pool is empty and every read refuses without contacting anyone
+not ok 9 - integration invalid authority: the pool is empty and every read refuses without contacting anyone
+  ---
+  duration_ms: 5.321123
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/tree/test/browser-read-authority.test.mjs:141:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot find module '/tmp/network/host-policy-mirrors.mjs' imported from /tmp/site-js-3SATwc/js/core/independent.js"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    moduleResolve (node:internal/modules/esm/resolve:865:10)
+    defaultResolve (node:internal/modules/esm/resolve:989:11)
+    #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    ModuleJob._link (node:internal/modules/esm/module_job:182:49)
+  ...
+# Subtest: integration legacy (no release authority): the existing public pool and dev-override rules are unchanged
+not ok 10 - integration legacy (no release authority): the existing public pool and dev-override rules are unchanged
+  ---
+  duration_ms: 5.071895
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/tree/test/browser-read-authority.test.mjs:152:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot find module '/tmp/network/host-policy-mirrors.mjs' imported from /tmp/site-js-7R6WBr/js/core/independent.js"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    moduleResolve (node:internal/modules/esm/resolve:865:10)
+    defaultResolve (node:internal/modules/esm/resolve:989:11)
+    #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+    ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+    ModuleJob._link (node:internal/modules/esm/module_job:182:49)
+  ...
+# Subtest: credit page contract (unchanged): its quorum reader refuses a single origin, so a credit cutover needs two own endpoints
+ok 11 - credit page contract (unchanged): its quorum reader refuses a single origin, so a credit cutover needs two own endpoints
+  ---
+  duration_ms: 0.539655
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 7
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 99.660825

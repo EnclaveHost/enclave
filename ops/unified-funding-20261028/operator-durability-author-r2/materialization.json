@@ -1,0 +1,10 @@
+{
+  "scope": "Exact238 frozen operator durability r1; no preparation product edits/additions",
+  "originalFiles": 238,
+  "addedFiles": 0,
+  "existingFilesOverwritten": [],
+  "productEdits": [],
+  "inheritedMaterialization": "/home/steven/Documents/Codex/2026-10-23/it/work/operator-durability-repair-r1-20261029/materialization.json",
+  "inheritedMaterializationSha256": "09806d6736ad1d017ea771153d1e6ff0fea24d68fda174ca096b117a03ceaff5",
+  "note": "Full238 source seed retained. Sponsored source remains separately namespaced and is a different bundle revision. No module evaluation, npm/build/platform qualification, tests or author launch."
+}

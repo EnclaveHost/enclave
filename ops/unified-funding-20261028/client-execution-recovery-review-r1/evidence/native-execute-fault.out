@@ -1,0 +1,28 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] START available=90135MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: native: lost execute replies are UNKNOWN, then proven read-only from the real chain; nothing resent
+ok 1 - native: lost execute replies are UNKNOWN, then proven read-only from the real chain; nothing resent
+  ---
+  duration_ms: 3603.859407
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3732.017966
+[memory-guard] exit=0 peakTreeRssMiB=298 minHostAvailableMiB=89967
+[memory-guard] at peak: node:111 node:90 node:61 anvil:37
+[memory-guard] exit=0 peakTreeRssMiB=361 minHostAvailableMiB=89967
+[memory-guard] at peak: node:111 node:90 node:63 node:61 anvil:37
+[queue] EXIT 0

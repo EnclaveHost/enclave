@@ -1,0 +1,8 @@
+[queue] START available=21060MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+PASS closure: 14
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-capture-closure-stage/logs/run-20261026T062540Z-1049293
+## capture-closure SHA256SUMS 8608830aab2e61618a00ae17d9f2289ac390aaf105e190f561780da0a5725172
+## capture-closure rc=0
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

@@ -1,0 +1,751 @@
+{
+  "schema": 1,
+  "historicalManifest": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-task-r1-20261029/implementation-input-manifest.json",
+  "historicalManifestSha256": "a2dd8e7d9354278532691700211d6029f78610d0e58fd98257d0bea17f8d3f6c",
+  "historicalInputsPreserved": true,
+  "finalCandidate": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate",
+  "generatedSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol",
+  "nativeEvidence": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1",
+  "files": {
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/run-host-registry-r1.sh": {
+      "sha256": "8e8c2682676aa0e6b566b10b400bec503d906bf1c188bd7dc2638002d85ab2a3",
+      "role": "final-r18-candidate",
+      "bytes": 22760
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/run-host-authority-permit-r1.sh": {
+      "sha256": "b1b2406f8ac1d5b3914cd8e99e0275ce67169962483ea77a30f5207f35bf3840",
+      "role": "final-r18-candidate",
+      "bytes": 19627
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/run-host-authority-completion-r2.py": {
+      "sha256": "7db4ece167f38997b67935414ae8c12549978988222fb6d258f062655196d742",
+      "role": "final-r18-candidate",
+      "bytes": 24195
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/run-host-authority-permit-r1.py": {
+      "sha256": "142c1ee8b00735e00fb629adfdabab4e0d63a86415c0158a797ed4fcdf65bd9c",
+      "role": "final-r18-candidate",
+      "bytes": 2903
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/REPORT.md": {
+      "sha256": "3ee88959c396f4f9756c004061118b5ff7a00c914641fc43acd5254a5c7652bf",
+      "role": "final-r18-candidate",
+      "bytes": 9495
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/run-host-registry-r1.py": {
+      "sha256": "f096279f7b27f0667ab9930c15e64111ce206dedee042f4a2501205019806e0a",
+      "role": "final-r18-candidate",
+      "bytes": 2945
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/REPORT-R5.md": {
+      "sha256": "f2dde1a345b46a16b97a3f852a3744ff878c189c5207a3f4837339028399d6d9",
+      "role": "final-r18-candidate",
+      "bytes": 9002
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/REPORT-R4.md": {
+      "sha256": "77b10f5fe8a54c102b1aee3a02fbeead0df88ced5ea4f01e641469ace13c616b",
+      "role": "final-r18-candidate",
+      "bytes": 11428
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/test/root-handoff-races.test.mjs": {
+      "sha256": "e1106b8994a37f1bf65e8c4058712e208362846c0eaef64c6fd3d4f9bcee1a04",
+      "role": "final-r18-candidate",
+      "bytes": 6889
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/test/root-async-ownership-r4.test.mjs": {
+      "sha256": "d26c414ccb320f908d59df23f5e53a352f2a868c8620ac785efa90b8816e06d9",
+      "role": "final-r18-candidate",
+      "bytes": 42811
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/test/root-completion-protocol.test.mjs": {
+      "sha256": "188faf0a43fa6b3a4cf32ae91968770014e5a41a34d585b299692e5141449224",
+      "role": "final-r18-candidate",
+      "bytes": 17843
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/test/host-generation-explicit-origin.test.mjs": {
+      "sha256": "469c115ff16d6bc74ebe34ddf3677f11e17fd20eb151330b2a78dc43a4073650",
+      "role": "final-r18-candidate",
+      "bytes": 6191
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/test/root-host-authority-adapter.test.mjs": {
+      "sha256": "3231f8386d2a8ab75b7e9015c7a6fda8b014453409a50eb41edc76e37e78b701",
+      "role": "final-r18-candidate",
+      "bytes": 7149
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/test/root-host-registry-profile.test.mjs": {
+      "sha256": "256dfb57d1cef4016bc92f9a86c696ffa46492261c824fcecf033b22c650b3ae",
+      "role": "final-r18-candidate",
+      "bytes": 30920
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/test/host-authority-permit.test.mjs": {
+      "sha256": "d50a3efcd10240afd4e1ed13661ed658bdcd9cbd141c95c6a20e062efbb6b499",
+      "role": "final-r18-candidate",
+      "bytes": 18427
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/test/root-ownership-lifecycle.test.mjs": {
+      "sha256": "46d2fd2ddd1db61cb6dc7892d954b34231bf0baee18bbe0abde379c3d39efd9e",
+      "role": "final-r18-candidate",
+      "bytes": 21735
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/tools/generate-lifecycle-host-registry-adapter-candidate.mjs": {
+      "sha256": "9ee80f72dee6da6f0945e91eef5c56c193e7b1e14a0b77d6aceaea2a7f3f3dae",
+      "role": "final-r18-candidate",
+      "bytes": 6914
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/tools/generate-host-authority-permit-candidates.mjs": {
+      "sha256": "9b763c3eac366876abc5ab0216367fed401b02fb9b29af4dc4a9d6983bfe74c3",
+      "role": "final-r18-candidate",
+      "bytes": 47983
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/tools/generate-lifecycle-host-registry-host-candidate.mjs": {
+      "sha256": "7073e59c7560e90d22cb2fde9518c7f0ee3867f1ee7ef11f2da8d8bb1ddad64a",
+      "role": "final-r18-candidate",
+      "bytes": 29158
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/tools/generate-host-authority-dispatch-candidate.mjs": {
+      "sha256": "f6c0810c50292b565689bbd0a91e47dc0cfed32566279c6a6ae62a77ce32ddb3",
+      "role": "final-r18-candidate",
+      "bytes": 9001
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-permit-collector.mjs": {
+      "sha256": "2c2f3fc6d444300c5e15da5b54f393a72d8fb86d519c70cd7419c640a3091dba",
+      "role": "final-r18-candidate",
+      "bytes": 5266
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/lifecycle-host-authority.mjs": {
+      "sha256": "76f5be11c3e07d17e86842815e567fa327772a5aa2c12407342b3f00056ffce1",
+      "role": "final-r18-candidate",
+      "bytes": 16199
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/lifecycle-host-incarnation-journal.mjs": {
+      "sha256": "488298539e71fe66b508e5ed52f47ed104b5235fa46deb1d40839acfae93ac25",
+      "role": "final-r18-candidate",
+      "bytes": 11941
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/lifecycle-host-owned-authority.mjs": {
+      "sha256": "ee1f93c8ab968ab6b26e3f38a18cf66604d476b87acd37acd7e9cb09ea6c302c",
+      "role": "final-r18-candidate",
+      "bytes": 15764
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/lifecycle-host-profile.mjs": {
+      "sha256": "ae53da9f520e7f66e5a88c850226f96a7294708e2f5dad27c178138096f4bc94",
+      "role": "final-r18-candidate",
+      "bytes": 7912
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-lifecycle-witness.mjs": {
+      "sha256": "9859a1307a83ff4f60ae6088c6533b0666ae12497c49794b9ef9ee32569551c0",
+      "role": "final-r18-candidate",
+      "bytes": 10607
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-witness-http.mjs": {
+      "sha256": "1e597f81b8d37c65917c3e081309294df2cf2013f9a2e3fe02d1215ef9eca10b",
+      "role": "final-r18-candidate",
+      "bytes": 2002
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/lifecycle-host-dispatch.mjs": {
+      "sha256": "9a155041a4a38402288bd36741fe708480e55d60675a99a731a58d13d6f84778",
+      "role": "final-r18-candidate",
+      "bytes": 49295
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-serving-permit.mjs": {
+      "sha256": "82494ed819f91f65565391dc3f61a16341fc3465df0bf47a3ec823a8b8de0e61",
+      "role": "final-r18-candidate",
+      "bytes": 7692
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/lifecycle-host-registry-profile.mjs": {
+      "sha256": "4816316ef9ced6fca3a4d135c64f7fd41f99b55bb737a7c10f4e6428c113b1b9",
+      "role": "final-r18-candidate",
+      "bytes": 18520
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-host-authority-journal.mjs": {
+      "sha256": "dba7e3a31abcccf5fbc42526147af8ae822f6c50a2bf50d42bea93661ccc31db",
+      "role": "final-r18-candidate",
+      "bytes": 9110
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-lifecycle-runner.mjs": {
+      "sha256": "75590c8e4be2095b9011ea3b482ceef90a1d21f92ad676dba41578093e7db668",
+      "role": "final-r18-candidate",
+      "bytes": 10330
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/lifecycle-independent-admission.mjs": {
+      "sha256": "9ec46b88e4be5550e6072bc9f6bc566c553edf36e6231b9da4f718f2bbb04db9",
+      "role": "final-r18-candidate",
+      "bytes": 4186
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-generation-certificate.mjs": {
+      "sha256": "f998ea7e208631fa2594fe2543627d236b3307f3d3d94cead25eb1f450830c7f",
+      "role": "final-r18-candidate",
+      "bytes": 8662
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-permit-gate.mjs": {
+      "sha256": "e198fe2160cf9ab31f1c473856c44d58e51c995ce0fe0f0907c94c2d39c8661b",
+      "role": "final-r18-candidate",
+      "bytes": 5782
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-host-authority.mjs": {
+      "sha256": "c9edf50ce1bd0b21973728693c23623e3597467f6e0abc644444170f7f7a7a92",
+      "role": "final-r18-candidate",
+      "bytes": 16171
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/owned-durable-state.mjs": {
+      "sha256": "2bfe43b939a979dba3c9bfa42c2157c20968e7c85b191559eb8e8181d65ce1d1",
+      "role": "final-r18-candidate",
+      "bytes": 19616
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-lifecycle-journal.mjs": {
+      "sha256": "c4db54b3509f7a318b938dbfe11abdf565742611ffe6e8898d465b6fa005f601",
+      "role": "final-r18-candidate",
+      "bytes": 12275
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-chain-adapter.mjs": {
+      "sha256": "b648a3edf805252e239f548a4816b90b8281999b848d2ecece453cee7b8c226d",
+      "role": "final-r18-candidate",
+      "bytes": 58651
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-isolation-runtime.mjs": {
+      "sha256": "40333d5bc08796f2881650331022746abc0b93051b48351c89f84d62a4462fd9",
+      "role": "final-r18-candidate",
+      "bytes": 7277
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/src/network/deployment-authority-window.mjs": {
+      "sha256": "b852076f53e6ed357b9731f2c2eca6f15f6de32ae7c84e83081bbec1e0ab2c96",
+      "role": "final-r18-candidate",
+      "bytes": 4165
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/test/fixtures/host-registry-world.mjs": {
+      "sha256": "c9eb2aa7f7879857027c6c1e291eb6f0b61a038b790d7cd0bead86021fcc6e23",
+      "role": "final-r18-candidate",
+      "bytes": 18273
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/test/helpers/lifecycle-fixture.mjs": {
+      "sha256": "7d5764813ea329a1a9e45b8be20f99930926faee2cefef32322bcd495d07e15b",
+      "role": "final-r18-candidate",
+      "bytes": 10129
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/candidate/test/helpers/real-v2-host.mjs": {
+      "sha256": "8b34b4d62b5779e5a8228234ab7669a31409cca0de83a656a79b033d33f89d4e",
+      "role": "final-r18-candidate",
+      "bytes": 5282
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-permit-collector.mjs": {
+      "sha256": "2c2f3fc6d444300c5e15da5b54f393a72d8fb86d519c70cd7419c640a3091dba",
+      "role": "retained-r18-generated-reference",
+      "bytes": 5266
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-authority.mjs": {
+      "sha256": "76f5be11c3e07d17e86842815e567fa327772a5aa2c12407342b3f00056ffce1",
+      "role": "retained-r18-generated-reference",
+      "bytes": 16199
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-journal-owner.mjs": {
+      "sha256": "fca217eef1e45b32fb4540a2e4f8391beff6915b02c0ac3ebd3508f6326c601c",
+      "role": "retained-r18-generated-reference",
+      "bytes": 2141
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/route-record.mjs": {
+      "sha256": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1",
+      "role": "retained-r18-generated-reference",
+      "bytes": 7729
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-incarnation-journal.mjs": {
+      "sha256": "488298539e71fe66b508e5ed52f47ed104b5235fa46deb1d40839acfae93ac25",
+      "role": "retained-r18-generated-reference",
+      "bytes": 11941
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-owned-authority.mjs": {
+      "sha256": "ee1f93c8ab968ab6b26e3f38a18cf66604d476b87acd37acd7e9cb09ea6c302c",
+      "role": "retained-r18-generated-reference",
+      "bytes": 15764
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/network-policy-core.mjs": {
+      "sha256": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
+      "role": "retained-r18-generated-reference",
+      "bytes": 4284
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-profile.mjs": {
+      "sha256": "ae53da9f520e7f66e5a88c850226f96a7294708e2f5dad27c178138096f4bc94",
+      "role": "retained-r18-generated-reference",
+      "bytes": 7912
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-lifecycle-witness.mjs": {
+      "sha256": "dce432df758b12b9dd8c83e2627febe88a36444ad74ce5dc1911e26edb7149c6",
+      "role": "retained-r18-generated-reference",
+      "bytes": 14836
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-witness-http.mjs": {
+      "sha256": "1e597f81b8d37c65917c3e081309294df2cf2013f9a2e3fe02d1215ef9eca10b",
+      "role": "retained-r18-generated-reference",
+      "bytes": 2002
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-dispatch.mjs": {
+      "sha256": "ac2cf3016b263406f495b33801e961aeb8ccd4700bfee20eb9381509369927a3",
+      "role": "retained-r18-generated-reference",
+      "bytes": 51976
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-serving-permit.mjs": {
+      "sha256": "bdd316a1be52668c2716b6453dfd77135685285a0668eb899d5d2d8d6518cd1d",
+      "role": "retained-r18-generated-reference",
+      "bytes": 8446
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-host-registry-profile.mjs": {
+      "sha256": "4816316ef9ced6fca3a4d135c64f7fd41f99b55bb737a7c10f4e6428c113b1b9",
+      "role": "retained-r18-generated-reference",
+      "bytes": 18520
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-host-authority-journal.mjs": {
+      "sha256": "dba7e3a31abcccf5fbc42526147af8ae822f6c50a2bf50d42bea93661ccc31db",
+      "role": "retained-r18-generated-reference",
+      "bytes": 9110
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-lifecycle-runner.mjs": {
+      "sha256": "75590c8e4be2095b9011ea3b482ceef90a1d21f92ad676dba41578093e7db668",
+      "role": "retained-r18-generated-reference",
+      "bytes": 10330
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-independent-admission.mjs": {
+      "sha256": "9ec46b88e4be5550e6072bc9f6bc566c553edf36e6231b9da4f718f2bbb04db9",
+      "role": "retained-r18-generated-reference",
+      "bytes": 4186
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/canonical.mjs": {
+      "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+      "role": "retained-r18-generated-reference",
+      "bytes": 698
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/network-policy.mjs": {
+      "sha256": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
+      "role": "retained-r18-generated-reference",
+      "bytes": 2111
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-generation-certificate.mjs": {
+      "sha256": "f998ea7e208631fa2594fe2543627d236b3307f3d3d94cead25eb1f450830c7f",
+      "role": "retained-r18-generated-reference",
+      "bytes": 8662
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-schema3-profile.mjs": {
+      "sha256": "e10f460866be7c30f71e0bc482929818b3003065f46ef5d53feb73d2f8134083",
+      "role": "retained-r18-generated-reference",
+      "bytes": 16326
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-transition-intent.mjs": {
+      "sha256": "1932ad2ef522df9260c061a6ce18ca1f2e09ef850c2850b57d46186bbca3f210",
+      "role": "retained-r18-generated-reference",
+      "bytes": 1478
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-permit-gate.mjs": {
+      "sha256": "2ee846d462354874eb704ef0a4cf6492536428497fa8f2fa93f654d411ad235a",
+      "role": "retained-r18-generated-reference",
+      "bytes": 14785
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/op-receipts-root.mjs": {
+      "sha256": "36c34dad228224a56bf559a6fe6ff6ee65c40738a54a18076b4abd2b1e26afe3",
+      "role": "retained-r18-generated-reference",
+      "bytes": 16902
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lease-release-journal.mjs": {
+      "sha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+      "role": "retained-r18-generated-reference",
+      "bytes": 6674
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-host-authority.mjs": {
+      "sha256": "c9edf50ce1bd0b21973728693c23623e3597467f6e0abc644444170f7f7a7a92",
+      "role": "retained-r18-generated-reference",
+      "bytes": 16171
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-finality-bridge.mjs": {
+      "sha256": "a719bece74e0b7d198bd36b35e361bcb4d9e9e155ce366f15185b4e37f91c197",
+      "role": "retained-r18-generated-reference",
+      "bytes": 4604
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/owned-durable-state.mjs": {
+      "sha256": "2bfe43b939a979dba3c9bfa42c2157c20968e7c85b191559eb8e8181d65ce1d1",
+      "role": "retained-r18-generated-reference",
+      "bytes": 19616
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-restart-policy.mjs": {
+      "sha256": "15f42274a6edc861b7afc1aeb9167d4028f855e8c8b99d8fbc3738eb1151204c",
+      "role": "retained-r18-generated-reference",
+      "bytes": 4308
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/runtime-lock.mjs": {
+      "sha256": "256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a",
+      "role": "retained-r18-generated-reference",
+      "bytes": 3035
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-lifecycle-journal.mjs": {
+      "sha256": "3258481cbf178668c315e88f5184f3e7c4f3efed66c021503ab54bc1fa2496d9",
+      "role": "retained-r18-generated-reference",
+      "bytes": 15966
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-chain-adapter.mjs": {
+      "sha256": "805cad12078d9cca7a24ce3a64f2debab4051d156bd59c0849158b00e42ff328",
+      "role": "retained-r18-generated-reference",
+      "bytes": 63803
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/host-admission-policy.mjs": {
+      "sha256": "a15c05ea4dfd963ba72be60af03f0a712f39974423abe4b1abc80cbfabc145e0",
+      "role": "retained-r18-generated-reference",
+      "bytes": 3857
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/provider-qualification.mjs": {
+      "sha256": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",
+      "role": "retained-r18-generated-reference",
+      "bytes": 3647
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-isolation-runtime.mjs": {
+      "sha256": "6309c386deefaec230045f0dadad30a1fb86b384be7693f68ce7bbc0a1e8e8f7",
+      "role": "retained-r18-generated-reference",
+      "bytes": 15424
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-authority-window.mjs": {
+      "sha256": "b852076f53e6ed357b9731f2c2eca6f15f6de32ae7c84e83081bbec1e0ab2c96",
+      "role": "retained-r18-generated-reference",
+      "bytes": 4165
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/lifecycle-linked-artifacts.mjs": {
+      "sha256": "d9ad52648cf5bda505d2ccebb8a6ea49fb3bc682a7fd0d431d1f5def372808cf",
+      "role": "retained-r18-generated-reference",
+      "bytes": 9510
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/derived-reader/lifecycle.mjs": {
+      "sha256": "3e8538a497db3478e31bea985a8f90a26399852bf8004d7945ce6c38524f4e09",
+      "role": "retained-r18-generated-reference",
+      "bytes": 819
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/derived-reader/vendor/anchor-bootstrap.mjs": {
+      "sha256": "90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8",
+      "role": "retained-r18-generated-reference",
+      "bytes": 13082
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/owned-native.tap": {
+      "sha256": "b3cceeedb81a74b6883b12c3773b21bf7b0bf3b1a85d96459232304d5c2b09e6",
+      "role": "r19-executed-native-evidence",
+      "bytes": 722
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/permit-generator.json": {
+      "sha256": "6bdcc19022a4d90e4482f1d98f6703cbc9b1493da2c9a8a98d08dcad4b7fb2f8",
+      "role": "r19-executed-native-evidence",
+      "bytes": 9296
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/overlay.sha256": {
+      "sha256": "168776d71a609e21d66438d57b7a89cc51b54b3bad90a7e0b19c94510ec062f2",
+      "role": "r19-executed-native-evidence",
+      "bytes": 6883
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/fixture-precompile.json": {
+      "sha256": "82cbef418bed50188eb8140589ca27333230f6be08db4c0255d48d665e040f24",
+      "role": "r19-executed-native-evidence",
+      "bytes": 470
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/journal-generator.json": {
+      "sha256": "ecb99295b18d479b9471d96a8ad13f6f087676f7736f9fc0f695a34ce5116d3a",
+      "role": "r19-executed-native-evidence",
+      "bytes": 651
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/fixture-precompile.diff": {
+      "sha256": "517354d8f750ab8d4dfc1255ef421182d7f0d7801782ce7dc475a31651d7e4c4",
+      "role": "r19-executed-native-evidence",
+      "bytes": 1766
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/schema3-generator.json": {
+      "sha256": "3b2c5650c402135274a97d225caa629d2669cfded621a9516a4261faf10947c9",
+      "role": "r19-executed-native-evidence",
+      "bytes": 2666
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/dispatch-generator.json": {
+      "sha256": "ed3997ae4a22e0f6ea354e2db93a320d0a249fe9f258f2ef43f44e798c5e15a5",
+      "role": "r19-executed-native-evidence",
+      "bytes": 1446
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/RESULT": {
+      "sha256": "d2efd016052a38e7c162374ed8fbc7eaa4577448543651b001f64ff1fd44197d",
+      "role": "r19-executed-native-evidence",
+      "bytes": 19
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/summary.txt": {
+      "sha256": "287102d19a7542b0fab0869ff79d6b4725bff1dea02ac04e0ce21d68ce1b2417",
+      "role": "r19-executed-native-evidence",
+      "bytes": 85
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/doubles-output.json": {
+      "sha256": "31426a9799dab3dec5652b9288ec3237f701f5edba15f0535807bc82fe27e02f",
+      "role": "r19-executed-native-evidence",
+      "bytes": 368693
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/doubles-input.json": {
+      "sha256": "8858929942222fd40a8985b829de5da496741e0c05462f8b1469407507474fa5",
+      "role": "r19-executed-native-evidence",
+      "bytes": 7518
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/root-host-proof.json": {
+      "sha256": "85b34209d73e62a778aa7c2bf6df3bbf7c252138cf3221f8ac30a9ced0ca02a6",
+      "role": "r19-executed-native-evidence",
+      "bytes": 4296
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-r1/root-adapter-proof.json": {
+      "sha256": "1b247bd628ff78c6d2b90edaf1fe2fdc6b69abe7063da289758df8928d70db80",
+      "role": "r19-executed-native-evidence",
+      "bytes": 1518
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/run-host-registry-r1.sh": {
+      "sha256": "8e8c2682676aa0e6b566b10b400bec503d906bf1c188bd7dc2638002d85ab2a3",
+      "role": "r19-pinned-input",
+      "bytes": 22760
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/run-host-authority-permit-r1.sh": {
+      "sha256": "b1b2406f8ac1d5b3914cd8e99e0275ce67169962483ea77a30f5207f35bf3840",
+      "role": "r19-pinned-input",
+      "bytes": 19627
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/run-host-authority-completion-r2.py": {
+      "sha256": "7db4ece167f38997b67935414ae8c12549978988222fb6d258f062655196d742",
+      "role": "r19-pinned-input",
+      "bytes": 24195
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/run-host-authority-permit-r1.py": {
+      "sha256": "142c1ee8b00735e00fb629adfdabab4e0d63a86415c0158a797ed4fcdf65bd9c",
+      "role": "r19-pinned-input",
+      "bytes": 2903
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/REPORT.md": {
+      "sha256": "3ee88959c396f4f9756c004061118b5ff7a00c914641fc43acd5254a5c7652bf",
+      "role": "r19-pinned-input",
+      "bytes": 9495
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/run-host-registry-r1.py": {
+      "sha256": "f096279f7b27f0667ab9930c15e64111ce206dedee042f4a2501205019806e0a",
+      "role": "r19-pinned-input",
+      "bytes": 2945
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/REPORT-R5.md": {
+      "sha256": "f2dde1a345b46a16b97a3f852a3744ff878c189c5207a3f4837339028399d6d9",
+      "role": "r19-pinned-input",
+      "bytes": 9002
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/REPORT-R4.md": {
+      "sha256": "77b10f5fe8a54c102b1aee3a02fbeead0df88ced5ea4f01e641469ace13c616b",
+      "role": "r19-pinned-input",
+      "bytes": 11428
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/test/root-handoff-races.test.mjs": {
+      "sha256": "e1106b8994a37f1bf65e8c4058712e208362846c0eaef64c6fd3d4f9bcee1a04",
+      "role": "r19-pinned-input",
+      "bytes": 6889
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/test/root-async-ownership-r4.test.mjs": {
+      "sha256": "d26c414ccb320f908d59df23f5e53a352f2a868c8620ac785efa90b8816e06d9",
+      "role": "r19-pinned-input",
+      "bytes": 42811
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/test/root-completion-protocol.test.mjs": {
+      "sha256": "188faf0a43fa6b3a4cf32ae91968770014e5a41a34d585b299692e5141449224",
+      "role": "r19-pinned-input",
+      "bytes": 17843
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/test/host-generation-explicit-origin.test.mjs": {
+      "sha256": "469c115ff16d6bc74ebe34ddf3677f11e17fd20eb151330b2a78dc43a4073650",
+      "role": "r19-pinned-input",
+      "bytes": 6191
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/test/root-host-authority-adapter.test.mjs": {
+      "sha256": "3231f8386d2a8ab75b7e9015c7a6fda8b014453409a50eb41edc76e37e78b701",
+      "role": "r19-pinned-input",
+      "bytes": 7149
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/test/root-host-registry-profile.test.mjs": {
+      "sha256": "256dfb57d1cef4016bc92f9a86c696ffa46492261c824fcecf033b22c650b3ae",
+      "role": "r19-pinned-input",
+      "bytes": 30920
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/test/host-authority-permit.test.mjs": {
+      "sha256": "d50a3efcd10240afd4e1ed13661ed658bdcd9cbd141c95c6a20e062efbb6b499",
+      "role": "r19-pinned-input",
+      "bytes": 18427
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/test/root-ownership-lifecycle.test.mjs": {
+      "sha256": "46d2fd2ddd1db61cb6dc7892d954b34231bf0baee18bbe0abde379c3d39efd9e",
+      "role": "r19-pinned-input",
+      "bytes": 21735
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/tools/generate-lifecycle-host-registry-adapter-candidate.mjs": {
+      "sha256": "9ee80f72dee6da6f0945e91eef5c56c193e7b1e14a0b77d6aceaea2a7f3f3dae",
+      "role": "r19-pinned-input",
+      "bytes": 6914
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/tools/generate-host-authority-permit-candidates.mjs": {
+      "sha256": "9b763c3eac366876abc5ab0216367fed401b02fb9b29af4dc4a9d6983bfe74c3",
+      "role": "r19-pinned-input",
+      "bytes": 47983
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/tools/generate-lifecycle-host-registry-host-candidate.mjs": {
+      "sha256": "7073e59c7560e90d22cb2fde9518c7f0ee3867f1ee7ef11f2da8d8bb1ddad64a",
+      "role": "r19-pinned-input",
+      "bytes": 29158
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/tools/generate-host-authority-dispatch-candidate.mjs": {
+      "sha256": "f6c0810c50292b565689bbd0a91e47dc0cfed32566279c6a6ae62a77ce32ddb3",
+      "role": "r19-pinned-input",
+      "bytes": 9001
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/deployment-permit-collector.mjs": {
+      "sha256": "2c2f3fc6d444300c5e15da5b54f393a72d8fb86d519c70cd7419c640a3091dba",
+      "role": "r19-pinned-input",
+      "bytes": 5266
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/lifecycle-host-authority.mjs": {
+      "sha256": "76f5be11c3e07d17e86842815e567fa327772a5aa2c12407342b3f00056ffce1",
+      "role": "r19-pinned-input",
+      "bytes": 16199
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/lifecycle-host-incarnation-journal.mjs": {
+      "sha256": "488298539e71fe66b508e5ed52f47ed104b5235fa46deb1d40839acfae93ac25",
+      "role": "r19-pinned-input",
+      "bytes": 11941
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/lifecycle-host-owned-authority.mjs": {
+      "sha256": "ee1f93c8ab968ab6b26e3f38a18cf66604d476b87acd37acd7e9cb09ea6c302c",
+      "role": "r19-pinned-input",
+      "bytes": 15764
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/lifecycle-host-profile.mjs": {
+      "sha256": "ae53da9f520e7f66e5a88c850226f96a7294708e2f5dad27c178138096f4bc94",
+      "role": "r19-pinned-input",
+      "bytes": 7912
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/deployment-lifecycle-witness.mjs": {
+      "sha256": "9859a1307a83ff4f60ae6088c6533b0666ae12497c49794b9ef9ee32569551c0",
+      "role": "r19-pinned-input",
+      "bytes": 10607
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/deployment-witness-http.mjs": {
+      "sha256": "1e597f81b8d37c65917c3e081309294df2cf2013f9a2e3fe02d1215ef9eca10b",
+      "role": "r19-pinned-input",
+      "bytes": 2002
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/lifecycle-host-dispatch.mjs": {
+      "sha256": "9a155041a4a38402288bd36741fe708480e55d60675a99a731a58d13d6f84778",
+      "role": "r19-pinned-input",
+      "bytes": 49295
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/deployment-serving-permit.mjs": {
+      "sha256": "82494ed819f91f65565391dc3f61a16341fc3465df0bf47a3ec823a8b8de0e61",
+      "role": "r19-pinned-input",
+      "bytes": 7692
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/lifecycle-host-registry-profile.mjs": {
+      "sha256": "4816316ef9ced6fca3a4d135c64f7fd41f99b55bb737a7c10f4e6428c113b1b9",
+      "role": "r19-pinned-input",
+      "bytes": 18520
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/deployment-host-authority-journal.mjs": {
+      "sha256": "dba7e3a31abcccf5fbc42526147af8ae822f6c50a2bf50d42bea93661ccc31db",
+      "role": "r19-pinned-input",
+      "bytes": 9110
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/deployment-lifecycle-runner.mjs": {
+      "sha256": "75590c8e4be2095b9011ea3b482ceef90a1d21f92ad676dba41578093e7db668",
+      "role": "r19-pinned-input",
+      "bytes": 10330
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/lifecycle-independent-admission.mjs": {
+      "sha256": "9ec46b88e4be5550e6072bc9f6bc566c553edf36e6231b9da4f718f2bbb04db9",
+      "role": "r19-pinned-input",
+      "bytes": 4186
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/deployment-generation-certificate.mjs": {
+      "sha256": "f998ea7e208631fa2594fe2543627d236b3307f3d3d94cead25eb1f450830c7f",
+      "role": "r19-pinned-input",
+      "bytes": 8662
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/deployment-permit-gate.mjs": {
+      "sha256": "e198fe2160cf9ab31f1c473856c44d58e51c995ce0fe0f0907c94c2d39c8661b",
+      "role": "r19-pinned-input",
+      "bytes": 5782
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/deployment-host-authority.mjs": {
+      "sha256": "c9edf50ce1bd0b21973728693c23623e3597467f6e0abc644444170f7f7a7a92",
+      "role": "r19-pinned-input",
+      "bytes": 16171
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/owned-durable-state.mjs": {
+      "sha256": "2bfe43b939a979dba3c9bfa42c2157c20968e7c85b191559eb8e8181d65ce1d1",
+      "role": "r19-pinned-input",
+      "bytes": 19616
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/deployment-lifecycle-journal.mjs": {
+      "sha256": "c4db54b3509f7a318b938dbfe11abdf565742611ffe6e8898d465b6fa005f601",
+      "role": "r19-pinned-input",
+      "bytes": 12275
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/deployment-chain-adapter.mjs": {
+      "sha256": "b648a3edf805252e239f548a4816b90b8281999b848d2ecece453cee7b8c226d",
+      "role": "r19-pinned-input",
+      "bytes": 58651
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/deployment-isolation-runtime.mjs": {
+      "sha256": "40333d5bc08796f2881650331022746abc0b93051b48351c89f84d62a4462fd9",
+      "role": "r19-pinned-input",
+      "bytes": 7277
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/src/network/deployment-authority-window.mjs": {
+      "sha256": "b852076f53e6ed357b9731f2c2eca6f15f6de32ae7c84e83081bbec1e0ab2c96",
+      "role": "r19-pinned-input",
+      "bytes": 4165
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/test/fixtures/host-registry-world.mjs": {
+      "sha256": "c9eb2aa7f7879857027c6c1e291eb6f0b61a038b790d7cd0bead86021fcc6e23",
+      "role": "r19-pinned-input",
+      "bytes": 18273
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/test/helpers/lifecycle-fixture.mjs": {
+      "sha256": "7d5764813ea329a1a9e45b8be20f99930926faee2cefef32322bcd495d07e15b",
+      "role": "r19-pinned-input",
+      "bytes": 10129
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/candidate/test/helpers/real-v2-host.mjs": {
+      "sha256": "c1aa013c47fc4e3f9d7e94c3b27d3571959051091316414d969881e46a8de363",
+      "role": "r19-pinned-input",
+      "bytes": 5639
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/run-native.py": {
+      "sha256": "20fc67bacb16a206b375562ed8bec5e2a915ec0ac6b17ec71018d1f339da2a41",
+      "role": "r19-pinned-input",
+      "bytes": 562
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/run-native.sh": {
+      "sha256": "9bae2ea35cb87887c346455814c84088378ee63418f4e561907ad3f52b151b6b",
+      "role": "supplement-provenance",
+      "bytes": 19284
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-owned.test.mjs": {
+      "sha256": "f1beee413566de29553656ebd4491b5df4753e76a8771338dfa2758f6c9bda8f",
+      "role": "supplement-provenance",
+      "bytes": 4354
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-native-composition-r19/native-pins.json": {
+      "sha256": "c78c66f67543addfd3e5fb36eb599e8676003c9a5269f68ebd488c0bf8ec7838",
+      "role": "supplement-provenance",
+      "bytes": 12078
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/summary.txt": {
+      "sha256": "fe11451845b08b4de32856540819a9364ffd041e1cdb01efa0cd48c810b29f4b",
+      "role": "supplement-provenance",
+      "bytes": 90
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/RESULT": {
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "role": "supplement-provenance",
+      "bytes": 2
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py": {
+      "sha256": "969d9273e53c79abf8604c363daa58b41a462bc4b7f3d03d813980edb771f6f4",
+      "role": "reviewed-resource-wrapper",
+      "bytes": 7846
+    },
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs": {
+      "sha256": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6",
+      "role": "reviewed-resource-wrapper",
+      "bytes": 4228
+    }
+  }
+}

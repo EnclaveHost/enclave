@@ -1,0 +1,1 @@
+Public endpoints discovered in ethereum-lists/chains eip155-8453.json, https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/chains/eip155-8453.json on2026-10-30. Endpoint listing is not chain truth; live chainID/current state agreement remains mandatory. Only public historical ledger queries sent.

@@ -1,0 +1,12 @@
+[queue] START available=17997MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[ok] every tracked file == 64156dcd91ff1e769e74f9c26a846be19254c716
+test/fixtures/reth-dev-8453-genesis-2935.json: OK
+99138899e98faa27cdd28c21423d3ae55c36c36b50eb1334c102a1ab937ee319
+helios-eeffcc9: OK
+witness-check: OK
+enclave-base-head-listener: OK
+{"ok": true, "rc": 0, "counts": {"tests": 6, "pass": 6, "fail": 0, "cancelled": 0, "skipped": 0, "todo": 0}, "head": "64156dcd91ff1e769e74f9c26a846be19254c716", "scope": "full windows-verifier.e2e, no name filter; skips are not passes"}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/consumer-final-readiness-stage/runs/head-windows-20261026T103413Z
+[memory-guard] exit=0 peakTreeRssMiB=723 minHostAvailableMiB=16589
+[memory-guard] at peak: reth-v2.8.0:373 node:120 node:105 node:57 helios-eeffcc9:55 witness-check:7 bash:4 timeout:2
+[queue] EXIT 0

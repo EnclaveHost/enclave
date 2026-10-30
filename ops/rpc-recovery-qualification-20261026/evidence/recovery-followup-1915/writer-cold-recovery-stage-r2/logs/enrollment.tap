@@ -1,0 +1,124 @@
+TAP version 13
+# Subtest: unenrolled: derivedReader bound without an enrollment -> relay serving, only the INTENDED marker, no state, no crash loop
+ok 1 - unenrolled: derivedReader bound without an enrollment -> relay serving, only the INTENDED marker, no state, no crash loop
+  ---
+  duration_ms: 4954.55199
+  type: 'test'
+  ...
+# Subtest: enrollment refusals, then an admin genesis bound to the primary's boot; a replay is refused
+ok 2 - enrollment refusals, then an admin genesis bound to the primary's boot; a replay is refused
+  ---
+  duration_ms: 335.953744
+  type: 'test'
+  ...
+# Subtest: IPC commit: only the exact committed bytes are acknowledged; refusals say nothing was written; the role's deadline is enforced
+ok 3 - IPC commit: only the exact committed bytes are acknowledged; refusals say nothing was written; the role's deadline is enforced
+  ---
+  duration_ms: 439.678536
+  type: 'test'
+  ...
+# Subtest: restart: a new child gets a new boot and the COMMITTED copies; the old boot is refused
+ok 4 - restart: a new child gets a new boot and the COMMITTED copies; the old boot is refused
+  ---
+  duration_ms: 1434.182467
+  type: 'test'
+  ...
+# Subtest: seeding uses ONLY the scan of a fresh majority round: a local-only write is committed by that round (never assumed absent); a foreign local file refuses
+ok 5 - seeding uses ONLY the scan of a fresh majority round: a local-only write is committed by that round (never assumed absent); a foreign local file refuses
+  ---
+  duration_ms: 5437.902497
+  type: 'test'
+  ...
+# Subtest: client deadline: a commit not confirmed in time is OUTCOME UNKNOWN and fences; the late ack resolves nothing
+ok 6 - client deadline: a commit not confirmed in time is OUTCOME UNKNOWN and fences; the late ack resolves nothing
+  ---
+  duration_ms: 2323.566643
+  type: 'test'
+  ...
+# Subtest: quorum loss: no majority -> never acknowledged, the primary steps down and stops its relay; healed, every member agrees on the seeded bytes
+ok 7 - quorum loss: no majority -> never acknowledged, the primary steps down and stops its relay; healed, every member agrees on the seeded bytes
+  ---
+  duration_ms: 4239.053353
+  type: 'test'
+  ...
+# Subtest: failover: a stopped primary's successor seeds the same committed copy
+ok 8 - failover: a stopped primary's successor seeds the same committed copy
+  ---
+  duration_ms: 2624.755567
+  type: 'test'
+  ...
+# Subtest: crash guard: a derived child dying before serving, or soon after, disables derived (relay serving, no loop); the backoff timer retries it (M4); a rotate re-enables it
+ok 9 - crash guard: a derived child dying before serving, or soon after, disables derived (relay serving, no loop); the backoff timer retries it (M4); a rotate re-enables it
+  ---
+  duration_ms: 11185.370474
+  type: 'test'
+  ...
+# Subtest: rotation binds the COMMITTED floor: another reader image is unenrolled until a rotate naming exactly that floor
+ok 10 - rotation binds the COMMITTED floor: another reader image is unenrolled until a rotate naming exactly that floor
+  ---
+  duration_ms: 1944.04881
+  type: 'test'
+  ...
+# Subtest: enrollment quiesces the writer: a racing derived commit either lands before (the enrollment is then refused as stale) or is refused - never both
+ok 11 - enrollment quiesces the writer: a racing derived commit either lands before (the enrollment is then refused as stale) or is refused - never both
+  ---
+  duration_ms: 268.370796
+  type: 'test'
+  ...
+# Subtest: B1: the previous child's exit not CONFIRMED -> nothing is composed or seeded (journal and lock inodes untouched); retried once it exits
+ok 12 - B1: the previous child's exit not CONFIRMED -> nothing is composed or seeded (journal and lock inodes untouched); retried once it exits
+  ---
+  duration_ms: 7403.574968
+  type: 'test'
+  ...
+# Subtest: B2: leadership lost during the exit wait -> the stale term composes and seeds nothing; once a majority is back, the primary seeds exactly ITS committed scan
+ok 13 - B2: leadership lost during the exit wait -> the stale term composes and seeds nothing; once a majority is back, the primary seeds exactly ITS committed scan
+  ---
+  duration_ms: 7131.046345
+  type: 'test'
+  ...
+# Subtest: M3: a rejecting replica commit is a plain failure: the child's commit is OUTCOME UNKNOWN, the barrier answers ok:false, no unhandled rejection
+ok 14 - M3: a rejecting replica commit is a plain failure: the child's commit is OUTCOME UNKNOWN, the barrier answers ok:false, no unhandled rejection
+  ---
+  duration_ms: 3831.387076
+  type: 'test'
+  ...
+# Subtest: stop with a commit IN FLIGHT (review item 7): the commit completes under the role lock, the reply to the dead child is harmless, the restart's seed carries exactly the committed bytes
+ok 15 - stop with a commit IN FLIGHT (review item 7): the commit completes under the role lock, the reply to the dead child is harmless, the restart's seed carries exactly the committed bytes
+  ---
+  duration_ms: 3729.410272
+  type: 'test'
+  ...
+# Subtest: restore/recover: the archive is not freshness - high-water at least the restored floors PER CHAIN, exact on ties; never-enrolled recover carries no state
+ok 16 - restore/recover: the archive is not freshness - high-water at least the restored floors PER CHAIN, exact on ties; never-enrolled recover carries no state
+  ---
+  duration_ms: 8.144778
+  type: 'test'
+  ...
+# Subtest: committer: exact echo only; refused vs OUTCOME UNKNOWN; every failure fences; late replies resolve nothing; serialized; deadline sent
+ok 17 - committer: exact echo only; refused vs OUTCOME UNKNOWN; every failure fences; late replies resolve nothing; serialized; deadline sent
+  ---
+  duration_ms: 123.246856
+  type: 'test'
+  ...
+# Subtest: writer adapter: KVM's exact declaration or nothing; enroll on missing/pending/changed binding or digest only; stateDir deleted; canonical paths only
+ok 18 - writer adapter: KVM's exact declaration or nothing; enroll on missing/pending/changed binding or digest only; stateDir deleted; canonical paths only
+  ---
+  duration_ms: 9.260814
+  type: 'test'
+  ...
+# Subtest: replica: a catch-up snapshot is never sent with bytes other than the scanned ones
+ok 19 - replica: a catch-up snapshot is never sent with bytes other than the scanned ones
+  ---
+  duration_ms: 0.454684
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 19
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 57673.818709

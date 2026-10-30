@@ -1,0 +1,97 @@
+TAP version 13
+# Subtest: ROOT positive control: renewal gate refuses before inert queue send
+ok 1 - ROOT positive control: renewal gate refuses before inert queue send
+  ---
+  duration_ms: 3.073772
+  type: 'test'
+  ...
+# Subtest: ROOT claim helper must carry caller gate into actual serialized sender
+not ok 2 - ROOT claim helper must carry caller gate into actual serialized sender
+  ---
+  duration_ms: 1.154449
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r10/root-chain-send-boundary.test.mjs:33:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    claim helper currently drops gate; inert wallet observed claim
+    + actual - expected
+    
+    + [
+    +   'claim'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'claim'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r10/root-chain-send-boundary.test.mjs:36:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT release helper must carry caller gate into actual serialized sender
+not ok 3 - ROOT release helper must carry caller gate into actual serialized sender
+  ---
+  duration_ms: 0.439436
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r10/root-chain-send-boundary.test.mjs:38:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    release helper currently drops gate; inert wallet observed release
+    + actual - expected
+    
+    + [
+    +   'release'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'release'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r10/root-chain-send-boundary.test.mjs:41:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ROOT renewal must recheck permission after awaited simulation before inert wallet write
+not ok 4 - ROOT renewal must recheck permission after awaited simulation before inert wallet write
+  ---
+  duration_ms: 0.325267
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r10/root-chain-send-boundary.test.mjs:43:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    queue-entry permission is not a final pre-write fence
+    + actual - expected
+    
+    + [
+    +   'renew'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'renew'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/windows-manager-root-review-r10/root-chain-send-boundary.test.mjs:47:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 1
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 35.245659

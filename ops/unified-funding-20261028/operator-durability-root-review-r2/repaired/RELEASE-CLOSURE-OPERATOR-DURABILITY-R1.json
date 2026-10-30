@@ -1,0 +1,62 @@
+{
+  "schema": "enclave-release-closure/operator-durability-r1",
+  "status": "SOURCE ONLY, AUTHORED, NOT RUN; not deployable",
+  "seed": { "manifestSha256": "9e379ac483e8cca931b4cc8e8c856ca497ea5c6d470c891cee5d1375d34b6398", "files": 230, "hashesOfThisDelivery": "root computes" },
+  "preservedUnchanged": [
+    "control/windows/node/protected-supervisor.mjs",
+    "control/isolation/m4/guestd/control-client.mjs",
+    "control/windows/node/protected-isolation.mjs",
+    "control/windows/vbslike/manager/win-durable.mjs",
+    "control/network/owned-durable-state.mjs",
+    "control/network/runtime-lock.mjs",
+    "control/network/lease-release-journal.mjs",
+    "control/windows/node/lease-gas-runtime.bundle.mjs",
+    "control/windows/node/operator-obligations.mjs (no longer imported by chain.mjs)"
+  ],
+  "changed": [
+    { "path": "control/windows/node/chain.mjs", "why": "owned operator-effects store for direct send + sponsored leaseSend; exact unsent discharge at the final boundary; pre-signature records of exact typed data/authorization; withheld/latched supersession; pending from the owned record; explicit legacy release-journal reconciliation; recorded-identity read-only resolution; releaseHold covers owned records; setOperatorEffects/operatorEffectsStatus/releaseOperatorEffects" },
+    { "path": "control/windows/node/host.mjs", "why": "constructor wires chain.setOperatorEffects(<dir>/operator-effects.journal, cfg.operatorEffects); #renewSend gives pending/unknown precedence over superseded; claim failure diagnostics say unresolved when possibly executed" }
+  ],
+  "added": [
+    { "path": "control/windows/node/operator-effects.mjs", "imports": ["../vbslike/manager/win-durable.mjs", "../../network/owned-durable-state.mjs", "node:fs", "node:path", "node:crypto"] },
+    { "path": "control/windows/node/initialize-operator-effects.mjs", "role": "explicit install/migration entry; never run by the Host", "imports": ["./operator-effects.mjs", "../vbslike/manager/psrun.mjs (win32 only)"] },
+    { "path": "test/windows-permit/od-r1-operator-effects-store.test.mjs", "run": false },
+    { "path": "test/windows-permit/od-r1-direct-sender.test.mjs", "run": false, "carries": ["evidence/root-r12/root-durable-gaps.test.mjs test 4", "evidence/root-r12/root-durable-gaps.test.mjs test 5"] },
+    { "path": "test/windows-permit/od-r1-sponsored.test.mjs", "run": false, "emulator": "TEST lease-client emulator; NOT exact-client qualification" },
+    { "path": "test/windows-permit/helpers/od-r1-owner-child.mjs", "run": false },
+    { "path": "REPORT-OPERATOR-DURABILITY-R1.md" },
+    { "path": "RELEASE-CLOSURE-OPERATOR-DURABILITY-R1.json" }
+  ],
+  "removedInterfaces": {
+    "chain.mjs exports": ["setOperatorWriteJournal", "setSponsoredObligations"],
+    "env": ["ENCLAVE_OPERATOR_WRITE_JOURNAL", "ENCLAVE_SPONSORED_OBLIGATIONS"],
+    "replacedBy": { "export": "setOperatorEffects(file, options)", "env": "ENCLAVE_OPERATOR_EFFECTS" }
+  },
+  "entryWiring": {
+    "host.mjs": "chain.setOperatorEffects?.(path.join(cfg.dir, 'operator-effects.journal'), cfg.operatorEffects ?? {})",
+    "agent.mjs": "UNCHANGED: passes no operatorEffects storage context -> on win32 every operator effect refuses (fail closed) until root wires storage SDDL + an installed store",
+    "windowsExclusionDefault": "WINDOWS_EXCLUSION (refuses on the pinned deployed runtime where UV_FS_O_EXLOCK is absent); a root-qualified windowsNumericExclusion may be passed as cfg.operatorEffects.exclusion",
+    "install": "node control/windows/node/initialize-operator-effects.mjs <store> <account> <chainId> (Windows: ENCLAVE_OPERATOR_EFFECTS_SDDL / ENCLAVE_OPERATOR_EFFECTS_PARENT_SDDL); install-script integration NOT done"
+  },
+  "supersededFixtures": [
+    "test/windows-permit/r12-durable-send-restart.test.mjs (removed JSON store/env)",
+    "test/windows-permit/r11-policy-send-boundary.test.mjs direct/sponsored sections",
+    "evidence/root-r12/root-durable-gaps.test.mjs (historical evidence; reads the removed JSON format)",
+    "evidence/root-r12/root-r11-fixture.test.mjs sponsored release case (legacy intents.length===1 assertion remains UNRESOLVED, not converted to a pass)"
+  ],
+  "rootQualificationRequired": [
+    "run all od-r1 tests on Linux with genuine /usr/bin/flock",
+    "re-run the consumer suite3, transport4 and broader regression suites to confirm unchanged successful scope",
+    "exact-client: sponsored cases against the shipped lease-gas-runtime.bundle.mjs or the regenerated namespaced source closure with external TEST account/RPC/HTTP",
+    "Windows EXLOCK cross-process + power-loss, checkWindowsStorage SDDL for this store, install integration"
+  ],
+  "unfinished": [
+    "explicit owned recovery of an uncertain Linux store (owned-durable-state recover() not wired)",
+    "Windows torn-tail quarantine/reconciliation for this store",
+    "explicit capacity maintenance/compaction (7 MiB admission eventually refuses new effects)",
+    "EIP-7702 authorization nonce vs direct-write nonce interplay",
+    "Host #renewSend/claim diagnostics have no authored test",
+    "native/full workloads, neighbour qualification, config/version closure, independent live authority, zero-gas bootstrap, Offline/independent submitter, refill/Top-up, production migration"
+  ],
+  "chronology": "source (operator-effects.mjs, chain.mjs, host.mjs, initialize entry) -> tests (helper, store, direct, sponsored, with small corrections) -> two late source corrections (leaseSend open-failure pending; MAX_REQUEST_BYTES 16384) -> report/closure. Tests were not authored first."
+}

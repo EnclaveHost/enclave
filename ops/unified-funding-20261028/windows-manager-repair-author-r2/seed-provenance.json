@@ -1,0 +1,49 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-manager-permit-author-r1-20261029/author-delivery",
+  "frozenManifestSha256": "315c67609014b620aa028889456d728663e3995a6ef39ce0b312cea814045fed",
+  "frozenFiles": 140,
+  "vendorFiles": [
+    {
+      "dest": "control/network/deployment-permit-gate.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-permit-gate.mjs",
+      "actualSha256": "2ee846d462354874eb704ef0a4cf6492536428497fa8f2fa93f654d411ad235a",
+      "matchesDocumentedHash": true,
+      "bytes": 14785,
+      "matchesDocumentedBytes": true
+    },
+    {
+      "dest": "control/network/deployment-serving-permit.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-serving-permit.mjs",
+      "actualSha256": "bdd316a1be52668c2716b6453dfd77135685285a0668eb899d5d2d8d6518cd1d",
+      "matchesDocumentedHash": true,
+      "bytes": 8446,
+      "matchesDocumentedBytes": true
+    },
+    {
+      "dest": "control/network/deployment-host-authority.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-host-authority.mjs",
+      "actualSha256": "c9edf50ce1bd0b21973728693c23623e3597467f6e0abc644444170f7f7a7a92",
+      "matchesDocumentedHash": true,
+      "bytes": 16171,
+      "matchesDocumentedBytes": true
+    },
+    {
+      "dest": "control/network/deployment-generation-certificate.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-generation-certificate.mjs",
+      "actualSha256": "f998ea7e208631fa2594fe2543627d236b3307f3d3d94cead25eb1f450830c7f",
+      "matchesDocumentedHash": true,
+      "bytes": 8662,
+      "matchesDocumentedBytes": true
+    },
+    {
+      "dest": "control/network/deployment-authority-window.mjs",
+      "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/ownership-witness-fixture-r18/protocol-result/frozen-protocol/network/deployment-authority-window.mjs",
+      "actualSha256": "b852076f53e6ed357b9731f2c2eca6f15f6de32ae7c84e83081bbec1e0ab2c96",
+      "matchesDocumentedHash": true,
+      "bytes": 4165,
+      "matchesDocumentedBytes": true
+    }
+  ],
+  "seedFiles": 145,
+  "noCodeExecuted": true
+}

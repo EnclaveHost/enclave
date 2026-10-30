@@ -1,0 +1,3 @@
+FAIL async-ownership rc 1 expected 16 tests 1 pass 0 fail 1 cancelled 0 skipped 0 todo 0
+FAIL owned-composition rc 1 expected 1 tests 1 pass 0 fail 1 cancelled 0 skipped 0 todo 0
+FAIL prior-protocol rc 1 expected 23 tests 4 pass 0 fail 4 cancelled 0 skipped 0 todo 0

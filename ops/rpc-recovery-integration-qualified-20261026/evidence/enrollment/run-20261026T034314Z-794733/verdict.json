@@ -1,0 +1,115 @@
+{
+ "ok": true,
+ "fails": [],
+ "results": {
+  "U-host-service-transport": {
+   "rc": 1,
+   "tests": 14,
+   "pass": 11,
+   "fail": 3,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "failing": [
+    "B2 counterexample: an INVALID or newer-release hostServices block is never deleted - kept byte-for-byte and reported every pass",
+    "G4 composition: enrollment preserves the reviewed challenge replica and serves its challenge TLS port",
+    "enrollment keeps the operator's hostServices opt-in and only then names the service worker; N passes restart nothing"
+   ]
+  },
+  "U-regression": {
+   "rc": 1,
+   "tests": 6,
+   "pass": 2,
+   "fail": 4,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "failing": [
+    "1 legacy: the node https RPC list (>= 2, http dropped) replaces the agent list and restarts once; an unchanged list restarts nothing",
+    "2 legacy: fewer than two https RPCs never replace (or empty) the agent list",
+    "5 verifier -> legacy: the verifier selection is removed explicitly and the node https list is restored, one restart",
+    "6 the operator challengeReplica opt-in is kept byte-for-byte across a legacy RPC switch"
+   ]
+  },
+  "P-host-service-transport": {
+   "rc": 0,
+   "tests": 14,
+   "pass": 14,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "failing": []
+  },
+  "P-host-services-carriers": {
+   "rc": 0,
+   "tests": 9,
+   "pass": 9,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "failing": []
+  },
+  "P-host-services-cold-start": {
+   "rc": 0,
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "failing": []
+  },
+  "P-windows-chain-authority-runtime": {
+   "rc": 0,
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "failing": []
+  },
+  "P-windows-chain-authority": {
+   "rc": 0,
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "failing": []
+  },
+  "P-windows-node-network-enroll": {
+   "rc": 0,
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "failing": []
+  },
+  "P-windows-node-wallet-enroll": {
+   "rc": 0,
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "failing": []
+  },
+  "P-network-enroll-chain-rpcs": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "failing": []
+  }
+ }
+}

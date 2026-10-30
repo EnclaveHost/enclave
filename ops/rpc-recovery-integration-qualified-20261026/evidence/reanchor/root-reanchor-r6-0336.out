@@ -1,0 +1,70 @@
+[queue] START available=22447MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+PASS baseline-existing Ran 34 (expected 34)
+PASS recovery-existing Ran 34 (expected 34)
+PASS r3-regression Ran 27 (expected 27)
+FAIL reanchor-recovery rc=1 ran=19 expected=19 last='FAILED (failures=1)'
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r6/logs/root-reanchor-r6-tests-20261026T033407Z/tmp/tmpsq_f0odh/cap-4/.partial-776515/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r6/logs/root-reanchor-r6-tests-20261026T033407Z/tmp/tmpsq_f0odh/cap-4/.partial-776515/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r6/logs/root-reanchor-r6-tests-20261026T033407Z/tmp/tmpsq_f0odh/cap-5/.partial-776515/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r6/logs/root-reanchor-r6-tests-20261026T033407Z/tmp/tmpsq_f0odh/cap-5/.partial-776515/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r6/logs/root-reanchor-r6-tests-20261026T033407Z/tmp/tmpsq_f0odh/cap-5/.partial-776515/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r6/logs/root-reanchor-r6-tests-20261026T033407Z/tmp/tmpsq_f0odh/cap-5/.partial-776515/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+ok
+test_watermark_accepted_during_downtime_refuses_release_arm_and_start (__main__.Recovery.test_watermark_accepted_during_downtime_refuses_release_arm_and_start) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "watermark_below: N 52866960 is below the accepted authenticated-finality watermark 52867010 (finality-proof): an accepted finalized guarantee is never discarded"}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+ok
+test_watermark_tamper_refuses_in_harness_and_wrapper_before_consuming (__main__.Recovery.test_watermark_tamper_refuses_in_harness_and_wrapper_before_consuming) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+ok
+
+======================================================================
+FAIL: test_capture_refusals_hold_replay_wrong_initial_tamper_pin_stale_ledger (__main__.Recovery.test_capture_refusals_hold_replay_wrong_initial_tamper_pin_stale_ledger)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r6/tests/test_reanchor_recovery.py", line 364, in test_capture_refusals_hold_replay_wrong_initial_tamper_pin_stale_ledger
+    self.ledger.chmod(0o666); self.step_refused('a3', 'untrusted_file'); self.ledger.chmod(0o600)
+                              ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r6/tests/test_reanchor_recovery.py", line 403, in step_refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused'])
+                                                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : a1_stale: the recheck capture finished 661 s ago (max 600): capture a new recheck
+
+----------------------------------------------------------------------
+Ran 19 tests in 117.818s
+
+FAILED (failures=1)
+## logs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r6/logs/root-reanchor-r6-tests-20261026T033407Z
+## aggregate rc=1
+[memory-guard] exit=1 peakTreeRssMiB=215 minHostAvailableMiB=22053
+[memory-guard] at peak: python3:38 python3:28 python3:28 python3:28 python3:28 python3:28 python3:28 bash:4
+[queue] EXIT 1
