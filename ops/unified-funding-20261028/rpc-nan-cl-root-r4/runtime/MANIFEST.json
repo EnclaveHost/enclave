@@ -136,6 +136,30 @@
       "path": "/usr/sbin/blkid",
       "realpath": "/usr/sbin/blkid",
       "sha256": "0d7e7a3e410b59848f0e36cacae29b94bcdb362f120dd9ab9ce4d51baf999a10"
+    },
+    {
+      "path": "/usr/bin/mount",
+      "realpath": "/usr/bin/mount",
+      "bytes": 51584,
+      "sha256": "fde2b1540ca79ea42df942653bdfd09b9b3e3ff1d4713602bd280f754033957a"
+    },
+    {
+      "path": "/usr/bin/umount",
+      "realpath": "/usr/bin/umount",
+      "bytes": 39296,
+      "sha256": "186774a008ad69cf60bce6af35a850608d1c6ba410d3eca4113ea55b3a8b54d6"
+    },
+    {
+      "path": "/usr/bin/findmnt",
+      "realpath": "/usr/bin/findmnt",
+      "bytes": 69280,
+      "sha256": "08652d0a79159c9d5b73f9181d3436bf044466e8efffecd0feef5c4cbb4e7670"
+    },
+    {
+      "path": "/usr/lib/x86_64-linux-gnu/libmount.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libmount.so.1.1.0",
+      "bytes": 309960,
+      "sha256": "7472255ae5799059b37ddd544788f5665dbd3e1cb78259f52180293039efc2a5"
     }
   ],
   "qemuNbd": "/usr/sbin/qemu-nbd",

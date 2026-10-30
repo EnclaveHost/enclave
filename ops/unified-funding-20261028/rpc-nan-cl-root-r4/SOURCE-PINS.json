@@ -1,6 +1,6 @@
 {
   "source/EXTERNAL-PINS.json": "7f8f810b06e11084dff56852be490800755c4bf9cc3117788a2e0d0a3c949827",
-  "source/MANIFEST.json": "7ea059622ff9c41e07dd83197a7b42d588f14a5aca0ac14388a737bf00887ad3",
+  "source/MANIFEST.json": "c2c44e1a4840669250291fa79936f4af08a6f94480ca84e2b77fd8970096864e",
   "source/capture-local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
   "source/capture-remote.py": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655",
   "source/client-main.py": "04d5d53b1e77cce764a477482205df163f10a04627fad833cb7ebe56018f3064",

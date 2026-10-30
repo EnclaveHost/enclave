@@ -1,10 +1,11 @@
 {
   "authorized": true,
-  "at": 1793374746.4350207,
+  "at": 1793374797.6317909,
   "scope": "actual-nan-cl-bounded-client-n4",
-  "pinsSha256": "a651d66365e995dfdbe3871c0147fd30c1ccca7f5750325e43447033b177fb31",
+  "pinsSha256": "99da89d5ca8b5e0ce949267cf0c76323499ae7634ea704eda500b5b1c4ce865b",
   "admissionSha256": "d313623cb863e9f90d737d5b15be9a2869a3eb8a04d4d476d421cac85cce11c4",
   "sourceTests": 38,
   "sourceReview": "Root reviewed native-qualified idmap replacement, preserves inode ownership and CL authority, criticaldirs exactUID/inode/mode, outerhidden untilsafe, nosymfollow+serviceconfinement. No recursiveauditclaim. Existing cap/parent guards.",
-  "noProductionConsumerChange": true
+  "noProductionConsumerChange": true,
+  "qualificationToolPins": "mount/umount/findmnt/libmount exact native-fixture tool bytes added after38 sourcefixtures; no program change"
 }
