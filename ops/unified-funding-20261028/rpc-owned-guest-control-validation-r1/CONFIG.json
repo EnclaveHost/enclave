@@ -1,0 +1,14 @@
+{
+  "target": "controladmin@172.17.28.159",
+  "bootId": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+  "serviceCapsMiB": {
+    "enclave-api-relay.service": 1536,
+    "enclave-control-tls.service": 256,
+    "enclave-dns.service": 256,
+    "enclave-native-discovery.service": 128,
+    "enclave-policy-migration-bridge.service": 256,
+    "enclave-provider-migration-mirror.service": 192,
+    "enclave-rpc-gateway.service": 192
+  },
+  "knownHosts": "/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts"
+}
