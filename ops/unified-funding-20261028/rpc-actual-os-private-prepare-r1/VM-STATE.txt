@@ -1,0 +1,15 @@
+Id=enclave-rpc-production-vm.service
+Triggers=
+TriggeredBy=
+LoadState=loaded
+ActiveState=inactive
+UnitFileState=disabled
+MainPID=0
+
+Id=enclave-rpc-production-guard.service
+Triggers=
+TriggeredBy=
+LoadState=loaded
+ActiveState=inactive
+UnitFileState=static
+MainPID=0

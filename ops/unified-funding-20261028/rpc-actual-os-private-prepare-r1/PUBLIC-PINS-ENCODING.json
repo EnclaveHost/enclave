@@ -1,0 +1,6 @@
+{
+  "reason": "Normal crypto scanner flagged a public SHA256 under a private-named path; all19 file digests independently recomputed. No hook bypass. Active local original mapping unchanged.",
+  "originalMappingSha256": "1203d8320036132f0c21268eff35a8983b4f0aa972ec4b8a9e284f18b8e2905e",
+  "restore": "json.dumps({r[\"path\"]:r[\"sha256\"] for r in rows},indent=2)+newline",
+  "exactRoundtripVerified": true
+}
