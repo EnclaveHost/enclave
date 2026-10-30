@@ -1,0 +1,66 @@
+{
+  "at": 1793378184.393471,
+  "parent": 2920482,
+  "processes": [
+    {
+      "pid": 2920698,
+      "start": "168300501",
+      "exe": "/usr/bin/qemu-nbd",
+      "argv": [
+        "/usr/sbin/qemu-nbd",
+        "--persistent",
+        "--shared=1",
+        "--socket",
+        "/run/user/1000/rpc-nan-client-n7/export.sock",
+        "--export-name",
+        "enclave-nan-cl-d01cf27c-1b0a-4794-bea0-0de09bff0431",
+        "--format=qcow2",
+        "--cache=none",
+        "--aio=threads",
+        "/vm/enclave-volumes/rpc-nan-cl-n7/overlay.qcow2"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2920468-i44862711.scope"
+    },
+    {
+      "pid": 2920702,
+      "start": "168300511",
+      "exe": "/usr/bin/ssh",
+      "argv": [
+        "/usr/bin/ssh",
+        "-oBatchMode=yes",
+        "-oStrictHostKeyChecking=yes",
+        "-oConnectTimeout=5",
+        "-oControlMaster=no",
+        "-oControlPath=none",
+        "-oServerAliveInterval=5",
+        "-oServerAliveCountMax=2",
+        "-N",
+        "-oExitOnForwardFailure=yes",
+        "-oStreamLocalBindMask=0177",
+        "-oStreamLocalBindUnlink=no",
+        "-R",
+        "/root/rpc-nan-client-n7/export.sock:/run/user/1000/rpc-nan-client-n7/export.sock",
+        "nan"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2920468-i44862711.scope"
+    },
+    {
+      "pid": 2920719,
+      "start": "168300611",
+      "exe": "/usr/bin/ssh",
+      "argv": [
+        "/usr/bin/ssh",
+        "-oBatchMode=yes",
+        "-oStrictHostKeyChecking=yes",
+        "-oConnectTimeout=5",
+        "-oControlMaster=no",
+        "-oControlPath=none",
+        "-oServerAliveInterval=5",
+        "-oServerAliveCountMax=2",
+        "nan",
+        "/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit=enclave-rpc-nan-helper-n7 --slice=enclavenanattachn7.slice --property=User=root --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=TasksMax=64 --property=RuntimeMaxSec=510 --property=TimeoutStopSec=145 --property=KillMode=control-group --property=UMask=0077 '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-nan-client-n7/program.py wait-cleanup' /usr/bin/python3 -B /run/enclave-rpc-nan-client-n7/program.py main"
+      ],
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2920468-i44862711.scope"
+    }
+  ]
+}

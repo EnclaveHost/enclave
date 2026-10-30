@@ -1,0 +1,50 @@
+{
+  "at": 1793377992.6872656,
+  "path": "/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2",
+  "identity": {
+    "st_dev": 64769,
+    "st_ino": 148393098,
+    "st_size": 277741568,
+    "st_mtime_ns": 1793377151538885655,
+    "st_ctime_ns": 1793377151538885655,
+    "st_mode": 33152,
+    "st_uid": 1000,
+    "st_gid": 1000,
+    "st_nlink": 1
+  },
+  "allocatedBytes": 277741568,
+  "bytesHashed": 277741568,
+  "sha256": "97d3ab346ee76531b60d230906034c46f55021c80bf49f968c10268849d496eb",
+  "header104Sha256": "7372f55744d9baef76652f9e48e36c024b08f622e680cd6a38b8fd6af18ca90b",
+  "elapsedSeconds": 0.22808272787369788,
+  "readOnly": true,
+  "qemuCompatibleLocksHeldDuringHash": true,
+  "parents": {
+    "/vm/enclave-volumes/rpc-control-l1-client-r6": [
+      64769,
+      148393094,
+      1000,
+      16832
+    ],
+    "/vm/enclave-volumes": [
+      64769,
+      83361793,
+      1000,
+      16877
+    ],
+    "/vm": [
+      64769,
+      2,
+      0,
+      16877
+    ],
+    "/": [
+      64768,
+      2,
+      0,
+      16749
+    ]
+  },
+  "originalNotRead": true,
+  "databaseCleanNotProven": true
+}

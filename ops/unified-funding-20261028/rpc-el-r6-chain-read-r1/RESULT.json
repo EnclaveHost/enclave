@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.10520384111441672,
+  "stdout": "[\n    {\n        \"children\": [\n            {\n                \"name\": \"file\",\n                \"info\": {\n                    \"children\": [\n                    ],\n                    \"virtual-size\": 277741568,\n                    \"filename\": \"/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2\",\n                    \"format\": \"file\",\n                    \"actual-size\": 277741568,\n                    \"format-specific\": {\n                        \"type\": \"file\",\n                        \"data\": {\n                        }\n                    },\n                    \"dirty-flag\": false\n                }\n            }\n        ],\n        \"backing-filename-format\": \"qcow2\",\n        \"virtual-size\": 4000000000000,\n        \"filename\": \"/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2\",\n        \"cluster-size\": 65536,\n        \"format\": \"qcow2\",\n        \"actual-size\": 277741568,\n        \"format-specific\": {\n            \"type\": \"qcow2\",\n            \"data\": {\n                \"compat\": \"1.1\",\n                \"compression-type\": \"zlib\",\n                \"lazy-refcounts\": false,\n                \"refcount-bits\": 16,\n                \"corrupt\": false,\n                \"extended-l2\": false\n            }\n        },\n        \"full-backing-filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"backing-filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"dirty-flag\": false\n    },\n    {\n        \"children\": [\n            {\n                \"name\": \"file\",\n                \"info\": {\n                    \"children\": [\n                    ],\n                    \"virtual-size\": 528387407872,\n                    \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n                    \"format\": \"file\",\n                    \"actual-size\": 461808537600,\n                    \"format-specific\": {\n                        \"type\": \"file\",\n                        \"data\": {\n                        }\n                    },\n                    \"dirty-flag\": false\n                }\n            }\n        ],\n        \"virtual-size\": 4000000000000,\n        \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"cluster-size\": 65536,\n        \"format\": \"qcow2\",\n        \"actual-size\": 461808537600,\n        \"format-specific\": {\n            \"type\": \"qcow2\",\n            \"data\": {\n                \"compat\": \"1.1\",\n                \"compression-type\": \"zlib\",\n                \"lazy-refcounts\": false,\n                \"refcount-bits\": 16,\n                \"corrupt\": false,\n                \"extended-l2\": false\n            }\n        },\n        \"dirty-flag\": false\n    }\n]\n",
+  "stderr": "",
+  "bytesObserved": {
+    "stdout": 2625,
+    "stderr": 0
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

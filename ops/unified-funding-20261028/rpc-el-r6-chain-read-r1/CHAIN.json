@@ -1,0 +1,77 @@
+[
+  {
+    "children": [
+      {
+        "name": "file",
+        "info": {
+          "children": [],
+          "virtual-size": 277741568,
+          "filename": "/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2",
+          "format": "file",
+          "actual-size": 277741568,
+          "format-specific": {
+            "type": "file",
+            "data": {}
+          },
+          "dirty-flag": false
+        }
+      }
+    ],
+    "backing-filename-format": "qcow2",
+    "virtual-size": 4000000000000,
+    "filename": "/vm/enclave-volumes/rpc-control-l1-client-r6/overlay.qcow2",
+    "cluster-size": 65536,
+    "format": "qcow2",
+    "actual-size": 277741568,
+    "format-specific": {
+      "type": "qcow2",
+      "data": {
+        "compat": "1.1",
+        "compression-type": "zlib",
+        "lazy-refcounts": false,
+        "refcount-bits": 16,
+        "corrupt": false,
+        "extended-l2": false
+      }
+    },
+    "full-backing-filename": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+    "backing-filename": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+    "dirty-flag": false
+  },
+  {
+    "children": [
+      {
+        "name": "file",
+        "info": {
+          "children": [],
+          "virtual-size": 528387407872,
+          "filename": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+          "format": "file",
+          "actual-size": 461808537600,
+          "format-specific": {
+            "type": "file",
+            "data": {}
+          },
+          "dirty-flag": false
+        }
+      }
+    ],
+    "virtual-size": 4000000000000,
+    "filename": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+    "cluster-size": 65536,
+    "format": "qcow2",
+    "actual-size": 461808537600,
+    "format-specific": {
+      "type": "qcow2",
+      "data": {
+        "compat": "1.1",
+        "compression-type": "zlib",
+        "lazy-refcounts": false,
+        "refcount-bits": 16,
+        "corrupt": false,
+        "extended-l2": false
+      }
+    },
+    "dirty-flag": false
+  }
+]

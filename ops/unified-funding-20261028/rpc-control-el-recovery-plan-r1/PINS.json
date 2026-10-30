@@ -1,0 +1,13 @@
+{
+  "originalFileSha256": "622bcb0568f1ed7c11b747a43bb8bc6b8c94b5f9e1daf591684a8d2e93eace60",
+  "publicContentPins": [
+    {
+      "path": "EVIDENCE-PINS.json",
+      "sha256": "4a295a1e65f67a19f565570aeaa7a38aff4039cb199a3fe40cf334cf8ee3d8ac"
+    },
+    {
+      "path": "PLAN.md",
+      "sha256": "81727f1d9f9ce74c03b4915c1909a0cf49e6821d158fc0545c1135ffa43fc3a1"
+    }
+  ]
+}

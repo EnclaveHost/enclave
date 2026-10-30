@@ -1,0 +1,9 @@
+{
+  "originalFileSha256": "f19a4f1a3abf05b7535c68d01664dbd2f4aafc930aac30acb2cc14333cbf08d6",
+  "publicContentPins": [
+    {
+      "path": "run.py",
+      "sha256": "f034ed479baf6cbe74dd2d55cc6882b4e22d024977af145c6bfc7df89c588f93"
+    }
+  ]
+}

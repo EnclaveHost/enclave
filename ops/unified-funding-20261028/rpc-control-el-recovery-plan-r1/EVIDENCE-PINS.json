@@ -1,0 +1,29 @@
+{
+  "originalFileSha256": "4a295a1e65f67a19f565570aeaa7a38aff4039cb199a3fe40cf334cf8ee3d8ac",
+  "publicContentPins": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/PARSED-MAIN.json",
+      "sha256": "e4f6d84b724abb939ac1d7d20c0ea1c85bab02572042e82080395c80e7609415"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/RESULT.json",
+      "sha256": "eec9d01978a13dad507f810e28737a628ac8a9ce4510b7b5669def98bcb36148"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/run-body.py",
+      "sha256": "9110779c08ecc5ace07f551b9ea1b3b598cea4bd58e6eec600a9d0e3e81246df"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/client-main.py",
+      "sha256": "5d20210189c6805b4e65fcf2de3abd0954fff6bb78a39c618dc7c5b110af3cd4"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/client-operations.py",
+      "sha256": "2f9828cca9c1af151167654dd144a082fe13bc8a503cdf1099e58a95c5274fc8"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r6/MANIFEST.json",
+      "sha256": "f86072ec71ceb5da80607b2262790582608c51ba8db96ff646df30c5d013c46f"
+    }
+  ]
+}
