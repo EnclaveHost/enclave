@@ -1,0 +1,42 @@
+[
+    {
+        "name":  "compile.out",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "compile.err",
+        "bytes":  0,
+        "included":  true
+    },
+    {
+        "name":  "inert.out",
+        "bytes":  2353,
+        "included":  true
+    },
+    {
+        "name":  "inert.err",
+        "bytes":  63,
+        "included":  true
+    },
+    {
+        "name":  "process-results.json",
+        "bytes":  522,
+        "included":  true
+    },
+    {
+        "name":  "pins.json",
+        "bytes":  678,
+        "included":  true
+    },
+    {
+        "name":  "artifact.json",
+        "bytes":  211,
+        "included":  true
+    },
+    {
+        "name":  "worker-harness.exe",
+        "bytes":  23040,
+        "included":  true
+    }
+]

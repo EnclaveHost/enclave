@@ -1,0 +1,40 @@
+{
+  "reason": "Git whitespace check rejects Windows CRLF/trailing whitespace. Original downloaded bytes remain in U/execution-r3; normalized text is public evidence copy only.",
+  "files": [
+    {
+      "path": "FAILED.log",
+      "originalSha256": "8f7db134c925e9733ad600af629711e1f92813d049fcb0c6adc0663bb8f855bd",
+      "normalizedSha256": "fd14255d3788214c6a1578d7077f9dd58d453bc4c5a4444554c5fa8b6aab8734"
+    },
+    {
+      "path": "artifacts/artifact.json",
+      "originalSha256": "14f8e3aca43ab9f47cdf7ffcc36e35d673fcf53035ad4e3a89779e8347daf5e1",
+      "normalizedSha256": "8043902320bee86b17564ed2ae04e81e009057e30c62d3374daf3cc3aa66c6b7"
+    },
+    {
+      "path": "artifacts/inert.err",
+      "originalSha256": "9aac6aea54f5c44e2d3b1348378b32528aa1f7462851b67eb604ded28ff9c0a9",
+      "normalizedSha256": "19dffc9fbf64f71e85a6d532718891e822afd9209dadfac6781430cd4705bf0b"
+    },
+    {
+      "path": "artifacts/publication.json",
+      "originalSha256": "8587f5033c1633bc54b0257a04a807a5b7e4ee68f5eb08d62879b3ad47e6bd64",
+      "normalizedSha256": "03fd07aed4eaf0d2cfed634d541b6555481de6e0aa457fce33380aee24a8b06f"
+    },
+    {
+      "path": "artifacts/process-results.json",
+      "originalSha256": "a445132b4cedb16d8bf378be8816af47ed738c91d4a39e8e736769bf0f406805",
+      "normalizedSha256": "5b53eddb34aa25b997aad905a95f0c9b05ee977f9fd87991a49c39a0e08365cc"
+    },
+    {
+      "path": "artifacts/pins.json",
+      "originalSha256": "c82940e45b7f7137c23b578c88049859a1ee3c5405ee7bc786c3dd77a3997690",
+      "normalizedSha256": "46be9a9312681fad679d581cf14e0e35b1afc4241bc4fd2769949ad9dbc62e90"
+    },
+    {
+      "path": "artifacts/inert.out",
+      "originalSha256": "9842bc5d17fbfeb0673056fd00a928d2d55b6806bd5e5ecad6a710fb0d6cf9ca",
+      "normalizedSha256": "ff67de84b7a810d85b529e832fafc5a5d8424e614f6b6c40712eab9b9317cb32"
+    }
+  ]
+}

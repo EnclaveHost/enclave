@@ -109,16 +109,31 @@ static class Harness {
             string deathRecord=Path.Combine(dir,"parent-death");
             var info=new ProcessStartInfo(Exe,"supervisor "+Quote(deathRecord));
             info.UseShellExecute=false; info.CreateNoWindow=true;
+            var deathClock=Stopwatch.StartNew(); // Before spawn: excludes both natural helper and supervisor deadlines.
             using (var supervisor=Process.Start(info)) {
                 IntPtr held=supervisor.Handle;
                 Process child=null;
                 try {
                     child=Observe(deathRecord,3000);
-                    supervisor.Kill(); // Only the exact process created by this fixture.
-                    bool parentExited=supervisor.WaitForExit(3000);
-                    bool childExited=child.WaitForExit(2000);
-                    Check("supervisor-death-kills-private-job",parentExited && childExited && child.ExitCode!=0,
-                        new {supervisor=supervisor.Id,child=child.Id,parentExited=parentExited,childExited=childExited});
+                    long supervisorCreation=supervisor.StartTime.ToUniversalTime().ToFileTimeUtc();
+                    long childCreation=child.StartTime.ToUniversalTime().ToFileTimeUtc();
+                    bool aliveBefore=!supervisor.HasExited && !child.HasExited;
+                    long killElapsed=deathClock.ElapsedMilliseconds;
+                    if (aliveBefore && killElapsed<4000) supervisor.Kill(); // Exact fixture-owned handle.
+                    int remaining=(int)Math.Max(0,4000-deathClock.ElapsedMilliseconds);
+                    bool parentExited=supervisor.WaitForExit(remaining);
+                    remaining=(int)Math.Max(0,4000-deathClock.ElapsedMilliseconds);
+                    bool childExited=child.WaitForExit(remaining);
+                    long exitElapsed=deathClock.ElapsedMilliseconds;
+                    // KILL_ON_JOB_CLOSE does not promise a nonzero exit code. Observe
+                    // exact death before either independent natural deadline instead.
+                    Check("supervisor-death-kills-private-job",aliveBefore && killElapsed<4000 &&
+                        parentExited && childExited && exitElapsed<4000,
+                        new {supervisor=supervisor.Id,child=child.Id,supervisorCreation=supervisorCreation,
+                            childCreation=childCreation,aliveBefore=aliveBefore,killElapsed=killElapsed,
+                            exitElapsed=exitElapsed,parentExited=parentExited,childExited=childExited,
+                            parentExitCode=parentExited?(int?)supervisor.ExitCode:null,
+                            childExitCode=childExited?(int?)child.ExitCode:null});
                 } finally {
                     // Dispose is not termination. Own the exact supervisor on every
                     // path, including failure before a child receipt can be observed.

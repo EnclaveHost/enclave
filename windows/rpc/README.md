@@ -29,9 +29,13 @@ no timeout/failure, observed process exit and an empty job, and confirmed handle
 cleanup. A default exit-code field is never a success receipt. Local success still
 does not establish a provider fence or VM readiness.
 
-This candidate has **not been compiled or run**. Its native ABI, nested-job behavior,
-creation-time job assignment, parent-death behavior and resource enforcement are
-unqualified. It is a low-level trusted primitive, not an authorization boundary:
+Disposable Windows CI run41137051967 compiled this candidate and passed five
+inert cases: normal exit, distinct exit, timeout, memory refusal and descendant
+cleanup. The sixth fixture observed parent and child exit but failed its incorrect
+nonzero-exit-code expectation; the last two cases were not reached. The corrected
+fixture is awaiting a separate run. This is not production-host qualification.
+Native setup failure paths, target-host nested jobs and independent guardian
+integration remain unqualified. It is a low-level trusted primitive, not an authorization boundary:
 the caller must independently pin the executable, arguments, environment,
 directory, script/module closure and protected ancestor namespace. No production
 caller is wired to it. An independent supervisor must bound the primitive itself,
