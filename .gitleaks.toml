@@ -716,3 +716,262 @@ condition = "AND"
 paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/vm/[a-z0-9-]+\.log$''']
 regexTarget = "line"
 regexes = ['''VSOCK PROOFKEY answered nonce=[0-9a-f]{16}\.\.\. proofKey=0x[0-9a-f]{40} \(answer \d+\)''']   # gitleaks' line target is not the whole line: unanchored, exact shape
+
+# Main consolidation 2026-10-30: exact reviewed source lines only.
+# Evidence: ops/source-consolidation-20261030/security-review.json.
+
+[[allowlists]]
+description = "Public author-run identifiers in an evidence review, not Twilio credentials"
+condition = "AND"
+targetRules = ["twilio-api-key"]
+paths = ["^ops/unified-funding-20261028/windows-manager-integration-author-r3/ROOT-REVIEW\\.md$"]
+regexTarget = "line"
+regexes = ["^Root reviewed TASK662d32199464b473898f3a7b0cf656f4ebb5885305a61c538a51ae610a8a457e, runner1d8d932ff082d37fa79fbc460f724189dd9a9837687e6238e9a4537dc5e8f0f4 and PREPARED473168fb420f062c9f42a372313e6dd73eec4db505a8efa6c99c47fe0830d539; all790 read-only input hashes and149 candidate seed hashes independently matched\\. Required Max account was checked independently and enforced by the runner\\.$"]
+
+[[allowlists]]
+description = "Public source identifier or protocol domain separator, no credential literal"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^metal/guest/mcp-server\\.bundle\\.mjs$"]
+regexTarget = "line"
+regexes = ["^    \\.\\.\\.p\\.extractable \\? \\{ pkcs8: await exportPrivateKey\\(kp2\\.privateKey\\) \\} : \\{ privateKey: kp2\\.privateKey \\}$", "^    \\.\\.\\.p\\.extractable \\? \\{ pkcs8: await exportPrivateKey\\(kp3\\.privateKey\\) \\} : \\{ privateKey: kp3\\.privateKey \\}$", "^    TLS_KEY_DOMAIN = \"enclave-pvm-tls-key-v1\\\\n\";$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ["^network/host-services/packages/service-tls\\.package\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"node_modules/viem/_esm/actions/test/setCoinbase\\.js\": \"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb\",$"]
+
+[[allowlists]]
+description = "Explicit deterministic DNS smoke-test credential for loopback fixture only"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^test/dns-relay-chain-authority\\.smoke\\.test\\.mjs$"]
+regexTarget = "line"
+regexes = ["^    DNS_API_PORT: String\\(api\\), DNS_API_BIND: \"127\\.0\\.0\\.1\", DNS_TXT_KEY: \"smoke-test-key-0123456789abcdef\", ENCLAVE_PLATFORM_HOST_POLICY: \"off\", \\.\\.\\.extra \\};$"]
+
+[[allowlists]]
+description = "Public source identifier or protocol domain separator, no credential literal"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs$"]
+regexTarget = "line"
+regexes = ["^    TLS_KEY_DOMAIN = \"enclave-pvm-tls-key-v1\\\\n\";$", "^    exports\\.ECPrivateKey = ECPrivateKey2;$", "^    exports\\.PKCS8ShroudedKeyBag = PKCS8ShroudedKeyBag = tslib_1\\.__decorate\\(\\[$", "^    exports\\.PKCS8ShroudedKeyBag = PKCS8ShroudedKeyBag;$", "^    exports\\.RSAPrivateKey = RSAPrivateKey2;$", "^    if \\(!app3 \\|\\| !eligible\\(host\\) \\|\\| app3\\.until <= now\\(\\) \\|\\| fingerprint2\\(d\\) !== app3\\.fingerprint \\|\\| d\\.active !== true \\|\\| d\\.isPublic !== true \\|\\| hasSecrets\\(d\\.id\\) && !policy\\?\\.cpu\\?\\.secretsV1 \\|\\| app3\\.ownerException && !isOwnerDeployment\\(host, d\\) \\|\\| String\\(d\\.runner\\)\\.toLowerCase\\(\\) !== String\\(host\\.id\\)\\.toLowerCase\\(\\)\\) return 0;$", "^    if \\(!app3 \\|\\| !eligible\\(host\\) \\|\\| app3\\.until <= now\\(\\) \\|\\| fingerprint3\\(d\\) !== app3\\.fingerprint \\|\\| d\\.active !== true \\|\\| d\\.isPublic !== true \\|\\| hasSecrets\\(d\\.id\\) && !policy\\?\\.cpu\\?\\.secretsV1 \\|\\| app3\\.ownerException && !isOwnerDeployment\\(host, d\\) \\|\\| String\\(d\\.runner\\)\\.toLowerCase\\(\\) !== String\\(host\\.id\\)\\.toLowerCase\\(\\)\\) return 0;$", "^    if \\(!app3 \\|\\| !eligible\\(host\\) \\|\\| app3\\.until <= now\\(\\) \\|\\| fingerprint4\\(d\\) !== app3\\.fingerprint \\|\\| d\\.active !== true \\|\\| d\\.isPublic !== true \\|\\| hasSecrets\\(d\\.id\\) && !policy\\?\\.cpu\\?\\.secretsV1 \\|\\| app3\\.ownerException && !isOwnerDeployment\\(host, d\\) \\|\\| String\\(d\\.runner\\)\\.toLowerCase\\(\\) !== String\\(host\\.id\\)\\.toLowerCase\\(\\)\\) return 0;$", "^    var RecipientEncryptedKeys = RecipientEncryptedKeys_1 = class RecipientEncryptedKeys extends asn1_schema_1\\.AsnArray \\{$", "^var ENCLAVE_TUPLE_V1, ENCLAVE_TUPLE, ENCLAVE_TUPLE_V4, ENCLAVE_TUPLE_V3, ENCLAVE_TUPLE_V2, CAP_APP_SNI, CAP_TCP_PORTS, CAP_UDP, CAP_TUNNEL_HUB, CAP_RELAY_ANY, DEP_TUPLE, DEP_TUPLE_V1, BOOK_KEY_DEPLOYMENTS, MAX_BODY_BYTES2;$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from node_modules/viem/_esm/accounts/generatePrivateKey.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^metal/guest/mcp-server\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"node_modules/viem/_esm/accounts/generatePrivateKey\\.js\": \"0f2c44265a893e19b873236baa1d828965482af578ca49277ec7e96b04a178ab\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^metal/guest/mcp-server\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"node_modules/viem/_esm/accounts/privateKeyToAccount\\.js\": \"c056d3c2d9308e74476007cda3e93cd3547068778c2b6ce67809537e207e78e6\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^metal/guest/mcp-server\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"node_modules/viem/_esm/accounts/utils/privateKeyToAddress\\.js\": \"67daee9447748cbb4c0caf6ad8cc45b083e32104ac0e6e23ab200a54814f0b0b\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ["^metal/guest/mcp-server\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"node_modules/viem/_esm/actions/test/setCoinbase\\.js\": \"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from relay/node_modules/viem/_esm/actions/test/setCoinbase.js"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ["^metal/guest/mcp-server\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"relay/node_modules/viem/_esm/actions/test/setCoinbase\\.js\": \"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from sdk/sessions/node_modules/viem/_esm/actions/test/setCoinbase.js"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ["^metal/guest/mcp-server\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"sdk/sessions/node_modules/viem/_esm/actions/test/setCoinbase\\.js\": \"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-ecc/build/cjs/ec_private_key.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"relay/node_modules/@peculiar/asn1-ecc/build/cjs/ec_private_key\\.js\": \"56c02678232daa7afb9078551218b318ede1bd280cf4fb821f19ecf0d720cd6e\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-ecc/build/es2015/ec_private_key.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"relay/node_modules/@peculiar/asn1-ecc/build/es2015/ec_private_key\\.js\": \"2b70d1099840ee796f03e09bc321f0e04d0be24363dcf9638cdc64b069a00524\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/private_key_info.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/private_key_info\\.js\": \"58484c2767a25908ec21066305d7981cbb4c06d8cdb9d8e1ad02342ae8491f4b\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-rsa/build/cjs/rsa_private_key.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"relay/node_modules/@peculiar/asn1-rsa/build/cjs/rsa_private_key\\.js\": \"89df1148c5c1d204fce19b1d8839be54f3ed0dd67e3564bee305c8aa88cd22f8\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-rsa/build/es2015/rsa_private_key.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"relay/node_modules/@peculiar/asn1-rsa/build/es2015/rsa_private_key\\.js\": \"d50563fd684db0ca09610432dadc71fbad88460d964b59439e22f566b1ce711b\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-x509/build/cjs/extensions/private_key_usage_period.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"relay/node_modules/@peculiar/asn1-x509/build/cjs/extensions/private_key_usage_period\\.js\": \"d00a2f09af2915386e491d2a6fc3d09bd76c3b23e8fa810d7acd507d3116be82\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-x509/build/es2015/extensions/private_key_usage_period.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"relay/node_modules/@peculiar/asn1-x509/build/es2015/extensions/private_key_usage_period\\.js\": \"20634ab3dc5f013799dc3bdc2e6cc4d9646917cdfc414cd3bc946eed1eb0488d\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from relay/node_modules/viem/_esm/accounts/generatePrivateKey.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"relay/node_modules/viem/_esm/accounts/generatePrivateKey\\.js\": \"0f2c44265a893e19b873236baa1d828965482af578ca49277ec7e96b04a178ab\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from relay/node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"relay/node_modules/viem/_esm/accounts/privateKeyToAccount\\.js\": \"c056d3c2d9308e74476007cda3e93cd3547068778c2b6ce67809537e207e78e6\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from relay/node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"relay/node_modules/viem/_esm/accounts/utils/privateKeyToAddress\\.js\": \"67daee9447748cbb4c0caf6ad8cc45b083e32104ac0e6e23ab200a54814f0b0b\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"node_modules/viem/_esm/actions/test/setCoinbase\\.js\": \"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from relay/node_modules/viem/_esm/actions/test/setCoinbase.js"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"relay/node_modules/viem/_esm/actions/test/setCoinbase\\.js\": \"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ["^network/host-services/packages/credit-vault-submitter\\.package\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"node_modules/viem/_esm/actions/test/setCoinbase\\.js\": \"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from node_modules/viem/_esm/accounts/generatePrivateKey.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^network/host-services/packages/credit-vault-submitter\\.package\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"node_modules/viem/_esm/accounts/generatePrivateKey\\.js\": \"0f2c44265a893e19b873236baa1d828965482af578ca49277ec7e96b04a178ab\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^network/host-services/packages/credit-vault-submitter\\.package\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"node_modules/viem/_esm/accounts/privateKeyToAccount\\.js\": \"c056d3c2d9308e74476007cda3e93cd3547068778c2b6ce67809537e207e78e6\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ["^network/host-services/packages/credit-vault-submitter\\.package\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"node_modules/viem/_esm/accounts/utils/privateKeyToAddress\\.js\": \"67daee9447748cbb4c0caf6ad8cc45b083e32104ac0e6e23ab200a54814f0b0b\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ["^network/host-services/packages/policy-mirror\\.package\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"node_modules/viem/_esm/actions/test/setCoinbase\\.js\": \"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb\",$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ["^network/host-services/packages/directory-replica\\.package\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"node_modules/viem/_esm/actions/test/setCoinbase\\.js\": \"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb\",$"]
+
+[[allowlists]]
+description = "Public bytes32 registry address-book selector (ASCII registry, zero padded)"
+condition = "AND"
+targetRules = ["ethereum-private-key-env"]
+paths = ["^metal/guest/platform-api\\.bundle\\.mjs$"]
+regexTarget = "line"
+regexes = ["^    BOOK_KEY_REGISTRY = \"0x7265676973747279000000000000000000000000000000000000000000000000\";$"]
+
+[[allowlists]]
+description = "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ["^network/host-services/packages/route-dns\\.package\\.json$"]
+regexTarget = "line"
+regexes = ["^    \"node_modules/viem/_esm/actions/test/setCoinbase\\.js\": \"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb\",$"]
+
+[[allowlists]]
+description = "Public source identifier or protocol domain separator, no credential literal"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^relay/pvm-app-attest\\.mjs$"]
+regexTarget = "line"
+regexes = ["^export const PROOF_KEY_DOMAIN = \"enclave-proof-key-v1\\\\n\";$"]

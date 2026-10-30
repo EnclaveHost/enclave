@@ -1,0 +1,1516 @@
+From 0de5e4a9e70d45859229b1eb7d781b44dacd0336 Mon Sep 17 00:00:00 2001
+From: Steven Batchelor <srbatchelor@ovgl.org>
+Date: Tue, 13 Oct 2026 19:21:06 -0700
+Subject: [PATCH 1/2] EnclaveConnectivity v2: the provider-routed mode is named
+ for providers, not TUNA
+
+Pure renames; storage layout, checks and arithmetic are unchanged:
+- Host.tuna -> Host.provider (setHost, capabilities, capabilitiesFor, HostConfigured)
+- viaTuna -> viaProviders, _tunaProviders -> _providers, tunaProviders -> providersOf,
+  TunaAuthorized -> ProvidersAuthorized
+- tunaPolicyDigest -> providerPolicyDigest (domain "EnclaveConnectivity.provider-policy.v1"),
+  authorizeTuna -> authorizeProviders, quoteTuna -> quoteProvider
+- TunaReceipt -> ProviderReceipt, tunaReceiptDigest -> providerReceiptDigest
+  (domain "EnclaveConnectivity.provider-receipt.v1"), settleTuna -> settleProvider
+
+ABI and site/js/gen/contract-artifacts.js regenerated (scripts/build-contract-artifacts.mjs;
+the ABI equals solc 0.8.35 --via-ir runs 200 output). Foundry suite renamed: 26/26 pass.
+Not deployed: the live ledger's bandwidthRouter is one-time bound to v1 (0x5f8b636e).
+
+Co-Authored-By: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+---
+ contracts/EnclaveConnectivity.abi.json        | 300 +++++++++---------
+ contracts/EnclaveConnectivity.sol             |  64 ++--
+ .../foundry/test/EnclaveConnectivity.t.sol    | 102 +++---
+ site/js/gen/contract-artifacts.js             |  22 +-
+ 4 files changed, 244 insertions(+), 244 deletions(-)
+
+diff --git a/contracts/EnclaveConnectivity.abi.json b/contracts/EnclaveConnectivity.abi.json
+index 153e4e239..b31f9b31a 100644
+--- a/contracts/EnclaveConnectivity.abi.json
++++ b/contracts/EnclaveConnectivity.abi.json
+@@ -101,7 +101,7 @@
+       {
+         "indexed": false,
+         "internalType": "bool",
+-        "name": "tuna",
++        "name": "provider",
+         "type": "bool"
+       },
+       {
+@@ -151,23 +151,23 @@
+       {
+         "indexed": true,
+         "internalType": "bytes32",
+-        "name": "hostId",
++        "name": "id",
+         "type": "bytes32"
+       },
+       {
+         "indexed": false,
+-        "internalType": "bytes32",
+-        "name": "addressHash",
+-        "type": "bytes32"
++        "internalType": "uint64",
++        "name": "nonce",
++        "type": "uint64"
+       },
+       {
+         "indexed": false,
+-        "internalType": "uint64",
+-        "name": "expires",
+-        "type": "uint64"
++        "internalType": "bytes32[]",
++        "name": "providers",
++        "type": "bytes32[]"
+       }
+     ],
+-    "name": "Qualified",
++    "name": "ProvidersAuthorized",
+     "type": "event"
+   },
+   {
+@@ -176,23 +176,23 @@
+       {
+         "indexed": true,
+         "internalType": "bytes32",
+-        "name": "id",
++        "name": "hostId",
+         "type": "bytes32"
+       },
+       {
+         "indexed": false,
+-        "internalType": "uint64",
+-        "name": "nonce",
+-        "type": "uint64"
++        "internalType": "bytes32",
++        "name": "addressHash",
++        "type": "bytes32"
+       },
+       {
+         "indexed": false,
+-        "internalType": "bytes32[]",
+-        "name": "providers",
+-        "type": "bytes32[]"
++        "internalType": "uint64",
++        "name": "expires",
++        "type": "uint64"
+       }
+     ],
+-    "name": "TunaAuthorized",
++    "name": "Qualified",
+     "type": "event"
+   },
+   {
+@@ -341,7 +341,7 @@
+         "type": "bytes"
+       }
+     ],
+-    "name": "authorizeTuna",
++    "name": "authorizeProviders",
+     "outputs": [],
+     "stateMutability": "nonpayable",
+     "type": "function"
+@@ -382,7 +382,7 @@
+       },
+       {
+         "internalType": "bool",
+-        "name": "tuna",
++        "name": "provider",
+         "type": "bool"
+       }
+     ],
+@@ -411,7 +411,7 @@
+       },
+       {
+         "internalType": "bool",
+-        "name": "tuna",
++        "name": "provider",
+         "type": "bool"
+       }
+     ],
+@@ -435,7 +435,7 @@
+       },
+       {
+         "internalType": "bool",
+-        "name": "tuna",
++        "name": "provider",
+         "type": "bool"
+       },
+       {
+@@ -640,6 +640,130 @@
+     "stateMutability": "view",
+     "type": "function"
+   },
++  {
++    "inputs": [
++      {
++        "internalType": "bytes32",
++        "name": "id",
++        "type": "bytes32"
++      },
++      {
++        "internalType": "bytes32[]",
++        "name": "providers",
++        "type": "bytes32[]"
++      },
++      {
++        "internalType": "uint64",
++        "name": "expires",
++        "type": "uint64"
++      },
++      {
++        "internalType": "uint64",
++        "name": "maxPricePerGiB6",
++        "type": "uint64"
++      },
++      {
++        "internalType": "uint128",
++        "name": "budget6",
++        "type": "uint128"
++      }
++    ],
++    "name": "providerPolicyDigest",
++    "outputs": [
++      {
++        "internalType": "bytes32",
++        "name": "",
++        "type": "bytes32"
++      }
++    ],
++    "stateMutability": "view",
++    "type": "function"
++  },
++  {
++    "inputs": [
++      {
++        "components": [
++          {
++            "internalType": "bytes32",
++            "name": "id",
++            "type": "bytes32"
++          },
++          {
++            "internalType": "bytes32",
++            "name": "runnerId",
++            "type": "bytes32"
++          },
++          {
++            "internalType": "bytes32",
++            "name": "providerId",
++            "type": "bytes32"
++          },
++          {
++            "internalType": "uint64",
++            "name": "policyNonce",
++            "type": "uint64"
++          },
++          {
++            "internalType": "uint64",
++            "name": "leaseUntil",
++            "type": "uint64"
++          },
++          {
++            "internalType": "uint64",
++            "name": "issuedAt",
++            "type": "uint64"
++          },
++          {
++            "internalType": "uint64",
++            "name": "anchor",
++            "type": "uint64"
++          },
++          {
++            "internalType": "uint128",
++            "name": "cumulativeBytes",
++            "type": "uint128"
++          },
++          {
++            "internalType": "uint64",
++            "name": "pricePerGiB6",
++            "type": "uint64"
++          }
++        ],
++        "internalType": "struct EnclaveConnectivity.ProviderReceipt",
++        "name": "r",
++        "type": "tuple"
++      }
++    ],
++    "name": "providerReceiptDigest",
++    "outputs": [
++      {
++        "internalType": "bytes32",
++        "name": "",
++        "type": "bytes32"
++      }
++    ],
++    "stateMutability": "view",
++    "type": "function"
++  },
++  {
++    "inputs": [
++      {
++        "internalType": "bytes32",
++        "name": "id",
++        "type": "bytes32"
++      }
++    ],
++    "name": "providersOf",
++    "outputs": [
++      {
++        "internalType": "bytes32[]",
++        "name": "",
++        "type": "bytes32[]"
++      }
++    ],
++    "stateMutability": "view",
++    "type": "function"
++  },
+   {
+     "inputs": [
+       {
+@@ -836,7 +960,7 @@
+         "type": "bytes32"
+       }
+     ],
+-    "name": "quoteTuna",
++    "name": "quoteProvider",
+     "outputs": [
+       {
+         "internalType": "uint64",
+@@ -948,7 +1072,7 @@
+       },
+       {
+         "internalType": "bool",
+-        "name": "tuna",
++        "name": "provider",
+         "type": "bool"
+       },
+       {
+@@ -1072,7 +1196,7 @@
+             "type": "uint64"
+           }
+         ],
+-        "internalType": "struct EnclaveConnectivity.TunaReceipt",
++        "internalType": "struct EnclaveConnectivity.ProviderReceipt",
+         "name": "r",
+         "type": "tuple"
+       },
+@@ -1087,135 +1211,11 @@
+         "type": "bytes"
+       }
+     ],
+-    "name": "settleTuna",
++    "name": "settleProvider",
+     "outputs": [],
+     "stateMutability": "nonpayable",
+     "type": "function"
+   },
+-  {
+-    "inputs": [
+-      {
+-        "internalType": "bytes32",
+-        "name": "id",
+-        "type": "bytes32"
+-      },
+-      {
+-        "internalType": "bytes32[]",
+-        "name": "providers",
+-        "type": "bytes32[]"
+-      },
+-      {
+-        "internalType": "uint64",
+-        "name": "expires",
+-        "type": "uint64"
+-      },
+-      {
+-        "internalType": "uint64",
+-        "name": "maxPricePerGiB6",
+-        "type": "uint64"
+-      },
+-      {
+-        "internalType": "uint128",
+-        "name": "budget6",
+-        "type": "uint128"
+-      }
+-    ],
+-    "name": "tunaPolicyDigest",
+-    "outputs": [
+-      {
+-        "internalType": "bytes32",
+-        "name": "",
+-        "type": "bytes32"
+-      }
+-    ],
+-    "stateMutability": "view",
+-    "type": "function"
+-  },
+-  {
+-    "inputs": [
+-      {
+-        "internalType": "bytes32",
+-        "name": "id",
+-        "type": "bytes32"
+-      }
+-    ],
+-    "name": "tunaProviders",
+-    "outputs": [
+-      {
+-        "internalType": "bytes32[]",
+-        "name": "",
+-        "type": "bytes32[]"
+-      }
+-    ],
+-    "stateMutability": "view",
+-    "type": "function"
+-  },
+-  {
+-    "inputs": [
+-      {
+-        "components": [
+-          {
+-            "internalType": "bytes32",
+-            "name": "id",
+-            "type": "bytes32"
+-          },
+-          {
+-            "internalType": "bytes32",
+-            "name": "runnerId",
+-            "type": "bytes32"
+-          },
+-          {
+-            "internalType": "bytes32",
+-            "name": "providerId",
+-            "type": "bytes32"
+-          },
+-          {
+-            "internalType": "uint64",
+-            "name": "policyNonce",
+-            "type": "uint64"
+-          },
+-          {
+-            "internalType": "uint64",
+-            "name": "leaseUntil",
+-            "type": "uint64"
+-          },
+-          {
+-            "internalType": "uint64",
+-            "name": "issuedAt",
+-            "type": "uint64"
+-          },
+-          {
+-            "internalType": "uint64",
+-            "name": "anchor",
+-            "type": "uint64"
+-          },
+-          {
+-            "internalType": "uint128",
+-            "name": "cumulativeBytes",
+-            "type": "uint128"
+-          },
+-          {
+-            "internalType": "uint64",
+-            "name": "pricePerGiB6",
+-            "type": "uint64"
+-          }
+-        ],
+-        "internalType": "struct EnclaveConnectivity.TunaReceipt",
+-        "name": "r",
+-        "type": "tuple"
+-      }
+-    ],
+-    "name": "tunaReceiptDigest",
+-    "outputs": [
+-      {
+-        "internalType": "bytes32",
+-        "name": "",
+-        "type": "bytes32"
+-      }
+-    ],
+-    "stateMutability": "view",
+-    "type": "function"
+-  },
+   {
+     "inputs": [
+       {
+@@ -1243,7 +1243,7 @@
+         "type": "bytes32"
+       }
+     ],
+-    "name": "viaTuna",
++    "name": "viaProviders",
+     "outputs": [
+       {
+         "internalType": "bool",
+diff --git a/contracts/EnclaveConnectivity.sol b/contracts/EnclaveConnectivity.sol
+index c0fb0bed7..ee058ea8f 100644
+--- a/contracts/EnclaveConnectivity.sol
++++ b/contracts/EnclaveConnectivity.sol
+@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
+ 
+ import {EnclaveDeployments, IEnclaveRegistry} from "./EnclaveDeployments.sol";
+ 
+-/// Qualification gates direct service and TUNA service identically. It grants
++/// Qualification gates direct service and provider-routed (Enclave network) service identically. It grants
+ /// no compute entitlement. Direct payment uses the current app lease, an owner
+ /// allowance, and a receipt from the host's registered compute proof key.
+ contract EnclaveConnectivity {
+@@ -19,21 +19,21 @@ contract EnclaveConnectivity {
+     mapping(bytes32 => Trust) private _probeTrust;
+     mapping(bytes32 => mapping(address => Attestation)) public attestations;
+     event ProbeTrustAuthorized(bytes32 indexed id,uint64 nonce,address[] signers,uint8 threshold);
+-    struct Host { bool direct; bool tuna; uint64 pricePerGiB6; uint64 qualifiedUntil; bytes32 addressHash; address operator; address qualifier; }
++    struct Host { bool direct; bool provider; uint64 pricePerGiB6; uint64 qualifiedUntil; bytes32 addressHash; address operator; address qualifier; }
+     struct Policy { address owner; uint64 nonce; uint64 expires; uint64 maxPricePerGiB6; uint128 budget6; uint128 spent6; uint16 providerBps; }
+     struct Receipt { bytes32 id; bytes32 hostId; uint64 policyNonce; uint64 leaseUntil; uint64 issuedAt; uint64 anchor; uint128 cumulativeBytes; uint64 pricePerGiB6; }
+     // One owner authorization covers the complete paid provider path. Its
+     // aggregate price, rather than each individual hop, is capped by the owner.
+-    struct TunaReceipt { bytes32 id; bytes32 runnerId; bytes32 providerId; uint64 policyNonce; uint64 leaseUntil; uint64 issuedAt; uint64 anchor; uint128 cumulativeBytes; uint64 pricePerGiB6; }
+-    mapping(bytes32 => bool) public viaTuna;
+-    mapping(bytes32 => bytes32[]) private _tunaProviders;
+-    event TunaAuthorized(bytes32 indexed id,uint64 nonce,bytes32[] providers);
++    struct ProviderReceipt { bytes32 id; bytes32 runnerId; bytes32 providerId; uint64 policyNonce; uint64 leaseUntil; uint64 issuedAt; uint64 anchor; uint128 cumulativeBytes; uint64 pricePerGiB6; }
++    mapping(bytes32 => bool) public viaProviders;
++    mapping(bytes32 => bytes32[]) private _providers;
++    event ProvidersAuthorized(bytes32 indexed id,uint64 nonce,bytes32[] providers);
+     mapping(bytes32 => Host) public hosts;
+     mapping(bytes32 => Policy) public policies;
+     mapping(bytes32 => uint256) public units;
+     mapping(bytes32 => uint128) public bytesServed;
+     mapping(bytes32 => uint256) public policyUnits;
+-    event HostConfigured(bytes32 indexed hostId, bool direct, bool tuna, uint64 pricePerGiB6);
++    event HostConfigured(bytes32 indexed hostId, bool direct, bool provider, uint64 pricePerGiB6);
+     event Qualified(bytes32 indexed hostId, bytes32 addressHash, uint64 expires);
+     event DirectAuthorized(bytes32 indexed id, uint64 nonce, uint64 expires, uint64 maxPricePerGiB6, uint128 budget6);
+     event BandwidthCharged(bytes32 indexed id, bytes32 indexed hostId, uint256 amount6, uint256 cumulativeUnits);
+@@ -104,16 +104,16 @@ contract EnclaveConnectivity {
+         (ok,,,)=qualificationFor(hostId,bytes32(0));
+     }
+     function qualifiedFor(bytes32 hostId,bytes32 id) public view returns(bool ok){(ok,,,)=qualificationFor(hostId,id);}
+-    function setHost(bytes32 hostId, bool direct, bool tuna, uint64 pricePerGiB6) external {
++    function setHost(bytes32 hostId, bool direct, bool provider, uint64 pricePerGiB6) external {
+         require(registry.get(hostId).operator == msg.sender);
+-        Host storage h = hosts[hostId];h.direct = direct;h.tuna = tuna;h.pricePerGiB6 = pricePerGiB6;
+-        emit HostConfigured(hostId,direct,tuna,pricePerGiB6);
++        Host storage h = hosts[hostId];h.direct = direct;h.provider = provider;h.pricePerGiB6 = pricePerGiB6;
++        emit HostConfigured(hostId,direct,provider,pricePerGiB6);
+     }
+-    function capabilities(bytes32 hostId) external view returns (bool direct, bool tuna) {
++    function capabilities(bytes32 hostId) external view returns (bool direct, bool provider) {
+         return capabilitiesFor(hostId,bytes32(0));
+     }
+-    function capabilitiesFor(bytes32 hostId,bytes32 id) public view returns(bool direct,bool tuna) {
+-        bool q=qualifiedFor(hostId,id);return(q&&hosts[hostId].direct,q&&hosts[hostId].tuna);
++    function capabilitiesFor(bytes32 hostId,bytes32 id) public view returns(bool direct,bool provider) {
++        bool q=qualifiedFor(hostId,id);return(q&&hosts[hostId].direct,q&&hosts[hostId].provider);
+     }
+     function policyDigest(bytes32 id, uint64 expires, uint64 maxPricePerGiB6, uint128 budget6) public view returns (bytes32) {
+         return keccak256(abi.encode("EnclaveConnectivity.policy.v1",block.chainid,address(this),address(ledger),id,
+@@ -125,7 +125,7 @@ contract EnclaveConnectivity {
+         require(_signedBy(d.owner,policyDigest(id,expires,maxPricePerGiB6,budget6),signature));
+         uint64 nonce = policies[id].nonce + 1;
+         policies[id] = Policy(d.owner,nonce,expires,maxPricePerGiB6,budget6,0,ledger.runnerBps());
+-        viaTuna[id] = false;delete _tunaProviders[id];
++        viaProviders[id] = false;delete _providers[id];
+         emit DirectAuthorized(id,nonce,expires,maxPricePerGiB6,budget6);
+     }
+     function revokeDirect(bytes32 id) external {
+@@ -134,7 +134,7 @@ contract EnclaveConnectivity {
+     function quote(bytes32 id) public view returns (uint64 pricePerGiB6, bool selfHosted) {
+         EnclaveDeployments.Deployment memory d = ledger.get(id);
+         Policy memory p = policies[id];Host memory h = hosts[d.runner];
+-        require(!viaTuna[id] && d.active && d.leaseUntil > block.timestamp && p.owner == d.owner && p.expires > block.timestamp && h.direct && qualifiedFor(d.runner,id));
++        require(!viaProviders[id] && d.active && d.leaseUntil > block.timestamp && p.owner == d.owner && p.expires > block.timestamp && h.direct && qualifiedFor(d.runner,id));
+         IEnclaveRegistry.Enclave memory provider = registry.get(d.runner);
+         require(provider.operator == d.runnerOperator);
+         selfHosted = provider.payoutWallet != address(0) && provider.payoutWallet == d.owner;
+@@ -170,50 +170,50 @@ contract EnclaveConnectivity {
+         if (delta6 > 0) ledger.chargeBandwidth(r.id,delta6,provider6,d.runnerOperator);
+         emit BandwidthCharged(r.id,r.hostId,delta6,units[key]);
+     }
+-    function tunaProviders(bytes32 id) external view returns(bytes32[] memory) {return _tunaProviders[id];}
+-    function tunaPolicyDigest(bytes32 id,bytes32[] calldata providers,uint64 expires,uint64 maxPricePerGiB6,uint128 budget6) public view returns(bytes32) {
+-        return keccak256(abi.encode("EnclaveConnectivity.tuna-policy.v1",block.chainid,address(this),address(ledger),id,
++    function providersOf(bytes32 id) external view returns(bytes32[] memory) {return _providers[id];}
++    function providerPolicyDigest(bytes32 id,bytes32[] calldata providers,uint64 expires,uint64 maxPricePerGiB6,uint128 budget6) public view returns(bytes32) {
++        return keccak256(abi.encode("EnclaveConnectivity.provider-policy.v1",block.chainid,address(this),address(ledger),id,
+             ledger.get(id).owner,policies[id].nonce+1,providers,expires,maxPricePerGiB6,budget6));
+     }
+-    function authorizeTuna(bytes32 id,bytes32[] calldata providers,uint64 expires,uint64 maxPricePerGiB6,uint128 budget6,bytes calldata signature) external {
++    function authorizeProviders(bytes32 id,bytes32[] calldata providers,uint64 expires,uint64 maxPricePerGiB6,uint128 budget6,bytes calldata signature) external {
+         EnclaveDeployments.Deployment memory d=ledger.get(id);
+         require(d.active&&expires>block.timestamp&&expires<=block.timestamp+30 days&&providers.length>0&&providers.length<=6);
+-        require(_signedBy(d.owner,tunaPolicyDigest(id,providers,expires,maxPricePerGiB6,budget6),signature));
++        require(_signedBy(d.owner,providerPolicyDigest(id,providers,expires,maxPricePerGiB6,budget6),signature));
+         uint256 total;
+         for(uint256 i;i<providers.length;i++){
+-            require(providers[i]!=bytes32(0)&&hosts[providers[i]].tuna&&qualifiedFor(providers[i],id));
++            require(providers[i]!=bytes32(0)&&hosts[providers[i]].provider&&qualifiedFor(providers[i],id));
+             for(uint256 j;j<i;j++)require(providers[j]!=providers[i]);
+             total+=hosts[providers[i]].pricePerGiB6;
+         }
+         require(total<=maxPricePerGiB6);
+         uint64 nonce=policies[id].nonce+1;
+         policies[id]=Policy(d.owner,nonce,expires,maxPricePerGiB6,budget6,0,ledger.runnerBps());
+-        viaTuna[id]=true;_tunaProviders[id]=providers;
+-        emit TunaAuthorized(id,nonce,providers);
++        viaProviders[id]=true;_providers[id]=providers;
++        emit ProvidersAuthorized(id,nonce,providers);
+     }
+-    function quoteTuna(bytes32 id,bytes32 providerId) public view returns(uint64 pricePerGiB6) {
++    function quoteProvider(bytes32 id,bytes32 providerId) public view returns(uint64 pricePerGiB6) {
+         EnclaveDeployments.Deployment memory d=ledger.get(id);Policy memory p=policies[id];
+-        require(viaTuna[id]&&d.active&&d.leaseUntil>block.timestamp&&p.owner==d.owner&&p.expires>block.timestamp);
+-        bool included;uint256 total;bytes32[] storage providers=_tunaProviders[id];
++        require(viaProviders[id]&&d.active&&d.leaseUntil>block.timestamp&&p.owner==d.owner&&p.expires>block.timestamp);
++        bool included;uint256 total;bytes32[] storage providers=_providers[id];
+         for(uint256 i;i<providers.length;i++){
+             bytes32 h=providers[i];
+             total+=hosts[h].pricePerGiB6;if(h==providerId)included=true;
+         }
+-        require(included&&hosts[providerId].tuna&&qualifiedFor(providerId,id)&&total<=p.maxPricePerGiB6);
++        require(included&&hosts[providerId].provider&&qualifiedFor(providerId,id)&&total<=p.maxPricePerGiB6);
+         return hosts[providerId].pricePerGiB6;
+     }
+-    function tunaReceiptDigest(TunaReceipt calldata r) public view returns(bytes32) {
+-        return keccak256(abi.encode("EnclaveConnectivity.tuna-receipt.v1",block.chainid,address(this),address(ledger),r,blockhash(r.anchor)));
++    function providerReceiptDigest(ProviderReceipt calldata r) public view returns(bytes32) {
++        return keccak256(abi.encode("EnclaveConnectivity.provider-receipt.v1",block.chainid,address(this),address(ledger),r,blockhash(r.anchor)));
+     }
+-    function settleTuna(TunaReceipt calldata r,bytes calldata runnerSignature,bytes calldata providerSignature) external {
+-        uint64 rate=quoteTuna(r.id,r.providerId);require(rate>0&&rate==r.pricePerGiB6);
++    function settleProvider(ProviderReceipt calldata r,bytes calldata runnerSignature,bytes calldata providerSignature) external {
++        uint64 rate=quoteProvider(r.id,r.providerId);require(rate>0&&rate==r.pricePerGiB6);
+         EnclaveDeployments.Deployment memory d=ledger.get(r.id);Policy storage p=policies[r.id];
+         require(r.runnerId==d.runner&&r.leaseUntil==d.leaseUntil&&r.policyNonce==p.nonce&&r.issuedAt<=block.timestamp&&
+             block.timestamp-r.issuedAt<=60&&r.anchor<block.number&&block.number-r.anchor<=256&&blockhash(r.anchor)!=bytes32(0));
+         IEnclaveRegistry.Enclave memory runner=registry.get(d.runner);
+         IEnclaveRegistry.Enclave memory provider=registry.get(r.providerId);
+         require(runner.active&&runner.operator==d.runnerOperator&&provider.active);
+-        bytes32 digest=tunaReceiptDigest(r);
++        bytes32 digest=providerReceiptDigest(r);
+         require(_recover(digest,runnerSignature)==runner.proofKey&&_recover(digest,providerSignature)==provider.proofKey);
+         bytes32 key=keccak256(abi.encode(r.id,r.providerId,r.policyNonce));
+         uint128 previous=bytesServed[key];require(r.cumulativeBytes>previous);
+diff --git a/contracts/foundry/test/EnclaveConnectivity.t.sol b/contracts/foundry/test/EnclaveConnectivity.t.sol
+index eafe26206..2001a640c 100644
+--- a/contracts/foundry/test/EnclaveConnectivity.t.sol
++++ b/contracts/foundry/test/EnclaveConnectivity.t.sol
+@@ -150,10 +150,10 @@ contract EnclaveConnectivityTest is Test {
+         assertEq(ledger.earned6(operator),0);assertEq(usdc.balanceOf(payout),platform);
+     }
+     function test_sameQualificationExpiresBothCapabilities() public {
+-        (bool direct,bool tuna)=connectivity.capabilities(HOST);assertTrue(direct&&tuna);
+-        vm.warp(T0+301);(direct,tuna)=connectivity.capabilities(HOST);assertFalse(direct||tuna);
++        (bool direct,bool provider)=connectivity.capabilities(HOST);assertTrue(direct&&provider);
++        vm.warp(T0+301);(direct,provider)=connectivity.capabilities(HOST);assertFalse(direct||provider);
+         vm.prank(operator);connectivity.setHost(HOST,true,false,1e6);
+-        (direct,tuna)=connectivity.capabilities(HOST);assertFalse(direct||tuna);
++        (direct,provider)=connectivity.capabilities(HOST);assertFalse(direct||provider);
+     }
+     function test_wrongMeterCannotCharge() public {
+         EnclaveConnectivity.Receipt memory r=_receipt(GIB);
+@@ -168,7 +168,7 @@ contract EnclaveConnectivityTest is Test {
+     }
+     function test_replacingTrustStopsBothAppCapabilitiesImmediately() public {
+         address[] memory signers=new address[](1);signers[0]=vm.addr(777);_trust(signers,1);
+-        (bool direct,bool tuna)=connectivity.capabilitiesFor(HOST,id);assertFalse(direct||tuna);_reject(GIB);
++        (bool direct,bool provider)=connectivity.capabilitiesFor(HOST,id);assertFalse(direct||provider);_reject(GIB);
+     }
+     function test_platformShareUsesExistingVerificationFeeRouting() public {
+         EnclaveProofOfTime proof=new EnclaveProofOfTime(address(ledger),address(registry));
+@@ -213,14 +213,14 @@ contract EnclaveConnectivityTest is Test {
+     }
+     function test_computeOnlyDisablesBothInternetServices() public {
+         vm.prank(operator);connectivity.setHost(HOST,false,false,0);
+-        (bool direct,bool tuna)=connectivity.capabilities(HOST);assertFalse(direct||tuna);
++        (bool direct,bool provider)=connectivity.capabilities(HOST);assertFalse(direct||provider);
+         _reject(GIB);
+         assertTrue(ledger.get(id).active);
+     }
+     bytes32 constant PROVIDER=keccak256("independent provider");
+     address providerOperator=address(0x456);
+     uint256 constant PROVIDER_KEY=444;
+-    function _tuna() internal {
++    function _providerPath() internal {
+         registry.configureProvider(PROVIDER,providerOperator,vm.addr(PROVIDER_KEY));
+         bytes32 addr=keccak256("9.9.9.9");
+         bytes32 q=connectivity.qualificationDigest(PROVIDER,addr,uint64(T0),uint64(T0+300),511);
+@@ -228,66 +228,66 @@ contract EnclaveConnectivityTest is Test {
+         vm.prank(providerOperator);connectivity.setHost(PROVIDER,false,true,1e6);
+         bytes32[] memory providers=new bytes32[](1);providers[0]=PROVIDER;
+         uint64 expiry=uint64(T0+3600);
+-        bytes32 digest=connectivity.tunaPolicyDigest(id,providers,expiry,1e6,10e6);
+-        connectivity.authorizeTuna(id,providers,expiry,1e6,10e6,_sig(OWNER,digest));
++        bytes32 digest=connectivity.providerPolicyDigest(id,providers,expiry,1e6,10e6);
++        connectivity.authorizeProviders(id,providers,expiry,1e6,10e6,_sig(OWNER,digest));
+     }
+-    function _tunaReceipt(uint128 count) internal view returns(EnclaveConnectivity.TunaReceipt memory){
++    function _providerReceipt(uint128 count) internal view returns(EnclaveConnectivity.ProviderReceipt memory){
+         (,uint64 nonce,,,,,)=connectivity.policies(id);
+-        return EnclaveConnectivity.TunaReceipt(id,HOST,PROVIDER,nonce,ledger.get(id).leaseUntil,uint64(T0),99,count,1e6);
++        return EnclaveConnectivity.ProviderReceipt(id,HOST,PROVIDER,nonce,ledger.get(id).leaseUntil,uint64(T0),99,count,1e6);
+     }
+-    function _tunaSettle(uint128 count) internal {
+-        EnclaveConnectivity.TunaReceipt memory r=_tunaReceipt(count);bytes32 digest=connectivity.tunaReceiptDigest(r);
+-        connectivity.settleTuna(r,_sig(METER,digest),_sig(PROVIDER_KEY,digest));
++    function _providerSettle(uint128 count) internal {
++        EnclaveConnectivity.ProviderReceipt memory r=_providerReceipt(count);bytes32 digest=connectivity.providerReceiptDigest(r);
++        connectivity.settleProvider(r,_sig(METER,digest),_sig(PROVIDER_KEY,digest));
+     }
+-    function test_tunaPaysActualProviderFromExistingBalance() public {
+-        _tuna();uint256 balance=ledger.get(id).balance6;uint256 platform=usdc.balanceOf(payout);
+-        _tunaSettle(GIB);
++    function test_providerPathPaysActualProviderFromExistingBalance() public {
++        _providerPath();uint256 balance=ledger.get(id).balance6;uint256 platform=usdc.balanceOf(payout);
++        _providerSettle(GIB);
+         assertEq(ledger.get(id).balance6,balance-1e6);assertEq(ledger.earned6(providerOperator),800000);
+         assertEq(ledger.earned6(operator),0);assertEq(usdc.balanceOf(payout)-platform,200000);
+         assertEq(ledger.bandwidthBackingRequired6(id),0);
+         vm.prank(providerOperator);connectivity.setHost(PROVIDER,false,true,2000000);
+-        vm.expectRevert();connectivity.quoteTuna(id,PROVIDER);
++        vm.expectRevert();connectivity.quoteProvider(id,PROVIDER);
+     }
+-    function test_tunaRequiresBothSignersAndCannotReplayOrUseDirectAuthorization() public {
+-        _tuna();EnclaveConnectivity.TunaReceipt memory r=_tunaReceipt(GIB);bytes32 digest=connectivity.tunaReceiptDigest(r);
++    function test_providerPathRequiresBothSignersAndCannotReplayOrUseDirectAuthorization() public {
++        _providerPath();EnclaveConnectivity.ProviderReceipt memory r=_providerReceipt(GIB);bytes32 digest=connectivity.providerReceiptDigest(r);
+         bytes memory runnerSig=_sig(METER,digest);bytes memory providerSig=_sig(PROVIDER_KEY,digest);
+-        vm.expectRevert();connectivity.settleTuna(r,providerSig,providerSig);
+-        vm.expectRevert();connectivity.settleTuna(r,runnerSig,runnerSig);
+-        connectivity.settleTuna(r,runnerSig,providerSig);
+-        vm.expectRevert();connectivity.settleTuna(r,runnerSig,providerSig);
++        vm.expectRevert();connectivity.settleProvider(r,providerSig,providerSig);
++        vm.expectRevert();connectivity.settleProvider(r,runnerSig,runnerSig);
++        connectivity.settleProvider(r,runnerSig,providerSig);
++        vm.expectRevert();connectivity.settleProvider(r,runnerSig,providerSig);
+         vm.expectRevert();connectivity.quote(id);
+-        _policy(10e6);vm.expectRevert();connectivity.quoteTuna(id,PROVIDER);
+-    }
+-    function test_tunaCapsTheWholePathAndRejectsDuplicateProviders() public {
+-        _tuna();bytes32[] memory providers=new bytes32[](2);providers[0]=HOST;providers[1]=PROVIDER;
+-        uint64 expiry=uint64(T0+3600);bytes memory sig=_sig(OWNER,connectivity.tunaPolicyDigest(id,providers,expiry,1e6,10e6));
+-        vm.expectRevert();connectivity.authorizeTuna(id,providers,expiry,1e6,10e6,sig);
+-        sig=_sig(OWNER,connectivity.tunaPolicyDigest(id,providers,expiry,2e6,10e6));
+-        connectivity.authorizeTuna(id,providers,expiry,2e6,10e6,sig);
+-        assertEq(connectivity.quoteTuna(id,PROVIDER),1e6);
+-        providers[1]=HOST;sig=_sig(OWNER,connectivity.tunaPolicyDigest(id,providers,expiry,2e6,10e6));
+-        vm.expectRevert();connectivity.authorizeTuna(id,providers,expiry,2e6,10e6,sig);
+-    }
+-    function test_tunaRevocationBudgetAndQualificationStopPayment() public {
+-        _tuna();_tunaSettle(GIB);EnclaveConnectivity.TunaReceipt memory r=_tunaReceipt(11*GIB);
+-        bytes32 digest=connectivity.tunaReceiptDigest(r);bytes memory a=_sig(METER,digest);bytes memory b=_sig(PROVIDER_KEY,digest);
+-        vm.expectRevert();connectivity.settleTuna(r,a,b);
+-        vm.prank(tenant);connectivity.revokeDirect(id);vm.expectRevert();connectivity.quoteTuna(id,PROVIDER);
+-        _tuna();vm.warp(T0+301);vm.expectRevert();connectivity.quoteTuna(id,PROVIDER);
+-    }
+-    function test_tunaFragmentationConservesSplitAndSelfHostingDoesNotWaiveRemoteProvider() public {
+-        _tuna();registry.configure(operator,tenant,vm.addr(METER));
+-        _tunaSettle(1);_tunaSettle(1074);_tunaSettle(GIB/2);_tunaSettle(GIB);
++        _policy(10e6);vm.expectRevert();connectivity.quoteProvider(id,PROVIDER);
++    }
++    function test_providerPathCapsTheWholePathAndRejectsDuplicateProviders() public {
++        _providerPath();bytes32[] memory providers=new bytes32[](2);providers[0]=HOST;providers[1]=PROVIDER;
++        uint64 expiry=uint64(T0+3600);bytes memory sig=_sig(OWNER,connectivity.providerPolicyDigest(id,providers,expiry,1e6,10e6));
++        vm.expectRevert();connectivity.authorizeProviders(id,providers,expiry,1e6,10e6,sig);
++        sig=_sig(OWNER,connectivity.providerPolicyDigest(id,providers,expiry,2e6,10e6));
++        connectivity.authorizeProviders(id,providers,expiry,2e6,10e6,sig);
++        assertEq(connectivity.quoteProvider(id,PROVIDER),1e6);
++        providers[1]=HOST;sig=_sig(OWNER,connectivity.providerPolicyDigest(id,providers,expiry,2e6,10e6));
++        vm.expectRevert();connectivity.authorizeProviders(id,providers,expiry,2e6,10e6,sig);
++    }
++    function test_providerPathRevocationBudgetAndQualificationStopPayment() public {
++        _providerPath();_providerSettle(GIB);EnclaveConnectivity.ProviderReceipt memory r=_providerReceipt(11*GIB);
++        bytes32 digest=connectivity.providerReceiptDigest(r);bytes memory a=_sig(METER,digest);bytes memory b=_sig(PROVIDER_KEY,digest);
++        vm.expectRevert();connectivity.settleProvider(r,a,b);
++        vm.prank(tenant);connectivity.revokeDirect(id);vm.expectRevert();connectivity.quoteProvider(id,PROVIDER);
++        _providerPath();vm.warp(T0+301);vm.expectRevert();connectivity.quoteProvider(id,PROVIDER);
++    }
++    function test_providerPathFragmentationConservesSplitAndSelfHostingDoesNotWaiveRemoteProvider() public {
++        _providerPath();registry.configure(operator,tenant,vm.addr(METER));
++        _providerSettle(1);_providerSettle(1074);_providerSettle(GIB/2);_providerSettle(GIB);
+         assertEq(ledger.earned6(providerOperator),800000);
+     }
+     function test_unavailableSiblingDoesNotBlockQualifiedProvider() public {
+-        _tuna();bytes32[] memory providers=new bytes32[](2);providers[0]=HOST;providers[1]=PROVIDER;
+-        uint64 expiry=uint64(T0+3600);bytes memory sig=_sig(OWNER,connectivity.tunaPolicyDigest(id,providers,expiry,2e6,10e6));
+-        connectivity.authorizeTuna(id,providers,expiry,2e6,10e6,sig);
++        _providerPath();bytes32[] memory providers=new bytes32[](2);providers[0]=HOST;providers[1]=PROVIDER;
++        uint64 expiry=uint64(T0+3600);bytes memory sig=_sig(OWNER,connectivity.providerPolicyDigest(id,providers,expiry,2e6,10e6));
++        connectivity.authorizeProviders(id,providers,expiry,2e6,10e6,sig);
+         vm.prank(operator);connectivity.setHost(HOST,false,false,1e6);
+-        assertEq(connectivity.quoteTuna(id,PROVIDER),1e6);
+-        vm.expectRevert();connectivity.quoteTuna(id,HOST);
+-        _tunaSettle(GIB);assertEq(ledger.earned6(providerOperator),800000);
++        assertEq(connectivity.quoteProvider(id,PROVIDER),1e6);
++        vm.expectRevert();connectivity.quoteProvider(id,HOST);
++        _providerSettle(GIB);assertEq(ledger.earned6(providerOperator),800000);
+     }
+ 
+ }
+diff --git a/site/js/gen/contract-artifacts.js b/site/js/gen/contract-artifacts.js
+index 396b972ec..e5d09b3c0 100644
+--- a/site/js/gen/contract-artifacts.js
++++ b/site/js/gen/contract-artifacts.js
+@@ -381,7 +381,7 @@ export const CONTRACTS = {
+       "attestations": "cf1aab95",
+       "authorizeDirect": "d14cf349",
+       "authorizeProbeTrust": "71abb51b",
+-      "authorizeTuna": "dff2bdf4",
++      "authorizeProviders": "2be89fe4",
+       "bytesServed": "98daef42",
+       "capabilities": "c2ead131",
+       "capabilitiesFor": "3f6d25e8",
+@@ -392,35 +392,35 @@ export const CONTRACTS = {
+       "policyUnits": "651dbe69",
+       "probeTrust": "dafe6dc6",
+       "probeTrustDigest": "8233a444",
++      "providerPolicyDigest": "5c50050e",
++      "providerReceiptDigest": "a4ae85d6",
++      "providersOf": "5341aef5",
+       "qualificationDigest": "42b0a06b",
+       "qualificationFor": "c8a998b8",
+       "qualified": "a0e7fb86",
+       "qualifiedFor": "3e8da664",
+       "qualify": "3921ae68",
+       "quote": "15f05b05",
+-      "quoteTuna": "7f54c970",
++      "quoteProvider": "b5e521e8",
+       "receiptDigest": "b7f97f63",
+       "registry": "7b103999",
+       "revokeDirect": "427121b3",
+       "setHost": "14455098",
+       "settle": "9568cf7b",
+-      "settleTuna": "e045f3d2",
+-      "tunaPolicyDigest": "70b410fa",
+-      "tunaProviders": "a71dadce",
+-      "tunaReceiptDigest": "9df304f9",
++      "settleProvider": "31d14426",
+       "units": "feae7dc3",
+-      "viaTuna": "409bd96b"
++      "viaProviders": "135e0354"
+     },
+     "evt": {
+       "BandwidthCharged": "0xa37cb12be93fabc54c2fb3dbbce45d9f2aa8bfcf2a6b5ac7bfb7c139e88a937a",
+       "DirectAuthorized": "0x9f9773ff77d1a11ab6bb8ed803e76b19b7386e6810810d7ef5e12fdb00d8d2b6",
+       "HostConfigured": "0x57df1776a7fcf0ecfc16f28dc7b685ccfe39326a343eb11a5bbf69cef4514d09",
+       "ProbeTrustAuthorized": "0xd61aac9adc63eef5f4c1dba1bf139809e2890085025602210c8c32504f0d235b",
+-      "Qualified": "0x574bfb36cd2e8d405c665ea674dc1a98b92f470cad955888b577d8cb3f20c0f2",
+-      "TunaAuthorized": "0x048e2d227be846bc47e4eb344aba092dd297c4a6f7b295f6971e5cdfec85bd14"
++      "ProvidersAuthorized": "0x3de3233a119faf4cb1cf6d7707ac834818baaf24b6073a7102950e3c8fc3eaa4",
++      "Qualified": "0x574bfb36cd2e8d405c665ea674dc1a98b92f470cad955888b577d8cb3f20c0f2"
+     },
+-    "bytecode": "0x60c0806040523461015757614899803803809161001c828561034a565b83398101604082820312610157578151916001600160a01b03831690818403610157576020810151906001600160401b03821161015757019282601f85011215610157578351936001600160401b0385116102bd578460051b9360405195610087602087018861034a565b865260208601916020839682010191821161015757602001915b81831061032a57505050608052604051637b10399960e01b815290602090829060049082905afa90811561031f575f916102dd575b5060a052815180151590816102d1575b5015610157575f5b825181101561015b576001600160a01b03610109828561036d565b511615610157575f5b81811061012257506001016100ee565b6001600160a01b03610134838661036d565b51166001600160a01b03610148838761036d565b51161461015757600101610112565b5f80fd5b509051906001600160401b0382116102bd576801000000000000000082116102bd575f54825f55808310610293575b505f8080527f290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e5639291905b8281106102765760405161450390816103968239608051818181610256015281816108e101528181610f440152818161159901528181611c50015281816120690152818161210201528181612b6801528181613030015281816132360152818161349b01528181613774015281816138be01528181613fc6015261421c015260a0518181816102f80152818161164d01528181611b9d015281816122c80152818161259c01528181612d0f01528181612eed015281816139cd0152613cd40152f35b81516001600160a01b0316818501556020909101906001016101b4565b5f8052828060205f20019103905f5b8281106102b057505061018a565b5f828201556001016102a2565b634e487b7160e01b5f52604160045260245ffd5b6008915011155f6100e6565b90506020813d602011610317575b816102f86020938361034a565b8101031261015757516001600160a01b0381168103610157575f6100d6565b3d91506102eb565b6040513d5f823e3d90fd5b82516001600160a01b0381168103610157578152602092830192016100a1565b601f909101601f19168101906001600160401b038211908210176102bd57604052565b80518210156103815760209160051b010190565b634e487b7160e01b5f52603260045260245ffdfe6080806040526004361015610012575f80fd5b5f905f3560e01c908163144550981461254b5750806315f05b05146125185780633921ae681461225a5780633e8da664146122475780633f6d25e8146121d4578063409bd96b146121a5578063427121b3146120d257806342b0a06b1461209857806356397c3514612054578063651dbe691461202a57806370b410fa14611fd357806371abb51b14611bcc5780637b10399914611b885780637c33a66514611af55780637f54c97014611aca5780638233a44414611a7b57806389ef0c8f14611a5f5780639568cf7b1461152957806398daef42146114f65780639df304f9146114d8578063a0e7fb86146114ac578063a71dadce14611405578063b7f97f63146113e7578063c2ead1311461136f578063c8a998b814611328578063cf1aab95146112af578063d14cf34914610eda578063d1c9453b14610e9a578063dafe6dc614610e29578063ddbfd8ef14610d9a578063dff2bdf41461085a578063e045f3d2146101b55763feae7dc314610189575f80fd5b346101b25760203660031901126101b25760406020916004358152600783522054604051908152f35b80fd5b50346101b2573660031901610160811261085657610120136101b257610124356001600160401b038111610856576101f19036906004016126d6565b610144356001600160401b038111610649576102119036906004016126d6565b6044359360043593909290916001600160401b0361022f8787613218565b169384151580610833575b1561082f5760405163023aa9ab60e61b815260048101879052927f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031692908985602481875afa948515610824578a95610800575b50878a52600660205260408a20946101c0810196875160243514806107de575b806107bd575b806107a1575b8061077d575b80610762575b8061073d575b80610723575b156106a357965160405163023aa9ab60e61b815260048101919091527f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03169790918c836024818c5afa9283156106fb578d93610706575b508c8c6024604051809c819363023aa9ab60e61b835260048301525afa9889156106fb578d996106d6575b5060c0830151151590816106b4575b50806106a7575b156106a3576103929061038b613701565b958661427b565b610120909101516001600160a01b03918216911614928361067d575b50505015610679576103be6135de565b6040516103e3816103d560208201948b8b87613659565b03601f1981018352826127cf565b5190208088526008602052604088205490936001600160801b03918216939091849061040d613690565b16111561064d5761046961041f6135de565b604051610435816103d560208201948d86612e72565b519020808b52600960205260408b2054909790956001600160801b03906104639061045e613690565b6136a6565b166131c6565b936104748582613181565b90634000000082019081831161065157633fffffff830191821161065157634000000081019081811161066557633fffffff01908111610651578b9695949392916104c591601e1c90601e1c61364c565b97600283019283549060018060801b0382169060016104e48d84613181565b91015460801c1061064d5761271061051e61052593826105178f61050b61ffff9188613181565b9360801c1680936131c6565b04936131c6565b049061364c565b9561052e613690565b8989526008602052604089209060018060801b031660018060801b0319825416179055888852600760205261056860408920918254613181565b905586526009602052604086205580546001600160801b0390610590908983169083166136bf565b82546001600160801b0319169116179055856105d5575b505050916040915f5160206144ae5f395f51905f52935260076020528186205482519182526020820152a380f35b606001516001600160a01b031691813b1561064957839186838961060f60405197889687958694631867354d60e21b8652600486016136d8565b03925af1801561063e57610625575b80806105a7565b8161062f916127cf565b61063a57845f61061e565b8480fd5b6040513d84823e3d90fd5b8380fd5b8880fd5b634e487b7160e01b8c52601160045260248cfd5b634e487b7160e01b8d52601160045260248dfd5b8680fd5b610687935061427b565b6101208401516001600160a01b039182169116145f80806103ae565b8b80fd5b5060c0880151151561037a565b60608401516101e0909101516001600160a01b0390811691161490505f610373565b6106f49199508d3d8091833e6106ec81836127cf565b810190612888565b975f610364565b6040513d8f823e3d90fd5b61071c9193508d3d8091833e6106ec81836127cf565b915f610339565b506001600160401b03610734613636565b164015156102da565b5061010061075b6001600160401b03610754613636565b164361364c565b11156102d4565b5061076b613636565b436001600160401b03909116106102ce565b50603c61079a6001600160401b03610793613620565b164261364c565b11156102c8565b506107aa613620565b426001600160401b0390911611156102c2565b506107c66135de565b875460a01c6001600160401b039081169116146102bc565b506107e761360a565b6102008301516001600160401b039182169116146102b6565b61081d9195503d808c833e61081581836127cf565b8101906129b9565b935f610296565b6040513d8c823e3d90fd5b8780fd5b50610104356001600160401b038116908181036108525750851461023a565b8980fd5b5080fd5b50346101b25760c03660031901126101b257600435906024356001600160401b0381116108565761088f903690600401612719565b61089a939193612699565b6108a2612683565b906108ab612749565b9060a4356001600160401b038111610679576108cb9036906004016126d6565b60405163023aa9ab60e61b8152600481018890527f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03169492908981602481895afa908115610824578a91610d80575b50610120810151151580610d6e575b80610d3b575b80610d32575b80610d27575b156108525791610975918961096f868a8f9a998d6020829b9a019c8d60018060a01b0390511696613014565b90614347565b1561082f578794885b8989898d818510610c4357505050505060018060401b031680951161082f579060049291878952600660205260206109c460018060401b0360408c205460a01c16612e8b565b95516040516314f267f360e21b8152956001600160a01b039091169486919082905afa938415610c38578994610bf6575b50906002929160405192610a08846127b4565b83526001600160401b0395861660208085018281529388166040808701918252606087019a8b526001600160801b039094166080870190815260a087018e815261ffff9990991660c088019081528d8f526006909352938d20955186546001600160a01b0319166001600160a01b0391909116178655935191989697909691610a92911685612ea3565b9151915190516001600160801b0319608091821b166001600160401b03938416600160401b600160801b03604094851b1617176001858101919091559651949093018054955161ffff60801b941b939093166001600160801b039094166001600160901b03199095169490941792909217905585875260036020908152828820805460ff19169094179093558587526004909252852095908311610be257600160401b8311610be2578554838755808410610bb7575b50809585526020852095855b848110610ba357505090610b9d7f048e2d227be846bc47e4eb344aba092dd297c4a6f7b295f6971e5cdfec85bd1493926040519384938452604060208501526040840191612ff0565b0390a280f35b60019060208335930192818a015501610b54565b86865283806020882001910390865b828110610bd4575050610b48565b600190888184015501610bc6565b634e487b7160e01b85526041600452602485fd5b9093506020813d602011610c30575b81610c12602093836127cf565b8101031261064d5790610c27600293926129aa565b939091926109f5565b3d9150610c05565b6040513d8b823e3d90fd5b9081610c538683819e989561318e565b3515159485610cff575b5084610cdd575b50505050156108525786888c8c5b838110610caf5750610ca89260019492610c8b9261318e565b358c526005602052828060401b0360408d205460101c1690613181565b960161097e565b9282610cc0858495610cc79561318e565b359361318e565b3514610cd957600101888c8992610c72565b8a80fd5b610cf3945090610ced929161318e565b35613cb0565b50505089888a8e610c64565b819550604090610d12858560ff9561318e565b3581526005602052205460081c16938e610c5d565b506006881115610943565b5087151561093d565b5062278d004201804211610d5a576001600160401b0386161115610937565b634e487b7160e01b8b52601160045260248bfd5b50426001600160401b03861611610931565b610d9491503d808c833e61081581836127cf565b5f610922565b50346101b25760203660031901126101b2576004358152600660209081526040918290208054600182015460029092015484516001600160a01b038316815260a092831c6001600160401b0390811695820195909552848416818701529483901c9093166060850152608091821c828501526001600160801b038316908401521c61ffff1660c082015260e090f35b50346101b25760203660031901126101b257610e466004356140f3565b919060405191604083016040845282518091526020606085019301915b818110610e7b5750505060ff82931660208301520390f35b82516001600160a01b0316845260209384019390920191600101610e63565b50346101b25760803660031901126101b2576020610ed2610eb96126af565b610ec1612699565b610ec961275f565b91600435613fb0565b604051908152f35b50346101b25760a03660031901126101b25760043590610ef86126af565b91610f01612699565b92610f0a61275f565b906084356001600160401b03811161063a57610f2a9036906004016126d6565b60405163023aa9ab60e61b815260048101869052919690917f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031691908781602481865afa9081156112a457889161128a575b506001600160401b03851693841580611279575b80611268575b801561121e575b99899a999798991561082f578961096f8a866020610fcf97019a60018060a01b038c511694613fb0565b1561063a5760049187865260066020526020610ff960018060401b03604089205460a01c16612e8b565b95516040516314f267f360e21b8152946001600160a01b039091169285919082905afa91821561121357889387936111cc575b50906002916040519161103e836127b4565b82526001600160401b03968716602080840182815260408086018a8152948b16606087018181526001600160801b03909e166080880181815260a089018f815261ffff9b909b1660c08a019081529b8f52600690955291909c20955186546001600160a01b0319166001600160a01b03919091161786559051929b909a99969796919290916110ce911685612ea3565b9151915190516001600160801b0319608091821b166001600160401b03909316600160401b600160801b03604093841b16179290921760018401559451929091018054935161ffff60801b921b919091166001600160801b039092166001600160901b03199093169290921717905585875260036020908152818820805460ff19169055868852600490528620805487825590816111a9575b5050917f9f9773ff77d1a11ab6bb8ed803e76b19b7386e6810810d7ef5e12fdb00d8d2b69391608093604051938452602084015260408301526060820152a280f35b875260208720875b8281106111be5750611167565b6001908981840155016111b1565b91935091506020813d60201161120b575b816111ea602093836127cf565b810103126112075787926111ff6002926129aa565b92909161102c565b8580fd5b3d91506111dd565b6040513d88823e3d90fd5b5061012082015115158061125f575b8015610fa5575062278d004201998a421161124b5799851115610fa5565b634e487b7160e01b8a52601160045260248afd5b5042851161122d565b506001600160801b03871615610f9e565b506001600160401b03831615610f98565b61129e91503d808a833e61081581836127cf565b5f610f84565b6040513d8a823e3d90fd5b50346101b25760403660031901126101b257602435906001600160a01b03821682036101b2576004358152600260208181526040928390206001600160a01b039485165f9081529082528390208054600182015491909301548451939095168352908201526001600160401b0390921690820152606090f35b50346101b257608061134261133c36612703565b90613cb0565b6040805194151585526001600160401b039093166020850152918301526001600160a01b03166060820152f35b50346101b25760203660031901126101b25760043561138e8282613cb0565b505050918291826113d0575b836113b5575b50506040805191151582529115156020820152f35b81526005602052604090205460081c60ff1691505f806113a0565b8082526005602052604082205460ff16925061139a565b50346101b2576101003660031901126101b257506020610ed2613858565b50346101b25760203660031901126101b2576004358152600460205260408120604051908160208254918281520190819285526020852090855b81811061149657505050826114559103836127cf565b604051928392602084019060208552518091526040840192915b81811061147d575050500390f35b825184528594506020938401939092019160010161146f565b825484526020909301926001928301920161143f565b50346101b25760203660031901126101b25760206114cb6004356139ac565b5050506040519015158152f35b50346101b2576101203660031901126101b257506020610ed2613701565b50346101b25760203660031901126101b257602090600435815260088252604060018060801b0391205416604051908152f35b503461191b573660031901610120811261191b576101001361191b57610104356001600160401b03811161191b576115659036906004016126d6565b906004359061157382612b4b565b9190911580611a38575b1561191b5760405163023aa9ab60e61b815260048101849052907f00000000000000000000000000000000000000000000000000000000000000006001600160a01b0316905f83602481855afa928315611910575f93611a1c575b50845f52600660205260405f2090602435966101c08501518814806119fa575b806119d9575b806119bd575b806119a0575b80611985575b80611967575b8061194d575b1561191b576116329161162d613858565b61427b565b60405163023aa9ab60e61b8152600481018890525f816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115611910575f91611933575b5061012001516001600160a01b0390811691160361191b576116a56135f4565b6040516116bc816103d560208201948b8b87613659565b5190205f8181526008602052604090205490936001600160801b0391821692909183906116e761367a565b16111561191b576117466116f96135f4565b60405161170f816103d560208201948d86612e72565b51902096875f52600960205260405f20549461173460018060801b039161045e61367a565b6001600160401b0390921691166131c6565b926117518482613181565b906340000000820180831161191f57633fffffff830190811161191f57634000000082019182811161191f57633fffffff0191821161191f5761179a91601e1c90601e1c61364c565b96600283019283549060018060801b0382169060016117b98c84613181565b91015460801c1061191b5761271061051e6117e0938261051761ffff8f61050b9088613181565b946117e961367a565b5f89815260086020908152604080832080546001600160801b0319166001600160801b039095169490941790935560079052208054909161182991613181565b90555f9081526009602052604090205580546001600160801b0390611853908883169083166136bf565b82546001600160801b031916911617905584611898575b5050505f5160206144ae5f395f51905f5291604091865260076020528186205482519182526020820152a380f35b6101e001516001600160a01b0316823b1561191b576118d2925f9283604051809681958294631867354d60e21b84528b8d600486016136d8565b03925af18015611910576118e8575b808061186a565b6040919550916119065f5f5160206144ae5f395f51905f52946127cf565b5f959150916118e1565b6040513d5f823e3d90fd5b5f80fd5b634e487b7160e01b5f52601160045260245ffd5b61194791503d805f833e6106ec81836127cf565b5f611685565b506001600160401b0361195e613620565b1640151561161c565b5061010061197e6001600160401b03610754613620565b1115611616565b5061198e613620565b436001600160401b0390911610611610565b50603c6119b66001600160401b0361079361360a565b111561160a565b506119c661360a565b426001600160401b039091161115611604565b506119e26135f4565b835460a01c6001600160401b039081169116146115fe565b50611a036135de565b6102008601516001600160401b039182169116146115f8565b611a319193503d805f833e61081581836127cf565b915f6115d8565b5060e4356001600160401b0381169081810361191b57506001600160401b0383161461157d565b3461191b575f36600319011261191b5760206040516101ff8152f35b3461191b57608036600319011261191b576024356001600160401b03811161191b57610ed2611ab06020923690600401612719565b611ab8612775565b90611ac1612683565b92600435613481565b3461191b576020611ae3611add36612703565b90613218565b6040516001600160401b039091168152f35b3461191b57602036600319011261191b576004355f52600560205260e060405f2080549060018101549060018060a01b0360028201541690600360018060a01b0391015416916040519360ff81161515855260ff8160081c161515602086015260018060401b038160101c16604086015260018060401b039060501c166060850152608084015260a083015260c0820152f35b3461191b575f36600319011261191b576040517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b3461191b5760a036600319011261191b576004356024356001600160401b03811161191b57611bff903690600401612719565b611c0a929192612775565b92611c13612683565b6084356001600160401b03811161191b57611c329036906004016126d6565b60405163023aa9ab60e61b8152600481018790529091905f816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115611910575f91611fb9575b50602001516001600160a01b03169283151580611fb0575b80611fa5575b80611f99575b80611f8c575b1561191b57426001600160401b0382169081119081611f74575b501561191b575f5b868110611f03575090611cee611cf493928988888b613481565b84614347565b1561191b5760405190611d0682612799565b815260ff9490941660208501818152946001600160401b038411611ed7578360051b9560405196611d3a60208201896127cf565b85885284016020880136821161191b5785905b828210611eeb5750505060408083019788525f878152600160208190529190209251835492516001600160a81b03199093166001600160a01b03919091161760a09290921b60ff60a01b169190911782559551805191909601956001600160401b038211611ed757600160401b8211611ed7578654828855808310611ead575b50602001955f5260205f20955f5b828110611e9057867fd61aac9adc63eef5f4c1dba1bf139809e2890085025602210c8c32504f0d235b878787845f526006602052611e3160405f20611e2b60018060401b03825460a01c16612e8b565b90612ea3565b5f85815260066020908152604091829020600181810180546001600160401b031916909117905554915160a09290921c6001600160401b03168252606090820181905290938493611e8592850191906131d9565b9060408301520390a2005b81516001600160a01b031681890155602090910190600101611ddb565b875f52828060205f20019103905f5b828110611eca575050611dcd565b5f82820155600101611ebc565b634e487b7160e01b5f52604160045260245ffd5b60208091611ef884612785565b815201910190611d4d565b6001600160a01b03611f1e611f19838a8a61318e565b6131b2565b161561191b575f5b818110611f365750600101611cd4565b611f44611f19838a8a61318e565b6001600160a01b03611f5a611f19848c8c61318e565b6001600160a01b0390921691161461191b57600101611f26565b90506201518042019081421161191f57111589611ccc565b508560ff89161115611cb2565b5060ff88161515611cac565b506008861115611ca6565b50851515611ca0565b611fcd91503d805f833e61081581836127cf565b88611c88565b3461191b5760a036600319011261191b576024356001600160401b03811161191b57610ed26120086020923690600401612719565b612010612699565b612018612683565b91612021612749565b93600435613014565b3461191b57602036600319011261191b576004355f526009602052602060405f2054604051908152f35b3461191b575f36600319011261191b576040517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b3461191b5760a036600319011261191b576020610ed26120b6612699565b6120be612683565b6120c66126c5565b91602435600435612ecc565b3461191b57602036600319011261191b5760405163023aa9ab60e61b815260048035908201819052905f816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115611910575f9161218b575b50602001516001600160a01b0316330361191b575f9081526006602052604090206001810180546001600160401b031916905580546121899190611e2b9060a01c6001600160401b0316612e8b565b005b61219f91503d805f833e61081581836127cf565b8261213a565b3461191b57602036600319011261191b576004355f526003602052602060ff60405f2054166040519015158152f35b3461191b576121ee6121e536612703565b90919082613cb0565b50505080918161222f575b82612213575b506040805191151582529115156020820152f35b9091505f52600560205260ff60405f205460081c1690826121ff565b8091505f52600560205260ff60405f205416906121f9565b3461191b5760206114cb61133c36612703565b3461191b5760c036600319011261191b57600435602435612279612699565b90612282612683565b9061228b6126c5565b9260a4356001600160401b03811161191b576122ab9036906004016126d6565b60405163023aa9ab60e61b81526004810188905295915f876024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa968715611910575f976124fc575b5060c08701511515806124f3575b806124e4575b806124d1575b806124bf575b806124aa575b8061247e575b1561191b5761162d6123439387606096888c612ecc565b930180519093906001600160a01b0380831691161461191b575f8581526002602081815260408084206001600160a01b0386168552909152909120908101546001600160401b03858116969291168611908115612464575b501561191b57516040517f574bfb36cd2e8d405c665ea674dc1a98b92f470cad955888b577d8cb3f20c0f29590926002926001600160a01b03166123de85612799565b8452602080850186815260408087019485525f8b81528684528181206001600160a01b03958616825290935291829020955186546001600160a01b03191693169290921785559051600185015590519290910180546001600160401b0319166001600160401b0393909316929092179091555191829161245f919083612e72565b0390a2005b5482516001600160a01b039081169116141590508761239b565b506001600160401b038481168782160390811161191f5761012c6001600160401b03909116111561232c565b506001600160401b0384811690871611612326565b50426001600160401b03871611612320565b50426001600160401b038516111561231a565b506101ff61ffff841614612314565b5084151561230e565b6125119197503d805f833e6106ec81836127cf565b9588612300565b3461191b57602036600319011261191b576040612536600435612b4b565b825191600180851b0316825215156020820152f35b3461191b57608036600319011261191b576004359060243580151580910361191b576044359081151580920361191b57612583612683565b63023aa9ab60e61b845260048401859052925f816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115611910575f91612669575b50606001516001600160a01b0316330361191b575f8481526005602090815260409182902080546001600160501b03191660ff851617600886901b61ff001617601087901b62010000600160501b031617905581519283528201929092526001600160401b03909216908201527f57df1776a7fcf0ecfc16f28dc7b685ccfe39326a343eb11a5bbf69cef4514d0990606090a2005b61267d91503d805f833e6106ec81836127cf565b856125d4565b606435906001600160401b038216820361191b57565b604435906001600160401b038216820361191b57565b602435906001600160401b038216820361191b57565b6084359061ffff8216820361191b57565b9181601f8401121561191b578235916001600160401b03831161191b576020838186019501011161191b57565b604090600319011261191b576004359060243590565b9181601f8401121561191b578235916001600160401b03831161191b576020808501948460051b01011161191b57565b608435906001600160801b038216820361191b57565b606435906001600160801b038216820361191b57565b6044359060ff8216820361191b57565b35906001600160a01b038216820361191b57565b606081019081106001600160401b03821117611ed757604052565b60e081019081106001600160401b03821117611ed757604052565b601f909101601f19168101906001600160401b03821190821017611ed757604052565b6001600160401b038111611ed757601f01601f191660200190565b81601f8201121561191b57805190612824826127f2565b9261283260405194856127cf565b8284526020838301011161191b57815f9260208093018386015e8301015290565b51906001600160a01b038216820361191b57565b51906001600160401b038216820361191b57565b5190811515820361191b57565b60208183031261191b578051906001600160401b03821161191b57016101608183031261191b576040519161016083016001600160401b03811184821017611ed75760405281516001600160401b03811161191b57816128e991840161280d565b83526020820151916001600160401b03831161191b57612911610140926129a194830161280d565b60208501526040810151604085015261292c60608201612853565b606085015261293d60808201612867565b608085015261294e60a08201612867565b60a085015261295f60c0820161287b565b60c085015261297060e08201612867565b60e08501526129826101008201612867565b6101008501526129956101208201612853565b61012085015201612853565b61014082015290565b519061ffff8216820361191b57565b60208183031261191b578051906001600160401b03821161191b57016102208183031261191b576040519161022083016001600160401b03811184821017611ed75760405281518352612a0e60208301612853565b602084015260408201516001600160401b03811161191b5781612a3291840161280d565b604084015260608201516001600160401b03811161191b5781612a5691840161280d565b60608401526080820151906001600160401b03821161191b57612a7a91830161280d565b6080830152612a8b60a082016129aa565b60a0830152612a9c60c082016129aa565b60c083015260e081015163ffffffff8116810361191b57612b42916102009160e0850152612acd610100820161287b565b610100850152612ae0610120820161287b565b610120850152612af36101408201612867565b6101408501526101608101516101608501526101808101516101808501526101a08101516101a08501526101c08101516101c0850152612b366101e08201612853565b6101e085015201612867565b61020082015290565b60405163023aa9ab60e61b81526004810182905290915f826024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa918215611910575f92612e56575b50825f52600660205260405f2060405193612bba856127b4565b815460018060a01b038116865260018060401b039060a01c16602086015260018201549461ffff6002604083019460018060401b0389168652606084019860018060401b038160401c168a5260801c6080850152015460018060801b03811660a084015260801c1660c08201526101c085019182515f52600560205260405f209360405190612c48826127b4565b85549560ff87161515835260ff8760081c1615156020840152604083019660018060401b038160101c16885260018060401b039060501c1660608401526001810154608084015260018060a01b0360028201541660a0840152600360018060a01b039101541660c0830152825f52600360205260ff60405f205416159384612e47575b84612e2f575b84612e13575b5083612dff575b5082612df4575b5081612ddf575b501561191b575160405163023aa9ab60e61b815260048101919091525f816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115611910575f91612dc5575b5060608101516101e08501516001600160a01b0391821691160361191b5761014001516001600160a01b03168015159384612dae575b50508215612d9f57505f5b92516001600160401b039081169084161161191b57565b516001600160401b0316612d88565b602001516001600160a01b03161492505f80612d7d565b612dd991503d805f833e6106ec81836127cf565b5f612d47565b612deb91508251613cb0565b5050505f612cec565b51151591505f612ce5565b516001600160401b0316421092505f612cde565b5160208901516001600160a01b0390811691161493505f612cd7565b6102008901516001600160401b031642109450612cd1565b61012089015115159450612ccb565b612e6b9192503d805f833e61081581836127cf565b905f612ba0565b9081526001600160401b03909116602082015260400190565b6001600160401b039081166001019190821161191f57565b8054600160a01b600160e01b03191660a09290921b600160a01b600160e01b0316919091179055565b60405163023aa9ab60e61b8152600481018290529094919390925f846024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa80156119105761ffff945f91612fd6575b50606060018060a01b039101511694604051956020870197610120895260246101408901527f456e636c617665436f6e6e65637469766974792e7175616c696669636174696f610160890152636e2e763160e01b610180890152466040890152306060890152608088015260a087015260c086015260018060401b031660e085015260018060401b0316610100840152166101208201526101808152612fd06101a0826127cf565b51902090565b612fea91503d805f833e6106ec81836127cf565b5f612f28565b81835290916001600160fb1b03831161191b5760209260051b809284830137010190565b60405163023aa9ab60e61b8152600481018290529295909491937f00000000000000000000000000000000000000000000000000000000000000006001600160a01b0316939092905f81602481885afa9586156119105761016098612fd097613131935f91613167575b50602060018060a01b0391015116895f5260066020526130ac60018060401b0360405f205460a01c16612e8b565b906040519a8b9960208b019d8e5260226101808c01527f456e636c617665436f6e6e65637469766974792e74756e612d706f6c6963792e6101a08c015261763160f01b6101c08c01524660408c01523060608c015260808b015260a08a015260c089015260018060401b031660e08801526101c06101008801526101e0870191612ff0565b6001600160401b0393841661012086015292166101408401526001600160801b031661016083015203601f1981018352826127cf565b61317b91503d805f833e61081581836127cf565b5f61307e565b9190820180921161191f57565b919081101561319e5760051b0190565b634e487b7160e01b5f52603260045260245ffd5b356001600160a01b038116810361191b5790565b8181029291811591840414171561191f57565b916020908281520191905f5b8181106131f25750505090565b909192602080600192838060a01b0361320a88612785565b1681520194019291016131e5565b60405163023aa9ab60e61b8152600481018290529091905f816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115611910575f91613467575b50825f52600660205260405f2060405190613288826127b4565b805460018060a01b038116835260018060401b039060a01c16602083015260018101549261ffff6002604085019360018060401b0387168552606086019660018060401b038160401c16885260801c6080870152015460018060801b03811660a086015260801c1660c0840152855f52600360205260ff60405f2054169283613458575b83613440575b83613422575b50508161340e575b501561191b575f905f91845f52600460205260405f20915f958354965b8781101561338a57845f52866133728260205f20015497885f52600560205260018060401b0360405f205460101c1690613181565b9614613381575b60010161333d565b60019350613379565b50919495509150836133f3575b836133dd575b50826133c8575b50501561191b575f9081526005602052604090205460101c6001600160401b031690565b516001600160401b0316101590505f806133a4565b6133e991935084613cb0565b505050915f61339d565b9250835f52600560205260ff60405f205460081c1692613397565b516001600160401b0316421090505f613320565b516020909101516001600160a01b0390811691161491505f80613318565b6102008201516001600160401b031642109350613312565b6101208201511515935061330c565b61347b91503d805f833e61081581836127cf565b5f61326e565b60405163023aa9ab60e61b815260048101829052919490937f00000000000000000000000000000000000000000000000000000000000000006001600160a01b0316929091905f81602481875afa9081156119105761014097612fd09660ff9361359f935f916135c4575b50602060018060a01b0391015116895f52600660205261351a60018060401b0360405f205460a01c16612e8b565b906040519a8b9960208b019d8e5260226101608c01527f456e636c617665436f6e6e65637469766974792e70726f62652d74727573742e6101808c015261763160f01b6101a08c01524660408c01523060608c015260808b015260a08a015260c089015260018060401b031660e08801526101a06101008801526101c08701916131d9565b92166101208401526001600160401b031661014083015203601f1981018352826127cf565b6135d891503d805f833e61081581836127cf565b5f6134ec565b6064356001600160401b038116810361191b5790565b6044356001600160401b038116810361191b5790565b6084356001600160401b038116810361191b5790565b60a4356001600160401b038116810361191b5790565b60c4356001600160401b038116810361191b5790565b9190820391821161191f57565b90815260208101919091526001600160401b03909116604082015260600190565b60c4356001600160801b038116810361191b5790565b60e4356001600160801b038116810361191b5790565b6001600160801b03918216908216039190821161191f57565b6001600160801b03918216908216019190821161191f57565b908152602081019190915260408101919091526001600160a01b03909116606082015260800190565b60c4356001600160401b03811680820361191b576040519060208201926101c0845260236101e08401527f456e636c617665436f6e6e65637469766974792e74756e612d72656365697074610200840152622e763160e81b61022084015246604084015230606084015260018060a01b037f000000000000000000000000000000000000000000000000000000000000000016608084015260043560a084015260243560c084015260443560e084015260643560018060401b03811680910361191b576101008401526084356001600160401b0381169081900361191b5761012084015260a4356001600160401b0381169081900361191b5761014084015250610160820181905260e4356001600160801b0381169081900361191b57610180830152610104356001600160401b0381169081900361191b576101a0830152406101c08201526102208152612fd0610240826127cf565b60a4356001600160401b03811680820361191b576040519060208201926101a08452601e6101c08401527f456e636c617665436f6e6e65637469766974792e726563656970742e763100006101e084015246604084015230606084015260018060a01b037f000000000000000000000000000000000000000000000000000000000000000016608084015260043560a084015260243560c084015260443560018060401b03811680910361191b5760e08401526064356001600160401b0381169081900361191b576101008401526084356001600160401b0381169081900361191b5761012084015250610140820181905260c4356001600160801b0381169081900361191b5761016083015260e4356001600160401b0381169081900361191b57610180830152406101a08201526101e08152612fd0610200826127cf565b805182101561319e5760209160051b010190565b60405163023aa9ab60e61b8152600481018290525f918290819081846024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa938415611910575f94613c94575b5060c060018060a01b0360608601511694015115613c86579394613a285f6140f3565b9590925f905b8451821015613c7c575f8381526002602052604090206001600160a01b03613a568488613998565b511660018060a01b03165f5260205260405f209360405197613a7789612799565b85546001600160a01b039081168a52600187015460208b019081526002909701546001600160401b031660408b019081529890613ab4868a613998565b516001600160a01b0384169b91168b14908b908215613c67575b50508015613c53575b8015613c3b575b613c2a575f9b5f5b8951811015613be4575f8881526002602052604090206001600160a01b03613b0e838d613998565b511660018060a01b03165f526020528b8a60405f2060405192613b3084612799565b81546001600160a01b0390811685526001830154602086019081526002909301546001600160401b03166040860190815293829190613b70908890613998565b511614159384613bd0575b505082613bc4575b5081613baa575b50613b98575b600101613ae6565b9c5f19811461191f576001019c613b90565b518c516001600160401b039182169116111590505f613b8a565b518b511491505f613b83565b516001600160a01b03161492508e5f613b7b565b509596929b909891995093929360ff8b161115613c0d575b50506001905b019097929197613a2e565b5190516001600160401b039091169650600193509150825f613bfc565b975097509892935090600190613c02565b5088516001600160401b039081169082161015613ade565b5088516001600160401b0316421015613ad7565b516001600160a01b0316141590508a5f613ace565b9594965050509050565b505f94859450849392509050565b613ca99194503d805f833e6106ec81836127cf565b925f613a05565b60405163023aa9ab60e61b8152600481018290525f929091839182919082856024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa948515611910575f95613f94575b5060c060018060a01b0360608701511695015115613f8557613d3190969195966140f3565b9590925f905b8451821015613c7c575f8381526002602052604090206001600160a01b03613d5f8488613998565b511660018060a01b03165f5260205260405f209360405197613d8089612799565b85546001600160a01b039081168a52600187015460208b019081526002909701546001600160401b031660408b019081529890613dbd868a613998565b516001600160a01b0384169b91168b14908b908215613f70575b50508015613f5c575b8015613f44575b613f33575f9b5f5b8951811015613eed575f8881526002602052604090206001600160a01b03613e17838d613998565b511660018060a01b03165f526020528b8a60405f2060405192613e3984612799565b81546001600160a01b0390811685526001830154602086019081526002909301546001600160401b03166040860190815293829190613e79908890613998565b511614159384613ed9575b505082613ecd575b5081613eb3575b50613ea1575b600101613def565b9c5f19811461191f576001019c613e99565b518c516001600160401b039182169116111590505f613e93565b518b511491505f613e8c565b516001600160a01b03161492508e5f613e84565b509596929b909891995093929360ff8b161115613f16575b50506001905b019097929197613d37565b5190516001600160401b039091169650600193509150825f613f05565b975097509892935090600190613f0b565b5088516001600160401b039081169082161015613de7565b5088516001600160401b0316421015613de0565b516001600160a01b0316141590508a5f613dd7565b505f9586955085949350915050565b613fa99195503d805f833e6106ec81836127cf565b935f613d0c565b60405163023aa9ab60e61b8152600481018290527f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03169491939192905f81602481895afa908115611910575f916140d9575b50602060018060a01b0391015116845f52600660205261403860018060401b0360405f205460a01c16612e8b565b906040519560208701976101408952601d6101608901527f456e636c617665436f6e6e65637469766974792e706f6c6963792e7631000000610180890152466040890152306060890152608088015260a087015260c086015260018060401b031660e085015260018060401b031661010084015260018060401b031661012083015260018060801b03166101408201526101808152612fd06101a0826127cf565b6140ed91503d805f833e61081581836127cf565b5f61400a565b805f52600160205260405f209080151590816141ed575b50806141dd575b61417f575060015f54115f14614177576002905b6040515f5480825281602081015f805260205f20925f5b818110614155575050614151925003826127cf565b9190565b84546001600160a01b031683526001948501948694506020909301920161413c565b600190614125565b9060ff60018301925460a01c1691604051908181549182825260208201905f5260205f20925f5b8181106141bb575050614151925003826127cf565b84546001600160a01b03168352600194850194869450602090930192016141a6565b5060ff815460a01c161515614111565b825460405163023aa9ab60e61b815260048101929092526001600160a01b0390811692505f90829060249082907f0000000000000000000000000000000000000000000000000000000000000000165afa908115611910575f91614261575b50602001516001600160a01b0316145f61410a565b61427591503d805f833e61081581836127cf565b5f61424c565b9160410361191b5760208101359160408201355f1a6fa2a8918ca85bafe22016d0b997e4df60600160ff1b0384111580614333575b1561191b576020935f93608093604051878101917b0ca2ba3432b932bab69029b4b3b732b21026b2b9b9b0b3b29d05199960211b8352603c820152603c81526142fa605c826127cf565b5190209260405193845286840152356040830152606082015282805260015afa15611910575f51906001600160a01b0382161561191b57565b50601b8114806142b05750601c81146142b0565b9192909260405160208101907b0ca2ba3432b932bab69029b4b3b732b21026b2b9b9b0b3b29d05199960211b825285603c820152603c815261438a605c826127cf565b519020833b6143af575061439e929361427b565b6001600160a01b0390811691161490565b905f9450916144076084869594836040519485926020840197630b135d3f60e11b89526024850152604060448501528160648501528484013787838284010152601f801991011681010301601f1981018352826127cf565b51915afa3d156144a6573d61441b816127f2565b9061442960405192836127cf565b81523d5f602083013e5b81614498575b81614442575090565b80516020909101516001600160e01b03198116925060048210614478575b50506001600160e01b031916630b135d3f60e11b1490565b6001600160e01b031960049290920360031b82901b161690505f80614460565b905060208151101590614439565b606061443356fea37cb12be93fabc54c2fb3dbbce45d9f2aa8bfcf2a6b5ac7bfb7c139e88a937aa26469706673582212203da23066fc2bd52b6f9f05ef255b9366b3b6b84a3ec9fc9db9367393b8fb23a064736f6c63430008230033",
+-    "runtimeBytes": 17667,
++    "bytecode": "0x60c080604052346101575761483c803803809161001c828561034a565b83398101604082820312610157578151916001600160a01b03831690818403610157576020810151906001600160401b03821161015757019282601f85011215610157578351936001600160401b0385116102bd578460051b9360405195610087602087018861034a565b865260208601916020839682010191821161015757602001915b81831061032a57505050608052604051637b10399960e01b815290602090829060049082905afa90811561031f575f916102dd575b5060a052815180151590816102d1575b5015610157575f5b825181101561015b576001600160a01b03610109828561036d565b511615610157575f5b81811061012257506001016100ee565b6001600160a01b03610134838661036d565b51166001600160a01b03610148838761036d565b51161461015757600101610112565b5f80fd5b509051906001600160401b0382116102bd576801000000000000000082116102bd575f54825f55808310610293575b505f8080527f290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e5639291905b828110610276576040516144a69081610396823960805181818161035f0152818161094f0152818161104a01528181611483015281816115c501528181611a0a0152818161201201528181612b0301528181613132015281816132f4015281816134ae015281816135b00152818161386101528181613f6901526141bf015260a051818181610a0201528181610f950152818161171901528181611aad0152818161250c01528181612caa01528181613013015281816139700152613c770152f35b81516001600160a01b0316818501556020909101906001016101b4565b5f8052828060205f20019103905f5b8281106102b057505061018a565b5f828201556001016102a2565b634e487b7160e01b5f52604160045260245ffd5b6008915011155f6100e6565b90506020813d602011610317575b816102f86020938361034a565b8101031261015757516001600160a01b0381168103610157575f6100d6565b3d91506102eb565b6040513d5f823e3d90fd5b82516001600160a01b0381168103610157578152602092830192016100a1565b601f909101601f19168101906001600160401b038211908210176102bd57604052565b80518210156103815760209160051b010190565b634e487b7160e01b5f52603260045260245ffdfe6080806040526004361015610012575f80fd5b5f905f3560e01c908163135e0354146125f35750806314455098146124b857806315f05b05146124855780632be89fe414611f8b57806331d14426146119695780633921ae68146116aa5780633e8da664146116965780633f6d25e81461167b578063427121b31461159457806342b0a06b146115595780635341aef5146114b257806356397c351461146d5780635c50050e14611415578063651dbe69146113eb57806371abb51b14610fc45780637b10399914610f7f5780637c33a66514610eeb5780638233a44414610e9b57806389ef0c8f14610e7e5780639568cf7b146108df57806398daef42146108ac578063a0e7fb8614610880578063a4ae85d614610862578063b5e521e814610836578063b7f97f6314610818578063c2ead131146107a0578063c8a998b814610759578063cf1aab95146106e0578063d14cf349146102f5578063d1c9453b146102b5578063dafe6dc614610244578063ddbfd8ef146101b55763feae7dc314610189575f80fd5b346101b25760203660031901126101b25760406020916004358152600783522054604051908152f35b80fd5b50346101b25760203660031901126101b2576004358152600660209081526040918290208054600182015460029092015484516001600160a01b038316815260a092831c6001600160401b0390811695820195909552848416818701529483901c9093166060850152608091821c828501526001600160801b038316908401521c61ffff1660c082015260e090f35b50346101b25760203660031901126101b257610261600435614096565b919060405191604083016040845282518091526020606085019301915b8181106102965750505060ff82931660208301520390f35b82516001600160a01b031684526020938401939092019160010161027e565b50346101b25760803660031901126101b25760206102ed6102d461264a565b6102dc612634565b6102e46126a6565b91600435613f53565b604051908152f35b50346101b25760a03660031901126101b2576004359061031361264a565b9161031c612634565b926103256126a6565b906084356001600160401b03811161063f576103459036906004016126bc565b60405163023aa9ab60e61b815260048101869052919690917f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031691908781602481865afa9081156106d55788916106b3575b506001600160401b038516938415806106a2575b80610691575b8015610647575b99899a999798991561064357896103ea8a8660206103f097019a60018060a01b038c511694613f53565b9061421e565b1561063f576004918786526006602052602061041a60018060401b03604089205460a01c16612e3e565b95516040516314f267f360e21b8152946001600160a01b039091169285919082905afa91821561063457889387936105ed575b50906002916040519161045f83612734565b82526001600160401b03968716602080840182815260408086018a8152948b16606087018181526001600160801b03909e166080880181815260a089018f815261ffff9b909b1660c08a019081529b8f52600690955291909c20955186546001600160a01b0319166001600160a01b03919091161786559051929b909a99969796919290916104ef911685612e56565b9151915190516001600160801b0319608091821b166001600160401b03909316600160401b600160801b03604093841b16179290921760018401559451929091018054935161ffff60801b921b919091166001600160801b039092166001600160901b03199093169290921717905585875260036020908152818820805460ff19169055868852600490528620805487825590816105ca575b5050917f9f9773ff77d1a11ab6bb8ed803e76b19b7386e6810810d7ef5e12fdb00d8d2b69391608093604051938452602084015260408301526060820152a280f35b875260208720875b8281106105df5750610588565b6001908981840155016105d2565b91935091506020813d60201161062c575b8161060b6020938361276a565b81010312610628578792610620600292612945565b92909161044d565b8580fd5b3d91506105fe565b6040513d88823e3d90fd5b8480fd5b8780fd5b50610120820151151580610688575b80156103c0575062278d004201998a421161067457998511156103c0565b634e487b7160e01b8a52601160045260248afd5b50428511610656565b506001600160801b038716156103b9565b506001600160401b038316156103b3565b6106cf91503d808a833e6106c7818361276a565b810190612954565b5f61039f565b6040513d8a823e3d90fd5b50346101b25760403660031901126101b257602435906001600160a01b03821682036101b2576004358152600260208181526040928390206001600160a01b039485165f9081529082528390208054600182015491909301548451939095168352908201526001600160401b0390921690820152606090f35b50346101b257608061077361076d366126fa565b90613c53565b6040805194151585526001600160401b039093166020850152918301526001600160a01b03166060820152f35b50346101b25760203660031901126101b2576004356107bf8282613c53565b50505091829182610801575b836107e6575b50506040805191151582529115156020820152f35b81526005602052604090205460081c60ff1691505f806107d1565b8082526005602052604082205460ff1692506107cb565b50346101b2576101003660031901126101b2575060206102ed6137fb565b50346101b257602061085061084a366126fa565b90613592565b6040516001600160401b039091168152f35b50346101b2576101203660031901126101b2575060206102ed613437565b50346101b25760203660031901126101b257602061089f60043561394f565b5050506040519015158152f35b50346101b25760203660031901126101b257602090600435815260088252604060018060801b0391205416604051908152f35b50346101b25736600319016101208112610e7a57610100136101b257610104356001600160401b038111610e7a5761091b9036906004016126bc565b906004359061092982612ae6565b9190911580610e53575b1561063f5760405163023aa9ab60e61b815260048101849052907f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168683602481845afa928315610e48578793610e2c575b5084875260066020526040872091602435966101c0850151881480610e0a575b80610de9575b80610dcd575b80610da9575b80610d8e575b80610d69575b80610d4f575b15610cf2576109e7916109e26137fb565b614384565b60405163023aa9ab60e61b81526004810188905288816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115610d44578991610d22575b5061012001516001600160a01b03908116911603610d1e57610a5a612f0e565b604051610a7f81610a7160208201948b8b87612f31565b03601f19810183528261276a565b5190208088526008602052604088205490936001600160801b039182169390918490610aa9612f68565b161115610cf257610b11610abb612f0e565b604051610ad181610a7160208201948d86612f7e565b519020808b52600960205260408b2054909790956001600160801b0390610aff90610afa612f68565b612f97565b6001600160401b039092169116612e7f565b93610b1c8582612e0d565b906340000000820190818311610cf657633fffffff8301918211610cf6576340000000810190818111610d0a57633fffffff01908111610cf6578b969594939291610b6d91601e1c90601e1c612f24565b97600283019283549060018060801b038216906001610b8c8d84612e0d565b91015460801c10610cf257612710610bc6610bcd9382610bbf8f610bb361ffff9188612e0d565b9360801c168093612e7f565b0493612e7f565b0490612f24565b95610bd6612f68565b8989526008602052604089209060018060801b031660018060801b03198254161790558888526007602052610c1060408920918254612e0d565b905586526009602052604086205580546001600160801b0390610c3890898316908316612fb0565b82546001600160801b031916911617905585610c7d575b505050916040915f5160206144515f395f51905f52935260076020528186205482519182526020820152a380f35b6101e001516001600160a01b031691813b15610cee578391868389610cb860405197889687958694631867354d60e21b865260048601612fc9565b03925af18015610ce357610cce575b8080610c4f565b81610cd89161276a565b61063f57845f610cc7565b6040513d84823e3d90fd5b8380fd5b8880fd5b634e487b7160e01b8c52601160045260248cfd5b634e487b7160e01b8d52601160045260248dfd5b8680fd5b610d3e91503d808b833e610d36818361276a565b810190612823565b5f610a3a565b6040513d8b823e3d90fd5b506001600160401b03610d60612ee2565b164015156109d1565b50610100610d876001600160401b03610d80612ee2565b1643612f24565b11156109cb565b50610d97612ee2565b436001600160401b03909116106109c5565b50603c610dc66001600160401b03610dbf612eb6565b1642612f24565b11156109bf565b50610dd6612eb6565b426001600160401b0390911611156109b9565b50610df2612f0e565b845460a01c6001600160401b039081169116146109b3565b50610e13612ecc565b6102008601516001600160401b039182169116146109ad565b610e419193503d8089833e6106c7818361276a565b915f61098d565b6040513d89823e3d90fd5b5060e4356001600160401b03811690818103610d1e57506001600160401b03831614610933565b5080fd5b50346101b257806003193601126101b25760206040516101ff8152f35b50346101b25760803660031901126101b257602435906001600160401b0382116101b25760206102ed610ed13660048601612660565b610ed9612710565b90610ee261261e565b926004356132da565b50346101b25760203660031901126101b257604060e091600435815260056020522080549060018101549060018060a01b0360028201541690600360018060a01b0391015416916040519360ff81161515855260ff8160081c161515602086015260018060401b038160101c16604086015260018060401b039060501c166060850152608084015260a083015260c0820152f35b50346101b257806003193601126101b2576040517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b50346101b25760a03660031901126101b257600435906024356001600160401b038111610e7a57610ff9903690600401612660565b611004939193612710565b9361100d61261e565b6084356001600160401b0381116106285761102c9036906004016126bc565b60405163023aa9ab60e61b81526004810187905290919087816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa9081156106d55788916113d1575b50602001516001600160a01b031692831515806113c8575b806113bd575b806113b1575b806113a4575b1561064357426001600160401b038216908111908161138c575b501561064357875b8681106113175750906110e86110ee93928a88888b6132da565b8461421e565b1561063f57604051906111008261274f565b815260ff9590951660208601818152956001600160401b038411611303578360051b9660405197611134602082018a61276a565b858952840160208901368211610cf25785905b8282106112eb575050506040808301988952868852600160208190529088209251835492516001600160a81b03199093166001600160a01b03919091161760a09290921b60ff60a01b169190911782559651805191909701966001600160401b0382116112d757600160401b82116112d75787548289558083106112ac575b506020019686526020862096865b82811061128f5750505083855260066020526040852080547fd61aac9adc63eef5f4c1dba1bf139809e2890085025602210c8c32504f0d235b949392916112309161122a9060a01c6001600160401b0316612e3e565b90612e56565b8486526006602052600160408720016001808060401b0319825416179055848652600660205261128360018060401b03604088205460a01c1692604051948594855260606020860152606085019161329b565b9060408301520390a280f35b81516001600160a01b0316818a01556020909101906001016111d4565b888852828060208a2001910390885b8281106112c95750506111c6565b6001908a81840155016112bb565b634e487b7160e01b87526041600452602487fd5b602080916112f884612720565b815201910190611147565b634e487b7160e01b86526041600452602486fd5b6001600160a01b0361133261132d838a8a612e1a565b613287565b1615610cf257885b81811061134a57506001016110ce565b61135861132d838a8a612e1a565b6001600160a01b0361136e61132d848c8c612e1a565b6001600160a01b039092169116146113885760010161133a565b8980fd5b9050620151804201908142116106745711155f6110c6565b508560ff8a1611156110ac565b5060ff891615156110a6565b5060088611156110a0565b5085151561109a565b6113e591503d808a833e6106c7818361276a565b5f611082565b50346101b25760203660031901126101b25760406020916004358152600983522054604051908152f35b50346101b25760a03660031901126101b257602435906001600160401b0382116101b25760206102ed61144b3660048601612660565b611453612634565b61145b61261e565b91611464612690565b93600435613116565b50346101b257806003193601126101b2576040517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03168152602090f35b50346101b25760203660031901126101b2576004358152600460205260408120604051908160208254918281520190819285526020852090855b818110611543575050508261150291038361276a565b604051928392602084019060208552518091526040840192915b81811061152a575050500390f35b825184528594506020938401939092019160010161151c565b82548452602090930192600192830192016114ec565b50346101b25760a03660031901126101b25760206102ed611578612634565b61158061261e565b6115886126e9565b91602435600435612ff2565b50346101b25760203660031901126101b25760405163023aa9ab60e61b8152600480359082018190529082816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115611670578391611656575b50602001516001600160a01b03163303610e7a5780825260066020818152604080852060010180546001600160401b03191690559284525281208054611653919061122a9060a01c6001600160401b0316612e3e565b80f35b61166a91503d8085833e6106c7818361276a565b5f6115fd565b6040513d85823e3d90fd5b50346101b2576107bf61168d366126fa565b90919082613c53565b50346101b257602061089f61076d366126fa565b50346101b25760c03660031901126101b2576004356024356116ca612634565b906116d361261e565b906116dc6126e9565b9260a4356001600160401b038111610d1e576116fc9036906004016126bc565b60405163023aa9ab60e61b815260048101889052959188876024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa968715610d4457899761194d575b5060c0870151151580611944575b80611935575b80611922575b80611910575b806118fb575b806118cf575b15610cf2576109e26117949387606096888c612ff2565b930180519093906001600160a01b03808316911614610628578486526002602081815260408089206001600160a01b0385165f90815292529020908101546001600160401b038581169692911686119081156118b5575b5015610d1e57516040517f574bfb36cd2e8d405c665ea674dc1a98b92f470cad955888b577d8cb3f20c0f29590926002926001600160a01b031661182e8561274f565b8452602080850186815260408087019485528a8c52858352808c206001600160a01b039485165f908152935291829020955186546001600160a01b03191693169290921785559051600185015590519290910180546001600160401b0319166001600160401b039390931692909217909155519182916118af919083612f7e565b0390a280f35b5482516001600160a01b039081169116141590505f6117eb565b506001600160401b03848116878216039081116106745761012c6001600160401b03909116111561177d565b506001600160401b0384811690871611611777565b50426001600160401b03871611611771565b50426001600160401b038516111561176b565b506101ff61ffff841614611765565b5084151561175f565b6119629197503d808b833e610d36818361276a565b955f611751565b5034611ddc5736600319016101608112611ddc5761012013611ddc57610124356001600160401b038111611ddc576119a59036906004016126bc565b90610144356001600160401b038111611ddc576119c69036906004016126bc565b6044359360043593929091906001600160401b036119e48787613592565b169384151580611f6c575b15611ddc5760405163023aa9ab60e61b8152600481018790527f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03169390925f84602481885afa938415611dd1575f94611f50575b50875f52600660205260405f20936101c081019687516024351480611f2e575b80611f0d575b80611ef1575b80611ed4575b80611eb9575b80611e9b575b80611e81575b15611ddc57965160405163023aa9ab60e61b815260048101919091527f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03169790915f836024818c5afa928315611dd1575f93611e65575b505f8c6024604051809c819363023aa9ab60e61b835260048301525afa988915611dd1575f99611e49575b5060c083015115159081611e27575b5080611e1a575b15611ddc57611b4790611b40613437565b9586614384565b610120909101516001600160a01b039182169116149283611df4575b50505015611ddc57611b73612ecc565b604051611b8a81610a7160208201948b8b87612f31565b5190205f8181526008602052604090205490936001600160801b039182169290918390611bb5612f52565b161115611ddc57611c08611bc7612ecc565b604051611bdd81610a7160208201948d86612f7e565b51902096875f52600960205260405f205494611c0260018060801b0391610afa612f52565b16612e7f565b92611c138482612e0d565b9063400000008201808311611de057633fffffff8301908111611de0576340000000820191828111611de057633fffffff01918211611de057611c5c91601e1c90601e1c612f24565b96600283019283549060018060801b038216906001611c7b8c84612e0d565b91015460801c10611ddc57612710610bc6611ca29382610bbf61ffff8f610bb39088612e0d565b94611cab612f52565b5f89815260086020908152604080832080546001600160801b0319166001600160801b0390951694909417909355600790522080549091611ceb91612e0d565b90555f9081526009602052604090205580546001600160801b0390611d1590888316908316612fb0565b82546001600160801b031916911617905584611d5a575b5050505f5160206144515f395f51905f5291604091865260076020528186205482519182526020820152a380f35b606001516001600160a01b0316823b15611ddc57611d93925f9283604051809681958294631867354d60e21b84528b8d60048601612fc9565b03925af18015611dd157611da9575b8080611d2c565b604091955091611dc75f5f5160206144515f395f51905f529461276a565b5f95915091611da2565b6040513d5f823e3d90fd5b5f80fd5b634e487b7160e01b5f52601160045260245ffd5b611dfe9350614384565b6101208401516001600160a01b039182169116145f8080611b63565b5060c08801511515611b2f565b60608401516101e0909101516001600160a01b0390811691161490505f611b28565b611e5e9199503d805f833e610d36818361276a565b975f611b19565b611e7a9193503d805f833e610d36818361276a565b915f611aee565b506001600160401b03611e92612ef8565b16401515611a8f565b50610100611eb26001600160401b03610d80612ef8565b1115611a89565b50611ec2612ef8565b436001600160401b0390911610611a83565b50603c611eea6001600160401b03610dbf612ee2565b1115611a7d565b50611efa612ee2565b426001600160401b039091161115611a77565b50611f16612ecc565b865460a01c6001600160401b03908116911614611a71565b50611f37612eb6565b6102008301516001600160401b03918216911614611a6b565b611f659194503d805f833e6106c7818361276a565b925f611a4b565b50610104356001600160401b03811690818103611ddc575085146119ef565b34611ddc5760c0366003190112611ddc576004356024356001600160401b038111611ddc57611fbe903690600401612660565b611fc9929192612634565b611fd161261e565b90611fda612690565b60a4356001600160401b038111611ddc57611ff99036906004016126bc565b60405163023aa9ab60e61b8152600481018890529193917f00000000000000000000000000000000000000000000000000000000000000006001600160a01b0316915f82602481865afa918215611dd1575f92612469575b50610120820151151580612457575b80612438575b8061242f575b80612424575b15611ddc578995896103ea878a888d602061209a99019c8d60018060a01b0390511696613116565b15611ddc575f945f5b87811061234a57506001600160401b0316948510611ddc57600491875f52600660205260206120e060018060401b0360405f205460a01c16612e3e565b95516040516314f267f360e21b8152946001600160a01b039091169385919082905afa928315611dd1575f9361230e575b50600292936040519261212384612734565b83526001600160401b0395861660208085018281529388166040808701918252606087019a8b526001600160801b03909416608087019081525f60a0880181815261ffff9a909a1660c089019081528e8252600690945294909420955186546001600160a01b0319166001600160a01b03919091161786559351919896979096916121af911685612e56565b9151915190516001600160801b0319608091821b166001600160401b03938416600160401b600160801b03604094851b1617176001858101919091559651949093018054955161ffff60801b941b939093166001600160801b039094166001600160901b0319909516949094179290921790555f86815260036020908152838220805460ff191690951790945560049093529120949083116122fa57600160401b83116122fa5784548386558084106122d0575b5080945f5260205f20945f5b8481106122bc57857f3de3233a119faf4cb1cf6d7707ac834818baaf24b6073a7102950e3c8fc3eaa486866122b7876040519384938452604060208501526040840191612e92565b0390a2005b60019060208335930192818901550161226f565b855f52838060205f20019103905f5b8281106122ed575050612263565b5f828201556001016122df565b634e487b7160e01b5f52604160045260245ffd5b92506020833d602011612342575b816123296020938361276a565b81010312611ddc5761233c600293612945565b92612111565b3d915061231c565b9561235687898c612e1a565b35151580612400575b89888a8d846123de575b5050505015611ddc5786888b5f5b8381106123b457506123ad926001949261239092612e1a565b355f526005602052828060401b0360405f205460101c1690612e0d565b96016120a3565b92826123c58584956123cc95612e1a565b3593612e1a565b3514611ddc57600101888b8992612377565b6123f49450906123ee9291612e1a565b35613c53565b50505089888a8d612369565b5061240c87898c612e1a565b355f52600560205260ff60405f205460081c1661235f565b506006881115612072565b5087151561206c565b5062278d004201804211611de0576001600160401b0385161115612066565b50426001600160401b03851611612060565b61247e9192503d805f833e6106c7818361276a565b908a612051565b34611ddc576020366003190112611ddc5760406124a3600435612ae6565b825191600180851b0316825215156020820152f35b34611ddc576080366003190112611ddc57600435602435801515809103611ddc57604435801515809103611ddc576124ee61261e565b60405163023aa9ab60e61b8152600481018590529092905f816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115611dd1575f916125d9575b50606001516001600160a01b03163303611ddc575f8481526005602090815260409182902080546001600160501b03191660ff851617600886901b61ff001617601087901b62010000600160501b031617905581519283528201929092526001600160401b03909216908201527f57df1776a7fcf0ecfc16f28dc7b685ccfe39326a343eb11a5bbf69cef4514d0990606090a2005b6125ed91503d805f833e610d36818361276a565b85612544565b34611ddc576020366003190112611ddc576020906004355f526003825260ff60405f20541615158152f35b606435906001600160401b0382168203611ddc57565b604435906001600160401b0382168203611ddc57565b602435906001600160401b0382168203611ddc57565b9181601f84011215611ddc578235916001600160401b038311611ddc576020808501948460051b010111611ddc57565b608435906001600160801b0382168203611ddc57565b606435906001600160801b0382168203611ddc57565b9181601f84011215611ddc578235916001600160401b038311611ddc5760208381860195010111611ddc57565b6084359061ffff82168203611ddc57565b6040906003190112611ddc576004359060243590565b6044359060ff82168203611ddc57565b35906001600160a01b0382168203611ddc57565b60e081019081106001600160401b038211176122fa57604052565b606081019081106001600160401b038211176122fa57604052565b601f909101601f19168101906001600160401b038211908210176122fa57604052565b6001600160401b0381116122fa57601f01601f191660200190565b81601f82011215611ddc578051906127bf8261278d565b926127cd604051948561276a565b82845260208383010111611ddc57815f9260208093018386015e8301015290565b51906001600160a01b0382168203611ddc57565b51906001600160401b0382168203611ddc57565b51908115158203611ddc57565b602081830312611ddc578051906001600160401b038211611ddc570161016081830312611ddc576040519161016083016001600160401b038111848210176122fa5760405281516001600160401b038111611ddc57816128849184016127a8565b83526020820151916001600160401b038311611ddc576128ac6101409261293c9483016127a8565b6020850152604081015160408501526128c7606082016127ee565b60608501526128d860808201612802565b60808501526128e960a08201612802565b60a08501526128fa60c08201612816565b60c085015261290b60e08201612802565b60e085015261291d6101008201612802565b61010085015261293061012082016127ee565b610120850152016127ee565b61014082015290565b519061ffff82168203611ddc57565b602081830312611ddc578051906001600160401b038211611ddc570161022081830312611ddc576040519161022083016001600160401b038111848210176122fa57604052815183526129a9602083016127ee565b602084015260408201516001600160401b038111611ddc57816129cd9184016127a8565b604084015260608201516001600160401b038111611ddc57816129f19184016127a8565b60608401526080820151906001600160401b038211611ddc57612a159183016127a8565b6080830152612a2660a08201612945565b60a0830152612a3760c08201612945565b60c083015260e081015163ffffffff81168103611ddc57612add916102009160e0850152612a686101008201612816565b610100850152612a7b6101208201612816565b610120850152612a8e6101408201612802565b6101408501526101608101516101608501526101808101516101808501526101a08101516101a08501526101c08101516101c0850152612ad16101e082016127ee565b6101e085015201612802565b61020082015290565b60405163023aa9ab60e61b81526004810182905290915f826024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa918215611dd1575f92612df1575b50825f52600660205260405f2060405193612b5585612734565b815460018060a01b038116865260018060401b039060a01c16602086015260018201549461ffff6002604083019460018060401b0389168652606084019860018060401b038160401c168a5260801c6080850152015460018060801b03811660a084015260801c1660c08201526101c085019182515f52600560205260405f209360405190612be382612734565b85549560ff87161515835260ff8760081c1615156020840152604083019660018060401b038160101c16885260018060401b039060501c1660608401526001810154608084015260018060a01b0360028201541660a0840152600360018060a01b039101541660c0830152825f52600360205260ff60405f205416159384612de2575b84612dca575b84612dae575b5083612d9a575b5082612d8f575b5081612d7a575b5015611ddc575160405163023aa9ab60e61b815260048101919091525f816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115611dd1575f91612d60575b5060608101516101e08501516001600160a01b03918216911603611ddc5761014001516001600160a01b03168015159384612d49575b50508215612d3a57505f5b92516001600160401b0390811690841611611ddc57565b516001600160401b0316612d23565b602001516001600160a01b03161492505f80612d18565b612d7491503d805f833e610d36818361276a565b5f612ce2565b612d8691508251613c53565b5050505f612c87565b51151591505f612c80565b516001600160401b0316421092505f612c79565b5160208901516001600160a01b0390811691161493505f612c72565b6102008901516001600160401b031642109450612c6c565b61012089015115159450612c66565b612e069192503d805f833e6106c7818361276a565b905f612b3b565b91908201809211611de057565b9190811015612e2a5760051b0190565b634e487b7160e01b5f52603260045260245ffd5b6001600160401b0390811660010191908211611de057565b8054600160a01b600160e01b03191660a09290921b600160a01b600160e01b0316919091179055565b81810292918115918404141715611de057565b81835290916001600160fb1b038311611ddc5760209260051b809284830137010190565b6084356001600160401b0381168103611ddc5790565b6064356001600160401b0381168103611ddc5790565b60a4356001600160401b0381168103611ddc5790565b60c4356001600160401b0381168103611ddc5790565b6044356001600160401b0381168103611ddc5790565b91908203918211611de057565b90815260208101919091526001600160401b03909116604082015260600190565b60e4356001600160801b0381168103611ddc5790565b60c4356001600160801b0381168103611ddc5790565b9081526001600160401b03909116602082015260400190565b6001600160801b039182169082160391908211611de057565b6001600160801b039182169082160191908211611de057565b908152602081019190915260408101919091526001600160a01b03909116606082015260800190565b60405163023aa9ab60e61b8152600481018290529094919390925f846024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa8015611dd15761ffff945f916130fc575b50606060018060a01b039101511694604051956020870197610120895260246101408901527f456e636c617665436f6e6e65637469766974792e7175616c696669636174696f610160890152636e2e763160e01b610180890152466040890152306060890152608088015260a087015260c086015260018060401b031660e085015260018060401b03166101008401521661012082015261018081526130f66101a08261276a565b51902090565b61311091503d805f833e610d36818361276a565b5f61304e565b60405163023aa9ab60e61b8152600481018290529295909491937f00000000000000000000000000000000000000000000000000000000000000006001600160a01b0316939092905f81602481885afa958615611dd157610160986130f697613237935f9161326d575b50602060018060a01b0391015116895f5260066020526131ae60018060401b0360405f205460a01c16612e3e565b906040519a8b9960208b019d8e5260266101808c01527f456e636c617665436f6e6e65637469766974792e70726f76696465722d706f6c6101a08c0152656963792e763160d01b6101c08c01524660408c01523060608c015260808b015260a08a015260c089015260018060401b031660e08801526101c06101008801526101e0870191612e92565b6001600160401b0393841661012086015292166101408401526001600160801b031661016083015203601f19810183528261276a565b61328191503d805f833e6106c7818361276a565b5f613180565b356001600160a01b0381168103611ddc5790565b916020908281520191905f5b8181106132b45750505090565b909192602080600192838060a01b036132cc88612720565b1681520194019291016132a7565b60405163023aa9ab60e61b815260048101829052919490937f00000000000000000000000000000000000000000000000000000000000000006001600160a01b0316929091905f81602481875afa908115611dd157610140976130f69660ff936133f8935f9161341d575b50602060018060a01b0391015116895f52600660205261337360018060401b0360405f205460a01c16612e3e565b906040519a8b9960208b019d8e5260226101608c01527f456e636c617665436f6e6e65637469766974792e70726f62652d74727573742e6101808c015261763160f01b6101a08c01524660408c01523060608c015260808b015260a08a015260c089015260018060401b031660e08801526101a06101008801526101c087019161329b565b92166101208401526001600160401b031661014083015203601f19810183528261276a565b61343191503d805f833e6106c7818361276a565b5f613345565b60c4356001600160401b038116808203611ddc576040519060208201926101c0845260276101e08401527f456e636c617665436f6e6e65637469766974792e70726f76696465722d72656361020084015266656970742e763160c81b61022084015246604084015230606084015260018060a01b037f000000000000000000000000000000000000000000000000000000000000000016608084015260043560a084015260243560c084015260443560e084015260643560018060401b038116809103611ddc576101008401526084356001600160401b03811690819003611ddc5761012084015260a4356001600160401b03811690819003611ddc5761014084015250610160820181905260e4356001600160801b03811690819003611ddc57610180830152610104356001600160401b03811690819003611ddc576101a0830152406101c082015261022081526130f66102408261276a565b60405163023aa9ab60e61b8152600481018290529091905f816024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa908115611dd1575f916137e1575b50825f52600660205260405f206040519061360282612734565b805460018060a01b038116835260018060401b039060a01c16602083015260018101549261ffff6002604085019360018060401b0387168552606086019660018060401b038160401c16885260801c6080870152015460018060801b03811660a086015260801c1660c0840152855f52600360205260ff60405f20541692836137d2575b836137ba575b8361379c575b505081613788575b5015611ddc575f905f91845f52600460205260405f20915f958354965b8781101561370457845f52866136ec8260205f20015497885f52600560205260018060401b0360405f205460101c1690612e0d565b96146136fb575b6001016136b7565b600193506136f3565b509194955091508361376d575b83613757575b5082613742575b505015611ddc575f9081526005602052604090205460101c6001600160401b031690565b516001600160401b0316101590505f8061371e565b61376391935084613c53565b505050915f613717565b9250835f52600560205260ff60405f205460081c1692613711565b516001600160401b0316421090505f61369a565b516020909101516001600160a01b0390811691161491505f80613692565b6102008201516001600160401b03164210935061368c565b61012082015115159350613686565b6137f591503d805f833e6106c7818361276a565b5f6135e8565b60a4356001600160401b038116808203611ddc576040519060208201926101a08452601e6101c08401527f456e636c617665436f6e6e65637469766974792e726563656970742e763100006101e084015246604084015230606084015260018060a01b037f000000000000000000000000000000000000000000000000000000000000000016608084015260043560a084015260243560c084015260443560018060401b038116809103611ddc5760e08401526064356001600160401b03811690819003611ddc576101008401526084356001600160401b03811690819003611ddc5761012084015250610140820181905260c4356001600160801b03811690819003611ddc5761016083015260e4356001600160401b03811690819003611ddc57610180830152406101a08201526101e081526130f66102008261276a565b8051821015612e2a5760209160051b010190565b60405163023aa9ab60e61b8152600481018290525f918290819081846024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa938415611dd1575f94613c37575b5060c060018060a01b0360608601511694015115613c295793946139cb5f614096565b9590925f905b8451821015613c1f575f8381526002602052604090206001600160a01b036139f9848861393b565b511660018060a01b03165f5260205260405f209360405197613a1a8961274f565b85546001600160a01b039081168a52600187015460208b019081526002909701546001600160401b031660408b019081529890613a57868a61393b565b516001600160a01b0384169b91168b14908b908215613c0a575b50508015613bf6575b8015613bde575b613bcd575f9b5f5b8951811015613b87575f8881526002602052604090206001600160a01b03613ab1838d61393b565b511660018060a01b03165f526020528b8a60405f2060405192613ad38461274f565b81546001600160a01b0390811685526001830154602086019081526002909301546001600160401b03166040860190815293829190613b1390889061393b565b511614159384613b73575b505082613b67575b5081613b4d575b50613b3b575b600101613a89565b9c5f198114611de0576001019c613b33565b518c516001600160401b039182169116111590505f613b2d565b518b511491505f613b26565b516001600160a01b03161492508e5f613b1e565b509596929b909891995093929360ff8b161115613bb0575b50506001905b0190979291976139d1565b5190516001600160401b039091169650600193509150825f613b9f565b975097509892935090600190613ba5565b5088516001600160401b039081169082161015613a81565b5088516001600160401b0316421015613a7a565b516001600160a01b0316141590508a5f613a71565b9594965050509050565b505f94859450849392509050565b613c4c9194503d805f833e610d36818361276a565b925f6139a8565b60405163023aa9ab60e61b8152600481018290525f929091839182919082856024817f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03165afa948515611dd1575f95613f37575b5060c060018060a01b0360608701511695015115613f2857613cd49096919596614096565b9590925f905b8451821015613c1f575f8381526002602052604090206001600160a01b03613d02848861393b565b511660018060a01b03165f5260205260405f209360405197613d238961274f565b85546001600160a01b039081168a52600187015460208b019081526002909701546001600160401b031660408b019081529890613d60868a61393b565b516001600160a01b0384169b91168b14908b908215613f13575b50508015613eff575b8015613ee7575b613ed6575f9b5f5b8951811015613e90575f8881526002602052604090206001600160a01b03613dba838d61393b565b511660018060a01b03165f526020528b8a60405f2060405192613ddc8461274f565b81546001600160a01b0390811685526001830154602086019081526002909301546001600160401b03166040860190815293829190613e1c90889061393b565b511614159384613e7c575b505082613e70575b5081613e56575b50613e44575b600101613d92565b9c5f198114611de0576001019c613e3c565b518c516001600160401b039182169116111590505f613e36565b518b511491505f613e2f565b516001600160a01b03161492508e5f613e27565b509596929b909891995093929360ff8b161115613eb9575b50506001905b019097929197613cda565b5190516001600160401b039091169650600193509150825f613ea8565b975097509892935090600190613eae565b5088516001600160401b039081169082161015613d8a565b5088516001600160401b0316421015613d83565b516001600160a01b0316141590508a5f613d7a565b505f9586955085949350915050565b613f4c9195503d805f833e610d36818361276a565b935f613caf565b60405163023aa9ab60e61b8152600481018290527f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03169491939192905f81602481895afa908115611dd1575f9161407c575b50602060018060a01b0391015116845f526006602052613fdb60018060401b0360405f205460a01c16612e3e565b906040519560208701976101408952601d6101608901527f456e636c617665436f6e6e65637469766974792e706f6c6963792e7631000000610180890152466040890152306060890152608088015260a087015260c086015260018060401b031660e085015260018060401b031661010084015260018060401b031661012083015260018060801b031661014082015261018081526130f66101a08261276a565b61409091503d805f833e6106c7818361276a565b5f613fad565b805f52600160205260405f20908015159081614190575b5080614180575b614122575060015f54115f1461411a576002905b6040515f5480825281602081015f805260205f20925f5b8181106140f85750506140f49250038261276a565b9190565b84546001600160a01b03168352600194850194869450602090930192016140df565b6001906140c8565b9060ff60018301925460a01c1691604051908181549182825260208201905f5260205f20925f5b81811061415e5750506140f49250038261276a565b84546001600160a01b0316835260019485019486945060209093019201614149565b5060ff815460a01c1615156140b4565b825460405163023aa9ab60e61b815260048101929092526001600160a01b0390811692505f90829060249082907f0000000000000000000000000000000000000000000000000000000000000000165afa908115611dd1575f91614204575b50602001516001600160a01b0316145f6140ad565b61421891503d805f833e6106c7818361276a565b5f6141ef565b9192909260405160208101907b0ca2ba3432b932bab69029b4b3b732b21026b2b9b9b0b3b29d05199960211b825285603c820152603c8152614261605c8261276a565b519020833b61428657506142759293614384565b6001600160a01b0390811691161490565b905f9450916142de6084869594836040519485926020840197630b135d3f60e11b89526024850152604060448501528160648501528484013787838284010152601f801991011681010301601f19810183528261276a565b51915afa3d1561437d573d6142f28161278d565b90614300604051928361276a565b81523d5f602083013e5b8161436f575b81614319575090565b80516020909101516001600160e01b0319811692506004821061434f575b50506001600160e01b031916630b135d3f60e11b1490565b6001600160e01b031960049290920360031b82901b161690505f80614337565b905060208151101590614310565b606061430a565b91604103611ddc5760208101359160408201355f1a6fa2a8918ca85bafe22016d0b997e4df60600160ff1b038411158061443c575b15611ddc576020935f93608093604051878101917b0ca2ba3432b932bab69029b4b3b732b21026b2b9b9b0b3b29d05199960211b8352603c820152603c8152614403605c8261276a565b5190209260405193845286840152356040830152606082015282805260015afa15611dd1575f51906001600160a01b03821615611ddc57565b50601b8114806143b95750601c81146143b956fea37cb12be93fabc54c2fb3dbbce45d9f2aa8bfcf2a6b5ac7bfb7c139e88a937aa26469706673582212207681f3b22edaf79b3c73923894b5022f312ef638c8012d8cbac4279fa4efca6c64736f6c63430008230033",
++    "runtimeBytes": 17574,
+     "linkReferences": {},
+     "libraries": {},
+     "schemaFn": null,
+-- 
+2.56.0
+
+
+From f4a357c0e9a61b12aa0bef4393e8c76eb3a2b126 Mon Sep 17 00:00:00 2001
+From: Steven Batchelor <srbatchelor@ovgl.org>
+Date: Tue, 13 Oct 2026 19:21:14 -0700
+Subject: [PATCH 2/2] network, relay, site, scripts: callers use the
+ EnclaveConnectivity v2 provider-mode names
+
+- lease snapshot (connectivity-chain.mjs): viaProviders / providersOf reads; the snapshot fields
+  are connectivity.viaProviders and connectivity.providerMode (were viaTuna / tunaProvider);
+  consumers (provider-settlement, usdc-bandwidth, paid-fork-e2e, tests) follow
+- provider-settlement: settleProvider, receipt domain "EnclaveConnectivity.provider-receipt.v1"
+- onchain-qualification: hosts()/setHost() field named provider
+- relay/vaultsvc.js: the bandwidth mode 'tuna' is now 'providers' (providerPolicyDigest /
+  authorizeProviders); "providers require provider authorization"; networkArgs gets a unit test
+- site Network tab: providerPolicyDigest 5c50050e / authorizeProviders 2be89fe4 calldata,
+  mode "providers"; its test now encodes against contracts/EnclaveConnectivity.abi.json
+- scripts/network/connectivity.mjs: command and --mode value 'providers'
+- scripts/network/paid-fork-e2e.mjs: when the fork's ledger is bound to a contract without the
+  v2 interface (today: production v1), or with --fresh, the fork's one-time bandwidthRouter slot
+  is cleared and a fresh contract from --artifact is bound (fork only)
+- comments say provider / Enclave network instead of TUNA
+
+These callers need a v2 contract: against the deployed v1 (0x5f8b636e) the renamed reads revert.
+
+Co-Authored-By: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+---
+ network/connectivity-chain.mjs       | 16 +++++++--------
+ network/lease-reader.mjs             |  2 +-
+ network/onchain-qualification.mjs    | 10 +++++-----
+ network/paid-network.mjs             |  4 ++--
+ network/provider-qualification.mjs   |  2 +-
+ network/provider-settlement.mjs      | 10 +++++-----
+ network/shield-expectation.mjs       |  2 +-
+ network/usdc-bandwidth.mjs           |  6 +++---
+ network/wg-control.mjs               |  2 +-
+ network/wg-provider/paid.mjs         |  4 ++--
+ relay/vaultsvc.js                    | 18 ++++++++---------
+ scripts/network/connectivity.mjs     | 24 +++++++++++------------
+ scripts/network/paid-fork-e2e.mjs    | 29 ++++++++++++++++++----------
+ scripts/network/qualify-provider.mjs |  2 +-
+ site/js/core/enclave-network.js      | 22 ++++++++++-----------
+ test/connectivity-chain.test.mjs     | 14 +++++++-------
+ test/paid-network.test.mjs           |  8 ++++----
+ test/provider-settlement.test.mjs    |  8 ++++----
+ test/site-paid-network.test.mjs      | 15 +++++++-------
+ test/vaultsvc.test.mjs               | 12 +++++++++++-
+ 20 files changed, 115 insertions(+), 95 deletions(-)
+
+diff --git a/network/connectivity-chain.mjs b/network/connectivity-chain.mjs
+index 5cfbf2a96..b4d2a2230 100644
+--- a/network/connectivity-chain.mjs
++++ b/network/connectivity-chain.mjs
+@@ -4,12 +4,12 @@ import {parseAbi} from 'viem';
+ import {hostABI} from './registry-abi.mjs';
+ export const connectivityABI=parseAbi([
+  'function registry() view returns (address)',
+- 'function viaTuna(bytes32) view returns (bool)',
+- 'function tunaProviders(bytes32) view returns (bytes32[])',
++ 'function viaProviders(bytes32) view returns (bool)',
++ 'function providersOf(bytes32) view returns (bytes32[])',
+  'function ledger() view returns (address)',
+  'function policies(bytes32) view returns (address owner,uint64 nonce,uint64 expires,uint64 maxPricePerGiB6,uint128 budget6,uint128 spent6,uint16 providerBps)',
+- 'function hosts(bytes32) view returns (bool direct,bool tuna,uint64 pricePerGiB6,uint64 qualifiedUntil,bytes32 addressHash,address operator,address qualifier)',
+- 'function capabilities(bytes32) view returns (bool direct,bool tuna)',
++ 'function hosts(bytes32) view returns (bool direct,bool provider,uint64 pricePerGiB6,uint64 qualifiedUntil,bytes32 addressHash,address operator,address qualifier)',
++ 'function capabilities(bytes32) view returns (bool direct,bool provider)',
+  'function qualificationFor(bytes32,bytes32) view returns (bool ok,uint64 expires,bytes32 addressHash,address operator)',
+ ]);
+ export async function readConnectivity(client,{address,deployments,rows,blockNumber}) {
+@@ -17,10 +17,10 @@ export async function readConnectivity(client,{address,deployments,rows,blockNum
+   const read=(functionName,args=[])=>client.readContract({address,abi:connectivityABI,functionName,args,blockNumber});
+   if((await read('ledger')).toLowerCase()!==deployments.toLowerCase())throw Error('connectivity ledger mismatch');
+   return Promise.all(rows.map(async row=>{
+-    const [policy,host,q,viaTuna]=await Promise.all([read('policies',[row.id]),read('hosts',[row.runner]),read('qualificationFor',[row.runner,row.id]),read('viaTuna',[row.id])]);
++    const [policy,host,q,viaProviders]=await Promise.all([read('policies',[row.id]),read('hosts',[row.runner]),read('qualificationFor',[row.runner,row.id]),read('viaProviders',[row.id])]);
+     const providers=[];
+-    if(viaTuna){
+-      const [ids,registry]=await Promise.all([read('tunaProviders',[row.id]),read('registry')]);
++    if(viaProviders){
++      const [ids,registry]=await Promise.all([read('providersOf',[row.id]),read('registry')]);
+       if(ids.length<1||ids.length>6||new Set(ids.map(id=>id.toLowerCase())).size!==ids.length)throw Error('invalid authorized provider path');
+       providers.push(...await Promise.all(ids.map(async id=>{
+         const [h,c,key]=await Promise.all([read('hosts',[id]),read('qualificationFor',[id,row.id]),client.readContract({address:registry,abi:hostABI,functionName:'get',args:[id],blockNumber})]);
+@@ -29,6 +29,6 @@ export async function readConnectivity(client,{address,deployments,rows,blockNum
+     }
+     const [owner,nonce,expires,maxPricePerGiB6,budget6,spent6,providerBps]=policy;
+     return {...row,connectivity:{address:address.toLowerCase(),owner,nonce,expires,maxPricePerGiB6,budget6,spent6,providerBps,
+-      appScopedQualification:true,viaTuna,providers,direct:q[0]&&host[0],tunaProvider:q[0]&&host[1],pricePerGiB6:host[2],qualifiedUntil:q[1],addressHash:q[2],operator:q[3]}};
++      appScopedQualification:true,viaProviders,providers,direct:q[0]&&host[0],providerMode:q[0]&&host[1],pricePerGiB6:host[2],qualifiedUntil:q[1],addressHash:q[2],operator:q[3]}};
+   }));
+ }
+diff --git a/network/lease-reader.mjs b/network/lease-reader.mjs
+index 6b9337119..132fd7c02 100644
+--- a/network/lease-reader.mjs
++++ b/network/lease-reader.mjs
+@@ -116,7 +116,7 @@ export class LeaseReader {
+       }
+       const connectivityAddress=this.includeConnectivity&&Number(schema)>=16?await c.readContract({address:this.addressBook,abi:bookABI,functionName:'addr',args:[stringToHex('connectivity',{size:32})],blockNumber}):null;
+       // 'auto': a book that publishes no connectivity contract (none deployed yet) reads as schema 15 did. Without this the
+-      // 16d cutover (2026-10-12 16:04Z) made every RPC throw "connectivity contract required": no quorum, every TUNA route refused.
++      // 16d cutover (2026-10-12 16:04Z) made every RPC throw "connectivity contract required": no quorum, every app route refused.
+       if(connectivityAddress&&!(this.includeConnectivity==='auto'&&/^0x0{40}$/i.test(connectivityAddress))){
+         const address=connectivityAddress;
+         rows=await readConnectivity(c,{address,deployments,rows,blockNumber});
+diff --git a/network/onchain-qualification.mjs b/network/onchain-qualification.mjs
+index d0523f0dd..6faadc662 100644
+--- a/network/onchain-qualification.mjs
++++ b/network/onchain-qualification.mjs
+@@ -14,8 +14,8 @@ export const connectivityQualificationABI=parseAbi([
+  'function qualificationDigest(bytes32 hostId,bytes32 addressHash,uint64 issuedAt,uint64 expires,uint16 checks) view returns (bytes32)',
+  'function qualify(bytes32 hostId,bytes32 addressHash,uint64 issuedAt,uint64 expires,uint16 checks,bytes signature)',
+  'function attestations(bytes32 hostId,address signer) view returns (address operator,bytes32 addressHash,uint64 expires)',
+- 'function hosts(bytes32) view returns (bool direct,bool tuna,uint64 pricePerGiB6,uint64 qualifiedUntil,bytes32 addressHash,address operator,address qualifier)',
+- 'function setHost(bytes32 hostId,bool direct,bool tuna,uint64 pricePerGiB6)',
++ 'function hosts(bytes32) view returns (bool direct,bool provider,uint64 pricePerGiB6,uint64 qualifiedUntil,bytes32 addressHash,address operator,address qualifier)',
++ 'function setHost(bytes32 hostId,bool direct,bool provider,uint64 pricePerGiB6)',
+  'function ledger() view returns (address)',
+ ]);
+ const bookABI=parseAbi(['function addr(bytes32) view returns (address)']);
+@@ -63,10 +63,10 @@ export async function submitAttestations({wallet,client,connectivity,hostId,addr
+  return sent;
+ }
+ 
+-// The provider's on-chain offer: a TUNA-path ("network provider") host at exactly its record's price. -> true if changed.
++// The provider's on-chain offer: a provider-path ("network provider") host at exactly its record's price. -> true if changed.
+ export async function ensureHost({wallet,client,connectivity,hostId,pricePerGiB6}){
+- const [direct,tuna,price]=await client.readContract({address:connectivity,abi:connectivityQualificationABI,functionName:'hosts',args:[hostId]});
+- if(tuna&&!direct&&BigInt(price)===BigInt(pricePerGiB6))return false;
++ const [direct,provider,price]=await client.readContract({address:connectivity,abi:connectivityQualificationABI,functionName:'hosts',args:[hostId]});
++ if(provider&&!direct&&BigInt(price)===BigInt(pricePerGiB6))return false;
+  const tx=await wallet.writeContract({address:connectivity,abi:connectivityQualificationABI,functionName:'setHost',args:[hostId,false,true,BigInt(pricePerGiB6)]});
+  if((await client.waitForTransactionReceipt({hash:tx,timeout:60000})).status!=='success')throw new Error('setHost reverted (tx '+tx+')');return true;
+ }
+diff --git a/network/paid-network.mjs b/network/paid-network.mjs
+index a457e6f0b..ad8d2aaa2 100644
+--- a/network/paid-network.mjs
++++ b/network/paid-network.mjs
+@@ -1,12 +1,12 @@
+ // Paid Enclave-network providers, the host's side (docs/design/enclave-network.md, "Paid providers"; the provider's
+ // side is wg-provider/paid.mjs). A provider with a price is a community provider: a registry host whose price, and the
+-// app owner's authorization of it, live in the existing EnclaveConnectivity contract (authorizeTuna: these exact
++// app owner's authorization of it, live in the EnclaveConnectivity contract (authorizeProviders: these exact
+ // providers, an aggregate price cap, a budget, an expiry; signed by the owner). Here:
+ //   - paidEligible: a priced provider is usable for an app only while that on-chain authorization names it at exactly
+ //     its price and the budget is not spent; free providers always are;
+ //   - PaidNetwork.meter: the app bytes through each paid hop, accumulated durably per (app, provider, on-chain policy
+ //     nonce), are authorized with the existing settlement (ProviderUSDCSettlement.authorizeDebit), which settles receipts
+-//     co-signed by the provider (settleTuna charges the app's USDC balance); a circuit whose debit is refused (budget
++//     co-signed by the provider (settleProvider charges the app's USDC balance); a circuit whose debit is refused (budget
+ //     spent, authorization revoked or changed) is reported so the manager closes it - no unpaid traffic continues.
+ import path from 'node:path';
+ import fs from 'node:fs/promises';
+diff --git a/network/provider-qualification.mjs b/network/provider-qualification.mjs
+index 6ae17cf26..a69a976e0 100644
+--- a/network/provider-qualification.mjs
++++ b/network/provider-qualification.mjs
+@@ -1,4 +1,4 @@
+-// One qualification contract for direct hosts (and, historically, TUNA providers). Evidence is
++// One qualification contract for direct hosts and Enclave-network providers. Evidence is
+ // produced by independent probes, never by a host setting its own ready flag.
+ import net from 'node:net';
+ import {recoverMessageAddress} from 'viem';
+diff --git a/network/provider-settlement.mjs b/network/provider-settlement.mjs
+index 7d3d68bde..8e848b19a 100644
+--- a/network/provider-settlement.mjs
++++ b/network/provider-settlement.mjs
+@@ -1,4 +1,4 @@
+-// Paid Enclave-network provider settlement (EnclaveConnectivity: authorizeTuna / settleTuna - the contract's own names).
++// Paid Enclave-network provider settlement (EnclaveConnectivity: authorizeProviders / settleProvider).
+ // A transport must meter both
+ // endpoints and negotiate this mode before using these receipts; configuring
+ // this class alone does not turn a native-NKN provider into a USDC provider.
+@@ -6,14 +6,14 @@ import {encodeAbiParameters,keccak256,recoverMessageAddress,parseAbi} from 'viem
+ import {USDCBandwidthSettlement,RECEIPT_SKEW_S} from './usdc-bandwidth.mjs';
+ const receiptType={type:'tuple',components:[['id','bytes32'],['runnerId','bytes32'],['providerId','bytes32'],['policyNonce','uint64'],['leaseUntil','uint64'],['issuedAt','uint64'],['anchor','uint64'],['cumulativeBytes','uint128'],['pricePerGiB6','uint64']].map(([name,type])=>({name,type}))};
+ export const providerBandwidthABI=[...parseAbi(['function bytesServed(bytes32) view returns (uint128)']),
+- {type:'function',name:'settleTuna',stateMutability:'nonpayable',inputs:[{name:'r',...receiptType},{name:'runnerSignature',type:'bytes'},{name:'providerSignature',type:'bytes'}],outputs:[]}];
++ {type:'function',name:'settleProvider',stateMutability:'nonpayable',inputs:[{name:'r',...receiptType},{name:'runnerSignature',type:'bytes'},{name:'providerSignature',type:'bytes'}],outputs:[]}];
+ export function providerReceiptDigest({chainId,connectivity,ledger,receipt,anchorHash}){
+  return keccak256(encodeAbiParameters([{type:'string'},{type:'uint256'},{type:'address'},{type:'address'},receiptType,{type:'bytes32'}],
+- ['EnclaveConnectivity.tuna-receipt.v1',BigInt(chainId),connectivity,ledger,receipt,anchorHash]));
++ ['EnclaveConnectivity.provider-receipt.v1',BigInt(chainId),connectivity,ledger,receipt,anchorHash]));
+ }
+ export function providerContext(lease,providerId,nonce,rate,now=Date.now()){
+  const c=lease?.connectivity;
+- if(!lease?.active||lease.validUntil<=now||lease.leaseUntil<=now||!c?.viaTuna||String(c.nonce)!==String(nonce)||Number(c.expires)*1000<=now||c.owner.toLowerCase()!==lease.owner.toLowerCase())throw Error('current on-chain provider authorization required');
++ if(!lease?.active||lease.validUntil<=now||lease.leaseUntil<=now||!c?.viaProviders||String(c.nonce)!==String(nonce)||Number(c.expires)*1000<=now||c.owner.toLowerCase()!==lease.owner.toLowerCase())throw Error('current on-chain provider authorization required');
+  const providers=c.providers;
+  if(!Array.isArray(providers)||providers.length<1||providers.length>6||new Set(providers.map(p=>p.id)).size!==providers.length)throw Error('invalid authorized provider path');
+  let total=0n;
+@@ -47,7 +47,7 @@ export class ProviderUSDCSettlement extends USDCBandwidthSettlement {
+   const runnerSignature=await this.proofAccount.signMessage({message:{raw:digest}});
+   const providerSignature=await this.cosign({receipt,runnerSignature,anchorHash:head.hash});
+   if((await recoverMessageAddress({message:{raw:digest},signature:providerSignature})).toLowerCase()!==provider.proofKey.toLowerCase())throw Error('provider receipt signature mismatch');
+-  return {receipt,abi:providerBandwidthABI,functionName:'settleTuna',args:[receipt,runnerSignature,providerSignature]};
++  return {receipt,abi:providerBandwidthABI,functionName:'settleProvider',args:[receipt,runnerSignature,providerSignature]};
+  }
+ }
+ // Provider-side co-signer. observedBytes must read its own durable transport
+diff --git a/network/shield-expectation.mjs b/network/shield-expectation.mjs
+index bd550c343..4a3ac24d0 100644
+--- a/network/shield-expectation.mjs
++++ b/network/shield-expectation.mjs
+@@ -1,6 +1,6 @@
+ // The app expectation a Windows (Enclave Shield) host's privacy agent pins for one leased deployment, from the node
+ // manager's record of the partition it launched: shared by the platform's SSH reconcile (reconcile-shield-apps.mjs) and
+-// the host's own enrollment (windows/node/tuna-enroll.mjs), so both pin exactly the same thing.
++// the host's own enrollment (windows/node/network-enroll.mjs), so both pin exactly the same thing.
+ //
+ // A record is used only when it is running and ready, names the lease's CURRENT catalog app and version, carries that
+ // version's catalog CID (and, for a raw-leaf CID, a component sha256 equal to the CID's digest), and runs the runtime the
+diff --git a/network/usdc-bandwidth.mjs b/network/usdc-bandwidth.mjs
+index 30cc94a37..b815b573f 100644
+--- a/network/usdc-bandwidth.mjs
++++ b/network/usdc-bandwidth.mjs
+@@ -22,8 +22,8 @@ export function receiptDigest({chainId,connectivity,ledger,receipt,anchorHash})
+ export function meterKey(id,hostId,nonce){return keccak256(encodeAbiParameters([{type:'bytes32'},{type:'bytes32'},{type:'uint64'}],[id,hostId,BigInt(nonce)]));}
+ // Provider credit is explicit and bounded. Zero waits for settlement before
+ // admitting each charge; a positive cap batches settlement off the packet path.
+-// Outstanding credit can be lost on owner revocation/lease loss, just as unpaid
+-// native TUNA traffic can be lost. It is never a second customer balance.
++// Outstanding credit can be lost on owner revocation/lease loss (a provider
++// accepts that risk up to its cap). It is never a second customer balance.
+ export class USDCBandwidthSettlement {
+  constructor({directory,transactionDirectory,leaseReader,proofAccount,wallet,client,maxPending6,intervalMs=10000,now=Date.now,log=()=>{}}){
+   if(!/^(0|[1-9]\d{0,11})$/.test(maxPending6||'')||intervalMs<1000||intervalMs>20000)throw Error('explicit bounded provider credit required');
+@@ -32,7 +32,7 @@ export class USDCBandwidthSettlement {
+  }
+  context(id,nonce,price){
+   const lease=this.leaseReader.get(id),c=lease?.connectivity;
+-  if(!lease?.active||!c?.direct||c.viaTuna||String(c.nonce)!==String(nonce)||Number(c.expires)*1000<=this.now()||
++  if(!lease?.active||!c?.direct||c.viaProviders||String(c.nonce)!==String(nonce)||Number(c.expires)*1000<=this.now()||
+    c.owner.toLowerCase()!==lease.owner.toLowerCase()||lease.runnerProofKey?.toLowerCase()!==this.proofAccount.address.toLowerCase())throw Error('current bound meter authorization required');
+   if(String(c.pricePerGiB6)!==String(price)||BigInt(c.budget6)<BigInt(c.spent6)||BigInt(lease.bandwidthBackingRequired6||'-1')!==0n)throw Error('bandwidth rate or USDC backing changed');
+   return {lease,c};
+diff --git a/network/wg-control.mjs b/network/wg-control.mjs
+index 6d17a387f..b5d988406 100644
+--- a/network/wg-control.mjs
++++ b/network/wg-control.mjs
+@@ -1,6 +1,6 @@
+ // The host's own control traffic over the Enclave network (docs/design/enclave-network.md): chain reads, relay calls and
+ // route publication leave through two guarded, egress-only circuits, so RPC providers and the relay see an exit's
+-// address, never the host's. Replaces TUNA's control guards; same shape (proxies(), close()).
++// address, never the host's. Replaces the retired transport's control guards; same shape (proxies(), close()).
+ import {selectNetworkCircuits} from './wg-manager.mjs';
+ import {guardedFetch} from './guarded-fetch.mjs';
+ const ZERO='0x'+'0'.repeat(64),COOLDOWN_MAX_MS=30*60000;
+diff --git a/network/wg-provider/paid.mjs b/network/wg-provider/paid.mjs
+index ff2b40808..3e04bb20c 100644
+--- a/network/wg-provider/paid.mjs
++++ b/network/wg-provider/paid.mjs
+@@ -1,12 +1,12 @@
+ // Paid Enclave-network providers (docs/design/enclave-network.md, "Paid providers"). A community provider is a
+ // registry host; it charges its on-chain price through the existing EnclaveConnectivity contract:
+-//   - the app's owner authorizes it on chain (authorizeTuna: these exact providers, an aggregate price cap, a budget
++//   - the app's owner authorizes it on chain (authorizeProviders: these exact providers, an aggregate price cap, a budget
+ //     and an expiry, signed by the owner), and this provider admits an app's peers only while that authorization
+ //     names it at its current price and the budget is not spent (paidGate);
+ //   - it meters each paid peer itself, from the kernel's per-peer WireGuard counters, durably and per on-chain policy
+ //     nonce (PeerMeter);
+ //   - it co-signs the host's cumulative receipt only up to what it observed (ProviderReceiptSigner, unchanged), and the
+-//     host submits settleTuna, which charges the app's existing USDC balance (ledger.chargeBandwidth).
++//     host submits settleProvider, which charges the app's existing USDC balance (ledger.chargeBandwidth).
+ // A free provider (price 0) uses none of this.
+ import fs from 'node:fs/promises';
+ import {providerContext,ProviderReceiptSigner} from '../provider-settlement.mjs';
+diff --git a/relay/vaultsvc.js b/relay/vaultsvc.js
+index c089a7676..d17c0a7d0 100644
+--- a/relay/vaultsvc.js
++++ b/relay/vaultsvc.js
+@@ -421,15 +421,15 @@ export async function submitOp(op, vaultAddress, args, deadline, assertion) {
+ const NETWORK_ABI = [
+  {type:'function',name:'probeTrustDigest',stateMutability:'view',inputs:['bytes32','address[]','uint8','uint64'].map(type=>({type})),outputs:[{type:'bytes32'}]},
+  {type:'function',name:'authorizeProbeTrust',stateMutability:'nonpayable',inputs:['bytes32','address[]','uint8','uint64','bytes'].map(type=>({type})),outputs:[]},
+- {type:'function',name:'tunaPolicyDigest',stateMutability:'view',inputs:['bytes32','bytes32[]','uint64','uint64','uint128'].map(type=>({type})),outputs:[{type:'bytes32'}]},
+- {type:'function',name:'authorizeTuna',stateMutability:'nonpayable',inputs:['bytes32','bytes32[]','uint64','uint64','uint128','bytes'].map(type=>({type})),outputs:[]},
++ {type:'function',name:'providerPolicyDigest',stateMutability:'view',inputs:['bytes32','bytes32[]','uint64','uint64','uint128'].map(type=>({type})),outputs:[{type:'bytes32'}]},
++ {type:'function',name:'authorizeProviders',stateMutability:'nonpayable',inputs:['bytes32','bytes32[]','uint64','uint64','uint128','bytes'].map(type=>({type})),outputs:[]},
+  {type:'function',name:'ledger',stateMutability:'view',inputs:[],outputs:[{type:'address'}]},
+  {type:'function',name:'policies',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:['address','uint64','uint64','uint64','uint128','uint128','uint16'].map(type=>({type}))},
+  {type:'function',name:'policyDigest',stateMutability:'view',inputs:['bytes32','uint64','uint64','uint128'].map(type=>({type})),outputs:[{type:'bytes32'}]},
+  {type:'function',name:'authorizeDirect',stateMutability:'nonpayable',inputs:['bytes32','uint64','uint64','uint128','bytes'].map(type=>({type})),outputs:[]},
+ ];
+ export function networkArgs(p){
+- if(p.mode!==undefined&&!['direct','tuna','revoke','trust'].includes(p.mode))throw Error('invalid bandwidth mode');
++ if(p.mode!==undefined&&!['direct','providers','revoke','trust'].includes(p.mode))throw Error('invalid bandwidth mode');
+  if(!/^0x[0-9a-f]{64}$/i.test(p.id||'')||!['expires','maxPricePerGiB6','budget6'].every(k=>/^(0|[1-9]\d{0,38})$/.test(String(p[k]))))throw Error('invalid bandwidth authorization');
+  const args=[p.id,BigInt(p.expires),BigInt(p.maxPricePerGiB6),BigInt(p.budget6)];
+  if(args[1]>=1n<<64n||args[2]>=1n<<64n||args[3]>=1n<<128n)throw Error('bandwidth authorization out of range');
+@@ -440,10 +440,10 @@ export function networkArgs(p){
+   return [p.id,p.signers,p.threshold,args[1]];
+  }
+  if(p.signers!==undefined||p.threshold!==undefined)throw Error('checkers require trust authorization');
+- if(p.mode==='tuna'){
+-  if(!Array.isArray(p.providers)||p.providers.length<1||p.providers.length>6||p.providers.some(id=>!/^0x[0-9a-f]{64}$/.test(id)||/^0x0{64}$/.test(id))||new Set(p.providers).size!==p.providers.length)throw Error('invalid TUNA provider path');
++ if(p.mode==='providers'){
++  if(!Array.isArray(p.providers)||p.providers.length<1||p.providers.length>6||p.providers.some(id=>!/^0x[0-9a-f]{64}$/.test(id)||/^0x0{64}$/.test(id))||new Set(p.providers).size!==p.providers.length)throw Error('invalid provider path');
+   args.splice(1,0,p.providers);
+- }else if(p.providers!==undefined&&p.providers.length)throw Error('providers require TUNA authorization');
++ }else if(p.providers!==undefined&&p.providers.length)throw Error('providers require provider authorization');
+  return args;
+ }
+ async function networkBinding(pub){
+@@ -457,8 +457,8 @@ async function networkBinding(pub){
+ export async function prepareNetwork(vault,p){
+  const pub=await rpcPool(),binding=await networkBinding(pub),args=networkArgs(p);
+  const policy=await pub.readContract({address:binding.address,abi:NETWORK_ABI,functionName:'policies',args:[p.id]});
+- const raw=await pub.readContract({address:binding.address,abi:NETWORK_ABI,functionName:p.mode==='trust'?'probeTrustDigest':p.mode==='tuna'?'tunaPolicyDigest':'policyDigest',args});
+- return {...binding,vault,chainId:cfg.chainId||8453,id:p.id,nonce:String(policy[1]+1n),mode:p.mode||'direct',...(p.mode==='trust'?{signers:p.signers,threshold:p.threshold}:{}),...(p.mode==='tuna'?{providers:p.providers}:{}),expires:String(p.expires),maxPricePerGiB6:String(p.maxPricePerGiB6),budget6:String(p.budget6),digest:viem.hashMessage({raw})};
++ const raw=await pub.readContract({address:binding.address,abi:NETWORK_ABI,functionName:p.mode==='trust'?'probeTrustDigest':p.mode==='providers'?'providerPolicyDigest':'policyDigest',args});
++ return {...binding,vault,chainId:cfg.chainId||8453,id:p.id,nonce:String(policy[1]+1n),mode:p.mode||'direct',...(p.mode==='trust'?{signers:p.signers,threshold:p.threshold}:{}),...(p.mode==='providers'?{providers:p.providers}:{}),expires:String(p.expires),maxPricePerGiB6:String(p.maxPricePerGiB6),budget6:String(p.budget6),digest:viem.hashMessage({raw})};
+ }
+ // A passkey assertion (with the account key's x,y) as the vault's ERC-1271 signature: abi.encode(WebAuthnSig). The vault
+ // contract is the verifier: it accepts it only for a registered key whose assertion's challenge is the signed hash.
+@@ -472,7 +472,7 @@ export async function submitNetwork(vault,p,assertion){
+  return serial(async()=>{
+   const pub=await rpcPool(),{address}=await networkBinding(pub);
+   // Simulation validates the vault signature and current policy before gas is spent.
+-  const txArgs=[...args,signature],functionName=p.mode==='trust'?'authorizeProbeTrust':p.mode==='tuna'?'authorizeTuna':'authorizeDirect';
++  const txArgs=[...args,signature],functionName=p.mode==='trust'?'authorizeProbeTrust':p.mode==='providers'?'authorizeProviders':'authorizeDirect';
+   const gas=await pub.estimateContractGas({account,address,abi:NETWORK_ABI,functionName,args:txArgs});
+   const hash=await wallet.writeContract({address,abi:NETWORK_ABI,functionName,args:txArgs,gas:gas*125n/100n+10000n});
+   const receipt=await pub.waitForTransactionReceipt({hash,timeout:120000});if(receipt.status!=='success')throw Error('network authorization reverted');
+diff --git a/scripts/network/connectivity.mjs b/scripts/network/connectivity.mjs
+index 30cf2f4fe..485b38bbb 100644
+--- a/scripts/network/connectivity.mjs
++++ b/scripts/network/connectivity.mjs
+@@ -7,7 +7,7 @@ import {privateKeyToAccount} from 'viem/accounts';
+ import {base} from 'viem/chains';
+ const arg=(k,d)=>{const i=process.argv.indexOf(k);return i<0?d:process.argv[i+1];};
+ const command=process.argv[2],id=arg('--id'),execute=process.argv.includes('--execute');
+-if(!['inspect','host','direct','tuna','revoke','trust'].includes(command)||!/^0x[0-9a-f]{64}$/.test(id||''))throw Error('usage: connectivity.mjs inspect|host|direct|tuna|revoke|trust --id 0x… [--mode compute|direct|tuna|both] [--providers 0xID,0xID] [--price USDC/GiB --budget USDC --days 1] [--execute --key-file PATH]');
++if(!['inspect','host','direct','providers','revoke','trust'].includes(command)||!/^0x[0-9a-f]{64}$/.test(id||''))throw Error('usage: connectivity.mjs inspect|host|direct|providers|revoke|trust --id 0x… [--mode compute|direct|providers|both] [--providers 0xID,0xID] [--price USDC/GiB --budget USDC --days 1] [--execute --key-file PATH]');
+ const rpc=arg('--rpc','https://base-rpc.publicnode.com,https://base.drpc.org').split(',');
+ if(rpc.length<2||new Set(rpc.map(u=>new URL(u).hostname)).size!==rpc.length||rpc.some(u=>!u.startsWith('https://')))throw Error('independent HTTPS RPCs required');
+ const clients=rpc.map(u=>createPublicClient({chain:base,transport:http(u,{timeout:15000})}));
+@@ -15,10 +15,10 @@ const book=arg('--book','0xab214342d5A490150A4A977063A2f88E21F80907');
+ const abi=parseAbi(['function addr(bytes32) view returns (address)','function ledger() view returns (address)',
+  'function hosts(bytes32) view returns (bool,bool,uint64,uint64,bytes32,address,address)',
+  'function policies(bytes32) view returns (address,uint64,uint64,uint64,uint128,uint128,uint16)',
+- 'function viaTuna(bytes32) view returns (bool)',
+- 'function tunaProviders(bytes32) view returns (bytes32[])',
+- 'function tunaPolicyDigest(bytes32,bytes32[],uint64,uint64,uint128) view returns (bytes32)',
+- 'function authorizeTuna(bytes32,bytes32[],uint64,uint64,uint128,bytes)',
++ 'function viaProviders(bytes32) view returns (bool)',
++ 'function providersOf(bytes32) view returns (bytes32[])',
++ 'function providerPolicyDigest(bytes32,bytes32[],uint64,uint64,uint128) view returns (bytes32)',
++ 'function authorizeProviders(bytes32,bytes32[],uint64,uint64,uint128,bytes)',
+  'function probeTrust(bytes32) view returns (address[],uint8)',
+  'function probeTrustDigest(bytes32,address[],uint8,uint64) view returns (bytes32)',
+  'function authorizeProbeTrust(bytes32,address[],uint8,uint64,bytes)',
+@@ -35,12 +35,12 @@ async function read(address,functionName,args=[]){const values=await Promise.all
+ const connectivity=await read(book,'addr',[stringToHex('connectivity',{size:32})]),ledger=await read(book,'addr',[stringToHex('deployments',{size:32})]);
+ if(/^0x0{40}$/i.test(connectivity))throw Error('connectivity contract is not active in the address book');
+ if((await read(connectivity,'ledger')).toLowerCase()!==ledger.toLowerCase())throw Error('connectivity ledger mismatch');
+-if(command==='inspect'){console.log(json({blockNumber,connectivity,ledger,host:await read(connectivity,'hosts',[id]),policy:await read(connectivity,'policies',[id]),viaTuna:await read(connectivity,'viaTuna',[id]),providers:await read(connectivity,'tunaProviders',[id]),qualified:await read(connectivity,'qualified',[id])}));process.exit(0);}
++if(command==='inspect'){console.log(json({blockNumber,connectivity,ledger,host:await read(connectivity,'hosts',[id]),policy:await read(connectivity,'policies',[id]),viaProviders:await read(connectivity,'viaProviders',[id]),providers:await read(connectivity,'providersOf',[id]),qualified:await read(connectivity,'qualified',[id])}));process.exit(0);}
+ const money=(s,bits)=>{if(!/^(0|[1-9]\d{0,20})(\.\d{1,6})?$/.test(s||''))throw Error('explicit nonnegative USDC amount with at most 6 decimals required');const n=parseUnits(s,6);if(n>=1n<<BigInt(bits))throw Error('amount out of range');return n;};
+ let functionName,args,digest;
+ if(command==='host'){
+- const mode=arg('--mode');if(!['compute','direct','tuna','both'].includes(mode))throw Error('host mode required');
+- functionName='setHost';args=[id,['direct','both'].includes(mode),['tuna','both'].includes(mode),money(arg('--price','0'),64)];
++ const mode=arg('--mode');if(!['compute','direct','providers','both'].includes(mode))throw Error('host mode required');
++ functionName='setHost';args=[id,['direct','both'].includes(mode),['providers','both'].includes(mode),money(arg('--price','0'),64)];
+ }else if(command==='trust'){
+  const signers=arg('--signers','').split(','),threshold=Number(arg('--threshold','2'));
+  if(signers.length<1||signers.length>8||signers.some(a=>!/^0x[0-9a-f]{40}$/i.test(a)||/^0x0{40}$/i.test(a))||new Set(signers.map(a=>a.toLowerCase())).size!==signers.length||!Number.isInteger(threshold)||threshold<1||threshold>signers.length)throw Error('trust requires distinct --signers and a valid --threshold');
+@@ -49,10 +49,10 @@ if(command==='host'){
+ else {
+  const days=Number(arg('--days','1'));if(!Number.isFinite(days)||days<=0||days>30)throw Error('authorization lasts at most 30 days');
+  args=[id,BigInt(Math.floor(Date.now()/1000+days*86400)),money(arg('--price'),64),money(arg('--budget'),128)];
+- if(command==='tuna'){
++ if(command==='providers'){
+   const providers=arg('--providers','').split(',');
+-  if(providers.length<1||providers.length>6||providers.some(p=>!/^0x[0-9a-f]{64}$/.test(p)||/^0x0{64}$/.test(p))||new Set(providers).size!==providers.length)throw Error('TUNA requires 1 to 6 distinct authorized provider IDs');
+-  args.splice(1,0,providers);digest=await read(connectivity,'tunaPolicyDigest',args);functionName='authorizeTuna';
++  if(providers.length<1||providers.length>6||providers.some(p=>!/^0x[0-9a-f]{64}$/.test(p)||/^0x0{64}$/.test(p))||new Set(providers).size!==providers.length)throw Error('providers requires 1 to 6 distinct authorized provider IDs');
++  args.splice(1,0,providers);digest=await read(connectivity,'providerPolicyDigest',args);functionName='authorizeProviders';
+  }else{digest=await read(connectivity,'policyDigest',args);functionName='authorizeDirect';}
+ }
+ let wallet;
+@@ -69,7 +69,7 @@ if(receipt.status!=='success')throw Error('connectivity transaction reverted');c
+ if(command==='host'&&arg('--config')){
+  const file=arg('--config'),cfg=JSON.parse(await fs.readFile(file,'utf8'));
+  if(cfg.runner?.toLowerCase()!==id)throw Error('local runtime belongs to another host');
+- cfg.connectivity={version:1,direct:args[1],tunaProvider:args[2],pricePerGiB6:String(args[3])};
++ cfg.connectivity={version:1,direct:args[1],providerMode:args[2],pricePerGiB6:String(args[3])};
+  if(cfg.connectivity.direct&&!cfg.direct)throw Error('host enabled on-chain; configure its direct listeners and independent probe before starting service');
+  await fs.copyFile(file,file+'.before-connectivity');await fs.writeFile(file+'.tmp',JSON.stringify(cfg,null,2),{mode:0o600});await fs.rename(file+'.tmp',file);
+  console.log(JSON.stringify({runtimeConfigUpdated:true,restartRequired:true}));
+diff --git a/scripts/network/paid-fork-e2e.mjs b/scripts/network/paid-fork-e2e.mjs
+index f00497fc3..c3bb2fb41 100644
+--- a/scripts/network/paid-fork-e2e.mjs
++++ b/scripts/network/paid-fork-e2e.mjs
+@@ -1,13 +1,13 @@
+ #!/usr/bin/env node
+ // Paid Enclave-network providers, end to end against the LIVE Base contracts on a local fork (anvil --fork-url <Base>
+ // --block-time 2). Nothing here touches Base itself.
+-//   node scripts/network/paid-fork-e2e.mjs --rpc http://127.0.0.1:18545 --artifact conn.json --abis <dir with the rev-16d ABIs>
++//   node scripts/network/paid-fork-e2e.mjs --rpc http://127.0.0.1:18545 --artifact conn.json --abis <dir with the rev-16d ABIs> [--fresh]
+ // On the fork: deploy EnclaveConnectivity (bootstrap checkers = two fresh keys), bind it to the live ledger and address
+ // book (the one-time governance step, done here by impersonating the ledger and book owners), register a runner host
+ // and a paid provider host, create + fund + claim a deployment, the provider offers service on chain and submits both
+ // checkers' attestations, the owner authorizes that provider (path cap, budget). Then the real code paths settle:
+ // the host's PaidNetwork meters the circuit's bytes and debits through ProviderUSDCSettlement, which gets the provider's
+-// co-signature over HTTP from the provider's control API (createReceiptCosigner + PeerMeter), and submits settleTuna.
++// co-signature over HTTP from the provider's control API (createReceiptCosigner + PeerMeter), and submits settleProvider.
+ // Checked on chain: bytes served, the owner's budget spent, the provider operator's earnings, the app's balance. Then:
+ // a receipt for more than the provider observed is refused, and an exhausted budget closes the circuit.
+ import fs from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
+@@ -44,11 +44,20 @@ const LEDGER=await read(BOOK,bookABI,'addr',[key('deployments')]),REGISTRY=await
+ ok(LEDGER.toLowerCase()==='0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b','the fork reads the live rev-16d ledger from the live address book');
+ 
+ // 1. the contract: the one the live ledger is bound to (production activated 2026-10-13), else a fresh one bound here
+-//    by impersonating the ledger and book owners (the one-time governance step)
++//    by impersonating the ledger and book owners (the one-time governance step). A fresh one is also used when the
++//    bound contract does not have the artifact's interface (it predates the provider-mode names) or with --fresh: the
++//    ledger's one-time bandwidthRouter slot is cleared ON THE FORK first, so setBandwidthRouter can bind the new one.
+ let CONN=await read(LEDGER,parseAbi(['function bandwidthRouter() view returns (address)']),'bandwidthRouter');
+-const bound=!/^0x0{40}$/i.test(CONN);
++const bound=!/^0x0{40}$/i.test(CONN)&&!process.argv.includes('--fresh')&&await read(CONN,connABI,'viaProviders',[key('')]).then(()=>true,()=>false);
+ if(bound)ok(true,`the live ledger is bound to ${CONN} (production): testing against it`);
+ else{
++ if(!/^0x0{40}$/i.test(CONN)){
++  const word='0x'+CONN.slice(2).toLowerCase().padStart(64,'0');let slot=-1;
++  for(let i=0;i<256&&slot<0;i++)if((await pub.getStorageAt({address:LEDGER,slot:'0x'+i.toString(16)}))?.toLowerCase()===word)slot=i;
++  if(slot<0)throw new Error('bandwidthRouter storage slot not found on the fork');
++  await anvil('anvil_setStorageAt',[LEDGER,'0x'+slot.toString(16),'0x'+'0'.repeat(64)]);
++  ok(true,`fork only: the ledger's binding to ${CONN.slice(0,10)} (no provider-mode interface) cleared at slot ${slot}; a fresh contract from the artifact is bound instead`);
++ }
+  const h=await wallet(gas).deployContract({abi:connABI,bytecode:connBin,args:[LEDGER,[checkerA.address,checkerB.address]]});
+  CONN=(await pub.waitForTransactionReceipt({hash:h})).contractAddress;
+  for(const [target,who,fn,args] of [[LEDGER,await read(LEDGER,ledgerABI,'owner'),'setBandwidthRouter',[CONN]],[BOOK,await read(BOOK,bookABI,'owner'),'set',[key('connectivity'),CONN]]]){
+@@ -88,9 +97,9 @@ const attestations=[];for(const c of [checkerA,checkerB])attestations.push(await
+ ok(await submitAttestations({wallet:wallet(providerOp),client:pub,connectivity:CONN,hostId:providerHostId,address:record.address,attestations})===2,'provider: both checker attestations submitted');
+ ok(await submitAttestations({wallet:wallet(providerOp),client:pub,connectivity:CONN,hostId:providerHostId,address:record.address,attestations})===0,'provider: nothing resubmitted while the chain holds them');
+ const expires=BigInt(Math.floor(Date.now()/1000)+86400),maxPrice=PRICE,budget=1_000_000n;   // 1 USDC
+-const digest=await read(CONN,connABI,'tunaPolicyDigest',[id,[providerHostId],expires,maxPrice,budget]);
+-await send(owner,{address:CONN,abi:connABI,functionName:'authorizeTuna',args:[id,[providerHostId],expires,maxPrice,budget,await owner.signMessage({message:{raw:digest}})]});
+-ok(true,'owner: authorizeTuna (this provider, cap 0.05/GiB, budget 1 USDC, 1 day)');
++const digest=await read(CONN,connABI,'providerPolicyDigest',[id,[providerHostId],expires,maxPrice,budget]);
++await send(owner,{address:CONN,abi:connABI,functionName:'authorizeProviders',args:[id,[providerHostId],expires,maxPrice,budget,await owner.signMessage({message:{raw:digest}})]});
++ok(true,'owner: authorizeProviders (this provider, cap 0.05/GiB, budget 1 USDC, 1 day)');
+ // rev 16 charges bandwidth only from fully escrowed USDC: the owner backs the app's balance first
+ const backing=await read(LEDGER,ledgerABI,'bandwidthBackingRequired6',[id]);
+ await send(owner,{address:USDC,abi:usdcABI,functionName:'approve',args:[LEDGER,backing+1000n]});
+@@ -102,9 +111,9 @@ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'paid-fork-'));
+ const reader=()=>new LeaseReader({clients:[pub,pub2],chainId:8453,addressBook:BOOK,includeHostPayout:true,includeConnectivity:'auto',maxBlockAgeMs:120000});
+ const hostLR=reader(),providerLR=reader();
+ // lease snapshots trail the head by two confirmations
+-let lease;for(let i=0;i<15;i++){await hostLR.refresh([id]).catch(e=>console.log('lease read: '+e.message));lease=hostLR.get(id);if(lease?.connectivity?.viaTuna&&String(lease.bandwidthBackingRequired6)==='0')break;await new Promise(r=>setTimeout(r,2000));}
+-if(!lease?.connectivity?.viaTuna)console.log('lease:',JSON.stringify(lease,(k,v)=>typeof v==='bigint'?String(v):v)?.slice(0,1500));
+-ok(lease?.connectivity?.viaTuna&&lease.connectivity.providers[0]?.qualified===true&&lease.runnerProofKey?.toLowerCase()===hostProof.address.toLowerCase(),'host lease snapshot: on-chain authorization, provider qualified, runner proof key');
++let lease;for(let i=0;i<15;i++){await hostLR.refresh([id]).catch(e=>console.log('lease read: '+e.message));lease=hostLR.get(id);if(lease?.connectivity?.viaProviders&&String(lease.bandwidthBackingRequired6)==='0')break;await new Promise(r=>setTimeout(r,2000));}
++if(!lease?.connectivity?.viaProviders)console.log('lease:',JSON.stringify(lease,(k,v)=>typeof v==='bigint'?String(v):v)?.slice(0,1500));
++ok(lease?.connectivity?.viaProviders&&lease.connectivity.providers[0]?.qualified===true&&lease.runnerProofKey?.toLowerCase()===hostProof.address.toLowerCase(),'host lease snapshot: on-chain authorization, provider qualified, runner proof key');
+ ok(String(lease?.bandwidthBackingRequired6)==='0','no extra backing required for bandwidth');
+ ok((await hostLR.bookAddress('registry'))===REGISTRY.toLowerCase(),'host: the registry for community-provider checks comes from the address book');
+ let stats={};const kernel={stats:async()=>stats};
+diff --git a/scripts/network/qualify-provider.mjs b/scripts/network/qualify-provider.mjs
+index d00617cb4..938f348fe 100644
+--- a/scripts/network/qualify-provider.mjs
++++ b/scripts/network/qualify-provider.mjs
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env node
+ // Independent direct-host qualification, with the exact same acceptance list
+-// required of TUNA providers. Never consumes host-supplied pass/fail booleans.
++// required of Enclave-network providers. Never consumes host-supplied pass/fail booleans.
+ import fs from 'node:fs/promises';import path from 'node:path';
+ import {createPublicClient,createWalletClient,http,parseAbi,keccak256,stringToHex,encodeAbiParameters} from 'viem';
+ import {privateKeyToAccount} from 'viem/accounts';import {base} from 'viem/chains';
+diff --git a/site/js/core/enclave-network.js b/site/js/core/enclave-network.js
+index aae02b386..46017ef9a 100644
+--- a/site/js/core/enclave-network.js
++++ b/site/js/core/enclave-network.js
+@@ -55,7 +55,7 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
+   const live=route&&route.expiresAt>Date.now()?route:null;
+   const lines=[];
+   lines.push(`<b>${esc(MODE_TEXT[policy.mode].title)}</b>${status.policySet?` <span class="en-sub">owner setting #${policy.nonce}</span>`:` <span class="en-sub">default</span>`}`);
+-  const website=use.ingress==="none"?"off (no public website)":live?`ready — ${esc(live.addresses?.join(", ")||live.a||"")}${live.transport==="enclave-network"?" (Enclave network)":live.transport==="direct"?" (direct)":" (TUNA, being retired)"}`:"not reachable yet";
++  const website=use.ingress==="none"?"off (no public website)":live?`ready — ${esc(live.addresses?.join(", ")||live.a||"")}${live.transport==="enclave-network"?" (Enclave network)":live.transport==="direct"?" (direct)":" (legacy route)"}`:"not reachable yet";
+   lines.push(`<span class="en-sub">Website (public HTTPS): ${website}</span>`);
+   if(host){
+     lines.push(`<span class="en-sub">Outbound: ${host.egress==="none"?"off":esc(host.egress)}${host.fallbackActive?' <span class="warn">— your BYO tunnel is down; the fallback you authorized (Enclave network) is carrying it</span>':""}</span>`);
+@@ -152,23 +152,23 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
+   }
+ }
+ 
+-// ---- paid providers: the owner's on-chain authorization (EnclaveConnectivity.authorizeTuna) ----
++// ---- paid providers: the owner's on-chain authorization (EnclaveConnectivity.authorizeProviders) ----
+ // A priced provider is used only for apps whose owner authorized exactly it, under a price cap and a budget, on chain;
+ // the ledger then charges its traffic from the app's USDC balance once that balance is fully held in escrow.
+-const SEL={addr:"3b3b57de",tunaPolicyDigest:"70b410fa",authorizeTuna:"dff2bdf4",backing:"23d9291e",fundEscrow:"f3920f30",approve:"095ea7b3"};
++const SEL={addr:"3b3b57de",providerPolicyDigest:"5c50050e",authorizeProviders:"2be89fe4",backing:"23d9291e",fundEscrow:"f3920f30",approve:"095ea7b3"};
+ const word=h=>h.replace(/^0x/,"").padStart(64,"0");
+ const call=async(to,data)=>baseRpc("eth_call",[{to,data},"latest"],{emptyRetry:true});
+ async function connectivityAddress(){
+   const out=await call(ADDRESS_BOOK_ADDRESS,"0x"+SEL.addr+word(hex(new TextEncoder().encode("connectivity")).slice(2).padEnd(64,"0")));
+   const a="0x"+String(out).slice(-40);return /^0x0{40}$/.test(a)?null:a;
+ }
+-function tunaArgs({id,providers,expires,maxPricePerGiB6,budget6}){
++function providerArgs({id,providers,expires,maxPricePerGiB6,budget6}){
+   return {head:[encBytes32(id),encUint(5*32),encUint(expires),encUint(maxPricePerGiB6),encUint(budget6)],arr:[encUint(providers.length),...providers.map(encBytes32)]};
+ }
+-export function tunaPolicyDigestCall(args){const {head,arr}=tunaArgs(args);return "0x"+SEL.tunaPolicyDigest+head.join("")+arr.join("");}
+-export function authorizeTunaCall(args,signature){
+-  const {head,arr}=tunaArgs(args),sig=String(signature).replace(/^0x/,"");
+-  return "0x"+SEL.authorizeTuna+[head[0],encUint(6*32),head[2],head[3],head[4],encUint(6*32+arr.length*32)].join("")+arr.join("")+encUint(sig.length/2)+sig.padEnd(Math.ceil(sig.length/64)*64,"0");
++export function providerPolicyDigestCall(args){const {head,arr}=providerArgs(args);return "0x"+SEL.providerPolicyDigest+head.join("")+arr.join("");}
++export function authorizeProvidersCall(args,signature){
++  const {head,arr}=providerArgs(args),sig=String(signature).replace(/^0x/,"");
++  return "0x"+SEL.authorizeProviders+[head[0],encUint(6*32),head[2],head[3],head[4],encUint(6*32+arr.length*32)].join("")+arr.join("")+encUint(sig.length/2)+sig.padEnd(Math.ceil(sig.length/64)*64,"0");
+ }
+ export async function renderPaidProviders(box,id,{viaVault=false,owner=null,policy,providers}){
+   const paid=(providers||[]).filter(p=>p.kind==="community"&&Number(p.pricePerGiB6)>0);
+@@ -196,7 +196,7 @@ export async function renderPaidProviders(box,id,{viaVault=false,owner=null,poli
+       const args={id,providers:chosen.map(c=>c.value),expires:Math.floor(Date.now()/1000)+days*86400,maxPricePerGiB6:cap,budget6:budget};
+       if(viaVault){
+         out.textContent="Confirm with your passkey.";
+-        const q={id,mode:"tuna",providers:args.providers,expires:String(args.expires),maxPricePerGiB6:String(cap),budget6:String(budget)};
++        const q={id,mode:"providers",providers:args.providers,expires:String(args.expires),maxPricePerGiB6:String(cap),budget6:String(budget)};
+         const prep=await Enclave.vaultPrepare({op:"network",...q});
+         if(prep.id!==id||JSON.stringify(prep.providers)!==JSON.stringify(q.providers)||prep.address?.toLowerCase()!==conn.toLowerCase())throw new Error("The prepared authorization does not match what you chose.");
+         const b64u=b=>btoa(String.fromCharCode(...b)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+@@ -205,9 +205,9 @@ export async function renderPaidProviders(box,id,{viaVault=false,owner=null,poli
+         await Enclave.vaultExec({op:"network",args:q,assertion:{credId:asr.id,authenticatorData:asr.response.authenticatorData,clientDataJSON:asr.response.clientDataJSON,signature:asr.response.signature}});
+       }else{
+         await ensureBaseChain();
+-        const digest=await call(conn,tunaPolicyDigestCall(args));
++        const digest=await call(conn,providerPolicyDigestCall(args));
+         out.textContent="Sign the authorization in your wallet.";
+-        const data=authorizeTunaCall(args,await personalSignBytes(digest));
++        const data=authorizeProvidersCall(args,await personalSignBytes(digest));
+         out.textContent="Send the authorization transaction.";
+         await waitReceipt(await sendTx(conn,data));
+       }
+diff --git a/test/connectivity-chain.test.mjs b/test/connectivity-chain.test.mjs
+index 26c5ace4a..f07b2b261 100644
+--- a/test/connectivity-chain.test.mjs
++++ b/test/connectivity-chain.test.mjs
+@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
+ const {LeaseReader}=await import(process.env.ENCLAVE_TEST_RELAY_BUNDLE||'../network/lease-reader.mjs');
+ const address='0x'+'11'.repeat(20),ledger='0x'+'22'.repeat(20),owner='0x'+'33'.repeat(20),id='0x'+'aa'.repeat(32),runner='0x'+'bb'.repeat(32),now=1700000000000;
+ const providerId='0x'+'ee'.repeat(32);
+-function peer({nonce=1n,expires=1700000600n,boundLedger=ledger,viaTuna=false,providerKey=owner}={}) {
++function peer({nonce=1n,expires=1700000600n,boundLedger=ledger,viaProviders=false,providerKey=owner}={}) {
+  return {getChainId:async()=>8453,getBlockNumber:async()=>1000n,getBlock:async()=>({timestamp:1699999995n,hash:'0x'+'cc'.repeat(32)}),
+   readContract:async({functionName,args,blockNumber})=>{
+    assert.equal(blockNumber,998n);
+@@ -11,9 +11,9 @@ function peer({nonce=1n,expires=1700000600n,boundLedger=ledger,viaTuna=false,pro
+    if(functionName==='deploymentsSchema')return 16n;
+    if(functionName==='get'&&args[0]===providerId)return {operator:owner,active:true,proofKey:providerKey};
+    if(functionName==='get')return {id,runner,owner,runnerOperator:owner,leaseUntil:1700003600n,active:true};
+-   if(functionName==='viaTuna')return viaTuna;
++   if(functionName==='viaProviders')return viaProviders;
+    if(functionName==='registry')return address;
+-   if(functionName==='tunaProviders')return [providerId];
++   if(functionName==='providersOf')return [providerId];
+    if(functionName==='ledger')return boundLedger;
+    if(functionName==='bandwidthBackingRequired6')return 0n;
+    if(functionName==='policies')return [owner,nonce,expires,1000n,10000n,10n,8000];
+@@ -36,10 +36,10 @@ test('one peer cannot fabricate a policy or bind a foreign ledger',async()=>{
+  }
+ });
+ 
+-test('TUNA provider identity and proof key join the same-block lease quorum',async()=>{
+- const reader=new LeaseReader({addressBook:address,clients:[peer({viaTuna:true}),peer({viaTuna:true})],includeConnectivity:true,now:()=>now});
++test('paid provider identity and proof key join the same-block lease quorum',async()=>{
++ const reader=new LeaseReader({addressBook:address,clients:[peer({viaProviders:true}),peer({viaProviders:true})],includeConnectivity:true,now:()=>now});
+  const [lease]=await reader.refresh([id]);
+- assert.equal(lease.connectivity.viaTuna,true);assert.equal(lease.connectivity.providers[0].id,providerId);assert.equal(lease.connectivity.providers[0].proofKey,owner);
+- reader.clients=[peer({viaTuna:true}),peer({viaTuna:true,providerKey:address})];
++ assert.equal(lease.connectivity.viaProviders,true);assert.equal(lease.connectivity.providers[0].id,providerId);assert.equal(lease.connectivity.providers[0].proofKey,owner);
++ reader.clients=[peer({viaProviders:true}),peer({viaProviders:true,providerKey:address})];
+  await assert.rejects(reader.refresh([id]),/quorum/);
+ });
+diff --git a/test/paid-network.test.mjs b/test/paid-network.test.mjs
+index ebfd3cd8c..57aaeb40b 100644
+--- a/test/paid-network.test.mjs
++++ b/test/paid-network.test.mjs
+@@ -19,14 +19,14 @@ const tmp=async t=>{const d=await fs.mkdtemp(path.join(os.tmpdir(),'paid-'));t.a
+ // a lease as LeaseReader returns it, with the owner's on-chain authorization of one paid provider (hostId, 1000/GiB)
+ const lease=(over={},conn={})=>({id,runner,owner:owner.address,runnerOperator:runnerOperator.address,runnerProofKey:hostProof.address,active:true,isPublic:true,chainId:8453,deployments:ledger,
+  validUntil:190000,leaseUntil:200000,blockNumber:'100',blockHash:hash,balance6:'100000',bandwidthBackingRequired6:'0',
+- connectivity:{address:contract,viaTuna:true,owner:owner.address,nonce:'3',expires:200,maxPricePerGiB6:'1000',budget6:'10000',spent6:'0',
++ connectivity:{address:contract,viaProviders:true,owner:owner.address,nonce:'3',expires:200,maxPricePerGiB6:'1000',budget6:'10000',spent6:'0',
+   providers:[{id:hostId,qualified:true,active:true,qualifiedUntil:200,pricePerGiB6:'1000',operator:providerProof.address,proofKey:providerProof.address}],...conn},...over});
+ const NOW=100000;
+ 
+ test('a paid provider admits an app only under the owner\'s current on-chain authorization of it, with budget left',()=>{
+  assert.equal(paidGate({lease:lease(),hostId,pricePerGiB6:1000,now:NOW}),'3');
+  for(const [why,l,h=hostId,price=1000] of [
+-  ['not authorized at all',lease({},{viaTuna:false})],['another provider',lease(),other],['a different price',lease(),hostId,1500],
++  ['not authorized at all',lease({},{viaProviders:false})],['another provider',lease(),other],['a different price',lease(),hostId,1500],
+   ['path over the owner\'s cap',lease({},{maxPricePerGiB6:'999'})],['budget spent',lease({},{spent6:'10000'})],['authorization expired',lease({},{expires:50})],
+   ['not qualified on chain',lease({},{providers:[{...lease().connectivity.providers[0],qualified:false}]})],['no connectivity',lease({connectivity:undefined})],['not a registry host',lease(),null]])
+   assert.throws(()=>paidGate({lease:l,hostId:h,pricePerGiB6:price,now:NOW}),undefined,why);
+@@ -59,7 +59,7 @@ test('a paid provider grants only authorized apps, meters them, and drops their
+  p.meterSample=async()=>{sampled.push(now);};p.meterForget=async()=>{};
+  const ask=async()=>{const r={version:1,providerId:'ab'.repeat(16),role:'exit',deploymentId:id,runner,wgPublicKey:randomBytes(32).toString('base64'),policy:null,ingress:true,egress:true,issuedAt:now,nonce:randomBytes(16).toString('hex'),expiresAt:now+600000};
+   return p.handle({request:r,signature:await runnerOperator.signMessage({message:peerRequestMessage(r)})});};
+- l=lease({},{viaTuna:false});await assert.rejects(ask(),/authorization/);
++ l=lease({},{viaProviders:false});await assert.rejects(ask(),/authorization/);
+  l=lease();const {grant}=await ask();const peer=[...p.peers.values()][0];assert.equal(peer.paidNonce,'3');assert.ok(grant.clientAddress);
+  l=lease({},{spent6:'10000'});await p.sweep();assert.equal(p.peers.size,0,'budget spent: the peer is gone');assert.ok(sampled.length,'metered before removal');
+ });
+@@ -105,6 +105,6 @@ test('the host meters paid hops, debits cumulatively, and the manager closes a c
+  refuse=true;c.stats={app:{up:500,down:900}};await m.reconcile();
+  assert.ok(c.closed,'refused debit: the paid circuit is closed');
+  assert.equal(m.cooldown.size,0,'a refused debit is not a provider failure: nothing is cooled down');
+- l=lease({},{viaTuna:false});refuse=false;await m.reconcile();
++ l=lease({},{viaProviders:false});refuse=false;await m.reconcile();
+  assert.ok(m.apps.get(id).circuits.every(x=>x.providers.exit.hostId!==hostId),'authorization revoked: the paid provider is not chosen again');
+ });
+diff --git a/test/provider-settlement.test.mjs b/test/provider-settlement.test.mjs
+index b955218f3..3822c6e36 100644
+--- a/test/provider-settlement.test.mjs
++++ b/test/provider-settlement.test.mjs
+@@ -5,9 +5,9 @@ import {ProviderUSDCSettlement,ProviderReceiptSigner,providerReceiptDigest} from
+ const id='0x'+'aa'.repeat(32),runner='0x'+'bb'.repeat(32),providerId='0x'+'dd'.repeat(32),owner='0x'+'11'.repeat(20),contract='0x'+'22'.repeat(20),ledger='0x'+'33'.repeat(20),hash='0x'+'cc'.repeat(32);
+ const host=privateKeyToAccount('0x'+'04'.repeat(32)),provider=privateKeyToAccount('0x'+'05'.repeat(32));
+ async function fixture(t){
+- const directory=await fs.mkdtemp(path.join(os.tmpdir(),'tuna-settle-'));t.after(()=>fs.rm(directory,{recursive:true,force:true}));
++ const directory=await fs.mkdtemp(path.join(os.tmpdir(),'provider-settle-'));t.after(()=>fs.rm(directory,{recursive:true,force:true}));
+  const lease={id,runner,owner,runnerProofKey:host.address,active:true,chainId:8453,deployments:ledger,validUntil:190000,leaseUntil:200000,blockNumber:'100',blockHash:hash,balance6:'100000',bandwidthBackingRequired6:'0',
+-  connectivity:{address:contract,viaTuna:true,owner,nonce:'1',expires:200,maxPricePerGiB6:'1000',budget6:'10000',spent6:'0',providers:[{id:providerId,qualified:true,active:true,qualifiedUntil:200,pricePerGiB6:'1000',operator:provider.address,proofKey:provider.address}]}};
++  connectivity:{address:contract,viaProviders:true,owner,nonce:'1',expires:200,maxPricePerGiB6:'1000',budget6:'10000',spent6:'0',providers:[{id:providerId,qualified:true,active:true,qualifiedUntil:200,pricePerGiB6:'1000',operator:provider.address,proofKey:provider.address}]}};
+  const client={readContract:async()=>0n,getBlock:async()=>({hash})},reader={clients:[client,client],get:()=>lease,refresh:async()=>[lease]};
+  let observed=1000n;
+  const signer=new ProviderReceiptSigner({providerId,proofAccount:provider,leaseReader:reader,observedBytes:async()=>observed,now:()=>100000});
+@@ -21,7 +21,7 @@ test('independent provider and host sign the same metered receipt',async t=>{
+  const x=await fixture(t);await x.adapter.authorizeDebit(x.request);
+  const state=await x.adapter.state.get(id.slice(2)+'-1');assert.equal(state.hostId,providerId);assert.equal(state.runnerId,runner);
+  const result=await x.adapter.signedReceipt({id,s:state,lease:x.lease,c:x.lease.connectivity,head:{hash}});
+- assert.equal(result.functionName,'settleTuna');
++ assert.equal(result.functionName,'settleProvider');
+  const digest=providerReceiptDigest({chainId:8453,connectivity:contract,ledger,receipt:result.receipt,anchorHash:hash});
+  assert.equal(await recoverMessageAddress({message:{raw:digest},signature:result.args[1]}),host.address);
+  assert.equal(await recoverMessageAddress({message:{raw:digest},signature:result.args[2]}),provider.address);
+@@ -33,7 +33,7 @@ test('provider rejects unobserved traffic, wrong host, stale anchor and replayed
+  const x=await fixture(t);const request=await x.signRequest({});request.anchorHash='0x'+'00'.repeat(32);await assert.rejects(x.signer.sign(request),/quorum/);
+ });
+ test('current provider path, qualification, backing, price and signature are mandatory',async t=>{
+- for(const alter of [x=>x.lease.connectivity.viaTuna=false,x=>x.lease.connectivity.providers[0].qualified=false,x=>x.lease.connectivity.maxPricePerGiB6='999',x=>x.lease.bandwidthBackingRequired6='1',x=>x.lease.connectivity.providers[0].id=runner,x=>x.lease.runnerProofKey=owner]){
++ for(const alter of [x=>x.lease.connectivity.viaProviders=false,x=>x.lease.connectivity.providers[0].qualified=false,x=>x.lease.connectivity.maxPricePerGiB6='999',x=>x.lease.bandwidthBackingRequired6='1',x=>x.lease.connectivity.providers[0].id=runner,x=>x.lease.runnerProofKey=owner]){
+   const x=await fixture(t);alter(x);await assert.rejects(x.adapter.authorizeDebit(x.request));
+  }
+  const x=await fixture(t);await x.adapter.authorizeDebit(x.request);x.adapter.cosign=async r=>r.runnerSignature;
+diff --git a/test/site-paid-network.test.mjs b/test/site-paid-network.test.mjs
+index 5076578da..9e34179eb 100644
+--- a/test/site-paid-network.test.mjs
++++ b/test/site-paid-network.test.mjs
+@@ -1,13 +1,14 @@
+ // The Network tab's hand-encoded EnclaveConnectivity calls (site/js/core/enclave-network.js) are byte-identical to viem's.
+ import test from 'node:test';import assert from 'node:assert/strict';
+-import {encodeFunctionData,parseAbi} from 'viem';
+-const abi=parseAbi(['function tunaPolicyDigest(bytes32,bytes32[],uint64,uint64,uint128) view returns (bytes32)','function authorizeTuna(bytes32,bytes32[],uint64,uint64,uint128,bytes)']);
+-test('tunaPolicyDigest and authorizeTuna calldata match the ABI encoding',async()=>{
++import fs from 'node:fs';import {encodeFunctionData} from 'viem';
++// the compiled contract's own ABI, so a renamed or re-typed function fails here, not on chain
++const abi=JSON.parse(fs.readFileSync(new URL('../contracts/EnclaveConnectivity.abi.json',import.meta.url),'utf8'));
++test('providerPolicyDigest and authorizeProviders calldata match the ABI encoding',async()=>{
+  globalThis.window??={};globalThis.localStorage??={getItem:()=>null,setItem(){},removeItem(){}};globalThis.location??={search:'',hostname:'localhost',origin:'http://localhost'};
+- const {tunaPolicyDigestCall,authorizeTunaCall}=await import('../site/js/core/enclave-network.js');
++ const {providerPolicyDigestCall,authorizeProvidersCall}=await import('../site/js/core/enclave-network.js');
+  const id='0x'+'ab'.repeat(32),providers=['0x'+'01'.repeat(32),'0x'+'02'.repeat(32)],a={id,providers,expires:1791900000,maxPricePerGiB6:50000,budget6:1000000};
+- assert.equal(tunaPolicyDigestCall(a),encodeFunctionData({abi,functionName:'tunaPolicyDigest',args:[id,providers,1791900000n,50000n,1000000n]}));
++ assert.equal(providerPolicyDigestCall(a),encodeFunctionData({abi,functionName:'providerPolicyDigest',args:[id,providers,1791900000n,50000n,1000000n]}));
+  const sig='0x'+'cd'.repeat(65);
+- assert.equal(authorizeTunaCall(a,sig),encodeFunctionData({abi,functionName:'authorizeTuna',args:[id,providers,1791900000n,50000n,1000000n,sig]}));
+- assert.equal(authorizeTunaCall({...a,providers:[providers[0]]},sig),encodeFunctionData({abi,functionName:'authorizeTuna',args:[id,[providers[0]],1791900000n,50000n,1000000n,sig]}));
++ assert.equal(authorizeProvidersCall(a,sig),encodeFunctionData({abi,functionName:'authorizeProviders',args:[id,providers,1791900000n,50000n,1000000n,sig]}));
++ assert.equal(authorizeProvidersCall({...a,providers:[providers[0]]},sig),encodeFunctionData({abi,functionName:'authorizeProviders',args:[id,[providers[0]],1791900000n,50000n,1000000n,sig]}));
+ });
+diff --git a/test/vaultsvc.test.mjs b/test/vaultsvc.test.mjs
+index f9f51e257..4f45a7501 100644
+--- a/test/vaultsvc.test.mjs
++++ b/test/vaultsvc.test.mjs
+@@ -6,7 +6,7 @@ import { test } from "node:test";
+ import assert from "node:assert/strict";
+ import { generateKeyPairSync, createSign, createHash } from "node:crypto";
+ import { coseToXY } from "../relay/auth.js";
+-import { derToRS, buildControlCall, floatSweepAmount } from "../relay/vaultsvc.js";
++import { derToRS, buildControlCall, floatSweepAmount, networkArgs } from "../relay/vaultsvc.js";
+ 
+ function coseP256(x, y) {
+   // map(5) { 1:2, 3:-7, -1:1, -2:bstr32(x), -3:bstr32(y) } - canonical CBOR
+@@ -125,3 +125,13 @@ test('resize atomically saves shares with requested active state, matching brows
+   }
+   await assert.rejects(buildControlCall(id, 'resize', undefined, { gpuMilli: 0, cpuMilli: 10 }, undefined, undefined, 'false'), /boolean/);
+ });
++
++test("networkArgs: the provider-routed mode is 'providers' (authorizeProviders argument order); the retired 'tuna' value is refused", () => {
++  const id = "0x" + "ab".repeat(32), p1 = "0x" + "01".repeat(32), p2 = "0x" + "02".repeat(32);
++  const base = { id, expires: "1791900000", maxPricePerGiB6: "50000", budget6: "1000000" };
++  assert.deepEqual(networkArgs({ ...base, mode: "providers", providers: [p1, p2] }), [id, [p1, p2], 1791900000n, 50000n, 1000000n]);
++  assert.deepEqual(networkArgs({ ...base, mode: "direct" }), [id, 1791900000n, 50000n, 1000000n]);
++  assert.throws(() => networkArgs({ ...base, mode: "tuna", providers: [p1] }), /invalid bandwidth mode/);
++  assert.throws(() => networkArgs({ ...base, mode: "providers", providers: [p1, p1] }), /invalid provider path/);
++  assert.throws(() => networkArgs({ ...base, mode: "direct", providers: [p1] }), /providers require provider authorization/);
++});
+-- 
+2.56.0
+

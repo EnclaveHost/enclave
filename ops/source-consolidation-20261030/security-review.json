@@ -1,0 +1,286 @@
+{
+  "reviewedRange": "origin/main..4066c83b7",
+  "findings": [
+    {
+      "fingerprint": "53e70f549f88cf3656ebeae11019bd9a69538ede:ops/unified-funding-20261028/windows-manager-integration-author-r3/ROOT-REVIEW.md:twilio-api-key:3",
+      "lineSha256": "23c1a0d82a7ee613ed73992f0300242258fd2b0c91d234f79ea003b46bb43ec5",
+      "classification": "Public author-run identifiers in an evidence review, not Twilio credentials"
+    },
+    {
+      "fingerprint": "debbfb377d90f4193ea9182f5cb67d714ffaa322:metal/guest/mcp-server.bundle.mjs:generic-api-key:89384",
+      "lineSha256": "2fd45bbf861c1429fff1c4f1131b7a7365312e20bf0dbe7ea60fbc3810a247bc",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "debbfb377d90f4193ea9182f5cb67d714ffaa322:network/host-services/packages/service-tls.package.json:coinbase-access-token:211",
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08",
+      "classification": "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "fingerprint": "bf77da364373a9c7d881489af5b760207a03997c:test/dns-relay-chain-authority.smoke.test.mjs:generic-api-key:41",
+      "lineSha256": "bd3a9f05e1849c666d1081aa91658f2c0a4535714b9c2d188fa1322500dff9e8",
+      "classification": "Explicit deterministic DNS smoke-test credential for loopback fixture only"
+    },
+    {
+      "fingerprint": "debbfb377d90f4193ea9182f5cb67d714ffaa322:metal/guest/platform-api.bundle.mjs:generic-api-key:232031",
+      "lineSha256": "1debff58111fae812884240bf0151ac752d88cf01c111dcffd1a4c450a049194",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "debbfb377d90f4193ea9182f5cb67d714ffaa322:metal/guest/platform-api.bundle.mjs:generic-api-key:232872",
+      "lineSha256": "02f580d4f4a0956a22c2eb997a71af4bdf295e275ff425e6ac2492514eca77bd",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "debbfb377d90f4193ea9182f5cb67d714ffaa322:metal/guest/platform-api.bundle.mjs:generic-api-key:233267",
+      "lineSha256": "245a434069c39d5b1cc8b99f831d6429e7914e83981b44a9110a2cde49cb9c46",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "debbfb377d90f4193ea9182f5cb67d714ffaa322:metal/guest/platform-api.bundle.mjs:generic-api-key:235041",
+      "lineSha256": "fb7ec8474de680b0f9293958fa75ce37d9fbac79f9944de5d4d9d6bff9b0f423",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "debbfb377d90f4193ea9182f5cb67d714ffaa322:metal/guest/platform-api.bundle.mjs:generic-api-key:235042",
+      "lineSha256": "d1b122c16a3ee46aed2ebb03f196b9128592da1803b3912654ace8b5fbf35bb7",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "debbfb377d90f4193ea9182f5cb67d714ffaa322:metal/guest/platform-api.bundle.mjs:generic-api-key:251730",
+      "lineSha256": "3e29b782b879e0ee0b0356cab91182dae106ba50e634e75fc9e91f4d906d3cc4",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "debbfb377d90f4193ea9182f5cb67d714ffaa322:metal/guest/platform-api.bundle.mjs:generic-api-key:252405",
+      "lineSha256": "3ce3eab5829091ed37649d194b1d07e4e61cda10a604c1f6266301250ae5ff18",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "493ee9ee07497c94159ec4f6916e9ea920d31959:metal/guest/platform-api.bundle.mjs:generic-api-key:68833",
+      "lineSha256": "fde21f1f98b993cda7782e8a2f3b85213507bfae65b9482c814ff0b56d7ef009",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "493ee9ee07497c94159ec4f6916e9ea920d31959:metal/guest/platform-api.bundle.mjs:generic-api-key:144738",
+      "lineSha256": "1debff58111fae812884240bf0151ac752d88cf01c111dcffd1a4c450a049194",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "493ee9ee07497c94159ec4f6916e9ea920d31959:metal/guest/platform-api.bundle.mjs:generic-api-key:145579",
+      "lineSha256": "02f580d4f4a0956a22c2eb997a71af4bdf295e275ff425e6ac2492514eca77bd",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "493ee9ee07497c94159ec4f6916e9ea920d31959:metal/guest/platform-api.bundle.mjs:generic-api-key:145974",
+      "lineSha256": "245a434069c39d5b1cc8b99f831d6429e7914e83981b44a9110a2cde49cb9c46",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "493ee9ee07497c94159ec4f6916e9ea920d31959:metal/guest/platform-api.bundle.mjs:generic-api-key:147748",
+      "lineSha256": "fb7ec8474de680b0f9293958fa75ce37d9fbac79f9944de5d4d9d6bff9b0f423",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "493ee9ee07497c94159ec4f6916e9ea920d31959:metal/guest/platform-api.bundle.mjs:generic-api-key:147749",
+      "lineSha256": "d1b122c16a3ee46aed2ebb03f196b9128592da1803b3912654ace8b5fbf35bb7",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/mcp-server.bundle.mjs.manifest.json:ethereum-private-key-labelled:212",
+      "lineSha256": "e49589aee781c7541cb897b9af10a17407168669264f5cc387133eb1170d16a0",
+      "classification": "Public dependency file digest independently rehashed from node_modules/viem/_esm/accounts/generatePrivateKey.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/mcp-server.bundle.mjs.manifest.json:ethereum-private-key-labelled:216",
+      "lineSha256": "dc74cb2ade1568b2793a461337e9a50da38d462ac65ce0e17cd166dc162f9cf6",
+      "classification": "Public dependency file digest independently rehashed from node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/mcp-server.bundle.mjs.manifest.json:ethereum-private-key-labelled:219",
+      "lineSha256": "1c0054fcc0763fdde5e59c6bba1ea030e5a08e759fe965d2974f3182a6d9c5d7",
+      "classification": "Public dependency file digest independently rehashed from node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/mcp-server.bundle.mjs.manifest.json:coinbase-access-token:301",
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08",
+      "classification": "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/mcp-server.bundle.mjs.manifest.json:coinbase-access-token:1506",
+      "lineSha256": "e864c8c1176798a8664a7fd576f385419829d358dc6d45578037bf53d6241b0d",
+      "classification": "Public dependency file digest independently rehashed from relay/node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/mcp-server.bundle.mjs.manifest.json:coinbase-access-token:2699",
+      "lineSha256": "0f491cef45e87175114bf676f704490833e0266ed8327d1bdcd8061e5c3d3379",
+      "classification": "Public dependency file digest independently rehashed from sdk/sessions/node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "fingerprint": "493ee9ee07497c94159ec4f6916e9ea920d31959:metal/guest/platform-api.bundle.mjs:generic-api-key:164423",
+      "lineSha256": "14ca55e8ed83ab4023a91af34fae92522f583d113739afb280b717450a135ef4",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "493ee9ee07497c94159ec4f6916e9ea920d31959:metal/guest/platform-api.bundle.mjs:generic-api-key:165098",
+      "lineSha256": "3ce3eab5829091ed37649d194b1d07e4e61cda10a604c1f6266301250ae5ff18",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs.manifest.json:ethereum-private-key-labelled:525",
+      "lineSha256": "a7979575624143928c77a6ddb0cd80db30a9022ec6ae0ca41bcf01150d8a8397",
+      "classification": "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-ecc/build/cjs/ec_private_key.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs.manifest.json:ethereum-private-key-labelled:532",
+      "lineSha256": "3fb2cfe0fbc63370a41230d5eb9b158a3fe0cd87dbae22fc8cef631ad79acd42",
+      "classification": "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-ecc/build/es2015/ec_private_key.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs.manifest.json:ethereum-private-key-labelled:553",
+      "lineSha256": "9e6c1693986edcfbcf33cedc1e1b265d829668673c6918ef5419503f78f7005d",
+      "classification": "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/private_key_info.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs.manifest.json:ethereum-private-key-labelled:563",
+      "lineSha256": "d605f8da3d8d6107ecebe6d8500f7109cc39b4d7768a0c85e3ca82955e65ff0d",
+      "classification": "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-rsa/build/cjs/rsa_private_key.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs.manifest.json:ethereum-private-key-labelled:573",
+      "lineSha256": "1fa21cea0c7de52b6c71b8f2ee71c20d838eaf45d0bdc4c8d1f1e36c252f0f87",
+      "classification": "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-rsa/build/es2015/rsa_private_key.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs.manifest.json:ethereum-private-key-labelled:654",
+      "lineSha256": "24b207d065d95dcdd5b2d00dd0a1367dc5512746ae857bd5964804399fdafe29",
+      "classification": "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-x509/build/cjs/extensions/private_key_usage_period.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs.manifest.json:ethereum-private-key-labelled:697",
+      "lineSha256": "91633d43bad526a0d658b63c00a50c103c4b257f1f9fdaa41caecbcf6e538605",
+      "classification": "Public dependency file digest independently rehashed from relay/node_modules/@peculiar/asn1-x509/build/es2015/extensions/private_key_usage_period.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs.manifest.json:ethereum-private-key-labelled:1041",
+      "lineSha256": "acdcbda851b474e3bc2fa3baad4e70e2b90b558c646fdf90d3dfebb432679b9a",
+      "classification": "Public dependency file digest independently rehashed from relay/node_modules/viem/_esm/accounts/generatePrivateKey.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs.manifest.json:ethereum-private-key-labelled:1045",
+      "lineSha256": "4d8e877144342168c63eae44afb0671fcd3fc235acd24d2edad836a5f8420a72",
+      "classification": "Public dependency file digest independently rehashed from relay/node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs.manifest.json:ethereum-private-key-labelled:1048",
+      "lineSha256": "5c2f84f9b91f7df912d54ed0383099a56a322a666ccac469b585a3cc72abe644",
+      "classification": "Public dependency file digest independently rehashed from relay/node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs.manifest.json:coinbase-access-token:173",
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08",
+      "classification": "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs.manifest.json:coinbase-access-token:1130",
+      "lineSha256": "e864c8c1176798a8664a7fd576f385419829d358dc6d45578037bf53d6241b0d",
+      "classification": "Public dependency file digest independently rehashed from relay/node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:network/host-services/packages/credit-vault-submitter.package.json:coinbase-access-token:348",
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08",
+      "classification": "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:network/host-services/packages/credit-vault-submitter.package.json:ethereum-private-key-labelled:259",
+      "lineSha256": "e49589aee781c7541cb897b9af10a17407168669264f5cc387133eb1170d16a0",
+      "classification": "Public dependency file digest independently rehashed from node_modules/viem/_esm/accounts/generatePrivateKey.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:network/host-services/packages/credit-vault-submitter.package.json:ethereum-private-key-labelled:263",
+      "lineSha256": "dc74cb2ade1568b2793a461337e9a50da38d462ac65ce0e17cd166dc162f9cf6",
+      "classification": "Public dependency file digest independently rehashed from node_modules/viem/_esm/accounts/privateKeyToAccount.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:network/host-services/packages/credit-vault-submitter.package.json:ethereum-private-key-labelled:266",
+      "lineSha256": "1c0054fcc0763fdde5e59c6bba1ea030e5a08e759fe965d2974f3182a6d9c5d7",
+      "classification": "Public dependency file digest independently rehashed from node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:network/host-services/packages/policy-mirror.package.json:coinbase-access-token:200",
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08",
+      "classification": "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:network/host-services/packages/directory-replica.package.json:coinbase-access-token:244",
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08",
+      "classification": "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "fingerprint": "493ee9ee07497c94159ec4f6916e9ea920d31959:metal/guest/platform-api.bundle.mjs:ethereum-private-key-env:246938",
+      "lineSha256": "dccb1de32b39a8612e859a988007d17fa01ce1f01a7e177f5843959933c57f8c",
+      "classification": "Public bytes32 registry address-book selector (ASCII registry, zero padded)"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:network/host-services/packages/route-dns.package.json:coinbase-access-token:231",
+      "lineSha256": "3f0d6550212c593c4d9f80cff5abceee808c2a2efea7c5b1f66ea0604a68cc08",
+      "classification": "Public dependency file digest independently rehashed from node_modules/viem/_esm/actions/test/setCoinbase.js"
+    },
+    {
+      "fingerprint": "a4ae3c767cfa6bc1becbfdc6b872977abe0130c4:relay/pvm-app-attest.mjs:generic-api-key:297",
+      "lineSha256": "818619eb97c247c247770884dc8529c2b5e64813c3af5eefb32db7439810d08a",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/mcp-server.bundle.mjs:generic-api-key:107599",
+      "lineSha256": "9651ec62eeafad0b100692ec443fb948da66d5480e0e9b341e7e8e6e0f332c51",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/mcp-server.bundle.mjs:generic-api-key:147566",
+      "lineSha256": "3ce3eab5829091ed37649d194b1d07e4e61cda10a604c1f6266301250ae5ff18",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs:generic-api-key:111527",
+      "lineSha256": "1debff58111fae812884240bf0151ac752d88cf01c111dcffd1a4c450a049194",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs:generic-api-key:112368",
+      "lineSha256": "02f580d4f4a0956a22c2eb997a71af4bdf295e275ff425e6ac2492514eca77bd",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs:generic-api-key:112763",
+      "lineSha256": "245a434069c39d5b1cc8b99f831d6429e7914e83981b44a9110a2cde49cb9c46",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs:generic-api-key:114537",
+      "lineSha256": "fb7ec8474de680b0f9293958fa75ce37d9fbac79f9944de5d4d9d6bff9b0f423",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs:generic-api-key:114538",
+      "lineSha256": "d1b122c16a3ee46aed2ebb03f196b9128592da1803b3912654ace8b5fbf35bb7",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs:generic-api-key:131564",
+      "lineSha256": "448995ed052ab91a8e3d86365ba35aecfc46dfb3da5ebcf9aaf3c17f4a6e77e5",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs:generic-api-key:132239",
+      "lineSha256": "3ce3eab5829091ed37649d194b1d07e4e61cda10a604c1f6266301250ae5ff18",
+      "classification": "Public source identifier or protocol domain separator, no credential literal"
+    },
+    {
+      "fingerprint": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df:metal/guest/platform-api.bundle.mjs:ethereum-private-key-env:214079",
+      "lineSha256": "dccb1de32b39a8612e859a988007d17fa01ce1f01a7e177f5843959933c57f8c",
+      "classification": "Public bytes32 registry address-book selector (ASCII registry, zero padded)"
+    }
+  ],
+  "scope": "Each exception is rule AND exact path AND exact complete line. Changed content and adjacent credentials remain subject to scanners."
+}

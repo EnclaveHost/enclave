@@ -1,0 +1,89 @@
+{
+  "captured": "2026-10-30",
+  "candidates": [
+    {
+      "name": "public-web-history",
+      "commit": "aca209a083cb3c26799122a476b28646c036f569",
+      "file": "candidates/public-web-history.patch",
+      "sha256": "07e44bd855d5e5e56fa753c1bb789fff525d88c56fd1c9b2321b6bbfcee9f12b",
+      "disposition": "Historical recovery snapshot; current public-web implementation includes later bounded TCP and DNS handling."
+    },
+    {
+      "name": "dedicated-memory-candidate",
+      "commit": "6d8fea64c64963937c3add84415b54107690d1ec",
+      "file": "candidates/dedicated-memory-candidate.patch",
+      "sha256": "e801b8848185f0e632534c4630db641b811ff2f38a6bca9967497d5539996343",
+      "disposition": "Unqualified reservation/service partition candidate. Requires dedicated service user, admin manifest, migration and contention qualification before activation."
+    },
+    {
+      "name": "retired-tuna-conversion",
+      "commit": "80d52a81d90be0280fb693d24fc5bf70d5e091b6",
+      "file": "candidates/retired-tuna-conversion.patch",
+      "sha256": "2d723e8d48484b9a48a1b97987404761723e05a9e91cd4810b88923e3d906785",
+      "disposition": "Historical conversion candidate for retired TUNA architecture; do not restore into current owner-authorized network."
+    },
+    {
+      "name": "recovery-caddy-candidate",
+      "commit": "489a369993c16e5bae2513b9c62e6a15564832f3",
+      "file": "candidates/recovery-caddy-candidate.patch",
+      "sha256": "513e7f78f204623057c9ed612118479fd8311e95392cfb97e96fb44dbc68158c",
+      "disposition": "Historical unfinished recovery proxy configuration; no production qualification claimed."
+    },
+    {
+      "name": "native-control-recovery-candidate",
+      "base": "0f46f807d21d961c86846a54d8d963a5c26d244b",
+      "file": "candidates/native-control-recovery-candidate.patch",
+      "sha256": "29e4ee0e7999678ec5cad3dca56e7acd47c8349343a17adf8b400fb0ff6ae75c",
+      "disposition": "Exact owner dirty bytes preserved. Expanded reviewed retirement set is NOT qualified by the older 88-pass/2-fail record. Needs fresh exact-byte recovery/retirement tests and owner-reviewed target set."
+    },
+    {
+      "name": "windows-router-candidate",
+      "base": "0f46f807d21d961c86846a54d8d963a5c26d244b",
+      "file": "candidates/windows-router-candidate.patch",
+      "sha256": "b0d87703a8b8d17c151a8c931e418bbedd6bb228d47dcefd194a005dd1b52d70",
+      "files": [
+        {
+          "path": "windows/vbslike/router/control.mjs",
+          "sha256": "966fd3b5480e9859de4f1dc578b25afa1150e97552437e8c183c03bba4606e6a"
+        },
+        {
+          "path": "windows/vbslike/router/control.test.mjs",
+          "sha256": "a766ac4311397d9c4a4e06d3cec38e4419b017d050f87f598af73469ed1b8113"
+        },
+        {
+          "path": "windows/vbslike/router/cpu-share.mjs",
+          "sha256": "ad792116e5c3939fcd287f76b9131eacf738cb7060f7ff19f94039a3e340e48f"
+        },
+        {
+          "path": "windows/vbslike/router/io.mjs",
+          "sha256": "3a81d403c8f9a4d20d2f7651b31ca5d5a8eb8acae9c2b817082ec1bae74083e2"
+        },
+        {
+          "path": "windows/vbslike/router/io.test.mjs",
+          "sha256": "cf21f9369286088214463ecff31627728b393bb312f4bd038767cb44f2da0ca4"
+        },
+        {
+          "path": "windows/vbslike/router/main.mjs",
+          "sha256": "d021c31460f8b4313ab15a50a1e9792360df4b00de2f64d727e21b79d04fb9a7"
+        },
+        {
+          "path": "windows/vbslike/router/platform.mjs",
+          "sha256": "1dc849de7a4495c91dcfd3b7f82e2fbc6385b0456a69855be569c3bbd27a3710"
+        },
+        {
+          "path": "windows/vbslike/router/platform.test.mjs",
+          "sha256": "8b63f5458158b43c1e8b93b276ff5a7ce85a503d700e78a66166670386386d60"
+        }
+      ],
+      "disposition": "Untracked independent Windows router work, no verified qualification record or active owner. Preserved candidate only; no import, service, installer, or listener activation. Needs manager/router tests, host authorization and loopback boundary review before promotion."
+    },
+    {
+      "name": "connectivity-v2-candidate",
+      "base": "4e26e4f721c954dabfc9b25010fead9ae7eae1b3",
+      "commit": "f4a357c0e9a61b12aa0bef4393e8c76eb3a2b126",
+      "file": "candidates/connectivity-v2-candidate.patch",
+      "sha256": "336539d29643cadba0edb0e32e5db8d781fa6c36e369d7350a5d471fca38443a",
+      "disposition": "ABI-renaming candidate requiring a v2 connectivity contract. Its own commit states deployed v1 callers would revert. Preserve v1 compatibility in maintained callers until an explicitly qualified contract migration; no chain transaction performed."
+    }
+  ]
+}
