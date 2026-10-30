@@ -1,0 +1,408 @@
+{
+  "boot": "b5382987-896d-4f01-938b-12d1bb149fd5",
+  "launchNonce": "c0b7f7fd-fce1-4579-80d3-a0a174812bbb",
+  "outer": {
+    "Id": "enclave-rpc-el-r9-sourceonly-author-20261030-r4.service",
+    "LoadState": "loaded",
+    "ActiveState": "active",
+    "Transient": "yes",
+    "InvocationID": "8e324f60850d423e8c786b81482e1252",
+    "MainPID": "2982506",
+    "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-el-r9-sourceonly-author-20261030-r4.service"
+  },
+  "scope": {
+    "Id": "run-p2982514-i44907693.scope",
+    "LoadState": "loaded",
+    "ActiveState": "active",
+    "Transient": "yes",
+    "InvocationID": "d25763f7c0094f13a6bde6192f60baf4",
+    "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2982514-i44907693.scope"
+  },
+  "ancestors": [
+    {
+      "pid": 2982528,
+      "ppid": 2982521,
+      "startTicks": "168991667",
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2982514-i44907693.scope",
+      "exe": "/usr/bin/python3.14",
+      "exeDev": 64768,
+      "exeIno": 14981247
+    },
+    {
+      "pid": 2982521,
+      "ppid": 2982514,
+      "startTicks": "168991665",
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2982514-i44907693.scope",
+      "exe": "/usr/bin/node",
+      "exeDev": 64768,
+      "exeIno": 15005350
+    },
+    {
+      "pid": 2982514,
+      "ppid": 2982506,
+      "startTicks": "168991661",
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2982514-i44907693.scope",
+      "exe": "/usr/bin/node",
+      "exeDev": 64768,
+      "exeIno": 15005350
+    },
+    {
+      "pid": 2982506,
+      "ppid": 1899,
+      "startTicks": "168991613",
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-el-r9-sourceonly-author-20261030-r4.service",
+      "exe": "/usr/bin/python3.14",
+      "exeDev": 64768,
+      "exeIno": 14981247
+    }
+  ],
+  "before": {
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2982514-i44907693.scope",
+    "identity": [
+      29,
+      7518628
+    ],
+    "memoryMax": "1610612736",
+    "swapMax": "0",
+    "affinity": [
+      1
+    ],
+    "cpuHierarchy": [
+      {
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2982514-i44907693.scope",
+        "cpuMax": "max 100000"
+      },
+      {
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice",
+        "cpuMax": "max 100000"
+      },
+      {
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service",
+        "cpuMax": "max 100000"
+      },
+      {
+        "cgroup": "/user.slice/user-1000.slice",
+        "cpuMax": "max 100000"
+      },
+      {
+        "cgroup": "/user.slice",
+        "cpuMax": "max 100000"
+      }
+    ],
+    "effectiveCpus": null
+  },
+  "after": {
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2982514-i44907693.scope",
+    "identity": [
+      29,
+      7518628
+    ],
+    "memoryMax": "1610612736",
+    "swapMax": "0",
+    "affinity": [
+      1
+    ],
+    "cpuHierarchy": [
+      {
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2982514-i44907693.scope",
+        "cpuMax": "100000 100000"
+      },
+      {
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice",
+        "cpuMax": "max 100000"
+      },
+      {
+        "cgroup": "/user.slice/user-1000.slice/user@1000.service",
+        "cpuMax": "max 100000"
+      },
+      {
+        "cgroup": "/user.slice/user-1000.slice",
+        "cpuMax": "max 100000"
+      },
+      {
+        "cgroup": "/user.slice",
+        "cpuMax": "max 100000"
+      }
+    ],
+    "effectiveCpus": null
+  },
+  "tasksBefore": [
+    {
+      "pid": 2982528,
+      "startTicks": "168991667",
+      "tasks": [
+        {
+          "tid": 2982528,
+          "startTicks": "168991667",
+          "affinity": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "pid": 2982521,
+      "startTicks": "168991665",
+      "tasks": [
+        {
+          "tid": 2982521,
+          "startTicks": "168991665",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982522,
+          "startTicks": "168991666",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982523,
+          "startTicks": "168991666",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982524,
+          "startTicks": "168991666",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982525,
+          "startTicks": "168991666",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982526,
+          "startTicks": "168991666",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982527,
+          "startTicks": "168991667",
+          "affinity": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "pid": 2982514,
+      "startTicks": "168991661",
+      "tasks": [
+        {
+          "tid": 2982514,
+          "startTicks": "168991661",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982515,
+          "startTicks": "168991663",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982516,
+          "startTicks": "168991663",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982517,
+          "startTicks": "168991663",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982518,
+          "startTicks": "168991663",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982519,
+          "startTicks": "168991663",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982520,
+          "startTicks": "168991664",
+          "affinity": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "pid": 2982506,
+      "startTicks": "168991613",
+      "tasks": [
+        {
+          "tid": 2982506,
+          "startTicks": "168991613",
+          "affinity": [
+            1
+          ]
+        }
+      ]
+    }
+  ],
+  "tasksAfter": [
+    {
+      "pid": 2982528,
+      "startTicks": "168991667",
+      "tasks": [
+        {
+          "tid": 2982528,
+          "startTicks": "168991667",
+          "affinity": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "pid": 2982521,
+      "startTicks": "168991665",
+      "tasks": [
+        {
+          "tid": 2982521,
+          "startTicks": "168991665",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982522,
+          "startTicks": "168991666",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982523,
+          "startTicks": "168991666",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982524,
+          "startTicks": "168991666",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982525,
+          "startTicks": "168991666",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982526,
+          "startTicks": "168991666",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982527,
+          "startTicks": "168991667",
+          "affinity": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "pid": 2982514,
+      "startTicks": "168991661",
+      "tasks": [
+        {
+          "tid": 2982514,
+          "startTicks": "168991661",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982515,
+          "startTicks": "168991663",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982516,
+          "startTicks": "168991663",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982517,
+          "startTicks": "168991663",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982518,
+          "startTicks": "168991663",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982519,
+          "startTicks": "168991663",
+          "affinity": [
+            1
+          ]
+        },
+        {
+          "tid": 2982520,
+          "startTicks": "168991664",
+          "affinity": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "pid": 2982506,
+      "startTicks": "168991613",
+      "tasks": [
+        {
+          "tid": 2982506,
+          "startTicks": "168991613",
+          "affinity": [
+            1
+          ]
+        }
+      ]
+    }
+  ],
+  "cpuPlacementPolicy": "CPU quota plus inherited task affinity; NOT kernel cpuset confinement",
+  "at": 1793384803.7769072,
+  "note": "CPU hierarchy is the actual scope ancestry; outer service is a sibling and is not CPU quota authority for this scope."
+}

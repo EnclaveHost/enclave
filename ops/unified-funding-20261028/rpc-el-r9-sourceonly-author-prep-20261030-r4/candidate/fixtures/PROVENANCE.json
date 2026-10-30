@@ -1,0 +1,25 @@
+{
+  "method": "Exact cat UTF8 bytes matched against independently observed journal MESSAGE SHA256 and length; byte-array form confirmed by observed messageType=list. No synthesized log text.",
+  "rootReadInvocation": "3ea2d696a0f04cbfa987e9dcf8f4f1fa",
+  "sources": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r7-repaired-r2/PARSED-MAIN.json",
+      "sha256": "562ffd7cf1664817ae80e059a32ad2424f3716f9e3ddcbef0d6513521406bc7f"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-el-r7-journal-bytes-read-r1/RESULT.json",
+      "sha256": "3055ca6a41d0dd97d887b7d7e4710ea59ff8b889561ce6682699e1e8450e3326"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r7-repaired-r2/SOURCE-PINS.json",
+      "sha256": "e2426f74973d4ad7d917582889825c1a9690598dd88fe944a3713069e0311997"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-el-r7-journal-bytes-read-r1/OBSERVED-BYTE-FIXTURES.json",
+      "sha256": "9f0925653e494ed822a66c17c78f11c8b97a5bdf93b639231c89048b2a89a341"
+    }
+  ],
+  "observedRecords": 33,
+  "exactInvocationClientRecords": 27,
+  "byteArrayRecords": 26
+}

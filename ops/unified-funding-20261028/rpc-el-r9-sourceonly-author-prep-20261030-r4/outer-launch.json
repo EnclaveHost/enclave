@@ -1,0 +1,43 @@
+{
+  "preparedSha256": "03d574cdf21725227c6854cf55daf5e2f01157964aaeafbf39c0bf95de18fc00",
+  "launchNonce": "c0b7f7fd-fce1-4579-80d3-a0a174812bbb",
+  "boot": "b5382987-896d-4f01-938b-12d1bb149fd5",
+  "outer": {
+    "Id": "enclave-rpc-el-r9-sourceonly-author-20261030-r4.service",
+    "LoadState": "loaded",
+    "ActiveState": "active",
+    "Transient": "yes",
+    "InvocationID": "8e324f60850d423e8c786b81482e1252",
+    "MainPID": "2982506",
+    "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-el-r9-sourceonly-author-20261030-r4.service"
+  },
+  "process": {
+    "pid": 2982506,
+    "ppid": 1899,
+    "startTicks": "168991613",
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-el-r9-sourceonly-author-20261030-r4.service",
+    "exe": "/usr/bin/python3.14",
+    "exeDev": 64768,
+    "exeIno": 14981247
+  },
+  "cgroupIdentity": [
+    29,
+    7518576
+  ],
+  "at": 1793384802.840973,
+  "taskAffinities": [
+    {
+      "pid": 2982506,
+      "startTicks": "168991613",
+      "tasks": [
+        {
+          "tid": 2982506,
+          "startTicks": "168991613",
+          "affinity": [
+            1
+          ]
+        }
+      ]
+    }
+  ]
+}

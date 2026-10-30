@@ -1,0 +1,15 @@
+{
+  "activeNanInvocationMustBeTerminalBeforeAuthor": "a3a3381868dc484cb4056f6bf32d28a0",
+  "candidateName": "rpc-control-vm-l1-client-root-r9",
+  "namespace": "r9",
+  "nativeParent": "new exclusive child -> qualified frozen r6 -> original",
+  "nominalEnvelopeSeconds": 4395,
+  "nonce": "e7f723a0-5e37-4a1c-a249-d017e68ae83f",
+  "observationSeconds": 3600,
+  "outerSeconds": 4500,
+  "reuseR8Cow": false,
+  "runtimePinsSha256": "370c55e771f736a37ac000109441b3dba79db28d35be70f2a75b0f6a09209001",
+  "sourceLineage": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r8",
+  "sourcePinsSha256": "f901dd16576ca256e68aaad052d3090dc84af797df9fcd02e2d7ad679a865bfb",
+  "status": "SOURCEONLY_NOT_AUTHORED"
+}

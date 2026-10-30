@@ -1,0 +1,312 @@
+--- r3/queue_binding.py
++++ r4/queue_binding.py
+@@ -3,7 +3,85 @@
+ import hashlib,json,os,re,stat,subprocess,time
+ P=Path(__file__).resolve().parent
+ CG=Path('/sys/fs/cgroup')
+-def fail(s):raise SystemExit(s)
++PHASE='initialization'
++FAILURE_RECORDED=False
++LAST_RESOURCES=None
++def set_phase(value):
++ global PHASE
++ PHASE=value
++def record_failure(reason):
++ """Public, bounded, exclusive evidence; never read environment or arbitrary argv."""
++ global FAILURE_RECORDED
++ if FAILURE_RECORDED:return
++ FAILURE_RECORDED=True
++ record={'phase':PHASE,'pid':os.getpid(),'at':time.time(),'reason':str(reason)[:384],'lastResources':LAST_RESOURCES}
++ try:
++  raw=Path('/proc/self/cgroup').read_text()[:4096].strip()
++  record['cgroup']=raw
++  record['affinity']=sorted(os.sched_getaffinity(0))[:64]
++  rows=[]
++  if raw.startswith('0::/') and '\n' not in raw:
++   q=CG/raw[3:].lstrip('/')
++   if q.resolve()!=q or '..' in Path(raw[3:]).parts:raise ValueError('bad cgroup path')
++   for _ in range(16):
++    row={'cgroup':str(q.relative_to(CG))}
++    for name in ['cgroup.controllers','cgroup.subtree_control','cpu.max','cpuset.cpus.effective','memory.max','memory.swap.max']:
++     f=q/name
++     try:row[name]=f.read_text().strip()[:128]
++     except OSError:row[name]=None
++    rows.append(row)
++    if q==CG:break
++    q=q.parent
++  record['hierarchy']=rows
++ except Exception as e:record['captureError']=type(e).__name__
++ data=(json.dumps(record,separators=(',',':'))+'\n').encode()
++ if len(data)>16384:
++  record['lastResources']=None;record['evidenceTruncated']=True
++  data=(json.dumps(record,separators=(',',':'))+'\n').encode()
++ if len(data)>16384:data=b'{"reason":"failure evidence exceeded bound"}\n'
++ try:
++  fd=os.open(P/f'launcher-failure-{os.getpid()}.json',os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
++  with os.fdopen(fd,'wb') as f:f.write(data);f.flush();os.fsync(f.fileno())
++ except OSError as e:
++  os.write(2,b'failure evidence persistence error: '+type(e).__name__.encode()+b'\n'+data)
++def fail(s):
++ record_failure(s)
++ raise SystemExit(s)
++def guarded(fn):
++ try:return fn()
++ except BaseException as e:
++  if not isinstance(e,SystemExit) or e.code not in (None,0):
++   record_failure(str(e.code) if isinstance(e,SystemExit) else type(e).__name__)
++  raise
++def task_affinities(processes):
++ """Bound to <=4 known incarnations, <=128 tasks each, <=4 seconds total."""
++ if not 1<=len(processes)<=4:fail('known-process affinity bound')
++ deadline=time.monotonic()+4;out=[]
++ def tids(d):
++  values=[]
++  with os.scandir(d/'task') as it:
++   for e in it:
++    if not e.name.isdigit():continue
++    values.append(int(e.name))
++    if len(values)>128:fail('task affinity count bound')
++  return sorted(values)
++ for expected in processes:
++  if time.monotonic()>deadline:fail('task affinity time bound')
++  actual,_=proc(expected['pid'])
++  if actual!=expected:fail('process changed before task affinity read')
++  d=Path('/proc')/str(expected['pid']);initial=tids(d);samples=[]
++  if not initial:fail('known process has no tasks')
++  for tid in initial:
++   if time.monotonic()>deadline:fail('task affinity time bound')
++   f=d/'task'/str(tid)/'stat'
++   st=f.read_text();start=st[st.rfind(')')+2:].split()[19]
++   affinity=sorted(os.sched_getaffinity(tid))
++   st2=f.read_text();start2=st2[st2.rfind(')')+2:].split()[19]
++   if affinity!=[1] or start!=start2:fail('task CPU1 affinity/incarnation mismatch')
++   samples.append({'tid':tid,'startTicks':start,'affinity':affinity})
++  if tids(d)!=initial or proc(expected['pid'])[0]!=expected:fail('task/process changed during affinity read')
++  out.append({'pid':expected['pid'],'startTicks':expected['startTicks'],'tasks':samples})
++ return out
+ def sha(f):
+  with Path(f).open('rb') as s:return hashlib.file_digest(s,'sha256').hexdigest()
+ def show(unit):
+@@ -53,8 +131,10 @@
+   if str(Path(item['path']).resolve())!=item['realpath'] or sha(item['path'])!=item['sha256']:fail('tool drift')
+  return prep
+ def resources(c,required=False,expected_mib=1536):
++ global LAST_RESOURCES
+  q=cgpath(c)
+  r={'cgroup':c,'identity':cgid(c),'memoryMax':(q/'memory.max').read_text().strip(),'swapMax':(q/'memory.swap.max').read_text().strip(),'affinity':sorted(os.sched_getaffinity(0)),'cpuHierarchy':[]}
++ LAST_RESOURCES=r
+  if r['memoryMax']!=str(expected_mib<<20) or r['swapMax']!='0' or r['affinity']!=[1]:fail('actual memory/swap/affinity mismatch')
+  t=q
+  while True:
+@@ -69,20 +149,25 @@
+  f=q/'cpuset.cpus.effective';r['effectiveCpus']=f.read_text().strip() if f.exists() else None
+  if required:
+   a,b=(q/'cpu.max').read_text().split()
+-  if a=='max' or int(a)>int(b) or r['effectiveCpus']!='1':fail('actual scope CPU/cpuset limit not applied')
++  if a=='max' or int(a)>int(b):fail('actual cgroup CPU quota must be finite and <=1 CPU')
+  return r
+ def bootstrap():
++ set_phase('outer-input-admission')
+  verify_inputs();cfg=json.loads((P/'queue-binding.json').read_text())
+  a=json.loads((P/'root-author-approval.json').read_text())
+  if a.get('preparedSha256')!=sha(P/'PREPARED.json') or a.get('launchAuthorized') is not True or a.get('queueScopeResourceMutationAuthorized') is not True or not 0<=time.time()-a.get('at',0)<=300:fail('fresh root approval for scoped resource mutation required')
+  me,args=proc(os.getpid());u=show(cfg['outerUnit'])
+  if u['MainPID']!=str(os.getpid()) or u['ControlGroup']!=me['cgroup'] or Path(me['cgroup']).name!=cfg['outerUnit']:fail('outer service identity mismatch')
++ set_phase('outer-resource-affinity')
+  resources(me['cgroup'],True,expected_mib=128)
+- marker={'preparedSha256':sha(P/'PREPARED.json'),'launchNonce':cfg['launchNonce'],'boot':boot(),'outer':u,'process':me,'cgroupIdentity':cgid(me['cgroup']),'at':time.time()}
++ tasks=task_affinities([me])
++ marker={'preparedSha256':sha(P/'PREPARED.json'),'launchNonce':cfg['launchNonce'],'boot':boot(),'outer':u,'process':me,'cgroupIdentity':cgid(me['cgroup']),'at':time.time(),'taskAffinities':tasks}
+  write_once('outer-launch.json',marker)
++ set_phase('queue-exec')
+  cmd=['/usr/bin/python3',cfg['queue'],'--mib','1536','--log',str(P/'outer.guard.log'),'--','/usr/bin/taskset','-c','1','/usr/bin/node',cfg['guard'],'--max-rss-mib','1408','--floor-available-mib','27648','--log',str(P/'inner.guard.log'),'--','/usr/bin/python3','-B',str(P/'run.py')]
+  os.execv(cmd[0],cmd)
+ def enforce_scope():
++ set_phase('scope-identity')
+  cfg=json.loads((P/'queue-binding.json').read_text());m=read_marker()
+  if m['preparedSha256']!=sha(P/'PREPARED.json') or m['launchNonce']!=cfg['launchNonce'] or m['boot']!=boot() or not 0<=time.time()-m['at']<=180:fail('stale or mismatched outer launch')
+  outer=show(cfg['outerUnit']);op,oa=proc(m['process']['pid'])
+@@ -109,11 +194,16 @@
+  guards=[x for x,a in scoped if x['exe']=='/usr/bin/node' and cfg['guard'].encode() in a]
+  if len(guards)!=2:fail('both pinned queue/inner guards must be actual scoped ancestors')
+  if own['pid'] not in [int(x) for x in (cgpath(own['cgroup'])/'cgroup.procs').read_text().split()]:fail('self missing scope membership')
++ set_phase('scope-resource-before')
++ tasks_before=task_affinities([x for x,a in chain])
+  before=resources(own['cgroup']);identity=cgid(own['cgroup'])
+  # Only the exact already-bound own transient scope is targeted. No shared queue edit.
+- subprocess.run(['/usr/bin/systemctl','--user','set-property','--runtime',scope,'CPUQuota=100%','AllowedCPUs=1'],check=True,timeout=5)
++ set_phase('scope-quota-apply')
++ subprocess.run(['/usr/bin/systemctl','--user','set-property','--runtime',scope,'CPUQuota=100%'],check=True,timeout=5)
+  if show(scope)!=u or show(cfg['outerUnit'])!=outer or cgid(own['cgroup'])!=identity:fail('manager incarnation changed during enforcement')
+  for x,a in chain:
+   if proc(x['pid'])[0]!=x:fail('ancestor incarnation changed during enforcement')
++ set_phase('scope-resource-after')
+  after=resources(own['cgroup'],True)
+- write_once('queue-scope-binding.json',{'boot':m['boot'],'launchNonce':m['launchNonce'],'outer':outer,'scope':u,'ancestors':[x for x,a in chain],'before':before,'after':after,'at':time.time(),'note':'CPU hierarchy is the actual scope ancestry; outer service is a sibling and is not CPU quota authority for this scope.'})
++ tasks_after=task_affinities([x for x,a in chain])
++ write_once('queue-scope-binding.json',{'boot':m['boot'],'launchNonce':m['launchNonce'],'outer':outer,'scope':u,'ancestors':[x for x,a in chain],'before':before,'after':after,'tasksBefore':tasks_before,'tasksAfter':tasks_after,'cpuPlacementPolicy':'CPU quota plus inherited task affinity; NOT kernel cpuset confinement','at':time.time(),'note':'CPU hierarchy is the actual scope ancestry; outer service is a sibling and is not CPU quota authority for this scope.'})
+--- r3/outer-launch.py
++++ r4/outer-launch.py
+@@ -1,2 +1,2 @@
+-from queue_binding import bootstrap
+-bootstrap()
++from queue_binding import bootstrap,guarded
++guarded(bootstrap)
+--- r3/run.py
++++ r4/run.py
+@@ -1,52 +1,59 @@
+-# PREPARED ONLY; coordinator reviews PREPARED.json and launches this one bounded invocation.
+-from pathlib import Path
+-import hashlib,json,os,subprocess,time
+-p=Path(__file__).resolve().parent
+-def sha(f):
+- h=hashlib.sha256()
+- with Path(f).open('rb') as stream:
+-  for block in iter(lambda:stream.read(1048576),b''):h.update(block)
+- return h.hexdigest()
+-prep=json.loads((p/'PREPARED.json').read_text())
+-if prep.get('status')!='PREPARED_NOT_LAUNCHED':raise SystemExit('package not finalized for review')
+-approval=json.loads((p/'root-author-approval.json').read_text())
+-if approval.get('preparedSha256')!=sha(p/'PREPARED.json') or approval.get('launchAuthorized') is not True:raise SystemExit('root review/admission missing or stale; no launch')
+-preflight=json.loads((p/'root-preflight-result.json').read_text())
+-if preflight.get('preparedSha256')!=sha(p/'PREPARED.json') or not 0<=time.time()-preflight.get('observedAt',0)<=300:raise SystemExit('fresh independent root preflight required')
+-if preflight.get('account')!={'loggedIn':True,'email':'steven.r.batchelor@gmail.com','subscriptionType':'max'} or preflight.get('otherReviewedExecutableProcesses')!=[]:raise SystemExit('independent Max preflight failed')
+-if approval.get('rootPreflightSha256')!=sha(p/'root-preflight-result.json'):raise SystemExit('approval must bind independent preflight bytes')
+-if approval.get('scope')!='el-r9-sourceonly-author' or not 0<=time.time()-approval.get('at',0)<=300:raise SystemExit('fresh scoped author approval required')
+-if approval.get('nanTerminalVerified') is not True or approval.get('nanInvocation')!='a3a3381868dc484cb4056f6bf32d28a0':raise SystemExit('root must verify current Nan terminal before author')
+-claudeBin=Path(prep['claudeExecutable']['path'])
+-if not claudeBin.is_absolute() or claudeBin.is_symlink() or sha(claudeBin)!=prep['claudeExecutable']['sha256']:raise SystemExit('reviewed Claude executable drift')
+-for rel,h in prep['hashes'].items():
+- if sha(p/rel)!=h:raise SystemExit('prepared input drift: '+rel)
+-pins=json.loads((p/'input-pins.json').read_text())
+-def drift():return [n for n,h in pins.items() if not Path(n).is_file() or sha(n)!=h]
+-if drift():raise SystemExit('readonly input drift; no launch')
+-if approval.get('queueScopeResourceMutationAuthorized') is not True:raise SystemExit('scoped resource enforcement not admitted')
+-from queue_binding import verify_inputs,enforce_scope
+-verify_inputs();enforce_scope()
+-seed=json.loads((p/'seed-pins.json').read_text())
+-if len(seed)!=prep['seedEntries'] or any(sha(p/'candidate'/n)!=h for n,h in seed.items()):raise SystemExit('candidate seed drift')
+-if {str(f.relative_to(p/'candidate')) for f in (p/'candidate').rglob('*') if f.is_file()}!=set(seed):raise SystemExit('unexpected candidate seed files')
+-tmp=p/'owned-tmp';st=tmp.lstat()
+-if tmp.is_symlink() or not tmp.is_dir() or st.st_uid!=os.getuid() or st.st_mode&0o077:raise SystemExit('owned private TMPDIR required')
+-kind=subprocess.check_output(['/usr/bin/stat','-f','-c','%t',str(tmp)],text=True,timeout=5).strip().lower()
+-if kind!='ef53':raise SystemExit('reviewed persistent ext TMPDIR required; got '+kind)
+-with (p/'attempt.json').open('x') as f:json.dump({'pid':os.getpid(),'at':time.time(),'authorStarted':False},f)
+-a=json.loads(subprocess.check_output([str(claudeBin),'auth','status'],text=True,timeout=20))
+-if not a.get('loggedIn') or a.get('email')!='steven.r.batchelor@gmail.com' or a.get('subscriptionType')!='max':raise SystemExit('required Max account unavailable')
+-(p/'account-verification.json').write_text(json.dumps({k:a.get(k) for k in ['loggedIn','email','subscriptionType']})+'\n')
+-(p/'started.json').write_text(json.dumps({'pid':os.getpid(),'startedAt':time.time(),'inputHashes':pins,'freshSession':True,'tmpFilesystem':kind})+'\n')
+-env=dict(os.environ,TMPDIR=str(tmp),TEST_TMPDIR=str(tmp));rc=1
+-try:
+- with (p/'claude.out').open('x') as out:
+-  r=subprocess.run([str(claudeBin),'-p',(p/'TASK.txt').read_text(),'--safe-mode','--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--permission-mode','dontAsk','--allowedTools','Read,Grep,Write,Edit','--tools','Read,Grep,Write,Edit','--max-turns','30','--output-format','json'],stdout=out,stderr=subprocess.STDOUT,timeout=900,cwd=p,env=env)
+-  rc=r.returncode
+-except subprocess.TimeoutExpired:rc=124
+-finally:
+- changed=drift()+[str(p/n) for n,h in prep['hashes'].items() if not (p/n).is_file() or sha(p/n)!=h]
+- if changed:rc=78
+- (p/'claude.rc').write_text(str(rc)+'\n');(p/'finished.json').write_text(json.dumps({'rc':rc,'finishedAt':time.time(),'inputDrift':changed})+'\n')
+-raise SystemExit(rc)
++# PREPARED ONLY; root owns review and launch.
++from queue_binding import guarded,set_phase
++def main():
++ set_phase('runner-input-admission')
++ # PREPARED ONLY; coordinator reviews PREPARED.json and launches this one bounded invocation.
++ from pathlib import Path
++ import hashlib,json,os,subprocess,time
++ p=Path(__file__).resolve().parent
++ def sha(f):
++  h=hashlib.sha256()
++  with Path(f).open('rb') as stream:
++   for block in iter(lambda:stream.read(1048576),b''):h.update(block)
++  return h.hexdigest()
++ prep=json.loads((p/'PREPARED.json').read_text())
++ if prep.get('status')!='PREPARED_NOT_LAUNCHED':raise SystemExit('package not finalized for review')
++ approval=json.loads((p/'root-author-approval.json').read_text())
++ if approval.get('preparedSha256')!=sha(p/'PREPARED.json') or approval.get('launchAuthorized') is not True:raise SystemExit('root review/admission missing or stale; no launch')
++ preflight=json.loads((p/'root-preflight-result.json').read_text())
++ if preflight.get('preparedSha256')!=sha(p/'PREPARED.json') or not 0<=time.time()-preflight.get('observedAt',0)<=300:raise SystemExit('fresh independent root preflight required')
++ if preflight.get('account')!={'loggedIn':True,'email':'steven.r.batchelor@gmail.com','subscriptionType':'max'} or preflight.get('otherReviewedExecutableProcesses')!=[]:raise SystemExit('independent Max preflight failed')
++ if approval.get('rootPreflightSha256')!=sha(p/'root-preflight-result.json'):raise SystemExit('approval must bind independent preflight bytes')
++ if approval.get('scope')!='el-r9-sourceonly-author' or not 0<=time.time()-approval.get('at',0)<=300:raise SystemExit('fresh scoped author approval required')
++ if approval.get('nanTerminalVerified') is not True or approval.get('nanInvocation')!='a3a3381868dc484cb4056f6bf32d28a0':raise SystemExit('root must verify current Nan terminal before author')
++ claudeBin=Path(prep['claudeExecutable']['path'])
++ if not claudeBin.is_absolute() or claudeBin.is_symlink() or sha(claudeBin)!=prep['claudeExecutable']['sha256']:raise SystemExit('reviewed Claude executable drift')
++ for rel,h in prep['hashes'].items():
++  if sha(p/rel)!=h:raise SystemExit('prepared input drift: '+rel)
++ pins=json.loads((p/'input-pins.json').read_text())
++ def drift():return [n for n,h in pins.items() if not Path(n).is_file() or sha(n)!=h]
++ if drift():raise SystemExit('readonly input drift; no launch')
++ if approval.get('queueScopeResourceMutationAuthorized') is not True:raise SystemExit('scoped resource enforcement not admitted')
++ from queue_binding import verify_inputs,enforce_scope
++ set_phase('scope-input-admission');verify_inputs();enforce_scope()
++ set_phase('candidate-seed-and-tmp')
++ seed=json.loads((p/'seed-pins.json').read_text())
++ if len(seed)!=prep['seedEntries'] or any(sha(p/'candidate'/n)!=h for n,h in seed.items()):raise SystemExit('candidate seed drift')
++ if {str(f.relative_to(p/'candidate')) for f in (p/'candidate').rglob('*') if f.is_file()}!=set(seed):raise SystemExit('unexpected candidate seed files')
++ tmp=p/'owned-tmp';st=tmp.lstat()
++ if tmp.is_symlink() or not tmp.is_dir() or st.st_uid!=os.getuid() or st.st_mode&0o077:raise SystemExit('owned private TMPDIR required')
++ kind=subprocess.check_output(['/usr/bin/stat','-f','-c','%t',str(tmp)],text=True,timeout=5).strip().lower()
++ if kind!='ef53':raise SystemExit('reviewed persistent ext TMPDIR required; got '+kind)
++ set_phase('account-and-author')
++ with (p/'attempt.json').open('x') as f:json.dump({'pid':os.getpid(),'at':time.time(),'authorStarted':False},f)
++ a=json.loads(subprocess.check_output([str(claudeBin),'auth','status'],text=True,timeout=20))
++ if not a.get('loggedIn') or a.get('email')!='steven.r.batchelor@gmail.com' or a.get('subscriptionType')!='max':raise SystemExit('required Max account unavailable')
++ (p/'account-verification.json').write_text(json.dumps({k:a.get(k) for k in ['loggedIn','email','subscriptionType']})+'\n')
++ (p/'started.json').write_text(json.dumps({'pid':os.getpid(),'startedAt':time.time(),'inputHashes':pins,'freshSession':True,'tmpFilesystem':kind})+'\n')
++ env=dict(os.environ,TMPDIR=str(tmp),TEST_TMPDIR=str(tmp));rc=1
++ try:
++  with (p/'claude.out').open('x') as out:
++   r=subprocess.run([str(claudeBin),'-p',(p/'TASK.txt').read_text(),'--safe-mode','--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--permission-mode','dontAsk','--allowedTools','Read,Grep,Write,Edit','--tools','Read,Grep,Write,Edit','--max-turns','30','--output-format','json'],stdout=out,stderr=subprocess.STDOUT,timeout=900,cwd=p,env=env)
++   rc=r.returncode
++ except subprocess.TimeoutExpired:rc=124
++ finally:
++  changed=drift()+[str(p/n) for n,h in prep['hashes'].items() if not (p/n).is_file() or sha(p/n)!=h]
++  if changed:rc=78
++  (p/'claude.rc').write_text(str(rc)+'\n');(p/'finished.json').write_text(json.dumps({'rc':rc,'finishedAt':time.time(),'inputDrift':changed})+'\n')
++ raise SystemExit(rc)
++guarded(main)
+--- r3/root-preflight.py
++++ r4/root-preflight.py
+@@ -19,6 +19,7 @@
+  if sha(p/'candidate'/n)!=h or sha(p/'seed'/n)!=h:raise SystemExit('seed byte drift: '+n)
+ for n in ['attempt.json','started.json','claude.out','root-author-approval.json','root-preflight-result.json','outer-launch.json','queue-scope-binding.json']:
+  if (p/n).exists():raise SystemExit('prior admission/attempt evidence exists: '+n)
++if list(p.glob('launcher-failure-*.json')):raise SystemExit('prior failure evidence exists; new preparation required')
+ exe=Path(prep['claudeExecutable']['path'])
+ if not exe.is_absolute() or exe.is_symlink() or sha(exe)!=prep['claudeExecutable']['sha256']:raise SystemExit('reviewed executable drift')
+ active=[]
+--- r3/queue-binding.json
++++ r4/queue-binding.json
+@@ -1,18 +1,18 @@
+ {
+-  "outerUnit": "enclave-rpc-el-r9-sourceonly-author-20261030-r3.service",
++  "outerUnit": "enclave-rpc-el-r9-sourceonly-author-20261030-r4.service",
+   "queue": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+   "guard": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+-  "launchNonce": "2876facc-9c86-4783-a4ee-7f1be9f5be4b6",
++  "launchNonce": "c0b7f7fd-fce1-4579-80d3-a0a174812bbb",
+   "scopeMutation": {
+-    "CPUQuota": "100%",
+-    "AllowedCPUs": "1"
++    "CPUQuota": "100%"
+   },
+   "limitations": [
+     "Preparation only; no auth, preflight, author, syntax execution, tests or native checks.",
+     "Process and digest binding protects accidental cross-target launch; not a hostile same-UID sandbox.",
+-    "User-manager CPU/cpuset controller delegation and property support must pass on admitted launch; no fallback."
++    "CPU controller and runtime quota must work. cpuset is unavailable and is recorded, never asserted or changed. Future children inherit affinity; this is not protection against hostile affinity expansion."
+   ],
+   "outerMemoryMiB": 128,
+   "scopeMemoryMiB": 1536,
+-  "totalHardMiB": 1664
++  "totalHardMiB": 1664,
++  "cpuPlacementPolicy": "finite <=1 CPU quota plus inherited CPU1 affinity on all bounded known tasks; NOT kernel cpuset confinement"
+ }
+--- r3/launch-command.txt
++++ r4/launch-command.txt
+@@ -1,3 +1,3 @@
+ # PREPARED ONLY, not executed. Root approval must additionally authorize queueScopeResourceMutationAuthorized=true.
+ # Fresh independent root preflight remains required. Root must bound that separate account-only invocation.
+-/usr/bin/systemd-run --user --unit=enclave-rpc-el-r9-sourceonly-author-20261030-r3.service --property=RuntimeMaxSec=1200 --property=TimeoutStopSec=3 --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=AllowedCPUs=1 --property=UMask=0077 --collect /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-23/it/work/rpc-el-r9-sourceonly-author-prep-20261030-r3/outer-launch.py
++/usr/bin/systemd-run --user --unit=enclave-rpc-el-r9-sourceonly-author-20261030-r4.service --property=RuntimeMaxSec=1200 --property=TimeoutStopSec=3 --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=UMask=0077 --collect /usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-23/it/work/rpc-el-r9-sourceonly-author-prep-20261030-r4/outer-launch.py

@@ -1,0 +1,16 @@
+--- repaired-r2/source/recovery-progress.py
++++ r8/source/recovery-progress.py
+@@ -12,6 +12,13 @@
+         row=json.loads(line)
+         assert row.get('_SYSTEMD_INVOCATION_ID')==invocation,'progress-journal-invocation'
+         message=row.get('MESSAGE','')
++        # journalctl JSON represents nonprintable fields (including ANSI ESC)
++        # as unsigned byte arrays. Duplicate field values can also be arrays:
++        # accept only a single bounded flat byte sequence, never coerce values.
++        if type(message) is list:
++            if len(message)>8192 or not all(type(b) is int and 0<=b<=255 for b in message):continue
++            try:message=bytes(message).decode('utf-8',errors='strict')
++            except UnicodeDecodeError:continue
+         if not isinstance(message,str) or len(message)>8192:continue
+         message=re.sub(r'\x1b\[[0-9;]*m','',message)
+         label=next((v for v in labels if v in message),None)

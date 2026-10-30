@@ -1,0 +1,21 @@
+{
+  "at": 1793384802.4143174,
+  "scope": "el-r9-sourceonly-author",
+  "launchAuthorized": true,
+  "queueScopeResourceMutationAuthorized": true,
+  "preparedSha256": "03d574cdf21725227c6854cf55daf5e2f01157964aaeafbf39c0bf95de18fc00",
+  "rootPreflightSha256": "85684da8049504b6d4e2b3d34c4a60c1fcc5836b338aaed3b93ed44b2f999675",
+  "nanTerminalVerified": true,
+  "nanInvocation": "a3a3381868dc484cb4056f6bf32d28a0",
+  "availableMiB": 30350,
+  "requiredAvailableMiB": 29568,
+  "outerHardMiB": 128,
+  "scopeHardMiB": 1536,
+  "rssMiB": 1408,
+  "floorMiB": 27648,
+  "CPU": [
+    1
+  ],
+  "cpuPolicy": "quota and inherited affinity, not cpuset confinement",
+  "swap": 0
+}

@@ -1,0 +1,1 @@
+{"passed": ["finite quota with absent cpuset accepted", "quota rejected", "memory rejected", "wrong affinity rejected", "bounded private failure evidence", "actual own task identity and CPU1 affinity"]}

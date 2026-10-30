@@ -1,0 +1,261 @@
+{
+  "status": "TERMINAL_AUTHOR_OAUTH_FAILURE_NO_SOURCE_CHANGES",
+  "invocation": "8e324f60850d423e8c786b81482e1252",
+  "observedAt": 1793384897.1902277,
+  "unitStatus": {
+    "LoadState": "not-found",
+    "ActiveState": "inactive",
+    "InvocationID": "",
+    "MainPID": "0"
+  },
+  "knownProcessIdentities": [
+    {
+      "pid": 2982528,
+      "ppid": 2982521,
+      "startTicks": "168991667",
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2982514-i44907693.scope",
+      "exe": "/usr/bin/python3.14",
+      "exeDev": 64768,
+      "exeIno": 14981247
+    },
+    {
+      "pid": 2982521,
+      "ppid": 2982514,
+      "startTicks": "168991665",
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2982514-i44907693.scope",
+      "exe": "/usr/bin/node",
+      "exeDev": 64768,
+      "exeIno": 15005350
+    },
+    {
+      "pid": 2982514,
+      "ppid": 2982506,
+      "startTicks": "168991661",
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2982514-i44907693.scope",
+      "exe": "/usr/bin/node",
+      "exeDev": 64768,
+      "exeIno": 15005350
+    },
+    {
+      "pid": 2982506,
+      "ppid": 1899,
+      "startTicks": "168991613",
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-el-r9-sourceonly-author-20261030-r4.service",
+      "exe": "/usr/bin/python3.14",
+      "exeDev": 64768,
+      "exeIno": 14981247
+    }
+  ],
+  "knownPidsAbsent": true,
+  "claudeChildIdentity": null,
+  "identityLimitation": "Actual Claude child exited before observation; PID/start/exe/CWD not fabricated. No standard collector invoked.",
+  "matchingExecutableCwdCensus": [],
+  "unreadableOwnProcessMetadata": [
+    {
+      "pid": 1899,
+      "comm": "systemd"
+    },
+    {
+      "pid": 1905,
+      "comm": "(sd-pam)"
+    },
+    {
+      "pid": 5575,
+      "comm": "ly-dm"
+    },
+    {
+      "pid": 168047,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 2004673,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 2005007,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 2071318,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 2071854,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 2072206,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 2072697,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 2142125,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 2147612,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 2161000,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 2164430,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 2166557,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 2166935,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 2552896,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3516484,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3516651,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3517608,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3517685,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3520227,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3528300,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3528579,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3528731,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3556163,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3556469,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3557217,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3558537,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3558723,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3559434,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3560408,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3561237,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3604365,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3620016,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3620245,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3620521,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3620720,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3621121,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 3621419,
+      "comm": "ssh-agent"
+    },
+    {
+      "pid": 4007171,
+      "comm": "gpg-agent"
+    }
+  ],
+  "readonlyInputs": 148,
+  "inputDrift": [],
+  "seedFiles": 37,
+  "changes": [],
+  "transcript": {
+    "exists": true,
+    "session": "47cdeeb3-80b2-4b63-bf24-2b8f3e548f23",
+    "toolCounts": {},
+    "mutationCalls": 0,
+    "sha256": "bbe5f18635ac270d93d18bb0c2ac509ff6cff147bba82ee3387ece8fde2cbc08",
+    "bytes": 30835
+  },
+  "apiDurationMs": 0,
+  "usage": {
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "input_tokens": 0,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 0,
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "",
+    "iterations": [],
+    "speed": "standard"
+  },
+  "finished": {
+    "rc": 1,
+    "finishedAt": 1793384812.8767798,
+    "inputDrift": []
+  },
+  "frozenManifestSha256": "4cc07a6515de0071462a6d4921c3e2acfa8054e5a8dbda64f1d4b8fbf2ff4b57",
+  "sourceTestsExecuted": false,
+  "retry": false
+}
