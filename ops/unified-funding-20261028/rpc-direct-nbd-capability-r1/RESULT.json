@@ -1,0 +1,52 @@
+{
+  "at": 1793393380.8591986,
+  "pins": {
+    "qemu-nbd": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934",
+    "nbd-client": "0a256b67962d1ffc1ab8bacecd4319b8e459a0535467abb66f83329ce5221167"
+  },
+  "results": {
+    "qemu-nbd": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.008379720151424408,
+      "stdout": "Usage: /tool [OPTIONS] FILE\n  or:  /tool -L [OPTIONS]\nQEMU Disk Network Block Device Utility\n\n  -h, --help                display this help and exit\n  -V, --version             output version information and exit\n\nConnection properties:\n  -p, --port=PORT           port to listen on (default `10809')\n  -b, --bind=IFACE          interface to bind to (default `0.0.0.0')\n  -k, --socket=PATH         path to the unix socket\n                            (default '/var/lock/qemu-nbd-DEVICE')\n  -e, --shared=NUM          device can be shared by NUM clients (default '1')\n  -t, --persistent          don't exit on the last connection\n  -v, --verbose             display extra debugging information\n  -x, --export-name=NAME    expose export by name (default is empty string)\n  -D, --description=TEXT    export a human-readable description\n      --handshake-limit=N   limit client's handshake to N seconds (default 10)\n\nExposing part of the image:\n  -o, --offset=OFFSET       offset into the image\n  -A, --allocation-depth    expose the allocation depth\n  -B, --bitmap=NAME         expose a persistent dirty bitmap\n\nGeneral purpose options:\n  -L, --list                list exports available from another NBD server\n  --object type,id=ID,...   define an object such as 'secret' for providing\n                            passwords and/or encryption keys\n  --tls-creds=ID            use id of an earlier --object to provide TLS\n  --tls-authz=ID            use id of an earlier --object to provide\n                            authorization\n  --tls-hostname=HOSTNAME   override hostname used to check x509 certificate\n  -T, --trace [[enable=]<pattern>][,events=<file>][,file=<file>]\n                            specify tracing options\n  --fork                    fork off the server process and exit the parent\n                            once the server is running\n  --pid-file=PATH           store the server's process ID in the given file\n\nKernel NBD client support:\n  -c, --connect=DEV         connect FILE to the local NBD device DEV\n  -d, --disconnect          disconnect the specified device\n\nBlock device options:\n  -f, --format=FORMAT       set image format (raw, qcow2, ...)\n  -r, --read-only           export read-only\n  -s, --snapshot            use FILE as an external snapshot, create a temporary\n                            file with backing_file=FILE, redirect the write to\n                            the temporary one\n  -l, --load-snapshot=SNAPSHOT_PARAM\n                            load an internal snapshot inside FILE and export it\n                            as an read-only device, SNAPSHOT_PARAM format is\n                            'snapshot.id=[ID],snapshot.name=[NAME]', or\n                            '[ID_OR_NAME]'\n  -n, --nocache             disable host cache\n      --cache=MODE          set cache mode used to access the disk image, the\n                            valid options are: 'none', 'writeback' (default),\n                            'writethrough', 'directsync' and 'unsafe'\n      --aio=MODE            set AIO mode (native, io_uring or threads)\n      --discard=MODE        set discard mode (ignore, unmap)\n      --detect-zeroes=MODE  set detect-zeroes mode (off, on, unmap)\n      --image-opts          treat FILE as a full set of image options\n\nSee <https://qemu.org/contribute/report-a-bug> for how to report bugs.\nMore information on the QEMU project at <https://qemu.org>.\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 3408,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "nbd-client": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.11134570697322488,
+      "stdout": "",
+      "stderr": "nbd-client version 3.26.1\nUsage: nbd-client -name|-N name host [port] nbd_device\n\t[-block-size|-b block size] [-timeout|-t timeout] [-swap|-s]\n\t[-persist|-p] [-nofork|-n] [-systemd-mark|-m] [-nonetlink|-L]\n\t[-readonly|-R] [-size|-B bytes] [-preinit|-P]\nOr   : nbd-client -u (with same arguments as above)\nOr   : nbd-client nbdX\nOr   : nbd-client -d nbd_device\nOr   : nbd-client -c nbd_device\nOr   : nbd-client -h|--help\nOr   : nbd-client -l|--list host\nOr   : nbd-client -V|--version\nAll commands that connect to a host also take:\n\t[-F|-certfile certfile] [-K|-keyfile keyfile]\n\t[-A|-cacertfile cacertfile] [-H|-tlshostname hostname] [-x|-enable-tls]\n\t[-y|-priority gnutls-priority-string]\nDefault value for blocksize is 512\nAllowed values for blocksize are 512,1024,2048,4096\nNote, that kernel 2.4.2 and older ones do not work correctly with\nblocksizes other than 1024 without patches\nDefault value for port is 10809. Note that port must always be numeric\nBug reports and general discussion should go to nbd@other.debian.org\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 1026
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    }
+  },
+  "networkNamespace": true,
+  "databaseAvailable": false,
+  "exportStarted": false
+}

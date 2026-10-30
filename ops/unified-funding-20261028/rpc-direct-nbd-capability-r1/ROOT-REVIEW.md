@@ -1,0 +1,1 @@
+One local isolated --help per exactbinary, networknamespace/noDB/noexports/noauthkeys/noimageaccess. Originalpublicclient0400unchanged;separate0500copy verifiedsameSHA. Hashbeforeafter.5seach/65KiBcapture. CapabilityonlynotTLSauthenticationproof orworkloadfit. Small256/220floor27648CPU1noswap.
