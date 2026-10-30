@@ -1,0 +1,17 @@
+{
+  "invocation": "eb088f4f92024df9af1d288fbcc091eb",
+  "terminal": true,
+  "mainPID": 0,
+  "snapshotAvailableMiB": 33275,
+  "protectedFloorMiB": 18432,
+  "guestdPendingMiB": 5232,
+  "remainingBeforeOtherJobsHelpersAndMarginMiB": 9611,
+  "planningRPC16GiBRequirementBeforeOtherJobsHelpersAndMarginMiB": 40048,
+  "planningRPC16GiBDeficitMiB": 6773,
+  "maintenance10GiBCapDeficitMiB": 629,
+  "futureGuestdFreeBudgetMiB": 33255,
+  "fixedPoolPlusRPC16GiBRequirementBeforeOtherJobsHelpersAndMarginMiB": 73303,
+  "launchAdmitted": false,
+  "snapshotNotReservation": true,
+  "untrackedUnitsExcluded": false
+}
