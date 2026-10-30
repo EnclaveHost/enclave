@@ -2,6 +2,12 @@ import {test,expect} from '@playwright/test';
 import {seedStorage} from '../fixtures/session.mjs';
 const appId='0x'+'cd'.repeat(32);
 async function seedCatalog(page){
+ // Page boot reads the real fixture chain asynchronously. Let that read finish
+ // before installing the delisted catalog, or it can overwrite this test's state.
+ await page.waitForFunction(async()=>{
+  const {STORE}=await import('/js/core/catalog.js');
+  return STORE.loaded && !STORE.loading;
+ });
  return page.evaluate(async appId=>{
   const m=await import('/js/core/catalog.js');
   const {emit}=await import('/js/core/util.js');

@@ -19,15 +19,18 @@ const directory = t => { const d=fs.mkdtempSync(path.join(os.tmpdir(),'reader-bo
 test('native deadline, cancellation, oversized stdout and nonzero exit cannot yield a result', async t => {
   const dir = directory(t), native = path.join(dir, 'native');
   const invoke = extras => invokeDerivation({ executable: native, trusted: {}, witness: Buffer.from('{}'), workDir: dir, timeoutMs: 1000, ...extras });
+  // These fast fixtures must reach their output/exit checks after spawnOwned has
+  // recorded the live child. Otherwise an early exit exercises ownership refusal.
+  const ownedFixture = body => fs.writeFileSync(native, '#!/bin/sh\nwhile [ ! -f child.json ]; do sleep 0.01; done\n' + body);
   fs.writeFileSync(native, '#!/bin/sh\nsleep 30\n', { mode: 0o700 });
   await assert.rejects(invoke({ timeoutMs: 25 }), /deadline/);
   const ac = new AbortController(), waiting = invoke({ signal: ac.signal }); setTimeout(() => ac.abort(Error('test cancellation')), 25);
   await assert.rejects(waiting, /cancellation/);
-  fs.writeFileSync(native, '#!/bin/sh\nhead -c 100000 /dev/zero\n');
+  ownedFixture('head -c 100000 /dev/zero\n');
   await assert.rejects(invoke({ outputBytes: 1024 }), /output limit/);
-  fs.writeFileSync(native, '#!/bin/sh\nprintf "{}"\nexit 1\n');
+  ownedFixture('printf "{}"\nexit 1\n');
   await assert.rejects(invoke(), /refused/);
-  fs.writeFileSync(native, '#!/bin/sh\nprintf "{}trailing"\n');
+  ownedFixture('printf "{}trailing"\n');
   await assert.rejects(invoke(), /one JSON/);
   assert.deepEqual(fs.readdirSync(dir), ['native']);
 });
