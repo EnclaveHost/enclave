@@ -1,0 +1,151 @@
+{
+  "files": [
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/supervisor.js",
+      "relative": "supervisor.js",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/supervisor.js",
+      "sha256": "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951",
+      "bytes": 811736
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/gsup.mjs",
+      "relative": "metal/guest/gsup.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/gsup.mjs",
+      "sha256": "c2896d743e36be8fa1832f1f6f0e41042140b61549fd780f32c1921d5a157e99",
+      "bytes": 49848
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/init",
+      "relative": "metal/guest/init",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/init",
+      "sha256": "b42c2d995ec32a9610b168805673e213c912946e46a1718cb5ab72cf695baa62",
+      "bytes": 8980
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/agent.mjs",
+      "relative": "metal/guest/agent.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/agent.mjs",
+      "sha256": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a",
+      "bytes": 27135
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/enclave-metal.mjs",
+      "relative": "metal/enclave-metal.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/metal/enclave-metal.mjs",
+      "sha256": "d59a6cab9a698ea53f7c6d064588988997bebf748eba42193b0a443be32c1cda",
+      "bytes": 48411
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/control-client.mjs",
+      "relative": "isolation/m4/guestd/control-client.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/control-client.mjs",
+      "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+      "bytes": 11701
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/supervisor-transport.mjs",
+      "relative": "isolation/m4/guestd/supervisor-transport.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/supervisor-transport.mjs",
+      "sha256": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75",
+      "bytes": 4013
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/supervisor-splice.mjs",
+      "relative": "isolation/m4/guestd/supervisor-splice.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/supervisor-splice.mjs",
+      "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+      "bytes": 17220
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/share.go",
+      "relative": "isolation/m4/guestd/share.go",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/share.go",
+      "sha256": "67f99130d45e69d5149607d30ea6dbc20966952cd5d9fecd37a44be3a203ed30",
+      "bytes": 1292
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/test/isolation-post-adoption-lease.test.mjs",
+      "relative": "test/isolation-post-adoption-lease.test.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/test/isolation-post-adoption-lease.test.mjs",
+      "sha256": "af1a3633692b7c5aa5fd0109adb19e96e088c872ca10ba1027c285ce6355dd13",
+      "bytes": 12036
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/test/isolation-resume-shield-model.test.mjs",
+      "relative": "test/isolation-resume-shield-model.test.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/test/isolation-resume-shield-model.test.mjs",
+      "sha256": "7f9154f421269b4ccf4f88fd3657de9e49a16613edeeda409bbc333fb81ac1a5",
+      "bytes": 10212
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/test/isolation-guest-pool.test.mjs",
+      "relative": "test/isolation-guest-pool.test.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/test/isolation-guest-pool.test.mjs",
+      "sha256": "9ceef7b150a23e4e2981fe05b91fdc9320751b0f51e7a3194ba79dadcdbaa427",
+      "bytes": 24884
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/test/claim-sweep.test.mjs",
+      "relative": "test/claim-sweep.test.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/test/claim-sweep.test.mjs",
+      "sha256": "c4be6ac8f91052e89feb20ca36da40b248472661638f1849216999c3697950cc",
+      "bytes": 3680
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/test/tenant-lease.test.mjs",
+      "relative": "test/tenant-lease.test.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/test/tenant-lease.test.mjs",
+      "sha256": "c841b66fc3f6caeb8ec5cc37781c79ff94847728afcebb268f1717e1ad9be296",
+      "bytes": 6244
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/package.json",
+      "relative": "package.json",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/package.json",
+      "sha256": "176365e77ddfe0cef859d07a2916e702f177854f34b23abfd1b806df9200de93",
+      "bytes": 4100
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-metal.service",
+      "realpath": "/home/steven/.config/systemd/user/enclave-metal.service",
+      "sha256": "7724022d726983222822942d3e48bb1f67d2abd6be0b905cec9b9597ba2c7e77",
+      "bytes": 468
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-metal.service.d/80-shield-inference.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-metal.service.d/80-shield-inference.conf",
+      "sha256": "9f3acb480ce85b85cb02acd3fa0a9d5eb50e5b0a823a3a09b150cbe88eddd40b",
+      "bytes": 68
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-metal.service.d/95-app-funded-leases.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-metal.service.d/95-app-funded-leases.conf",
+      "sha256": "71b3feb343f3f02ac4fc555df33d8571ffeb2e92d7dd0b4f33474ad549037daa",
+      "bytes": 69
+    },
+    {
+      "path": "/home/steven/enclave-prod/dist-leasegas-deabf8f90/manifest.json",
+      "realpath": "/home/steven/enclave-prod/dist-leasegas-deabf8f90/manifest.json",
+      "sha256": "c7cb436db609f361a07d5f32a8a0d71f4fc399f329d244ff2512da8ca34dfca4",
+      "bytes": 26105
+    },
+    {
+      "path": "/home/steven/enclave-prod/dist-leasegas-deabf8f90/initramfs.cpio.gz",
+      "realpath": "/home/steven/enclave-prod/dist-leasegas-deabf8f90/initramfs.cpio.gz",
+      "sha256": "c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3",
+      "bytes": 279389821
+    },
+    {
+      "path": "/home/steven/enclave-prod/dist-leasegas-deabf8f90/vmlinuz",
+      "realpath": "/home/steven/enclave-prod/dist-leasegas-deabf8f90/vmlinuz",
+      "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
+      "bytes": 17232384
+    },
+    {
+      "path": "/tmp/metal-fwcfg-3965305.json",
+      "realpath": "/tmp/metal-fwcfg-3965305.json",
+      "sha256": "b1801b532ca1e57b7e8ea048ae78d0bba03ddcf20e09085e8be1ecd372593654",
+      "bytes": 3579
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "at": 1793357608.682202,
+  "baselinePids": [
+    2655690,
+    2655697,
+    2655704
+  ],
+  "deliverySha256": "e211f8dae4e558115ed320ca869727d3eb50bf1b9c4724d4a658780f6717fc72",
+  "scope": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2655690-i44610005.scope",
+  "unit": "enclave-rpc-controller-liveness-author-r1-20261030.service"
+}

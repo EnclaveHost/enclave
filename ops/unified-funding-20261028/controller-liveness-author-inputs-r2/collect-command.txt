@@ -1,0 +1,2 @@
+# PREPARED ONLY. Read-only root collection after exact outer unit and inner scope are terminal. No code/tests/author are run.
+/usr/bin/taskset -c 1 /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-23/it/work/rpc-controller-liveness-prep-20261030/author-run-r1/collect.py

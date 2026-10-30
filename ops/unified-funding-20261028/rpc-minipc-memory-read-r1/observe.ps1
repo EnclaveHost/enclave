@@ -1,0 +1,1 @@
+$ErrorActionPreference='Stop'; $o=Get-CimInstance Win32_OperatingSystem; [pscustomobject]@{totalPhysicalKiB=[int64]$o.TotalVisibleMemorySize;freePhysicalKiB=[int64]$o.FreePhysicalMemory;totalVirtualKiB=[int64]$o.TotalVirtualMemorySize;freeVirtualKiB=[int64]$o.FreeVirtualMemory}|ConvertTo-Json -Compress

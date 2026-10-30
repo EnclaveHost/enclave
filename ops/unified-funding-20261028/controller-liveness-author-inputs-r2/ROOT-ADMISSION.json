@@ -1,0 +1,6 @@
+{
+  "authorized": true,
+  "scope": "source-only-controller-liveness-author",
+  "deliverySha256": "e211f8dae4e558115ed320ca869727d3eb50bf1b9c4724d4a658780f6717fc72",
+  "rootPreflightSha256": "5a1ac74167e24f50f00c86a49d5858678121b0c82b607420e69369a867054497"
+}

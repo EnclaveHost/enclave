@@ -1,0 +1,37 @@
+{
+  "candidatePinsSha256": "955e3765463b9452a44edd2a7c83ae1cbff998b05cf7678e5387a6d92587fefb",
+  "changedFiles": [
+    "AUTHOR-NOTES.md",
+    "supervisor.js",
+    "test/isolation-instance-liveness.test.mjs"
+  ],
+  "coldControllerRecoveryQualified": false,
+  "eligibleForRootSourceReview": false,
+  "innerScope": {
+    "ActiveState": "inactive",
+    "ControlGroup": "",
+    "Id": "run-p2655690-i44610005.scope",
+    "InvocationID": "",
+    "LoadState": "not-found",
+    "Result": "success",
+    "SubState": "dead"
+  },
+  "outerUnit": {
+    "ActiveState": "failed",
+    "ControlGroup": "",
+    "ExecMainCode": "1",
+    "ExecMainStatus": "2",
+    "Id": "enclave-rpc-controller-liveness-author-r1-20261030.service",
+    "InvocationID": "6d2375cd888e400d949b87fd71189487",
+    "LoadState": "loaded",
+    "MainPID": "0",
+    "Result": "exit-code",
+    "SubState": "failed"
+  },
+  "productionReady": false,
+  "remainingPids": [],
+  "runnerStatus": "FAILED",
+  "sourcePatchSha256": "fbe6a764c6bbc5d5025a7716c09f751ee126f3106d24b983eaf37c521206b15f",
+  "status": "COLLECTED-SOURCE-ONLY",
+  "testsRun": false
+}

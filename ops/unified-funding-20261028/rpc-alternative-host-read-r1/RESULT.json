@@ -1,0 +1,49 @@
+{
+  "observations": [
+    {
+      "host": "storage",
+      "at": 1793359395.5682514,
+      "rc": 255,
+      "output": "",
+      "stderrBytes": 63
+    },
+    {
+      "host": "nan",
+      "at": 1793359397.9399226,
+      "rc": 0,
+      "output": "Linux\nMemTotal:        7937252 kB\nMemAvailable:    7294600 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\n4\nFilesystem        1-blocks        Used   Available Capacity Mounted on\n/dev/sda1      80307429376 61227401216 15757414400      80% /\n",
+      "stderrBytes": 0
+    },
+    {
+      "host": "us-west",
+      "at": 1793359400.1918445,
+      "rc": 0,
+      "output": "Linux\nMemTotal:         984552 kB\nMemAvailable:     327992 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\n1\nFilesystem        1-blocks        Used  Available Capacity Mounted on\n/dev/vda1      24883167232 19775901696 5090488320      80% /\n",
+      "stderrBytes": 0
+    },
+    {
+      "host": "ca-east",
+      "at": 1793359403.3778932,
+      "rc": 0,
+      "output": "Linux\nMemTotal:         984552 kB\nMemAvailable:     311312 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\n1\nFilesystem        1-blocks        Used  Available Capacity Mounted on\n/dev/vda1      24883167232 19739631616 5126758400      80% /\n",
+      "stderrBytes": 0
+    },
+    {
+      "host": "ap-southeast",
+      "at": 1793359407.602522,
+      "rc": 0,
+      "output": "Linux\nMemTotal:         984552 kB\nMemAvailable:     271852 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\n1\nFilesystem        1-blocks        Used  Available Capacity Mounted on\n/dev/vda1      24883167232 19757588480 5108801536      80% /\n",
+      "stderrBytes": 0
+    },
+    {
+      "host": "eu-central",
+      "at": 1793359411.8860912,
+      "rc": 0,
+      "output": "Linux\nMemTotal:         984552 kB\nMemAvailable:     240508 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\n1\nFilesystem        1-blocks        Used  Available Capacity Mounted on\n/dev/vda1      24883167232 19813253120 5053136896      80% /\n",
+      "stderrBytes": 0
+    }
+  ],
+  "capacityAdmission": false,
+  "pendingCommitments": "UNKNOWN",
+  "productionChanged": false
+}

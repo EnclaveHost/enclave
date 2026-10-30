@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-30T11:58:54.831104+00:00",
+  "invocation": "fa8519962218498b89cb60f2e825f7ad",
+  "invocationSource": "trusted ROOT-UNIT-JOURNAL.jsonl",
+  "unitGarbageCollected": true,
+  "knownScopeProcesses": [],
+  "pidStartTimesObserved": false,
+  "contentPinsVerified": 35,
+  "result": "READ_COMPLETED_NOT_ADMITTED",
+  "serviceCapsMiB": 2816.0,
+  "serviceCurrentMiB": 529.796875,
+  "serviceRemainingGrowthMiB": 2286.203125,
+  "memAvailableMiB": 6922.71875,
+  "residualAfter2560MiBTrialAndKnownServiceGrowth": 2076.515625,
+  "fitProven": false,
+  "productionChanged": false
+}

@@ -1,0 +1,19 @@
+{
+  "ID": "gd61126785",
+  "Name": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "AppID": "5bac47ac3b99d9999314ac3f5ee7c2749defdde98b2a52212302d05da13d58eb",
+  "RecordSha256": "4c6a3075a5b41248c23b3f14a1c3c39fec5f9841952faf3ab2a9d37ce3fb29c8",
+  "RuntimeID": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+  "TransportKeySha256": "e620f47ad273c1479e8d64dd4321574649c200327c101846a62e7766beb6f81c",
+  "Unit": "m2-gd61126785-1384596",
+  "MemMiB": 64281,
+  "CPUPct": 1600,
+  "Vcpus": 16,
+  "GPUCardBytes": 26628797235,
+  "InferenceModel": "qwen3.8-27b-mtp-q4-vl-gguf",
+  "Release": true,
+  "Releases": [
+    "af50d526be6deefcdd815968ff1dd2c04327f6c3b3f981c0aa90cc585b0effae"
+  ],
+  "Legacy": false
+}

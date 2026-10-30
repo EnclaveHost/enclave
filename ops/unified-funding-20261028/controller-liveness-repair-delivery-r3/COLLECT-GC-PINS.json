@@ -1,0 +1,15 @@
+{
+  "status": "PREPARED_NOT_EXECUTED",
+  "invocation": "a1aa5398821646f98c964e94bb753d5d",
+  "pins": {
+    "collect.py": "81a4b110db0881dacf58c59c90c2cedb81439ea1f2d2ad7e84ab484d078212ea",
+    "collect-gc.py": "6eae64062224089ae8dab4d1473fa90ef4642e4bb966c64207414d1bd26f0003",
+    "COLLECT-GC.patch": "01de3a3b21db603558f6336e700c82d7b470faa4380e5f378b2dd58b7c7600bd",
+    "ROOT-IDENTITIES.json": "d4c9574d6b150ce5c9c22950bc6fa22da393ab3d2b5358dd385613f683f911b8",
+    "ROOT-TERMINAL-CENSUS.json": "9d20f55e3a9e7dee6741ac5d3a5df88eaec06f2c815f4c1d6f3fd0f067ec3a0a",
+    "RESULT.json": "da192c2447b3039f8889d53c4bfeee703393db74312db820e482a59367a0c496",
+    "inner.guard.log": "d26a67295d3f7b2e2bf355826de6dae4d4a7db14b8a86a81cc623232dccd9072",
+    "outer.guard.log": "9cd495dd8ac94512ce3fe3287b90dd171a351a2fb38ea57ec16676d0397b19f7",
+    "DELIVERY-PINS.json": "bde89610024773b08c7ce3a3e9b9d2a31926ef23f80d25bb50ff67c2601431be"
+  }
+}

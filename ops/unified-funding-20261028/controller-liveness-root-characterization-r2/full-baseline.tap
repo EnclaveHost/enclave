@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: held resume: POST 409 then an unverifiable GET (timeout) defers without DELETE/release, then adopts the same guest
+not ok 1 - held resume: POST 409 then an unverifiable GET (timeout) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7618.807395
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/isolation-instance-liveness.test.mjs:83:3'
+  failureType: 'testCodeFailure'
+  error: 'no DELETE of the held guest: {"events":[{"t":912,"conflict":"gdown00001","ending":false},{"t":1200,"beat":[],"extended":[]},{"t":1201,"deleted":"gdown00001","name":"0x1111111111111111111111111111111111111111111111111111111111111111"},{"t":1601,"gone":"gdown00001"},{"t":1601,"deleted":"gdorph0001","name":"0x9999999999999999999999999999999999999999999999999999999999999999"},{"t":1801,"beat":[],"extended":[]},{"t":2043,"gone":"gdorph0001"},{"t":2401,"beat":[],"extended":[]},{"t":3001,"beat":[],"extended":[]},{"t":3601,"beat":[],"extended":[]},{"t":4201,"beat":[],"extended":[]},{"t":4801,"beat":[],"extended":[]},{"t":5401,"beat":[],"extended":[]},{"t":6002,"beat":[],"extended":[]}],"records":{"0x1111111111111111111111111111111111111111111111111111111111111111":{"status":"failed","vmId":null},"0x9999999999999999999999999999999999999999999999999999999999999999":null},"detail":{"0x1111111111111111111111111111111111111111111111111111111111111111":{"status":"failed","vmId":null,"deaths":0,"leaseUntil":1793362157,"gpu":null,"deferred":null,"preemptedAt":null},"0x9999999999999999999999999999999999999999999999999999999999999999":null},"snapshot":{"0x1111111111111111111111111111111111111111111111111111111111111111":{"status":"failed","vmId":null,"deaths":0,"leaseUntil":1793362157,"gpu":null,"deferred":null,"preemptedAt":null},"0x9999999999999999999999999999999999999999999999999999999999999999":null},"deleted":["gdown00001","gdorph0001","gdorph0001"],"txs":[],"notes":[{"t":912,"id":"0x1111111111111111111111111111111111111111111111111111111111111111"}],"releases":[{"t":913,"id":"0x1111111111111111111111111111111111111111111111111111111111111111","why":"provision failed"}],"auditErrors":[],"serving":{"0x1111111111111111111111111111111111111111111111111111111111111111":false}}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    untouched (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/isolation-instance-liveness.test.mjs:69:3)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/isolation-instance-liveness.test.mjs:85:5)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: audit: running guest unverifiable (timeout) keeps guest, lease, reservation and crash count
+not ok 2 - audit: running guest unverifiable (timeout) keeps guest, lease, reservation and crash count
+  ---
+  duration_ms: 7656.523064
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/isolation-instance-liveness.test.mjs:115:3'
+  failureType: 'testCodeFailure'
+  error: 'no DELETE of the held guest: {"events":[{"t":912,"conflict":"gdown00001","ending":false},{"t":1200,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":1201,"deleted":"gdorph0001","name":"0x9999999999999999999999999999999999999999999999999999999999999999"},{"t":1501,"deleted":"gdown00001","name":"0x1111111111111111111111111111111111111111111111111111111111111111"},{"t":1601,"gone":"gdorph0001"},{"t":1800,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":1901,"gone":"gdown00001"},{"t":1902,"created":"gn00000002","name":"0x1111111111111111111111111111111111111111111111111111111111111111"},{"t":2400,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":3000,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":3600,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":4200,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":4800,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":5400,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":6001,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]}],"records":{"0x1111111111111111111111111111111111111111111111111111111111111111":{"status":"running","vmId":"gn00000002"},"0x9999999999999999999999999999999999999999999999999999999999999999":null},"detail":{"0x1111111111111111111111111111111111111111111111111111111111111111":{"status":"running","vmId":"gn00000002","deaths":1,"leaseUntil":1793362157,"gpu":"{\\"cpu\\":true,\\"share\\":0.1}","deferred":null,"preemptedAt":null},"0x9999999999999999999999999999999999999999999999999999999999999999":null},"snapshot":{"0x1111111111111111111111111111111111111111111111111111111111111111":{"status":"running","vmId":"gn00000002","deaths":1,"leaseUntil":1793362157,"gpu":"{\\"cpu\\":true,\\"share\\":0.1}","deferred":null,"preemptedAt":null},"0x9999999999999999999999999999999999999999999999999999999999999999":null},"deleted":["gdorph0001","gdown00001"],"txs":[],"notes":[],"releases":[],"auditErrors":[],"serving":{"0x1111111111111111111111111111111111111111111111111111111111111111":true}}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    untouched (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/isolation-instance-liveness.test.mjs:69:3)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/isolation-instance-liveness.test.mjs:117:5)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: billing: healthy manager, unverifiable instance (timeout) - no respawn
+not ok 3 - billing: healthy manager, unverifiable instance (timeout) - no respawn
+  ---
+  duration_ms: 7602.121016
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/isolation-instance-liveness.test.mjs:125:3'
+  failureType: 'testCodeFailure'
+  error: 'no DELETE of the held guest: {"events":[{"t":913,"conflict":"gdown00001","ending":false},{"t":1200,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":1201,"deleted":"gdorph0001","name":"0x9999999999999999999999999999999999999999999999999999999999999999"},{"t":1502,"deleted":"gdown00001","name":"0x1111111111111111111111111111111111111111111111111111111111111111"},{"t":1601,"gone":"gdorph0001"},{"t":1800,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":1902,"gone":"gdown00001"},{"t":1903,"created":"gn00000002","name":"0x1111111111111111111111111111111111111111111111111111111111111111"},{"t":2401,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":3006,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":3606,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":4206,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":4806,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":5406,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]},{"t":6006,"beat":["0x1111111111111111111111111111111111111111111111111111111111111111"],"extended":["0x1111111111111111111111111111111111111111111111111111111111111111"]}],"records":{"0x1111111111111111111111111111111111111111111111111111111111111111":{"status":"running","vmId":"gn00000002"},"0x9999999999999999999999999999999999999999999999999999999999999999":null},"detail":{"0x1111111111111111111111111111111111111111111111111111111111111111":{"status":"running","vmId":"gn00000002","deaths":1,"leaseUntil":1793362157,"gpu":"{\\"cpu\\":true,\\"share\\":0.1}","deferred":null,"preemptedAt":null},"0x9999999999999999999999999999999999999999999999999999999999999999":null},"snapshot":null,"deleted":["gdorph0001","gdown00001"],"txs":[],"notes":[],"releases":[],"auditErrors":[],"serving":{"0x1111111111111111111111111111111111111111111111111111111111111111":true}}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    untouched (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/isolation-instance-liveness.test.mjs:69:3)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-liveness-root-validation-prep-r1/baseline-with-seam/test/isolation-instance-liveness.test.mjs:127:5)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 0
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 22958.194403

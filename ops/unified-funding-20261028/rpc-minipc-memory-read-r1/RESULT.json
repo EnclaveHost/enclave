@@ -1,0 +1,9 @@
+{
+  "rc": 0,
+  "at": 1793359596.6409564,
+  "output": "{\"totalPhysicalKiB\":117255972,\"freePhysicalKiB\":82329196,\"totalVirtualKiB\":274768516,\"freeVirtualKiB\":227397584}\r\n",
+  "stderrBytes": 838,
+  "capacityAdmitted": false,
+  "pending": "UNKNOWN",
+  "nativeExecutionQualified": false
+}

@@ -1,0 +1,23 @@
+{
+  "astParsed": [
+    "run.py",
+    "observe-linux.py"
+  ],
+  "cpu": 1,
+  "effectiveSshdPolicyVerified": false,
+  "externalPins": 17,
+  "floorMiB": 27648,
+  "guardRSSMiB": 220,
+  "missingExternalMetadataPins": [],
+  "productChanged": false,
+  "readRun": false,
+  "remoteContacted": false,
+  "resourceMiB": 256,
+  "scope": "readonly-control-vm-closure-r1",
+  "sourceOnly": true,
+  "status": "PREPARED_NOT_EXECUTED",
+  "stdinProgramBytes": 7676,
+  "streamLocalPreferred": true,
+  "swapMiB": 0,
+  "testsRun": false
+}

@@ -1,0 +1,40 @@
+{
+  "unit": {
+    "ActiveState": "active",
+    "SubState": "running",
+    "FragmentPath": "/home/steven/.config/systemd/user/enclave-metal.service",
+    "DropInPaths": "/home/steven/.config/systemd/user/enclave-metal.service.d/80-shield-inference.conf /home/steven/.config/systemd/user/enclave-metal.service.d/95-app-funded-leases.conf",
+    "InvocationID": "1f259d13053647449691b30694a456df",
+    "Restart": "always",
+    "TimeoutStopUSec": "1min 30s",
+    "MainPID": "3965305",
+    "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal.service",
+    "WorkingDirectory": "/home/steven/enclave-prod/metal-deabf8f90",
+    "KillMode": "control-group",
+    "KillSignal": "15"
+  },
+  "processes": [
+    {
+      "pid": 3965305,
+      "startTime": 146386338,
+      "exe": "/usr/bin/node",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal.service",
+      "argvSha256": "554021ca2e472dde2cb9f5f93cfbdaa4603fb1ad0fe2fe98887451a18f6abafb"
+    },
+    {
+      "pid": 3967858,
+      "startTime": 146386551,
+      "exe": "/usr/bin/qemu-system-x86_64",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-metal.service",
+      "argvSha256": "ff1bd836ed090198e5d83427ef11c60824d937f2fa8217de410425998f4d3c17"
+    }
+  ],
+  "guestSupervisorPidObservedInCurrentInvocationJournal": 177,
+  "guestSupervisorLiveProcVerified": false,
+  "qmpSocket": null,
+  "sshRouteDiscovered": false,
+  "stdin": "/dev/null",
+  "serial": "mon:stdio",
+  "hostForward": "127.0.0.1:18080->8080",
+  "status": "READ-ONLY-PREPARATION"
+}

@@ -1,0 +1,280 @@
+TAP version 13
+# Subtest: held resume: POST 409 then an unverifiable GET (timeout) defers without DELETE/release, then adopts the same guest
+ok 1 - held resume: POST 409 then an unverifiable GET (timeout) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7577.383481
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (401) defers without DELETE/release, then adopts the same guest
+ok 2 - held resume: POST 409 then an unverifiable GET (401) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7662.402673
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (json) defers without DELETE/release, then adopts the same guest
+ok 3 - held resume: POST 409 then an unverifiable GET (json) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7608.127693
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (malformed) defers without DELETE/release, then adopts the same guest
+ok 4 - held resume: POST 409 then an unverifiable GET (malformed) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7655.031021
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (503) defers without DELETE/release, then adopts the same guest
+ok 5 - held resume: POST 409 then an unverifiable GET (503) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7603.922062
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (mismatch) defers without DELETE/release, then adopts the same guest
+ok 6 - held resume: POST 409 then an unverifiable GET (mismatch) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7675.438504
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (wrongname) defers without DELETE/release, then adopts the same guest
+ok 7 - held resume: POST 409 then an unverifiable GET (wrongname) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7607.326845
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (econnreset) defers without DELETE/release, then adopts the same guest
+ok 8 - held resume: POST 409 then an unverifiable GET (econnreset) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7602.820636
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an unverifiable GET (mac) defers without DELETE/release, then adopts the same guest
+ok 9 - held resume: POST 409 then an unverifiable GET (mac) defers without DELETE/release, then adopts the same guest
+  ---
+  duration_ms: 7650.733655
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then the exact same record adopts the original guest
+ok 10 - held resume: POST 409 then the exact same record adopts the original guest
+  ---
+  duration_ms: 7660.4701
+  type: 'test'
+  ...
+# Subtest: held resume: POST 409 then an authenticated incompatible record is replaced
+ok 11 - held resume: POST 409 then an authenticated incompatible record is replaced
+  ---
+  duration_ms: 7601.944056
+  type: 'test'
+  ...
+# Subtest: audit: running guest unverifiable (timeout) keeps guest, lease, reservation and crash count
+ok 12 - audit: running guest unverifiable (timeout) keeps guest, lease, reservation and crash count
+  ---
+  duration_ms: 7618.334433
+  type: 'test'
+  ...
+# Subtest: audit: running guest unverifiable (econnreset) keeps guest, lease, reservation and crash count
+ok 13 - audit: running guest unverifiable (econnreset) keeps guest, lease, reservation and crash count
+  ---
+  duration_ms: 7601.80325
+  type: 'test'
+  ...
+# Subtest: audit: running guest unverifiable (econnrefused) keeps guest, lease, reservation and crash count
+ok 14 - audit: running guest unverifiable (econnrefused) keeps guest, lease, reservation and crash count
+  ---
+  duration_ms: 7608.495462
+  type: 'test'
+  ...
+# Subtest: audit: running guest unverifiable (401) keeps guest, lease, reservation and crash count
+ok 15 - audit: running guest unverifiable (401) keeps guest, lease, reservation and crash count
+  ---
+  duration_ms: 7575.78218
+  type: 'test'
+  ...
+# Subtest: audit: running guest unverifiable (mac) keeps guest, lease, reservation and crash count
+ok 16 - audit: running guest unverifiable (mac) keeps guest, lease, reservation and crash count
+  ---
+  duration_ms: 8060.554265
+  type: 'test'
+  ...
+# Subtest: audit: running guest unverifiable (json) keeps guest, lease, reservation and crash count
+ok 17 - audit: running guest unverifiable (json) keeps guest, lease, reservation and crash count
+  ---
+  duration_ms: 7621.61099
+  type: 'test'
+  ...
+# Subtest: audit: running guest unverifiable (503) keeps guest, lease, reservation and crash count
+ok 18 - audit: running guest unverifiable (503) keeps guest, lease, reservation and crash count
+  ---
+  duration_ms: 7594.806087
+  type: 'test'
+  ...
+# Subtest: audit: running guest unverifiable (malformed) keeps guest, lease, reservation and crash count
+ok 19 - audit: running guest unverifiable (malformed) keeps guest, lease, reservation and crash count
+  ---
+  duration_ms: 7620.051495
+  type: 'test'
+  ...
+# Subtest: audit: running guest unverifiable (unexpected) keeps guest, lease, reservation and crash count
+ok 20 - audit: running guest unverifiable (unexpected) keeps guest, lease, reservation and crash count
+  ---
+  duration_ms: 7580.432915
+  type: 'test'
+  ...
+# Subtest: audit: running guest unverifiable (mismatch) keeps guest, lease, reservation and crash count
+ok 21 - audit: running guest unverifiable (mismatch) keeps guest, lease, reservation and crash count
+  ---
+  duration_ms: 7582.27645
+  type: 'test'
+  ...
+# Subtest: audit: running guest unverifiable (wrongname) keeps guest, lease, reservation and crash count
+ok 22 - audit: running guest unverifiable (wrongname) keeps guest, lease, reservation and crash count
+  ---
+  duration_ms: 7621.492316
+  type: 'test'
+  ...
+# Subtest: billing: healthy manager, unverifiable instance (timeout) - no respawn
+ok 23 - billing: healthy manager, unverifiable instance (timeout) - no respawn
+  ---
+  duration_ms: 7581.026073
+  type: 'test'
+  ...
+# Subtest: billing: healthy manager, unverifiable instance (503) - no respawn
+ok 24 - billing: healthy manager, unverifiable instance (503) - no respawn
+  ---
+  duration_ms: 7577.991901
+  type: 'test'
+  ...
+# Subtest: billing: healthy manager, unverifiable instance (malformed) - no respawn
+ok 25 - billing: healthy manager, unverifiable instance (malformed) - no respawn
+  ---
+  duration_ms: 7562.703556
+  type: 'test'
+  ...
+# Subtest: authenticated starting: live for crash suppression, not a serving proof
+ok 26 - authenticated starting: live for crash suppression, not a serving proof
+  ---
+  duration_ms: 7609.244307
+  type: 'test'
+  ...
+# Subtest: authenticated failed: crash recovery runs (death counted, guest ended and relaunched)
+ok 27 - authenticated failed: crash recovery runs (death counted, guest ended and relaunched)
+  ---
+  duration_ms: 7598.404014
+  type: 'test'
+  ...
+# Subtest: authenticated stopped: crash recovery runs (death counted, guest ended and relaunched)
+ok 28 - authenticated stopped: crash recovery runs (death counted, guest ended and relaunched)
+  ---
+  duration_ms: 7611.659707
+  type: 'test'
+  ...
+# Subtest: authenticated 404: crash recovery runs (death counted, guest ended and relaunched)
+ok 29 - authenticated 404: crash recovery runs (death counted, guest ended and relaunched)
+  ---
+  duration_ms: 7628.912137
+  type: 'test'
+  ...
+# Subtest: authenticated preemption keeps its distinct handling; later unavailability is not a death
+ok 30 - authenticated preemption keeps its distinct handling; later unavailability is not a death
+  ---
+  duration_ms: 7583.557137
+  type: 'test'
+  ...
+# Subtest: owner stop while the guest is unverifiable (from 0 ms) is still enforced
+ok 31 - owner stop while the guest is unverifiable (from 0 ms) is still enforced
+  ---
+  duration_ms: 8129.76416
+  type: 'test'
+  ...
+# Subtest: owner stop while the guest is unverifiable (from 1500 ms) is still enforced
+ok 32 - owner stop while the guest is unverifiable (from 1500 ms) is still enforced
+  ---
+  duration_ms: 8808.372729
+  type: 'test'
+  ...
+# Subtest: lease loss while the guest is unverifiable (from 0 ms) is still enforced
+ok 33 - lease loss while the guest is unverifiable (from 0 ms) is still enforced
+  ---
+  duration_ms: 8084.990896
+  type: 'test'
+  ...
+# Subtest: lease loss while the guest is unverifiable (from 1500 ms) is still enforced
+ok 34 - lease loss while the guest is unverifiable (from 1500 ms) is still enforced
+  ---
+  duration_ms: 8127.911649
+  type: 'test'
+  ...
+# Subtest: a stale observation of a record stopped meanwhile relaunches nothing
+ok 35 - a stale observation of a record stopped meanwhile relaunches nothing
+  ---
+  duration_ms: 7611.704423
+  type: 'test'
+  ...
+# Subtest: eyesoff-shaped held guest: unknown then running resumes the same guest id and reservation
+ok 36 - eyesoff-shaped held guest: unknown then running resumes the same guest id and reservation
+  ---
+  duration_ms: 7649.340292
+  type: 'test'
+  ...
+# Subtest: an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed first)
+ok 37 - an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed first)
+  ---
+  duration_ms: 7626.101488
+  type: 'test'
+  ...
+# Subtest: an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed after the orphan)
+ok 38 - an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed after the orphan)
+  ---
+  duration_ms: 7639.580689
+  type: 'test'
+  ...
+# Subtest: a cold boot whose ledger read fails for ~4 minutes, then an unreadable policy past a whole lease TTL: the paid guest survives and is adopted
+ok 39 - a cold boot whose ledger read fails for ~4 minutes, then an unreadable policy past a whole lease TTL: the paid guest survives and is adopted
+  ---
+  duration_ms: 9590.165345
+  type: 'test'
+  ...
+# Subtest: an explicit platform refusal: the host stops vouching, its guests end and nothing is resumed
+ok 40 - an explicit platform refusal: the host stops vouching, its guests end and nothing is resumed
+  ---
+  duration_ms: 7652.908034
+  type: 'test'
+  ...
+# Subtest: a fresh explicit ban at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+ok 41 - a fresh explicit ban at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+  ---
+  duration_ms: 7583.257618
+  type: 'test'
+  ...
+# Subtest: a persisted ban while the policy is unreadable at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+ok 42 - a persisted ban while the policy is unreadable at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+  ---
+  duration_ms: 7580.555812
+  type: 'test'
+  ...
+# Subtest: a deregistration at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+ok 43 - a deregistration at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+  ---
+  duration_ms: 7583.422308
+  type: 'test'
+  ...
+# Subtest: a transient unreadable policy at a cold boot whose ledger never answers: guestd stays silent and every guest survives
+ok 44 - a transient unreadable policy at a cold boot whose ledger never answers: guestd stays silent and every guest survives
+  ---
+  duration_ms: 7607.926812
+  type: 'test'
+  ...
+# Subtest: transient first, then the refusal becomes known while the ledger still never answers: silent until then, the guests end after
+ok 45 - transient first, then the refusal becomes known while the ledger still never answers: silent until then, the guests end after
+  ---
+  duration_ms: 8178.651731
+  type: 'test'
+  ...
+1..45
+# tests 45
+# suites 0
+# pass 45
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 348366.991191
