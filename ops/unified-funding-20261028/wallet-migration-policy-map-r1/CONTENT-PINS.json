@@ -1,5 +1,13 @@
 [
   {
+    "path": "ADDENDUM-PINS.json",
+    "sha256": "ca665ad1c83e103e9fe5cc553d2971ea3d0ae0442fd67cd6b71ec04fefe59787"
+  },
+  {
+    "path": "OWNER-CONTROLLED-PATH.md",
+    "sha256": "f5a6410a6110c30c988f6557d44bd50b54d2174234910fc86d193427fb95437c"
+  },
+  {
     "path": "REVIEW-PINS.json",
     "sha256": "7aeec02cd8133f184fe4d72e1cda9c60ad94442ba75b7b4e3f79f3938c37ef19"
   },

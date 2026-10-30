@@ -1,0 +1,13 @@
+# Wallet release UI root review
+
+NOT DEPLOYED; no ownership transfer, wallet signature, relay financial POST, payment, refund or restart. All candidates remain blocked by unresolved access-policy qualification. The empty ROOT_QUALIFIED_CONTINUITY list is not a functional migration and must not become mandatory Enclave approval.
+
+Original frozen121 remains unchanged in wallet-release-ui-delivery-r1. First root run:9PASS14FAIL0skip/cancel, including a missing external inventory fixture path and the product controller/reader identity mismatch. Controller passed identity.deployment while readSnapshot accepts id, blocking every row before eligibility. Separate identity-only repair plus restored external fixture path:24PASS1FAIL0skip/cancel. The remaining root regression used the exact shipped SDK b61255778aa3a901b2a0807642c37e9e1b8ce5951e8190c17fcbd6bde05008e9, inert wallet/RPC/relay and MemoryJournal; dispose during awaited signed→dispatching persistence still caused one POST.
+
+Final separate repair:25PASS0FAIL0skip/cancel. Exactly two product files differ from original: controller passes {wallet,vault,id} in its three snapshot calls and checks synchronous liveness immediately after persistence/before relay.request; view says dispatching is prepared/unknown, not necessarily handed to relay. Unknown dispatch remains quarantined; no automatic replay. Tests use actual controller/chain gate/shipped SDK, external fake chain/wallet/relay and in-memory journal. NOT real IndexedDB/multi-tab/browser/native crash/Base qualification. No secret keys or real signatures used.
+
+Three units35ae3cb5ea3b465493a01218140ea905,451aa412e5504a158e7e56be1f74d2e1,92d0866214e44ac78a30a8d94a265376 inactive/Main0;512hard450RSSfloor27648CPU1noswap/shared queue/network namespace. Owned temporary directories removed.
+
+Production remains the search-clear CID bafybeibigqg4v6sd3ebv4hw53d4skfil344rlnwhdnovscj5kskz2k5qmq, whose1231 installed files matched across all4edges. Preserve its CSS/boot/search module and Host Copy during integration. Current Top up is manual quoted gas, NOT Add runtime USDC with automatic refill. User screenshot confirms expired activation manifest1793312474; no attempt to bypass or extend stale authority.
+
+Next: complete actual grant/delegate/installed-consumer census and owner-controlled policy-preserving migration; no global allowlist or blanket staging theorem. Legacy DNS/KVM escrow transfer remains blocked: refund would deactivate/erase runtime balance; reserve owner keys do not follow transfer. No blind refund/redeploy. Root is preparing functional production deployment, not publishing all-disabled controls as completion.

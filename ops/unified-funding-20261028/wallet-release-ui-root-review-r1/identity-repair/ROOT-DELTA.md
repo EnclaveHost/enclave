@@ -1,0 +1,1 @@
+Only product change: three controller readSnapshot calls pass {wallet,vault,id}, the actual reader interface. Original had deployment in identity and could never reach eligibility. External fixture dependency restored at its actual relative path; no assertions weakened. Original nine passes/fourteen failures preserved. Last-send regression remains unchanged.
