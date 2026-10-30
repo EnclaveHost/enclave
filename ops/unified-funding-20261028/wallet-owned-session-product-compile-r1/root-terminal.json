@@ -1,0 +1,21 @@
+{
+  "at": "2026-10-30T03:25:57.230704+00:00",
+  "invocation": "64bbbe283bea4e2899b84f711063840b",
+  "unitState": "ActiveState=inactive\nMainPID=0\n",
+  "stageProcesses": [],
+  "pinsVerified": 17,
+  "sizes": {
+    "WalletSessionVault": {
+      "runtime": 22039,
+      "initcodeWithConstructor": 22701
+    },
+    "WalletSessionVaultFactory": {
+      "runtime": 2622,
+      "initcodeWithConstructor": 25809
+    },
+    "SessionVaultLib": {
+      "runtime": 10681,
+      "initcodeWithConstructor": 10713
+    }
+  }
+}
