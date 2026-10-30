@@ -1,0 +1,63 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "priority": "ROOT_ALTERNATIVE_BOUNDARY_REVIEW_HOLD_NO_LAUNCH",
+  "seedEntries": 13,
+  "readonlyInputPins": 88,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "turnLimit": 20,
+  "childTimeoutSec": 900,
+  "outerTimeoutSec": 1200,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpuIndex": 1,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-holder-bridge-author-r1-20261030/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "accountCheckedNow": false,
+  "productPreEdits": 0,
+  "scope": "Fixed privileged metadata observer installer/launcher/caller bridge; unchanged qualified observer/writer",
+  "rootAdmissionGate": "root-author-approval.json must bind this PREPARED sha256 with launchAuthorized true; root independently checks Max first",
+  "sourceClosureLimitations": [
+    "No current Max check or author launch.",
+    "No helper installation or privileged qualification.",
+    "Existing tests preserved; new tests source-only.",
+    "Root reviews source and resource admission before all execution."
+  ],
+  "hashes": {
+    "ACCOUNT-PREFLIGHT.md": "ea744144afe802746f415f0c342412acbf03794429fbe350cad2eedc7a66e54d",
+    "PLAN.md": "e69299b3207fa6069b7f26c887cbc123be73104af1ec6ac288f4d7f1fd2ab6ca",
+    "PREPARATION-REVISION.json": "acfcb77186938af1201b00ec192b80050b2ef764f4cdddb00f603dc60ddcd745",
+    "PROTECTED-SOURCE.json": "6af776143e7ab9470f606606f28a5be55ca32555f2e349dad63b6e4371e2427c",
+    "RESOURCE-OWNERSHIP.md": "b0abf5f158c334cde9b0ea490b1273cc99907a437e3b73cfb6cb5eb3ea4cf0bd",
+    "REVIEW-STATUS.txt": "ebc9d0f26598d05efd2c9a1f6e98ad3bc21f7b032347ecf6880547caf43c08c0",
+    "TASK.txt": "7d0fddb303d11a6981cc6c4915c08afa949814a6be1e5e5bd7436c06412f2c13",
+    "account-requirements.json": "f7f904f166ddbb3f4c8a0c039b4a520d42823408422fbc2bc8f2861553466d34",
+    "allowed-edit-paths.json": "bb77028e154ac19285d981de739bbaa537e774fd4bf4eaf237913ca8d27245b4",
+    "bridge-tool-pins.json": "f6c44e87298a1a5fd60e4d07f309705365c7fb7a00781cbc0603ae891b6f1855",
+    "collect-terminal.py": "1970b06ae22472863ab607dac1c43ee74cf071dade039c1cb62d9a2491ea41ae",
+    "dependency-closure.json": "d7f32e7d5b3f06074af32a32697b138d33f0f39112cb32a22b58604b199e91eb",
+    "input-pins.json": "a9ffd92e7ee7a220fb9dd43cd59e12910b9b2fa5e9a40ce2b164130878a3e642",
+    "launch-command.txt": "dfcb7d7bcb7121decb1531032232485b54df5ff34a7755e954ba7ca0fd1b9668",
+    "native-tool-pins.json": "b74bae381439481edf3d883bc06847b9b92b7af2983986779a2cf83e714323b4",
+    "preparation-audit.json": "94bc56bc2b06b048960ef55efbe7205c99c783f9a33847fd5bd1b64437a9f3f3",
+    "prepare.py": "16b06e8b9d5cd88e0a879e1d88f20b994a1b7608490a6d20dc82bea1004a500c",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "root-preflight.py": "f2b64c984bac20feb6cbc31c6df55131ef834f0c4939a8f82f47593fae43658b",
+    "run.py": "97af48598c5774de393cc6474aca796680acb74646e421621df0d8cdac3c7090",
+    "seed-pins.json": "73670d9f84d329fc7e418cf2ded00990236bb36237e45c629c9e8844380f4d5e",
+    "seed-provenance.json": "c9afb623b860b76516ec5f7bb94152d6619fbb525a27170f6d1568341da10c37",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8"
+  }
+}

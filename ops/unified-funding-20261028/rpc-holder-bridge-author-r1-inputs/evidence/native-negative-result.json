@@ -1,0 +1,40 @@
+{
+  "case": "mounted_wrong_size",
+  "refusal": "export: export appeared with size 1048576, expected 1049088",
+  "teardown": {
+    "pid": 2470134,
+    "signals": [
+      [
+        15,
+        "group",
+        2470134
+      ],
+      [
+        15,
+        "pidfd",
+        2470136
+      ]
+    ],
+    "unmount": [],
+    "exit": 1,
+    "owned": [
+      [
+        2470136,
+        165276644
+      ]
+    ],
+    "survivors": [],
+    "mountPresent": false,
+    "fault": null,
+    "stderrBytes": 63,
+    "stderrSha256": "dec5d561342e287060817997b964d82caf2bc9969b232945b103344babf7da8a",
+    "stderrHead": "/usr/bin/nbdfuse: fuse_loop: fuse loop terminated by signal 15\n",
+    "drainerJoined": true,
+    "result": "complete"
+  },
+  "mountGone": true,
+  "leaderGone": true,
+  "fixtureUnchanged": true,
+  "syntheticOnly": true,
+  "productionQualified": false
+}

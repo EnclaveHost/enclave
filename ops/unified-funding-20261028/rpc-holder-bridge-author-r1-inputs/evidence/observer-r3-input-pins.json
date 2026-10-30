@@ -1,0 +1,30 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-holder-observer-prep-r3/observe.py",
+    "sha256": "517625237f818eb5474d7e9a0b17243177d82bff29f0fdb97e7799b6b3b75ebc"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-holder-observer-prep-r3/test_observe.py",
+    "sha256": "9ee200e58d66b886eb2c95a0c30004c64d68d7f29323c651bd559ad145a95ba2"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-holder-observer-prep-r3/run-tests.py",
+    "sha256": "7eaa501a910c360a19212262efa05c6fa35702db3748a82cd5b2cf23ddd24642"
+  },
+  {
+    "path": "/usr/bin/python3",
+    "sha256": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b"
+  },
+  {
+    "path": "/usr/bin/node",
+    "sha256": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+    "sha256": "969d9273e53c79abf8604c363daa58b41a462bc4b7f3d03d813980edb771f6f4"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+    "sha256": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6"
+  }
+]
