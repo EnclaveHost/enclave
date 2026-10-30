@@ -1,0 +1,33 @@
+{
+  "exit": 0,
+  "resourceEnvelope": {
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2573236-i44468860.scope",
+    "memoryMax": "536870912",
+    "swapMax": "0"
+  },
+  "stdoutSha256": "ed57e53b3a18493a346bbb9f115bf12834ce21944707b38d7286f0c5d52f7fd9",
+  "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "writerGone": true,
+  "sourceAndBackupWriteAuthorized": false,
+  "published": false,
+  "booted": false,
+  "writerResult": {
+    "error": null,
+    "receipt": "/vm/enclave-volumes/rpc-production-maint/os-private-20261030T094345Z-28653e/RESULT.json",
+    "status": "READY"
+  },
+  "receiptPath": "/vm/enclave-volumes/rpc-production-maint/os-private-20261030T094345Z-28653e/RESULT.json",
+  "receiptSha256": "489ccafa0edc3a5a409167d92eba845b165a6cc2459e1ce83192dc9beb2dff2d",
+  "receiptStatus": "PRIVATE-PREPARED",
+  "publishable": false,
+  "derivative": {
+    "ctimeNs": 1793353539833585078,
+    "dev": 64769,
+    "ino": 148392388,
+    "mtimeNs": 1793353532332647491,
+    "path": "/vm/enclave-volumes/rpc-production-maint/os-private-20261030T094345Z-28653e/derivative.qcow2",
+    "sha256": "1c4fbce5ee66f4ce51a13f056ada362948f2a474aaf1bb725744a46d64af57b3",
+    "size": 18581159936
+  },
+  "operationsCompleted": 30
+}
