@@ -69,7 +69,7 @@ for (const x of okOwner) {
     const q = x.request, nonce = Buffer.from(q.nonce, "base64"), spki = Buffer.from(q.rad.transportKey, "base64"), Bt = avfPadBinding(spki, q.rad.padKey, nonce);
     const ev = JSON.parse(Buffer.from(q.rad.body, "base64").toString("utf8"));
     const v = verifyAvfEvidence({ chain: ev.chain.map((c) => Buffer.from(c, "base64")), challenge: createHash("sha256").update(Bt).digest(), signature: Buffer.from(ev.signature, "base64"), signedMessage: Bt },
-                                { allowedCodeHashes: [run.code], allowedAuthorityHashes: [run.authority], rootPins: run.googleRootPins });
+                                { allowedCodeHashes: [run.code], allowedAuthorityHashes: [run.authority], rootPins: run.googleRootPins, now: Date.parse(x.utc) });
     const iid = sha(Buffer.from(q.instanceKey, "hex"));
     const iok = cryptoVerify(null, Buffer.concat([Buffer.from(DOMAIN), Bt]), createPublicKey({ key: Buffer.from(q.instanceKey, "hex"), format: "der", type: "spki" }), Buffer.from(q.instanceSig, "hex"));
     const msg = `enclave-tunnel-attach:${NAME}:${nonce.toString("base64")}`, signer = (await V.recoverMessageAddress({ message: msg, signature: x.verdict.operatorSig })).toLowerCase();

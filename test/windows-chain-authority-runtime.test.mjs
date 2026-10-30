@@ -79,8 +79,8 @@ function child(env, body) {
     ${body}
     process.stdout.write("\\n@@" + JSON.stringify(out) + "\\n"); process.exit(0);`;
   return new Promise((resolve, reject) => {
-    const keep = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(BASE_RPCS|ENCLAVE_CHAIN_|NODE_OPERATOR_KEY|ENCLAVE_LEASE_GAS_|LEASE_GAS_|ENCLAVE_HOST_|ENCLAVE_STARTUP_)/.test(k)));
-    const p = spawn(process.execPath, ["--input-type=module", "-e", script], { env: { ...keep, NODE_OPERATOR_KEY: KEY, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+    const keep = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(BASE_RPCS?$|ENCLAVE_CHAIN_|NODE_OPERATOR_KEY|ENCLAVE_LEASE_GAS_|LEASE_GAS_|ENCLAVE_HOST_|ENCLAVE_STARTUP_)/.test(k)));
+    const p = spawn(process.execPath, ["--input-type=module", "-e", script], { env: { ...keep, NODE_OPERATOR_KEY: KEY, ...(env.BASE_RPCS ? { BASE_RPC: env.BASE_RPCS } : {}), ...env }, stdio: ["ignore", "pipe", "pipe"] });
     let o = "", e = ""; p.stdout.on("data", (c) => (o += c)); p.stderr.on("data", (c) => (e += c));
     const t = setTimeout(() => { p.kill("SIGKILL"); reject(new Error("child timed out: " + e.slice(-500))); }, 90_000);
     p.on("close", () => { clearTimeout(t); const m = o.match(/@@(.*)\n/); m ? resolve(JSON.parse(m[1])) : reject(new Error("no result: " + e.slice(-800))); });

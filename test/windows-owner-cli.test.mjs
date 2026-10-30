@@ -82,8 +82,8 @@ async function recorder(role, st, { down = false, chainId = "0x2105" } = {}) {
 /** Run the REAL CLI. -> {code, out, err, timedOut}. */
 function cli(args, env, timeoutMs = 60_000) {
   return new Promise((resolve) => {
-    const keep = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(BASE_RPCS|ENCLAVE_|OWNER_KEY|PUBLIC_URL|NODE_NAME|NODE_OPERATOR_KEY)/.test(k)));
-    const p = spawn(process.execPath, [CLI, ...args], { env: { ...keep, PUBLIC_URL: ENDPOINT, ENCLAVE_CONTRACT_PINS_FILE: PINS_FILE, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+    const keep = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(BASE_RPCS?$|ENCLAVE_|OWNER_KEY|PUBLIC_URL|NODE_NAME|NODE_OPERATOR_KEY)/.test(k)));
+    const p = spawn(process.execPath, [CLI, ...args], { env: { ...keep, PUBLIC_URL: ENDPOINT, ENCLAVE_CONTRACT_PINS_FILE: PINS_FILE, ...(env.BASE_RPCS ? { BASE_RPC: env.BASE_RPCS } : {}), ...env }, stdio: ["ignore", "pipe", "pipe"] });
     let out = "", err = "", timedOut = false; p.stdout.on("data", (c) => (out += c)); p.stderr.on("data", (c) => (err += c));
     const t = setTimeout(() => { timedOut = true; p.kill("SIGKILL"); }, timeoutMs);
     p.on("close", (code) => { clearTimeout(t); resolve({ code, out, err, timedOut }); });
