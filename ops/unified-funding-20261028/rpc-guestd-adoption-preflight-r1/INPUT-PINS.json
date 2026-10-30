@@ -1,0 +1,809 @@
+{
+  "status": "PREPARED_NOT_EXECUTED",
+  "purpose": "Public source/config/binary pins for root-owned adoption preflight",
+  "daemonArgvSha256": "e435a973bf82411cfb6f199cad851b8ae6916943869111b33bbe52328418b818",
+  "daemonArgc": 54,
+  "processes": [
+    {
+      "pid": 194657,
+      "startTime": 148657014,
+      "exe": "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service"
+    },
+    {
+      "pid": 1384622,
+      "startTime": 157862186,
+      "exe": "/usr/bin/qemu-system-x86_64",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/m2-gd61126785-1384596.service"
+    }
+  ],
+  "files": [
+    {
+      "path": "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd",
+      "realpath": "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd",
+      "sha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+      "bytes": 4194304
+    },
+    {
+      "path": "/home/steven/.cache/enclave-isolation/m3-clean/min-tcb.json",
+      "realpath": "/home/steven/.cache/enclave-isolation/m3-clean/min-tcb.json",
+      "sha256": "fe90824f469db17cad41a895f45803d66bef5058ff829e36302fe35328179d9c",
+      "bytes": 66
+    },
+    {
+      "path": "/home/steven/.cache/enclave-isolation/m3-clean/vcek.der",
+      "realpath": "/home/steven/.cache/enclave-isolation/m3-clean/vcek.der",
+      "sha256": "7370435c9f70be9fff3991b7a6dfff31d0a5f7f982eb74c89a90af1963a77835",
+      "bytes": 1289
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service",
+      "sha256": "48fa9961869d775cc0d6bc5e21d24ed9b5f48784a6781ba3c6b2a0d86079304c",
+      "bytes": 1047
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/70-protected-ports.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/70-protected-ports.conf",
+      "sha256": "d0686e07bc87b9b30716a11657d7ac42b6612547fe0b03a467c9b250b5fe4515",
+      "bytes": 956
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/80-shield-inference.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/80-shield-inference.conf",
+      "sha256": "40aaf3d092987e7b3348f95bf2f332357969670ca55a0f223af5fc8ba05d9634",
+      "bytes": 5092
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/90-tuna-egress.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/90-tuna-egress.conf",
+      "sha256": "33f65b768e8e201348c6c17ea27850fd298b9d27cd49f483104dde7320f63da7",
+      "bytes": 5117
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/95-public-web.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/95-public-web.conf",
+      "sha256": "36ced5266c6c54bb2b447b9b202a611b62e026a59812fa819dbe3fad5d509303",
+      "bytes": 5389
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/97-codegen.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/97-codegen.conf",
+      "sha256": "2d7cdb647bc285f44eea27544054609fa56cca5f2250e65f231789842093f5e5",
+      "bytes": 5522
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/98-artifact-gateway.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/98-artifact-gateway.conf",
+      "sha256": "7470ab5a3f57b65ebe1be60bb15fb040e81224da69ff5889b3751252a0976e85",
+      "bytes": 5517
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/99-app-egress.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/99-app-egress.conf",
+      "sha256": "2575f7f3be73cb17185558eb356b36de2474dbd0b30e8cfda5d89365ca6f63fa",
+      "bytes": 5584
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zz-memory-budget64.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zz-memory-budget64.conf",
+      "sha256": "95262681ae3f1e6ec83a8bd0ea8d591981519ab88258ed2c82ec4e24b208efe3",
+      "bytes": 5584
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzz-eyesoff-vision.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzz-eyesoff-vision.conf",
+      "sha256": "621f977837d78660affe966beff5a5e0b50d45c44985d2355460aceb89dfe498",
+      "bytes": 6364
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzz-pad-spill.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzz-pad-spill.conf",
+      "sha256": "5ff15a00d3437f389a54977a8c8a70485c71ceb943bd0a1c1274ae846f179446",
+      "bytes": 8711
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzz-custody.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzz-custody.conf",
+      "sha256": "6f86e683d01ed9d2b8d7f37d58e7dc9927df85361782dc9452f2ed347ac24d71",
+      "bytes": 9095
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzz-zimage.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzz-zimage.conf",
+      "sha256": "5f3e511a57390bc385a79cb8e3afdf8c71681b8c822fce1bfc2c282ad9118020",
+      "bytes": 10328
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzz-recovery-pad-location.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzz-recovery-pad-location.conf",
+      "sha256": "9e08c5115b7df086523ef5e704b280f1e3ea43c5b768f985cc7a98adbe2fc45f",
+      "bytes": 195
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzz-loader-cache-20261028.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzz-loader-cache-20261028.conf",
+      "sha256": "f2e2d75d53d567bd3e8b7e6deb3c92c756fd5897962721060be447e6a508d5f9",
+      "bytes": 9837
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzz-retire-budget-20261028.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzz-retire-budget-20261028.conf",
+      "sha256": "1efea8e09eccacd941c1a13875b01698678547c0478a9eaa5830c6a8dc57d7df",
+      "bytes": 10163
+    },
+    {
+      "path": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzzz-retire-rollback-20261028.conf",
+      "realpath": "/home/steven/.config/systemd/user/enclave-guestd.service.d/zzzzzzzzzz-retire-rollback-20261028.conf",
+      "sha256": "5aadd2b03a78fc543c884bd4b9a26e4a7c417ce5a6b5e0bc69763dd6b124c48d",
+      "bytes": 10296
+    },
+    {
+      "path": "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde",
+      "realpath": "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde",
+      "sha256": "9d1562738cde6d43cef9e58931cb6425542e400b26364986c209e90377759314",
+      "bytes": 8046584
+    },
+    {
+      "path": "/home/steven/enclave-prod/dist-leasegas-deabf8f90/manifest.json",
+      "realpath": "/home/steven/enclave-prod/dist-leasegas-deabf8f90/manifest.json",
+      "sha256": "c7cb436db609f361a07d5f32a8a0d71f4fc399f329d244ff2512da8ca34dfca4",
+      "bytes": 26105
+    },
+    {
+      "path": "/home/steven/enclave-prod/guestd-root/bin/fwd",
+      "realpath": "/home/steven/enclave-prod/guestd-root/bin/fwd",
+      "sha256": "92e17f7c1db2a7a59769908e215131e90dc93be5c4fe31da2de5afa82d350b8d",
+      "bytes": 7877982
+    },
+    {
+      "path": "/home/steven/enclave-prod/guestd-root/expected-runtime.json",
+      "realpath": "/home/steven/enclave-prod/guestd-root/expected-runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/guestd-root/gd61126785/app.bundle",
+      "realpath": "/home/steven/enclave-prod/guestd-root/gd61126785/app.bundle",
+      "sha256": "5bac47ac3b99d9999314ac3f5ee7c2749defdde98b2a52212302d05da13d58eb",
+      "bytes": 7027954
+    },
+    {
+      "path": "/home/steven/enclave-prod/guestd-root/gd61126785/instance.json",
+      "realpath": "/home/steven/enclave-prod/guestd-root/gd61126785/instance.json",
+      "sha256": "1d9877faab7279b831308bbb43b750d1d86271d13cb29b05784de0f7bbdc6cac",
+      "bytes": 945
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/bundle.go",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/bundle.go",
+      "sha256": "1951c1796ec122b2fb2679c08b7089cfc9f8b0a7857ef7ef7f102017a024f496",
+      "bytes": 8517
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/go.mod",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/go.mod",
+      "sha256": "b96f05a8510845a6916ab2db72d88b8ba6956b62545418fccd0598d52189d5c3",
+      "bytes": 48
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/inference.go",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/inference.go",
+      "sha256": "752e6a2c3438bbf8a4dd31a4642aff13f5011c36d2bdf607a9b6d5151bff05f1",
+      "bytes": 2944
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/lifecycle.go",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/lifecycle.go",
+      "sha256": "94d08eb4aea01a79c3a647c0558400f2b41b31a28b9cccdbe0b183a698ec8332",
+      "bytes": 3394
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/ports.go",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/ports.go",
+      "sha256": "54bb313dc6465398c4a544d06e34b12a1b66b1d4e429eb54009e665ac6767e7b",
+      "bytes": 982
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/protocol.go",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/protocol.go",
+      "sha256": "0db2ea53037b77d96c16f9de5717e0a7dae85fd70104ed6e7e668319804e8093",
+      "bytes": 2037
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/report.go",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/report.go",
+      "sha256": "d90842577a06a731f206a63ecd239f333f49b51f875c6bdbe78deaba2c63aaf1",
+      "bytes": 2038
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/runtime-identity.sh",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/runtime-identity.sh",
+      "sha256": "cffa18515a19a703177a7328457d9e36a45e908fd58ef1307b67c98bd714b13b",
+      "bytes": 2840
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/runtime.go",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/runtime.go",
+      "sha256": "7c35b9aa47af21ce8d4d544c2d8fb03ca2b8b4c4469e7d06ac56add7e3478e20",
+      "bytes": 5866
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/runtime.mjs",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/runtime.mjs",
+      "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+      "bytes": 6224
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/wxscan.go",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/contract/wxscan.go",
+      "sha256": "a5b008130fd6dce5bc2e2f1feed65aa4b02fcb6c4cee0ae93f97f783d19de484",
+      "bytes": 7551
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/client.mjs",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/client.mjs",
+      "sha256": "1c6b2df07bff0fb22985e2fda55d8616f77710109ee29f835cc03d8640fa03df",
+      "bytes": 16850
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/domtls/domtls.go",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/domtls/domtls.go",
+      "sha256": "1163b80a9f0924f9abc23cc6fff98b406ab185a6328d33fe0ea5f003d0eb6535",
+      "bytes": 1477
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/fwd/main.go",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/fwd/main.go",
+      "sha256": "7bc2266c730e4d097ef3bc2337aa7bafac834a5a68f8c24607b70fc4afe6b55c",
+      "bytes": 4258
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/go.mod",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/go.mod",
+      "sha256": "665c59a9d1eacdbea555856dfcd814c02e1ca8cd3f7b63c65099564ee1bd5f01",
+      "bytes": 146
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/judge.mjs",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/judge.mjs",
+      "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+      "bytes": 39168
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/port-connector.mjs",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/port-connector.mjs",
+      "sha256": "79a9cb0114b5c861d3886ef8eb86eb396b37ef4bdd19fb4c859f9bea01b6acb3",
+      "bytes": 7189
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/vsock/vsock.go",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m2/vsock/vsock.go",
+      "sha256": "49eac528d77bba17ffa2179862c3d14b600a5b98b9cbfed5017da195f962a0f4",
+      "bytes": 5396
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/mem64-probe.wat",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/mem64-probe.wat",
+      "sha256": "eb225b40e327bdf96bb18b3370d91ae29a23caac7c629decbb964c78b868f939",
+      "bytes": 657
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/probe-mem64.sh",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/probe-mem64.sh",
+      "sha256": "df4c3db7936f9b1b1b24a6c1caf94632d93324b17e28d5a7be8967249375393e",
+      "bytes": 302
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/probe-set.sh",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/probe-set.sh",
+      "sha256": "69558d7622314135995aee3f6964bf1e8bce5d40a4e4348fcac0d1c799d609fa",
+      "bytes": 496
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/release-manifest.py",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/release-manifest.py",
+      "sha256": "6facdb9a77da31e6ddaf5a544f58a4966ea8dfdede87ad36e50818e22adbfd6b",
+      "bytes": 6459
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/set-probe.wat",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/set-probe.wat",
+      "sha256": "7a00a376d88e6ea2e74299a13721e7dc3edfd9681eec5956cacfcdd5236db49a",
+      "bytes": 1822
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/verifying-firmware.txt",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/isolation/m4/verifying-firmware.txt",
+      "sha256": "d79cb2fa7e98d2764faf4378a121f2eef3f5c582a8b5769eaf0eb04e3de15d79",
+      "bytes": 2128
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/relay/snp-verify.mjs",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/relay/snp-verify.mjs",
+      "sha256": "866a0946f5160049c8db29f0e63f107d532968c2428c55ffdccabead59b78206",
+      "bytes": 25257
+    },
+    {
+      "path": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/test/fixtures/amd/Turin-cert_chain.pem",
+      "realpath": "/home/steven/enclave-prod/iso-sdshield-1c3cdbb8/test/fixtures/amd/Turin-cert_chain.pem",
+      "sha256": "cc9a52fbed3fbc6e4a0a50149a541a75938f975658909c2a6084767829b36e85",
+      "bytes": 4676
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/control-client.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/control-client.mjs",
+      "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+      "bytes": 11701
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/supervisor-splice.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/supervisor-splice.mjs",
+      "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+      "bytes": 17220
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/supervisor-transport.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/isolation/m4/guestd/supervisor-transport.mjs",
+      "sha256": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75",
+      "bytes": 4013
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/gsup.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/gsup.mjs",
+      "sha256": "c2896d743e36be8fa1832f1f6f0e41042140b61549fd780f32c1921d5a157e99",
+      "bytes": 49848
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/host-policy.bundle.mjs",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/metal/guest/host-policy.bundle.mjs",
+      "sha256": "8b2dfbc6b5466d3c4f4559c15d874824f1ddddd3e530667a3848b3141b477af9",
+      "bytes": 35371
+    },
+    {
+      "path": "/home/steven/enclave-prod/metal-deabf8f90/supervisor.js",
+      "realpath": "/home/steven/enclave-prod/metal-deabf8f90/supervisor.js",
+      "sha256": "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951",
+      "bytes": 811736
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-0181bce3/release.json",
+      "realpath": "/home/steven/enclave-prod/release-0181bce3/release.json",
+      "sha256": "5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2",
+      "bytes": 2059
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-057b2c66/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-057b2c66/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-07ff8fae/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-07ff8fae/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-16c2999d/release.json",
+      "realpath": "/home/steven/enclave-prod/release-16c2999d/release.json",
+      "sha256": "16c2999d7715a38f8a29adcff03d9c3c0e071eb1c0afc207c1f335b654dca0aa",
+      "bytes": 2411
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-16c2999d/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-16c2999d/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-16ef43bd/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-16ef43bd/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-1bc7ff92/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-1bc7ff92/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-1d2263e6/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-1d2263e6/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-1da34434/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-1da34434/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-340a09c1/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-340a09c1/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-34e1c76d/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-34e1c76d/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-38d14410/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-38d14410/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-441c835f/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-441c835f/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-4c719051/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-4c719051/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-4cd26e58/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-4cd26e58/template/rt/runtime.json",
+      "sha256": "8044b26a6ef691e30ef21983829f7c0dfef34b3f15c009072c477e6ea5dd95b6",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-4f6fcd61/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-4f6fcd61/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-52dae5c0/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-52dae5c0/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-58a0e7bd/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-58a0e7bd/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-58c05b11/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-58c05b11/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-5cab66e4/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-5cab66e4/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-64469dfd/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-64469dfd/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-6757d139/release.json",
+      "realpath": "/home/steven/enclave-prod/release-6757d139/release.json",
+      "sha256": "6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb",
+      "bytes": 2058
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-6cac09a6/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-6cac09a6/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-79c96b71/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-79c96b71/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-79eb055a/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-79eb055a/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-7a68e625/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-7a68e625/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-83b38d61/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-83b38d61/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-8446c4f5/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-8446c4f5/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-85948b98/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-85948b98/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-8a1514dd/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-8a1514dd/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-8a60eff8/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-8a60eff8/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-90176a59/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-90176a59/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-9765244a/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-9765244a/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-987b1b9f/release.json",
+      "realpath": "/home/steven/enclave-prod/release-987b1b9f/release.json",
+      "sha256": "987b1b9f6d526ec88582b986e88a3dfad4de2742b3bbf236e974039585763422",
+      "bytes": 4946
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-987b1b9f/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-987b1b9f/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-987d08c3/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-987d08c3/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-9958ac99/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-9958ac99/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-9b088f90/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-9b088f90/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-a6f2d9c1/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-a6f2d9c1/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-af50d526/release.json",
+      "realpath": "/home/steven/enclave-prod/release-af50d526/release.json",
+      "sha256": "af50d526be6deefcdd815968ff1dd2c04327f6c3b3f981c0aa90cc585b0effae",
+      "bytes": 6258
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-af50d526/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-af50d526/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-b20b2826/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-b20b2826/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-b6ebfd8d/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-b6ebfd8d/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-b8aaaea9/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-b8aaaea9/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-b9be6a09/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-b9be6a09/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-ba14bafd/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-ba14bafd/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-bb49554c/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-bb49554c/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-bca1f7bd/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-bca1f7bd/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-c48e71ea/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-c48e71ea/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-c9fdc728/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-c9fdc728/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-cbe77ed8/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-cbe77ed8/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-d4fab4c8/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-d4fab4c8/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-d7cf9d7a/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-d7cf9d7a/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-d84fb52b/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-d84fb52b/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-e53c01ae/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-e53c01ae/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-e5e1e214/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-e5e1e214/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-e95d2d79/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-e95d2d79/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-e9aae541/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-e9aae541/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-ee79c59e/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-ee79c59e/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-ee973c11/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-ee973c11/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-f7fae72a/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-f7fae72a/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-f8a5940b/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-f8a5940b/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-fb81c249/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-fb81c249/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-fbb40c8e/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-fbb40c8e/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/release-ff8ef20e/template/rt/runtime.json",
+      "realpath": "/home/steven/enclave-prod/release-ff8ef20e/template/rt/runtime.json",
+      "sha256": "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0",
+      "bytes": 158
+    },
+    {
+      "path": "/home/steven/enclave-prod/runtime-set-5a4eb9a6/bin/wasmtime",
+      "realpath": "/home/steven/enclave-prod/runtime-set-5a4eb9a6/bin/wasmtime",
+      "sha256": "3a905020935252616838bdddb28196c8328ae063a1ae27d918d1434140f792ca",
+      "bytes": 57705920
+    },
+    {
+      "path": "/usr/bin/go",
+      "realpath": "/usr/lib/go/bin/go",
+      "sha256": "dc36303d0ab49f23ae5922d1468bb73c5a093bbec4e598888155b0dc99e0161d",
+      "bytes": 15894528
+    },
+    {
+      "path": "/usr/bin/node",
+      "realpath": "/usr/bin/node",
+      "sha256": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9",
+      "bytes": 56530480
+    },
+    {
+      "path": "/usr/bin/python3",
+      "realpath": "/usr/bin/python3.14",
+      "sha256": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b",
+      "bytes": 14424
+    },
+    {
+      "path": "/usr/bin/sh",
+      "realpath": "/usr/bin/bash",
+      "sha256": "c14c8f498f3be96f076ceb07d65dba584a86dca3c86b5dce65ed0f6cae73358d",
+      "bytes": 1195144
+    },
+    {
+      "path": "/usr/bin/systemctl",
+      "realpath": "/usr/bin/systemctl",
+      "sha256": "6e727451366c75070ab02f02d945e3c83f8774ddf7e1661c5d71cbbf0d59b3cc",
+      "bytes": 322320
+    },
+    {
+      "path": "/usr/bin/timeout",
+      "realpath": "/usr/bin/timeout",
+      "sha256": "629cb6e82df4bb47188eec340f2ceb5f45def2e7b1aac1bd7443beecdcb42a6a",
+      "bytes": 51936
+    }
+  ],
+  "limitations": [
+    "No executable was run to qualify adoption.",
+    "Candidate174edbb7 is correlated, not a reproduced daemon build.",
+    "No pairing key or environment values are included.",
+    "Release manifests pin their contents; a future preflight must run their normal verification.",
+    "Go standard library/toolchain and dynamic system dependencies are not fully enumerated by these file pins."
+  ]
+}

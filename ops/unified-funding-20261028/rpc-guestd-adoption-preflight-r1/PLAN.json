@@ -1,0 +1,10 @@
+{
+  "parent": {
+    "path": "/vm/enclave-volumes/rpc-production-maint",
+    "device": 64769,
+    "inode": 148391933
+  },
+  "directory": "guestd-adopt-check-20261030-r1",
+  "deployment": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+  "path": "/home/steven/enclave-prod/runtime-set-5a4eb9a6/bin:/usr/local/bin:/usr/bin:/usr/sbin:/bin"
+}
