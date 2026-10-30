@@ -1,0 +1,6 @@
+{
+  "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/source/client-operations.py",
+  "sourceSha256AtCopy": "5d65c3d9bc9eb59daec9bb58bf55baf8c5606dd010d8046a1c75bd800d2191f5",
+  "extractedOriginalSha256": "cc266719a06d272d447aba94eddc40b3dc3da79b2d2cfdd6e475eafc0fdf412b",
+  "changes": "executable metadata classification Lighthouse->Reth only"
+}

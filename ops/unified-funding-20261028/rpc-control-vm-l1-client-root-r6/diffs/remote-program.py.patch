@@ -1,0 +1,214 @@
+--- r5/remote-program.py
++++ r6/remote-program.py
+@@ -126,9 +126,9 @@
+ # PREPARED ONLY. Invoked by root in a dedicated bounded systemd unit.
+ import pathlib, json, hashlib, stat, socket, struct, errno, mmap, fcntl, sys, resource, tomllib
+ P=pathlib.Path
+-ROOT=P('/run/enclave-rpc-l1-client-r5');M=json.loads((ROOT/'manifest.json').read_text());ACTION=sys.argv[1];STATE=ROOT/'state.json'
+-EXEC=P('/var/lib/enclave-rpc-l1-client-r5')
+-DEV=P('/dev/nbd7');SYS=P('/sys/block/nbd7');MOUNT=P('/srv/enclave-l1-pair-r5')
++ROOT=P('/run/enclave-rpc-l1-client-r6');M=json.loads((ROOT/'manifest.json').read_text());ACTION=sys.argv[1];STATE=ROOT/'state.json'
++EXEC=P('/var/lib/enclave-rpc-l1-client-r6')
++DEV=P('/dev/nbd7');SYS=P('/sys/block/nbd7');MOUNT=P('/srv/enclave-l1-pair-r6')
+ out={'action':ACTION,'ok':False,'errors':[]};client=None;mounted=False;cleaning=False
+ def sha(p):
+     with P(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+@@ -168,7 +168,7 @@
+         assert maximum==mib*(1<<20),'existing-service-cap-changed'
+         growth+=max(0,maximum-current)
+     pending=0;actual=0;budget=[]
+-    for path,mib in (('/enclavel1trialr5.slice',2304),('/enclavel1attachr5.slice',128),('/enclavel1guardianr5.slice',128)):
++    for path,mib in (('/enclavel1trialr6.slice',2304),('/enclavel1attachr6.slice',128),('/enclavel1guardianr6.slice',128)):
+         q=P('/sys/fs/cgroup'+path)
+         current=int(read(q/'memory.current')) if q.exists() else 0
+         if q.exists():assert read(q/'memory.max')==str(mib<<20),'trial-budget-drift'
+@@ -242,7 +242,7 @@
+         if current:
+             assert unitof(current)==s.get('attachCgroup') and (not s.get('nbdPid') or current==s['nbdPid']),'foreign-nbd-pid'
+         assert size() in (0,M['bytes']),'device-size-drift'
+-        cmd('detach',['/var/lib/enclave-rpc-l1-client-r5/nbd-client','-d',str(DEV)],8)
++        cmd('detach',['/var/lib/enclave-rpc-l1-client-r6/nbd-client','-d',str(DEV)],8)
+     until=time.monotonic()+5
+     while not idle() and time.monotonic()<until:time.sleep(.1)
+     assert idle() and not mounts(),'device-cleanup-incomplete'
+@@ -276,9 +276,9 @@
+ 
+ # PREPARED ONLY. Appended to the qualified transport/ownership helpers.
+ import pwd,grp,secrets,shutil,urllib.request,urllib.error,contextlib
+-PAYLOAD=EXEC/'payload';SLICE='enclavel1trialr5.slice';GUARD_SLICE='enclavel1guardianr5.slice';ATTACH_SLICE='enclavel1attachr5.slice';NBD_UNIT='enclave-rpc-l1-nbd-r5.service'
+-UNITS={'el':'enclave-rpc-l1-el-trial-r5.service','cl':'enclave-rpc-l1-cl-trial-r5.service'}
+-HELPER='enclave-rpc-l1-helper-r5.service';WATCH='enclave-rpc-l1-watch-r5.service'
++PAYLOAD=EXEC/'payload';SLICE='enclavel1trialr6.slice';GUARD_SLICE='enclavel1guardianr6.slice';ATTACH_SLICE='enclavel1attachr6.slice';NBD_UNIT='enclave-rpc-l1-nbd-r6.service'
++UNITS={'el':'enclave-rpc-l1-el-trial-r6.service','cl':'enclave-rpc-l1-cl-trial-r6.service'}
++HELPER='enclave-rpc-l1-helper-r6.service';WATCH='enclave-rpc-l1-watch-r6.service'
+ STOP=ROOT/'STOP';DONE=ROOT/'CLEANUP.json';LOCK=ROOT/'operation.lock'
+ def atomic_json(path,value):
+     tmp=path.with_suffix('.next')
+@@ -380,6 +380,111 @@
+     assert executable in info.get('ExecStart',''),'foreign-unit-command'
+     if expected:assert info.get('InvocationID')==expected,'unit-invocation-drift'
+     return info
++class DiagnosticFieldTruncated(ValueError):pass
++
++def diagnostic_read(directory_fd,name,limit):
++    fd=os.open(name,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW,dir_fd=directory_fd)
++    try:raw=os.read(fd,limit+1)
++    finally:os.close(fd)
++    if len(raw)>limit:raise DiagnosticFieldTruncated()
++    return raw.decode('ascii')
++
++def diagnostic_stat(directory_fd):
++    raw=diagnostic_read(directory_fd,'stat',4096)
++    # Field2 comm may contain spaces and parentheses; never emit it.
++    pid=int(raw.split(' ',1)[0]);tail=raw.rsplit(')',1)[1].split()
++    if len(tail)<40:raise ValueError('short-proc-stat')
++    return {'pid':pid,'state':tail[0],'startTicks':int(tail[19]),
++            'minorFaults':int(tail[7]),'majorFaults':int(tail[9]),
++            'userTicks':int(tail[11]),'systemTicks':int(tail[12]),
++            'threads':int(tail[17]),'vsizeBytes':int(tail[20]),'rssPages':int(tail[21]),
++            'processor':int(tail[36]),'blockIoDelayTicks':int(tail[39])}
++
++def diagnostic_wait(directory_fd):
++    value=diagnostic_read(directory_fd,'wchan',128).strip()
++    if not value or len(value)>96 or not all(c.isalnum() or c in '._' for c in value):
++        raise ValueError('invalid-wchan')
++    return value
++
++def bind_client_diagnostic(info):
++    record={'bound':False}
++    try:
++        pid=int(info['MainPID']);assert pid>0
++        fd=os.open('/proc/'+str(pid),os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
++        try:
++            before=diagnostic_stat(fd)
++            assert before['pid']==pid
++            assert diagnostic_read(fd,'cgroup',4096).strip()=='0::'+info['ControlGroup']
++            after=diagnostic_stat(fd);assert before['startTicks']==after['startTicks']
++            st=os.fstat(fd);record={'bound':True,'pid':pid,'startTicks':before['startTicks'],
++                'procIdentity':[st.st_dev,st.st_ino],'invocationID':info['InvocationID'],
++                'controlGroup':info['ControlGroup']}
++        finally:os.close(fd)
++    except Exception as e:record={'bound':False,'unavailable':type(e).__name__}
++    info['diagnosticIdentity']=record
++
++def sample_client_diagnostics(clients):
++    values={}
++    for side,info in clients.items():
++        identity=info.get('diagnosticIdentity',{});result={'atMonotonic':time.monotonic(),'identity':identity}
++        values[side]=result
++        if identity.get('bound') is not True:
++            result['unavailable']='initial-incarnation-unbound';continue
++        fd=None;taskfd=None;started=time.monotonic();thread_rows=[]
++        try:
++            current=owned_info(UNITS[side],side,M['identities'][side]['name'],str(PAYLOAD/'chain_service.py'),identity['invocationID'])
++            assert int(current['MainPID'])==identity['pid'],'client-main-pid-changed'
++            pid=identity['pid'];fd=os.open('/proc/'+str(pid),os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
++            procst=os.fstat(fd);assert [procst.st_dev,procst.st_ino]==identity['procIdentity']
++            before=diagnostic_stat(fd);assert before['pid']==pid and before['startTicks']==identity['startTicks']
++            assert diagnostic_read(fd,'cgroup',4096).strip()=='0::'+identity['controlGroup']
++            cg=P('/sys/fs/cgroup'+identity['controlGroup']);cgs=cg.stat()
++            assert [cgs.st_dev,cgs.st_ino]==info['cgroupIdentity']
++            # exe metadata only; do not open/read executable bytes or disclose arbitrary paths.
++            ex=os.stat('exe',dir_fd=fd);lh=(PAYLOAD/'bin/reth').stat();py=P('/usr/bin/python3').stat()
++            executable='reth' if (ex.st_dev,ex.st_ino)==(lh.st_dev,lh.st_ino) else 'python-wrapper' if (ex.st_dev,ex.st_ino)==(py.st_dev,py.st_ino) else None
++            assert executable is not None,'unexpected-client-executable'
++            io={}
++            for line in diagnostic_read(fd,'io',4096).splitlines():
++                key,value=line.split(':',1)
++                if key in ('rchar','wchar','syscr','syscw','read_bytes','write_bytes','cancelled_write_bytes'):
++                    io[key]=int(value.strip())
++            assert set(io)=={'rchar','wchar','syscr','syscw','read_bytes','write_bytes','cancelled_write_bytes'}
++            wait=diagnostic_wait(fd)
++            taskfd=os.open('task',os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW,dir_fd=fd)
++            truncated=False;truncation_reason=None;observed=0
++            with os.scandir(taskfd) as entries:
++                for entry in entries:
++                    if not entry.name.isdigit():continue
++                    observed+=1
++                    if len(thread_rows)>=64 or time.monotonic()-started>=0.25:
++                        truncated=True;truncation_reason='thread-limit' if len(thread_rows)>=64 else 'sample-time-budget';break
++                    tid=int(entry.name);tfd=None
++                    try:
++                        tfd=os.open(entry.name,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW,dir_fd=taskfd)
++                        a=diagnostic_stat(tfd);w=diagnostic_wait(tfd);b=diagnostic_stat(tfd)
++                        assert a['pid']==b['pid']==tid and a['startTicks']==b['startTicks']
++                        thread_rows.append({'tid':tid,'startTicks':a['startTicks'],'state':a['state'],'wait':w,
++                            'userTicks':a['userTicks'],'systemTicks':a['systemTicks'],'blockIoDelayTicks':a['blockIoDelayTicks']})
++                    except Exception as e:thread_rows.append({'tid':tid,'unavailable':type(e).__name__,'fieldTruncated':isinstance(e,DiagnosticFieldTruncated)})
++                    finally:
++                        if tfd is not None:os.close(tfd)
++            after=diagnostic_stat(fd);assert after['pid']==pid and after['startTicks']==identity['startTicks']
++            assert diagnostic_read(fd,'cgroup',4096).strip()=='0::'+identity['controlGroup']
++            cgs=cg.stat();assert [cgs.st_dev,cgs.st_ino]==info['cgroupIdentity']
++            result.update({'sameIncarnation':True,'executable':executable,'stat':before,'io':io,'wait':wait,
++                'threads':thread_rows,'threadsTruncated':truncated,'threadTruncationReason':truncation_reason,
++                'threadEntriesObserved':observed,'threadLimit':64,'elapsedSeconds':time.monotonic()-started,
++                'clockTicksPerSecond':os.sysconf('SC_CLK_TCK'),'pageBytes':os.sysconf('SC_PAGE_SIZE')})
++        except Exception as e:
++            # Discard observations if the final incarnation binding is lost.
++            result.update({'sameIncarnation':False,'unavailable':type(e).__name__,'observationsDiscarded':True,'fieldTruncated':isinstance(e,DiagnosticFieldTruncated)})
++        finally:
++            if taskfd is not None:os.close(taskfd)
++            if fd is not None:os.close(fd)
++    return values
++
++
+ def start_client(side):
+     assert side=='el','EL-only-trial'
+     identity=M['identities'][side];data=str(MOUNT/('data' if side=='el' else 'cl'));tmp=str(MOUNT/('tmp' if side=='el' else 'tmp-cl'))
+@@ -400,6 +505,7 @@
+     assert cg=='/'+SLICE+'/'+UNITS[side],'unexpected-client-cgroup'
+     st=(P('/sys/fs/cgroup'+cg)).stat()
+     info['cgroupIdentity']=[st.st_dev,st.st_ino]
++    bind_client_diagnostic(info)
+     return info
+ 
+ def sample_client_memory(clients):
+@@ -544,14 +650,14 @@
+     s={'nonce':M['nonce'],'unitPrefix':M['unitPrefix'],'rootIdentity':[st.st_dev,st.st_ino],
+        'execIdentity':[ex.st_dev,ex.st_ino],'claimed':False,'clients':{},'watchStarted':False,
+        'helperPid':os.getpid(),'helperStart':P('/proc/self/stat').read_text().rsplit(')',1)[1].split()[19],
+-       'watchdogDeadline':time.time()+210,'moduleInitiallyLoaded':P('/sys/module/nbd').exists(),'moduleLoadedByFixture':False}
++       'watchdogDeadline':time.time()+500,'moduleInitiallyLoaded':P('/sys/module/nbd').exists(),'moduleLoadedByFixture':False}
+     save(s)
+     with LOCK.open('x'):pass
+     create_slice()
+     s['watchLaunchIntent']=description('watchdog');save(s)
+     cmd('startWatchdog',['/usr/bin/systemd-run','--quiet','--unit='+WATCH,'--slice='+GUARD_SLICE,'--description='+description('watchdog'),'--property=Type=exec','--property=User=root',
+         '--property=MemoryMax=128M','--property=MemorySwapMax=0','--property=CPUQuota=50%',
+-        '--property=TasksMax=32','--property=RuntimeMaxSec=280','--property=TimeoutStopSec=70',
++        '--property=TasksMax=32','--property=RuntimeMaxSec=570','--property=TimeoutStopSec=70',
+         '--property=KillMode=control-group','--property=UMask=0077',
+         '--property=ExecStopPost=/usr/bin/python3 -B '+str(ROOT/'program.py')+' emergency-cleanup',
+         '/usr/bin/python3','-B',str(ROOT/'program.py'),'watchdog'],8)
+@@ -573,7 +679,7 @@
+         cmd('startNBDUnit',['/usr/bin/systemd-run','--quiet','--unit='+NBD_UNIT,'--slice='+ATTACH_SLICE,
+             '--description='+description('nbd'),'--property=Type=exec','--property=User=root','--property=MemoryMax=128M',
+             '--property=MemorySwapMax=0','--property=TasksMax=32','--property=KillMode=control-group',
+-            '--property=TimeoutStopSec=10','--property=RuntimeMaxSec=360',
++            '--property=TimeoutStopSec=10','--property=RuntimeMaxSec=650',
+             str(EXEC/'nbd-client'),'-n','-L','-u','-N',M['exportName'],'-t','5','-b','4096',M['remoteSocket'],str(DEV)],8)
+         s['nbdInvocation']=owned_info(NBD_UNIT,'nbd','root',str(EXEC/'nbd-client')).get('InvocationID');save(s)
+         until=time.monotonic()+8
+@@ -608,9 +714,11 @@
+         out['jwtCreatedPrivately']=True
+         for side in ('el',):
+             info=start_client(side);s=state();s['clients'][side]=info;save(s)
+-    samples=[];until=time.monotonic()+90
++    samples=[];until=time.monotonic()+360;diagnostic_at=0;diagnostic_count=0
+     while time.monotonic()<until and not STOP.exists():
+         headroom();sample={'at':time.time(),'clientMemory':sample_client_memory(s['clients'])}
++        if time.monotonic()-diagnostic_at>=10 and diagnostic_count<37:
++            sample['diagnostics']=sample_client_diagnostics(s['clients']);diagnostic_at=time.monotonic();diagnostic_count+=1
+         sample['rpc']=sample_rpc()
+         q=P('/sys/fs/cgroup')/SLICE
+         sample['memory']={n:read(q/n) for n in ('memory.current','memory.peak','memory.events')}
+@@ -633,7 +741,7 @@
+     os.umask(0o077)
+     assert os.geteuid()==0 and read('/proc/sys/kernel/random/boot_id')==M['bootId']
+     assert sha(ROOT/'program.py')==M['programSha256']
+-    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavel1attachr5.slice/enclave-rpc-l1-') or cg.startswith('0::/enclavel1guardianr5.slice/enclave-rpc-l1-')) and cg.endswith('.service')
++    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavel1attachr6.slice/enclave-rpc-l1-') or cg.startswith('0::/enclavel1guardianr6.slice/enclave-rpc-l1-')) and cg.endswith('.service')
+     c=P('/sys/fs/cgroup'+cg[3:]);assert read(c/'memory.max')==str(128<<20) and read(c/'memory.swap.max')=='0'
+     for row in M['remotePins']:pin(row)
+     def terminated(signum,frame):raise RuntimeError('unit-termination')

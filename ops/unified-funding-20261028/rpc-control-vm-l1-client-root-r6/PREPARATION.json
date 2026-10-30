@@ -1,0 +1,7 @@
+{
+  "rootPrepared": true,
+  "prior": "work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r5",
+  "sourceChanges": "EL-only360s startup window+bounded per-incarnation IO/wait samples<=37; caps unchanged",
+  "nativeExecuted": false,
+  "sourceQualification": "ROOT-CHECK-RESULT.json; metadata-only normalization after qualification, original checkpoint retained"
+}

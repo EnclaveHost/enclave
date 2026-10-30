@@ -1,0 +1,53 @@
+--- r4/client-operations.py
++++ r5/client-operations.py
+@@ -1,8 +1,8 @@
+ # PREPARED ONLY. Appended to the qualified transport/ownership helpers.
+ import pwd,grp,secrets,shutil,urllib.request,urllib.error,contextlib
+-PAYLOAD=EXEC/'payload';SLICE='enclavel1trialr4.slice';GUARD_SLICE='enclavel1guardianr4.slice';ATTACH_SLICE='enclavel1attachr4.slice';NBD_UNIT='enclave-rpc-l1-nbd-r4.service'
+-UNITS={'el':'enclave-rpc-l1-el-trial-r4.service','cl':'enclave-rpc-l1-cl-trial-r4.service'}
+-HELPER='enclave-rpc-l1-helper-r4.service';WATCH='enclave-rpc-l1-watch-r4.service'
++PAYLOAD=EXEC/'payload';SLICE='enclavel1trialr6.slice';GUARD_SLICE='enclavel1guardianr6.slice';ATTACH_SLICE='enclavel1attachr6.slice';NBD_UNIT='enclave-rpc-l1-nbd-r6.service'
++UNITS={'el':'enclave-rpc-l1-el-trial-r6.service','cl':'enclave-rpc-l1-cl-trial-r6.service'}
++HELPER='enclave-rpc-l1-helper-r6.service';WATCH='enclave-rpc-l1-watch-r6.service'
+ STOP=ROOT/'STOP';DONE=ROOT/'CLEANUP.json';LOCK=ROOT/'operation.lock'
+ def atomic_json(path,value):
+     tmp=path.with_suffix('.next')
+@@ -105,6 +105,7 @@
+     if expected:assert info.get('InvocationID')==expected,'unit-invocation-drift'
+     return info
+ def start_client(side):
++    assert side=='el','EL-only-trial'
+     identity=M['identities'][side];data=str(MOUNT/('data' if side=='el' else 'cl'));tmp=str(MOUNT/('tmp' if side=='el' else 'tmp-cl'))
+     argv=['/usr/bin/systemd-run','--quiet','--unit='+UNITS[side],'--slice='+SLICE,'--description='+description(side),'--property=Type=exec',
+           '--property=User='+identity['name'],'--property=Group='+identity['name'],
+@@ -145,17 +146,19 @@
+     return values
+ 
+ def sample_rpc():
+-    value={}
+-    for name,url,request in (
+-        ('el','http://127.0.0.1:18645',{'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}),
+-        ('cl','http://127.0.0.1:15052/eth/v1/node/syncing',None)):
+-        try:
+-            data=json.dumps(request).encode() if request else None
+-            req=urllib.request.Request(url,data,{'Content-Type':'application/json'})
+-            with urllib.request.urlopen(req,timeout=1) as response:raw=response.read(65537)
+-            assert len(raw)<=65536;value[name]=json.loads(raw)
+-        except Exception as e:value[name]={'unavailable':type(e).__name__}
+-    return value
++    # Startup response only. This does not prove synchronization or paired consensus.
++    try:
++        request={'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}
++        req=urllib.request.Request('http://127.0.0.1:18645',json.dumps(request).encode(),{'Content-Type':'application/json'})
++        with urllib.request.urlopen(req,timeout=1) as response:raw=response.read(65537)
++        assert len(raw)<=65536,'EL-RPC-response-limit'
++        value=json.loads(raw)
++        assert isinstance(value,dict) and value.get('jsonrpc')=='2.0' and type(value.get('id')) is int and value['id']==1 and 'error' not in value,'EL-RPC-envelope'
++        block=value.get('result')
++        assert isinstance(block,str) and block.startswith('0x') and len(block)>2 and all(c in '0123456789abcdef' for c in block[2:]),'EL-RPC-block-number'
++        assert block=='0x0' or block[2]!='0','EL-RPC-block-number-canonical'
++        return {'el':{'response':value,'validBlockNumber':True}}
++    except Exception as e:return {'el':{'unavailable':type(e).__name__}}
+ def clean_trial(reason):
+     global cleaning
+     cleaning=True;stop_request(reason)

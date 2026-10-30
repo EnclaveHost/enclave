@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.5651133018545806,
+  "stdout": "RESULT_JSON={\"action\": \"socket-clear\", \"cleanup\": {\"clients\": {\"cl\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"enclave-rpc-l1-cl-trial-r5.service\", \"DropInPaths\": \"\", \"ExecMainCode\": \"0\", \"ExecMainStatus\": \"0\", \"FragmentPath\": \"\", \"Group\": \"\", \"InvocationID\": \"\", \"LoadState\": \"not-found\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"no\", \"User\": \"\"}, \"el\": {\"ActiveState\": \"failed\", \"ControlGroup\": \"\", \"Description\": \"Enclave L1 d17f3a40-96ef-425e-88b9-c9a279d7ebd1 el\", \"DropInPaths\": \"\", \"ExecMainCode\": \"2\", \"ExecMainStatus\": \"9\", \"ExecStart\": \"{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -I -B /var/lib/enclave-rpc-l1-client-r5/payload/chain_service.py el ; ignore_errors=no ; start_time=[Fri 2026-10-30 16:00:23 UTC] ; stop_time=[Fri 2026-10-30 16:02:39 UTC] ; pid=303048 ; code=killed ; status=9/KILL }\", \"FragmentPath\": \"/run/systemd/transient/enclave-rpc-l1-el-trial-r5.service\", \"Group\": \"enclavel1el\", \"InvocationID\": \"c8b3fda1e2b240b5af56e3708694b9c5\", \"LoadState\": \"loaded\", \"MainPID\": \"0\", \"Result\": \"timeout\", \"SubState\": \"failed\", \"Transient\": \"yes\", \"User\": \"enclavel1el\"}}, \"errors\": [], \"nbdUnit\": {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"Description\": \"enclave-rpc-l1-nbd-r5.service\", \"DropInPaths\": \"\", \"ExecMainCode\": \"0\", \"ExecMainStatus\": \"0\", \"FragmentPath\": \"\", \"Group\": \"\", \"InvocationID\": \"\", \"LoadState\": \"not-found\", \"MainPID\": \"0\", \"Result\": \"success\", \"SubState\": \"dead\", \"Transient\": \"no\", \"User\": \"\"}, \"ok\": true, \"ownedInvocations\": {\"el\": \"c8b3fda1e2b240b5af56e3708694b9c5\"}, \"reason\": \"bounded-trial-finished\", \"retainedAccounts\": {\"groups\": [{\"gid\": 987, \"name\": \"enclavel1el\"}, {\"gid\": 986, \"name\": \"enclavel1cl\"}, {\"gid\": 50002, \"name\": \"enclavel1jwt\"}], \"users\": [{\"gid\": 987, \"name\": \"enclavel1el\", \"uid\": 997}, {\"gid\": 986, \"name\": \"enclavel1cl\", \"uid\": 995}]}}, \"errors\": [], \"ok\": true, \"socketClosedVerified\": true}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 1926,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

@@ -1,0 +1,41 @@
+--- r4/client-main.py
++++ r5/client-main.py
+@@ -106,7 +106,7 @@
+         with jwt.open('x') as f:f.write(secrets.token_hex(32));f.flush();os.fsync(f.fileno())
+         os.chown(jwt,0,M['jwtGroup']['gid']);jwt.chmod(0o640)
+         out['jwtCreatedPrivately']=True
+-        for side in ('el','cl'):
++        for side in ('el',):
+             info=start_client(side);s=state();s['clients'][side]=info;save(s)
+     samples=[];until=time.monotonic()+90
+     while time.monotonic()<until and not STOP.exists():
+@@ -116,23 +116,24 @@
+         sample['memory']={n:read(q/n) for n in ('memory.current','memory.peak','memory.events')}
+         samples.append(sample);time.sleep(2)
+     out['samples']=samples
+-    out['elRpcObserved']=any(isinstance(x['rpc'].get('el',{}).get('result'),str) for x in samples)
+-    out['clRpcObserved']=any(isinstance(x['rpc'].get('cl',{}).get('data'),dict) for x in samples)
++    out['elRpcObserved']=any(x['rpc'].get('el',{}).get('validBlockNumber') is True for x in samples)
++    out['clStarted']=False
++    assert set(s['clients'])=={'el'},'unexpected-launched-client'
+     stop_request('bounded-trial-finished')
+     out['cleanup']=wait_cleanup()
+     for side,info in s['clients'].items():
+         if info.get('InvocationID'):
+             cmd('clientLog:'+side,['/usr/bin/journalctl','--no-pager','-o','cat','-n','40','_SYSTEMD_INVOCATION_ID='+info['InvocationID']],4)
+-    assert out['elRpcObserved'] and out['clRpcObserved'],'client-RPC-startup-not-observed'
++    assert out['elRpcObserved'],'EL-RPC-startup-not-observed'
+     assert out['cleanup']['reason']=='bounded-trial-finished','trial-stopped-by-watchdog'
+     for info in out['cleanup']['clients'].values():
+         assert info.get('Result')=='success' and info.get('ExecMainCode')=='1' and info.get('ExecMainStatus')=='0','client-not-gracefully-stopped'
+-    out['startupObserved']=True;out['productionReady']=False
++    out['startupObserved']=True;out['productionReady']=False;out['paired']=False;out['syncVerified']=False;out['consensusOfflineExpected']=True
+ try:
+     os.umask(0o077)
+     assert os.geteuid()==0 and read('/proc/sys/kernel/random/boot_id')==M['bootId']
+     assert sha(ROOT/'program.py')==M['programSha256']
+-    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavel1attachr4.slice/enclave-rpc-l1-') or cg.startswith('0::/enclavel1guardianr4.slice/enclave-rpc-l1-')) and cg.endswith('.service')
++    cg=read('/proc/self/cgroup');assert (cg.startswith('0::/enclavel1attachr6.slice/enclave-rpc-l1-') or cg.startswith('0::/enclavel1guardianr6.slice/enclave-rpc-l1-')) and cg.endswith('.service')
+     c=P('/sys/fs/cgroup'+cg[3:]);assert read(c/'memory.max')==str(128<<20) and read(c/'memory.swap.max')=='0'
+     for row in M['remotePins']:pin(row)
+     def terminated(signum,frame):raise RuntimeError('unit-termination')

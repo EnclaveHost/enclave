@@ -1,0 +1,21 @@
+{
+  "status": "PREPARED_ONLY_UNRUN",
+  "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r4",
+  "sourcePinsSha256": "14015168432eb9668003f3403805fdbd0fdaefd28401f0358c39575fb06daeba",
+  "scope": "actual-l1-el-only-bounded-client-r6",
+  "nativeExecution": false,
+  "testsRun": false,
+  "pythonAstParsed": false,
+  "remoteContacts": false,
+  "clientLimitMiB": 2304,
+  "attachmentLimitMiB": 128,
+  "guardianLimitMiB": 128,
+  "totalGuestLimitMiB": 2560,
+  "residualFloorMiB": 1536,
+  "launchedClients": [
+    "el"
+  ],
+  "originalUnmodified": true,
+  "cowCreated": false,
+  "rootAdmissionPresent": false
+}

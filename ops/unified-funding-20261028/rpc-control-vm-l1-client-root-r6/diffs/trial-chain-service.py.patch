@@ -1,0 +1,11 @@
+--- r5/trial-chain-service.py
++++ r6/trial-chain-service.py
+@@ -18,7 +18,7 @@
+ import urllib.request
+ import urllib.error
+ 
+-ROOT = pathlib.Path('/var/lib/enclave-rpc-l1-client-r5/payload')
++ROOT = pathlib.Path('/var/lib/enclave-rpc-l1-client-r6/payload')
+ MANIFEST = json.loads((ROOT / 'manifest.json').read_text())
+ DISKS = json.loads((ROOT / 'disks.json').read_text())['disks']
+ CONFIG = json.loads((ROOT / 'chain.json').read_text())

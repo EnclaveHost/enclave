@@ -1,0 +1,19 @@
+--- r4/trial-chain-service.py
++++ r5/trial-chain-service.py
+@@ -18,7 +18,7 @@
+ import urllib.request
+ import urllib.error
+ 
+-ROOT = pathlib.Path('/var/lib/enclave-rpc-l1-client-r4/payload')
++ROOT = pathlib.Path('/var/lib/enclave-rpc-l1-client-r6/payload')
+ MANIFEST = json.loads((ROOT / 'manifest.json').read_text())
+ DISKS = json.loads((ROOT / 'disks.json').read_text())['disks']
+ CONFIG = json.loads((ROOT / 'chain.json').read_text())
+@@ -542,6 +542,7 @@
+     os.execve(a[0], a, env)
+ 
+ def main(argv):
++    assert argv==['el'],'EL-only-trial'
+     if argv == ['l1-ready']:
+         print(json.dumps(l1_ready()))
+     elif argv == ['coverage-identity']:

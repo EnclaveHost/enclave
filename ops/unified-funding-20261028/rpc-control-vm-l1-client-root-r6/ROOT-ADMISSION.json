@@ -1,0 +1,9 @@
+{
+  "authorized": true,
+  "at": 1793376684.8176074,
+  "scope": "actual-l1-el-only-bounded-client-r6",
+  "pinsSha256": "e516c46221d840219f1d39e95dcb1bba0bef8407fdba55495549e0f35948e7e4",
+  "reason": "Root reviewed extended startup+same-incarnation diagnostics;10RPC+4ownproc cases and exactunchangedRethAST/TOML/mount/composition pass. Freshsameboot emptyjobs7caps, same1536residual+remaininggrowth. Same512/450floor27648/CPU1noswap. No sync/productionclaim.",
+  "freshObservationSha256": "031753090b93374ece5710e2dc85902065b94c05c5ce38a5b181b7044271f952",
+  "priorCleanupVerified": true
+}

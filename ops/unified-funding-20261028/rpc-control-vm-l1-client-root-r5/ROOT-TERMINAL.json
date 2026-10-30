@@ -1,0 +1,20 @@
+{
+  "knownAlive": [],
+  "contentDrift": [],
+  "remoteCleanupVerified": true,
+  "parentUnchanged": true,
+  "samples": 45,
+  "elRpcObserved": false,
+  "lastClientMemory": {
+    "memory.current": "675389440",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+    "memory.peak": "675409920"
+  },
+  "clientCleanup": {
+    "ExecMainCode": "2",
+    "ExecMainStatus": "9",
+    "InvocationID": "c8b3fda1e2b240b5af56e3708694b9c5",
+    "MainPID": "0",
+    "Result": "timeout"
+  }
+}
