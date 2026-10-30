@@ -1,0 +1,14 @@
+{
+  "tests": 68,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "expectedFailures": 0,
+  "unexpectedSuccesses": 0,
+  "modules": [
+    "test_root_maintenance",
+    "test_root_transport_regressions",
+    "test_maintenance_diagnostics",
+    "test_qmp_transport"
+  ]
+}
