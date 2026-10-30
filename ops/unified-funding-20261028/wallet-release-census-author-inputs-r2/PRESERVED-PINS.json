@@ -1,0 +1,650 @@
+[
+  {
+    "path": "PREPARED.json",
+    "sha256": "cfa72e246f89e682064cf71354cf1cea98f0db6cc0a6b3e6bb8f01b38b88933d"
+  },
+  {
+    "path": "REVIEW-STATUS.txt",
+    "sha256": "9455af82451627ac6415cf46059244a406b695896d980da125e7766a9a55f26e"
+  },
+  {
+    "path": "TASK.txt",
+    "sha256": "e8e3cf8583239e00ce3f1f519f0193fd2d2457e85f78d1aaf6954d65fa19f02d"
+  },
+  {
+    "path": "account-verification.json",
+    "sha256": "8f2349ef4dd4bdced4c14177ee787fb2f6bed2014e08ea0937c064d4e3a9dd00"
+  },
+  {
+    "path": "collect-terminal.py",
+    "sha256": "72c8572a7412d4be5b515fa63fc2bbcea9fa381466eabdd5e57eda66dc89c9c6"
+  },
+  {
+    "path": "evidence/census/POLICY-EVIDENCE.md",
+    "sha256": "3da1e1cc672f95cb3272e8bb2e7e7b625d37462aa38e89a76e07489a7bf91470"
+  },
+  {
+    "path": "evidence/census/PREPARED.json",
+    "sha256": "4e0b91efade02358cf1490107d1c39795647550d391e7eaf16a5508382629147"
+  },
+  {
+    "path": "evidence/census/REVIEW.md",
+    "sha256": "5be116aa80db21364622211addf612477cca56e7f66792793562171975e7a079"
+  },
+  {
+    "path": "evidence/census/config.json",
+    "sha256": "b218b033bb060b1014947ba1656102472e4fccf2738d97de56f17416bcbf2a0e"
+  },
+  {
+    "path": "evidence/census/r3/ROOT-REVIEW.md",
+    "sha256": "f31568424ec780110b36b155ef3636602302e173fabcb278f806429c5bbadb85"
+  },
+  {
+    "path": "evidence/census/r3/discovery-hints.json",
+    "sha256": "1314d22d28a3c44255b1ecb986e3ddded8ac97080d409c6da36fd699f8a69959"
+  },
+  {
+    "path": "evidence/census/r3/read.mjs",
+    "sha256": "6ba7177f60bbee52768df52da17b3845a6f3d232751c0010c3e96307600b9be8"
+  },
+  {
+    "path": "evidence/census/r3/result.json",
+    "sha256": "271cedd837e7b4cc45dcdc004779ce285b375a12e6de22f80f028738d4d3c507"
+  },
+  {
+    "path": "evidence/census/read.mjs",
+    "sha256": "6c46aab3378b05e1aa4c5c24b461d1b55fb15268f53e67ab559276c69e648974"
+  },
+  {
+    "path": "evidence/census/rpc-diagnostic-r2.json",
+    "sha256": "aa412a9dd2da3a3052fabc275094e8b95aae36bb5fc3c4e01038146893fd0dfc"
+  },
+  {
+    "path": "evidence/current-source/relay/sessions.mjs",
+    "sha256": "457e86472adce2f1fdd2dfa82759578a56f7d72f0c5e5ee18e53999a26d0682d"
+  },
+  {
+    "path": "evidence/current-source/supervisor.js",
+    "sha256": "a5ed9e3dff5eafc61f2fbc21232f06ea6dd814f864e0a6ad53335d5a34cef1d6"
+  },
+  {
+    "path": "evidence/current-source/windows/node/session-api-auth.mjs",
+    "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29"
+  },
+  {
+    "path": "evidence/deployments/ledger-15d-base.json",
+    "sha256": "ef62b9797fb973d661c85c3e6887f98f9de56a5b75fcb01f16fa13a98b971ea6"
+  },
+  {
+    "path": "evidence/deployments/ledger-creation-artifact.json",
+    "sha256": "2a2d46d2e705cddae0ce7b8eda896a91e00dbcc3c9d9f78d595fbe8c07bb58d5"
+  },
+  {
+    "path": "evidence/deployments/ledger-creation-provenance.txt",
+    "sha256": "d6948dc18944914536133d5aa206481c359f4afb50048200538937fc92b256ae"
+  },
+  {
+    "path": "evidence/deployments/sessions-base.json",
+    "sha256": "bea31df57c25df2ae6315b614a28f270cb52f189a39648181548215d1a38df55"
+  },
+  {
+    "path": "evidence/deployments/source-verification-base.json",
+    "sha256": "6ca31d5f802a2db3a40859a89e43947509ccec482231a4819389abf0057aa8e4"
+  },
+  {
+    "path": "evidence/policy/OWNER-CONTROLLED-PATH.md",
+    "sha256": "f5a6410a6110c30c988f6557d44bd50b54d2174234910fc86d193427fb95437c"
+  },
+  {
+    "path": "evidence/policy/REVIEW.md",
+    "sha256": "ff32c5234848e09aa7f17b6187c0ecae746a53761e521f325d6dbc6cf476849a"
+  },
+  {
+    "path": "evidence/policy/SOURCE-PINS.json",
+    "sha256": "9720f284e13e1bd96cafa21876ec29612903b7012887571e64458831b6a4cf04"
+  },
+  {
+    "path": "evidence/root/ROOT-DELTA.md",
+    "sha256": "4f58d200e99ac9089152f4a54bcb2f4e9bdd435ffc1f3c205d2b6c4c5daefb60"
+  },
+  {
+    "path": "evidence/root/result.rc",
+    "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+  },
+  {
+    "path": "evidence/root/result.tap",
+    "sha256": "906b00e90a7a11fd4784a0d69a58083971ce84ca38939b01df477f9da246ee42"
+  },
+  {
+    "path": "evidence/root/root-boundaries.test.mjs",
+    "sha256": "404a0cbc4401f195a2dac15b5999a7fc563b4b7f8160ea87dc47c319650e65d9"
+  },
+  {
+    "path": "evidence/root/run.py",
+    "sha256": "5386e0ac70879edbdc2d6a3dd6ea3fdc52ba7d6bb43d891bfc8d7e86d12a7e3b"
+  },
+  {
+    "path": "evidence/root/test-pins.json",
+    "sha256": "4b8eb55484c674362165f2915d2ef08904ab074b7e1278f6da9275b4136fd845"
+  },
+  {
+    "path": "input-pins.json",
+    "sha256": "a75899f6a976947ac50bca263f1014c8cc6a2bc898c55b790d0de0379a13c577"
+  },
+  {
+    "path": "launch-command.txt",
+    "sha256": "1b70b6a54a070752557ee4c33e1a7f0ba4ee098456a0402279224f77f91eea43"
+  },
+  {
+    "path": "preparation-audit.json",
+    "sha256": "0052f1ef519b3774f072d49f2d2acd1d770824e9f92f88d723f32ac9495ad070"
+  },
+  {
+    "path": "preparation-closure.json",
+    "sha256": "4d3d6535ee8b9c7cbe7a55a6648a86be02418469aaed3377373033d39f5e359c"
+  },
+  {
+    "path": "readonly-progress.py",
+    "sha256": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61"
+  },
+  {
+    "path": "run.py",
+    "sha256": "1fd164fa4780719e79ed397a6f33c92eadb8a06c4d0db1f6babb11d55ce70fe1"
+  },
+  {
+    "path": "seed/REPORT-WALLET-RELEASE-R1.md",
+    "sha256": "a36003071bbd48e2bfe50f514fdc95a3b490ce9120d4ac69f9f0b78b2ec4160f"
+  },
+  {
+    "path": "seed/enclave/network/canonical.mjs",
+    "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3"
+  },
+  {
+    "path": "seed/enclave/network/network-policy-core.mjs",
+    "sha256": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064"
+  },
+  {
+    "path": "seed/enclave/network/wg-config.mjs",
+    "sha256": "862ad9af3be20ebbf1480785facbe97bc34fc675e3a0455b1058749a0b822c86"
+  },
+  {
+    "path": "seed/enclave/node_modules/@noble/curves/src/_shortw_utils.ts",
+    "sha256": "4cdfafcf9f32ec1a118538855b2c6d45b1b6c09ec1cfb986c6f80f08f74cfcb4"
+  },
+  {
+    "path": "seed/enclave/node_modules/@noble/curves/src/abstract/curve.ts",
+    "sha256": "7e87c5554194452ea183956536d759adae13c73f3b08ece74c9acb5f70b2669c"
+  },
+  {
+    "path": "seed/enclave/node_modules/@noble/curves/src/abstract/modular.ts",
+    "sha256": "d029caa9b179ca2cdc8ba394ba561ad2d90480840ce60fd6ca66ebba558d6af2"
+  },
+  {
+    "path": "seed/enclave/node_modules/@noble/curves/src/abstract/utils.ts",
+    "sha256": "caeebd501fef637054bf58a64bfedc1ab9c517f91d05c88339ee41e572a9449b"
+  },
+  {
+    "path": "seed/enclave/node_modules/@noble/curves/src/abstract/weierstrass.ts",
+    "sha256": "d8bfb5744d700d3e9953a1b3787122dc592830ced6432286d03c989b24531f1a"
+  },
+  {
+    "path": "seed/enclave/node_modules/@noble/curves/src/secp256k1.ts",
+    "sha256": "6c8b0ae4447eb5cfab68cc6ce876ea9611f17b02f483d145a8aed81fd4e33c34"
+  },
+  {
+    "path": "seed/enclave/node_modules/@noble/hashes/src/_md.ts",
+    "sha256": "e05bd04ebe3877188662b942f8318152dd2a8d2ba98f805be2b67128ec376cc5"
+  },
+  {
+    "path": "seed/enclave/node_modules/@noble/hashes/src/_u64.ts",
+    "sha256": "45b2c85051e99922030ed755fa14c2f0a7887ed9b1e73664af6ea007ef4c93b7"
+  },
+  {
+    "path": "seed/enclave/node_modules/@noble/hashes/src/crypto.ts",
+    "sha256": "57ab66f7c1a64b715e09395bcf018da66b728c2858a08db8e636e7f85a65b3ce"
+  },
+  {
+    "path": "seed/enclave/node_modules/@noble/hashes/src/hmac.ts",
+    "sha256": "55e289629a9949bae94eaa52e9017ecaab84bf45f87823879cebc3bb50a84699"
+  },
+  {
+    "path": "seed/enclave/node_modules/@noble/hashes/src/sha2.ts",
+    "sha256": "40ac41a374d2c693284562cd3342a52145ed2ac18ac8c17310f3162f2e364fd2"
+  },
+  {
+    "path": "seed/enclave/node_modules/@noble/hashes/src/sha3.ts",
+    "sha256": "82a38db688915961129f3332ffb8d1df998d218a1421eb606e27bc295e2b8831"
+  },
+  {
+    "path": "seed/enclave/node_modules/@noble/hashes/src/utils.ts",
+    "sha256": "26b54059ac612785827a9b57f1532ed1efdf2ded82b5c7db62f8e8aedbb7738c"
+  },
+  {
+    "path": "seed/enclave/site/components/admin-console/admin-console.js",
+    "sha256": "880b3c75013e75dfcd8f6a08b2ebfd23cfdbb00fd4b1331c6a8c4f1ceb2f2419"
+  },
+  {
+    "path": "seed/enclave/site/components/admin-console/escrow.js",
+    "sha256": "299350f9bc7e2a15c35503672af216e2161be6b3affe4053ea89eab2eeeffc77"
+  },
+  {
+    "path": "seed/enclave/site/components/admin-console/metrics.js",
+    "sha256": "f2e3df9f45e748a6399b54150d86c7171c6ce52b40ea16661af974e4581afb84"
+  },
+  {
+    "path": "seed/enclave/site/components/admin-console/migrate.js",
+    "sha256": "214705d527bbd9573041aa053ee171a58b19419206e5409e2f3570454ec3e360"
+  },
+  {
+    "path": "seed/enclave/site/components/admin-console/migrator.js",
+    "sha256": "61237d5c5143a65ad3fa9a9c72aafd31b32ef43d48c101e6e73c5b0dd4fd5029"
+  },
+  {
+    "path": "seed/enclave/site/components/admin-console/provermig.js",
+    "sha256": "36e328cfb93256d20694ca36e7d5d401d1747ddcc080aadf6ecb9ae9150c4fcc"
+  },
+  {
+    "path": "seed/enclave/site/components/admin-console/vaultmig.js",
+    "sha256": "b700fdf9ecc380ba90057d4762aaf0883d0e13ea7d478d3ba6dd7095b109153a"
+  },
+  {
+    "path": "seed/enclave/site/components/api-reference/api-reference.js",
+    "sha256": "3f519e6416c835bf9e02eca7697d4703460ac64932568923cf088019baeb5c87"
+  },
+  {
+    "path": "seed/enclave/site/components/app-card/app-card.js",
+    "sha256": "0185e63e73d2abdf62ba14004fd249ccf1d7011bcba0d82793458fc5282ef83f"
+  },
+  {
+    "path": "seed/enclave/site/components/app-detail/app-detail.js",
+    "sha256": "22885f929b58e3649af46e93e3a9a5dddbde42f147c2f46d37c668b0abe70f00"
+  },
+  {
+    "path": "seed/enclave/site/components/app-reviews/app-reviews.js",
+    "sha256": "06151897c2d5d8cfe1540f54751c6a0d1b5fd98f0f51f37a73951435c94a227b"
+  },
+  {
+    "path": "seed/enclave/site/components/attest-chain/attest-chain.js",
+    "sha256": "71a3d46ea57c01c7b6f852e4cc3ebbe73b0ee77a565cea4a9af0f81237e5f9ca"
+  },
+  {
+    "path": "seed/enclave/site/components/cinematic-scene/cinematic-scene.js",
+    "sha256": "1f48ab75321467575f2a8dca8cdd668487fbca3c70bba6cc1fde32e8f67b443b"
+  },
+  {
+    "path": "seed/enclave/site/components/code/code.js",
+    "sha256": "92e87209835582279f8de067e954e4f6f77daf01e3a409c982e923c305dd34ed"
+  },
+  {
+    "path": "seed/enclave/site/components/code-tabs/code-tabs.js",
+    "sha256": "f1bc4a668c9d9f9efb8e041f99b4180e2e1da62de82d682b22bfc5d3fdabc49a"
+  },
+  {
+    "path": "seed/enclave/site/components/deployments/deployments.js",
+    "sha256": "4bb55a43c2ef5b01ee03a024800fa88fc499423649d3e78824fd3c0b96409c46"
+  },
+  {
+    "path": "seed/enclave/site/components/deployments/selfhost-gas-topup.js",
+    "sha256": "187c98c16587251a036e2cb7fe44d18623952b24770cf9e9758b9cd2fac59ab1"
+  },
+  {
+    "path": "seed/enclave/site/components/enclave-panel/enclave-panel.js",
+    "sha256": "713062a6ac5aaf37ca8b291e57832d393b6e487c1dcdc3e9afa9e711b6ee4e4d"
+  },
+  {
+    "path": "seed/enclave/site/components/fleet-list/fleet-list.js",
+    "sha256": "875ed43ffd2249460bb64a867113c84947348b34d88bbf5f24acf9cb92ce2c09"
+  },
+  {
+    "path": "seed/enclave/site/components/flow/flow.js",
+    "sha256": "52615573a6af111b1d9316166317c63eb3843e0dac34f809f4b2540dd0acbb04"
+  },
+  {
+    "path": "seed/enclave/site/components/footer/footer.js",
+    "sha256": "62150dadeec834fdf3fe464959df64ab1e7719b69f39f49780eef2efbdb02f5b"
+  },
+  {
+    "path": "seed/enclave/site/components/header/header.js",
+    "sha256": "292bb5f5e3a2836d9c8fbc57fd7198991b03bb8e691245614144dd5df5bb6727"
+  },
+  {
+    "path": "seed/enclave/site/components/live-verify/live-verify.js",
+    "sha256": "d46ca45da54e5f1710ae9469932359f70d3a5b738d552199ccedbe1150790232"
+  },
+  {
+    "path": "seed/enclave/site/components/order-status/order-status.js",
+    "sha256": "dd0d47c24d81feae57c7d6a47c4e5438791613a94a50fc09cc0c393f388bc1ca"
+  },
+  {
+    "path": "seed/enclave/site/components/section-head/section-head.js",
+    "sha256": "c7f49dcca7c0a842f07bc8d61d6376b6367cd8e13a338ee947722a457276173d"
+  },
+  {
+    "path": "seed/enclave/site/components/ticker/ticker.js",
+    "sha256": "8295baa4e8d9f5cd9010238a2111ccdb7fbc1391028b6a896048bcc46e337d43"
+  },
+  {
+    "path": "seed/enclave/site/components/toast/toast.js",
+    "sha256": "a7ae09f397bcb8dfcde2eeaf832e48f40bcf5be85db6a5777b929a300a935962"
+  },
+  {
+    "path": "seed/enclave/site/components/volume-picker/volume-picker.js",
+    "sha256": "c02315c98fbc560871e6656b61057771ef43b0787762123fbc65d27f0e5a09ce"
+  },
+  {
+    "path": "seed/enclave/site/components/wallet-button/wallet-button.js",
+    "sha256": "856d66f99c1fe8971851c0387da288f68fea5cf5418551dc77b16bd525000ead"
+  },
+  {
+    "path": "seed/enclave/site/js/boot.js",
+    "sha256": "a2692d52f3fe7526b9374455c571eb21248c393e78de62cf4d32d1070030a621"
+  },
+  {
+    "path": "seed/enclave/site/js/core/account.js",
+    "sha256": "a494c36be529e308d15fa875fc0e967447eea9c6144165436d6b3680bc8fb921"
+  },
+  {
+    "path": "seed/enclave/site/js/core/addressbook.js",
+    "sha256": "0904b5636e673da0e74a84dd8023639aa09e8869dab35642b7d78b24c3c97958"
+  },
+  {
+    "path": "seed/enclave/site/js/core/api.js",
+    "sha256": "cf4cb0d0fb881772e6c93d52a17a80fae50dc12940fb86383cda4b087c5cbf72"
+  },
+  {
+    "path": "seed/enclave/site/js/core/app-resources.js",
+    "sha256": "cef17691ca23dc0a073f8ff3640ed21d2d430f10eb7e20e74ccc44e8c3b4c644"
+  },
+  {
+    "path": "seed/enclave/site/js/core/app-tls.js",
+    "sha256": "ac4e75ee4eba6f55459ecae8e79885708d56776854a0fc9e7e1977af2406554d"
+  },
+  {
+    "path": "seed/enclave/site/js/core/catalog.js",
+    "sha256": "9c93855d23778796606d08f062c8171ada936c825dea6de3175409ccb9d02bb8"
+  },
+  {
+    "path": "seed/enclave/site/js/core/chain.js",
+    "sha256": "0a628dce3167d120e18857514a22bed43b2fe6d4aee3a045b62654772bc10088"
+  },
+  {
+    "path": "seed/enclave/site/js/core/config.js",
+    "sha256": "61bd3e59c97d44f1141f8cff6c9f7553e8c66c19a787167ade2f723f92e2b4b9"
+  },
+  {
+    "path": "seed/enclave/site/js/core/custody.js",
+    "sha256": "506ed7ebb907c073de3cd8d4ec5105b70b04f379e3acbe891e5e30aa17b30926"
+  },
+  {
+    "path": "seed/enclave/site/js/core/deploy-status.js",
+    "sha256": "1e2c14e56fabd7262143e5a802f842d2dd4cb1c1853501a707ad699aa03b70da"
+  },
+  {
+    "path": "seed/enclave/site/js/core/deployment-move.js",
+    "sha256": "29abb3f96fe7e730ac73cf93cfcc1755fb1f24ce571630dc565ebcd5d5902bf7"
+  },
+  {
+    "path": "seed/enclave/site/js/core/eip191.js",
+    "sha256": "1db3a3ce66201b21f7cebc166e9608a863454805db7ce82ee0eedd2eadcc960e"
+  },
+  {
+    "path": "seed/enclave/site/js/core/enclave-network.js",
+    "sha256": "5a4e48d6fd82c394a18fdf1cffc622b5ff90abb6402d7d0b251d5d264021a005"
+  },
+  {
+    "path": "seed/enclave/site/js/core/featured.js",
+    "sha256": "5a43cd7321c7fbaf995affed844264dd3d27133c33a9bd3f17a383662978f5e6"
+  },
+  {
+    "path": "seed/enclave/site/js/core/fleet-read.js",
+    "sha256": "3b7b45a9fe364aea947d9dce98d1f0d48205eae82662852a8060bd32171e5681"
+  },
+  {
+    "path": "seed/enclave/site/js/core/fund.js",
+    "sha256": "9542e21c6897075caceede7fc7dcc967604c4a0b45359553f248cf9564d77e5f"
+  },
+  {
+    "path": "seed/enclave/site/js/core/isolation-options.js",
+    "sha256": "9e5e840734538ce26fed7fdd68ceb7cdc65df8e777341e9f8f396d1104615991"
+  },
+  {
+    "path": "seed/enclave/site/js/core/keccak.js",
+    "sha256": "ee3929ff49bd8c5b054fea158fd7e9e0de9de7f29a540d52748410d9d9049bb8"
+  },
+  {
+    "path": "seed/enclave/site/js/core/ledger-calls.js",
+    "sha256": "ec6b2780dcf1b6213ecddc03504e311961caf5f881f47d71b5b0da92dc016469"
+  },
+  {
+    "path": "seed/enclave/site/js/core/list-state.js",
+    "sha256": "7bc781b4c83179dcf68ab28a869e070e50c1590dcbbc4a8107958950e0c48ce9"
+  },
+  {
+    "path": "seed/enclave/site/js/core/live-prices.js",
+    "sha256": "135d7f086335ec86df47b76eaf32602057448439ed9f09ac44cb68ee9034e2bc"
+  },
+  {
+    "path": "seed/enclave/site/js/core/live-specs.js",
+    "sha256": "faf8d50f901b89b2e47ff0d6fd8dc59b0a091d55549880a1e7324075fec7a4b8"
+  },
+  {
+    "path": "seed/enclave/site/js/core/placement-options.js",
+    "sha256": "79fe2454b045b2945bb188230baf3c1d17a6ea451d930541bca4ea0a1c5c1ed1"
+  },
+  {
+    "path": "seed/enclave/site/js/core/pool-badges.js",
+    "sha256": "6ae5d31f201811ccc5c54af305e08d84232a9e62dedc59866350eb21dd588753"
+  },
+  {
+    "path": "seed/enclave/site/js/core/pricing.js",
+    "sha256": "43f7eceff5a392b7eb99c7dc615a6a132e8ea8c12602ffb472c6551347588af0"
+  },
+  {
+    "path": "seed/enclave/site/js/core/protection.js",
+    "sha256": "c3f8c37659df5cc20b4a1fe9368224ddb197084ba09d4e62624dc045c5f2c6be"
+  },
+  {
+    "path": "seed/enclave/site/js/core/resource-overview.js",
+    "sha256": "ce06b10e16e64f51576ad8a78c750cbf5967c9c39496ace205a9bc8964e247d7"
+  },
+  {
+    "path": "seed/enclave/site/js/core/resource-plan.js",
+    "sha256": "0160300e6a29a2b4b3bdb7eac565eafcbb7b2ac08d092a6cdb427e1425b9167e"
+  },
+  {
+    "path": "seed/enclave/site/js/core/reviews.js",
+    "sha256": "3c1c8bbd0e59a272bdc4c19fba81cb484456c27f6adf930805d2efb800311872"
+  },
+  {
+    "path": "seed/enclave/site/js/core/runlog.js",
+    "sha256": "d6868eb5d13905d04c50d84bbb1d6e976b97fb81da8cc4f78b655a514dcf697c"
+  },
+  {
+    "path": "seed/enclave/site/js/core/session-funding.js",
+    "sha256": "7194224035edb3a2078b2cae067ea90980ba3cc3f41960e468c68adb85beaf17"
+  },
+  {
+    "path": "seed/enclave/site/js/core/sessions.js",
+    "sha256": "7242d89951d7df4501991ade3171cdd3a068f14bc9277be8ecdc2e7c47d11c7c"
+  },
+  {
+    "path": "seed/enclave/site/js/core/share-allocation.js",
+    "sha256": "74c32abefe79cfc06002f8479506c3471ff0a7c55b99dbca421d7624b5324540"
+  },
+  {
+    "path": "seed/enclave/site/js/core/share-editor.js",
+    "sha256": "b1243e1a519472824dfa9e6ec82ccc0f243db8e31f31a8c91648f55cd71b2247"
+  },
+  {
+    "path": "seed/enclave/site/js/core/share-resize.js",
+    "sha256": "02b44c42a732c7f944ecd0fdc1593e965ccc8ab5b7bd2df38e4ed4e62d9e1735"
+  },
+  {
+    "path": "seed/enclave/site/js/core/spec.js",
+    "sha256": "164dae830ba451105f3ff4868a6fe92dd96184101d08eefe9348671624b23116"
+  },
+  {
+    "path": "seed/enclave/site/js/core/util.js",
+    "sha256": "71a896f187d4577c7cf615daf72dac22f705a45dc9058d994d6983f83358d830"
+  },
+  {
+    "path": "seed/enclave/site/js/core/vault.js",
+    "sha256": "a6ab42793d8e36d159a815aad9724969cb00d6433c479132afe83eedd710c8b3"
+  },
+  {
+    "path": "seed/enclave/site/js/core/verify.js",
+    "sha256": "25d172f9327c0c7704c74dd443dc33b38dec005fd0a36198b70d22413491b40c"
+  },
+  {
+    "path": "seed/enclave/site/js/core/version-allocation.js",
+    "sha256": "254ab82ebc420475fae9cd44ea126f173dfb53734d2be0d7f303608fb28dfe90"
+  },
+  {
+    "path": "seed/enclave/site/js/core/wallet-preflight.js",
+    "sha256": "34cb7ad0a452b2ec21aa55a5534b45315d45899c6cb1b565a2817b06f0e69345"
+  },
+  {
+    "path": "seed/enclave/site/js/core/wallet-release-chain.js",
+    "sha256": "66dc0b48314635b258b0e66a1e81823e2b051ae24a7f731cb531a5e143dbd6f6"
+  },
+  {
+    "path": "seed/enclave/site/js/core/wallet-release-controller.js",
+    "sha256": "d9c501d31e3d5843c1a794b777c96cbe5fe72bde5a81880bc82f96698ac79bab"
+  },
+  {
+    "path": "seed/enclave/site/js/core/wallet-release-store.js",
+    "sha256": "1379de9e182bb08a9e17d8e0bdb5e457f2ad4dcd606bfe935ff83ef3d0f77029"
+  },
+  {
+    "path": "seed/enclave/site/js/core/wallet-release-view.js",
+    "sha256": "b6dee9719edc2145d40410183e9ca37932c2048edfcbea5cb4abdc8882892bc9"
+  },
+  {
+    "path": "seed/enclave/site/js/core/wallet.js",
+    "sha256": "20bad9ad5da0a88b8ab515b82a36fe7c7102f88e4a86fbfcd20c2afd0867ef5f"
+  },
+  {
+    "path": "seed/enclave/site/js/funding/flows.js",
+    "sha256": "88d2e23a8990858546c306d3249483822d9ea14f77846d8007c721fbd6b70ab2"
+  },
+  {
+    "path": "seed/enclave/site/js/funding/state.js",
+    "sha256": "010d864fc4947c2a46961a6011ff8cba2fce29d6097fa8f64e65d2c8ab5e2825"
+  },
+  {
+    "path": "seed/enclave/site/js/gen/contract-artifacts.js",
+    "sha256": "a7d54dd491b156c27bf9a40286870d36f5c048aeb85b63e5993cccc2a193fdc4"
+  },
+  {
+    "path": "seed/enclave/site/js/hex-background.js",
+    "sha256": "e95c66a46c0f72947ad885517b85866eb2417c9ee69c945bc94b52af13df1ebd"
+  },
+  {
+    "path": "seed/enclave/site/js/lib/contract-linker.js",
+    "sha256": "4f78a692bb8cd19dec6c333423cc47da23c072330f95636d02df981c43b47122"
+  },
+  {
+    "path": "seed/enclave/site/js/lib/enclave-element.js",
+    "sha256": "dc01f1c8a30f92e9922031c20e77eb77b28abb76f8eace0c63c1a999e055c1c8"
+  },
+  {
+    "path": "seed/enclave/site/js/lib/qr.js",
+    "sha256": "0ca06bd4c594dc105da5b364a21674eef3549b1e87eb0ae08ccd135c762238dd"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/admin.js",
+    "sha256": "bbb7ba0b6e2673c873a0cee4648d3eac18b53983a2296dc4f48287c10949da50"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/apps.js",
+    "sha256": "7c4008431f507da5c357ccf35650f893d36aa61d905454a0312bf94b3e8ac98f"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/architecture.js",
+    "sha256": "c72681210031cf5059dc487dca7235fea5e7ae9025252ce0765f777ea1791ff4"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/authorize.js",
+    "sha256": "bf2b71955a76a4f4177aa47fa31c0dd11b4b1e17eac19d1ce53c6325945782b2"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/checkout.js",
+    "sha256": "43eabea5a1446894b320bb251b9ea16c02331cc4d14d7275588a81a5e751c216"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/dashboard.js",
+    "sha256": "d78a36515b219d0184a1b5ffe2203f948ceeea705faa8a6c06087d63ed5b2c21"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/deploy.js",
+    "sha256": "00509dbdbb9fab267037dafefe00c0effc1577871eb585cb766da146c49d876e"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/develop.js",
+    "sha256": "730fd88bf8fc802abe21a9e16f7fd18be63c1aa01af5802970a44276d8f046c9"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/grant.js",
+    "sha256": "2b3716dbd4fc71058a05017334334c00dc30be7f400d832cc2c66d885fd50210"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/host.js",
+    "sha256": "f72a71dd9be71ee4987f7d7e27893f10d8c9180cbf5b718c17355eb9a9dff200"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/link.js",
+    "sha256": "a2645cf71d07a51ea597be4dad752ce7bfcf8531ba8de287f4a23c5bd2f0af16"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/overview.js",
+    "sha256": "c9c63c6135208df5382dc9b8c361d8310c7537816132bb58fe5d701c7c28708c"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/privacy.js",
+    "sha256": "e070f5c70c8b89ddac55c7ab6fee3a5e08f054bc437bd39858eb6e2442460986"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/sessions.js",
+    "sha256": "2bcdbaf7f2dd583710ddbf09e2cc74d4d0b7b41f653833b7552bb042456a6af2"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/sso-authorize.js",
+    "sha256": "0e02788d695d46ce506cf099d80e422c4c0553646ae35acce93adb02318c11d7"
+  },
+  {
+    "path": "seed/enclave/site/js/pages/terms.js",
+    "sha256": "46f5e7caeb4e11d3c85405e9bc98907ee0f63121bd84cbf5868fa6f1c8315696"
+  },
+  {
+    "path": "seed/enclave/site/vendor/custody.js",
+    "sha256": "69f5b846ef8fd7ee4d8ab29e67035243184c1dfb5c27dbd29a895a000e4dc15f"
+  },
+  {
+    "path": "seed/enclave/test/wallet-release/chain-store.test.mjs",
+    "sha256": "f2e5b7134438ef1030c3988f48612c42d88a2f3a7b081e82304fc10e4f7d04fc"
+  },
+  {
+    "path": "seed/enclave/test/wallet-release/controller.test.mjs",
+    "sha256": "91dd4b676c73bcb68dad500bfed0b9a5d652578c9134628c06c1c87e8d1cdc94"
+  },
+  {
+    "path": "seed/enclave/test/wallet-release/held-card.fixture.html",
+    "sha256": "d1a0db9bc6b4f371076c2c88efd26071c2aa6d33422719b9d7a816a6034bf262"
+  },
+  {
+    "path": "seed/enclave/test/wallet-release/view.test.mjs",
+    "sha256": "2c5b098e8ced802dd79fcbdff255729193f97349dff7c67c5d710dabc014130d"
+  },
+  {
+    "path": "seed-pins.json",
+    "sha256": "df55321bf1e61836fbea502d8bcf2ffe089932d9bb09c35963189e68cb4414d1"
+  },
+  {
+    "path": "seed-provenance.json",
+    "sha256": "94ff962f23098f8c886baa755d66ed3593e59800b9da21b10ed99d46758a80fd"
+  },
+  {
+    "path": "turn-metric-investigation.json",
+    "sha256": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8"
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "path": "SOURCES.md",
+    "sha256": "4ccbc8dcea898736eac4e599ecb556dbec37e051371eebc947e731afbbfbec38"
+  },
+  {
+    "path": "attempt",
+    "sha256": "6120b64b073c52d7eb79d3a3865939f15bbd0509802f4f5de1ae51f2f66f2b97"
+  },
+  {
+    "path": "inner.guard.log",
+    "sha256": "98d4e54b6dff237acd89595b72b9b7d5ce11636088ff57790f1fd36322ae6a96"
+  },
+  {
+    "path": "outer.guard.log",
+    "sha256": "cdf3e093b0a7bca23a5d58a33bd59726453cc15220caf21d5a593782c31062c6"
+  },
+  {
+    "path": "read.mjs",
+    "sha256": "8f63fb424da214bac056124bfdae36664b1f5f6431403d9f0302e1ca5efe136e"
+  },
+  {
+    "path": "result.json",
+    "sha256": "cd601c309807b01c95b38c5f5dae093c9cc56ed39bb897c0f1ac2bac2bb4b706"
+  }
+]

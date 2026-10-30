@@ -1,0 +1,12 @@
+{
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  },
+  "seedFiles": 121,
+  "readonlyPins": 312,
+  "drift": 0,
+  "preparedSha256": "cfa72e246f89e682064cf71354cf1cea98f0db6cc0a6b3e6bb8f01b38b88933d",
+  "sourceOnly": true
+}

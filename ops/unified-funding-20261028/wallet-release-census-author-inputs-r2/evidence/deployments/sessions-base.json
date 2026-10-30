@@ -1,0 +1,34 @@
+{
+  "network": "base",
+  "chainId": 8453,
+  "commit": "ae6b12a3c",
+  "deployedAt": "2026-10-07",
+  "deployer": "0xf4B78D91911e1c064A02E4D28C69E2De6056bE57",
+  "contracts": {
+    "EnclaveKeyAttestations": {
+      "address": "0xB49241eFE5AF6078BE6aa84850ae45eed34dF61b",
+      "block": 52280274,
+      "tx": "0xd0f08356f1361afcad08dae9c383c9a03f86673cc682a0838ee121ba7c92ab32",
+      "args": { "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61", "attestor": "0xf4B78D91911e1c064A02E4D28C69E2De6056bE57" }
+    },
+    "SessionVaultLib": {
+      "address": "0xa55729550e6508fA3D59CF5744941Db30790FBab",
+      "block": 52280277,
+      "tx": "0x60374673fb66fbbb38d64d76481160bb21bec8e5fb467010692be5795aa4e557"
+    },
+    "SessionVaultFactory": {
+      "address": "0x00bB59c40768aA56E292b4E789f9f3B5826E3a8d",
+      "block": 52280280,
+      "tx": "0x155ff17cfdb20243c6205d72c70b108c85c937738fb35db37ba139f478b19704",
+      "args": {
+        "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "book": "0xab214342d5A490150A4A977063A2f88E21F80907",
+        "router": "0xf17157b42ebbd65E33dD592878A8f1769C69d56A",
+        "keyAttestations": "0xB49241eFE5AF6078BE6aa84850ae45eed34dF61b",
+        "maxVault6": "250000000"
+      }
+    }
+  },
+  "verified": "every constructor argument, the implementation's sealed owner and the library link read back from Base (nan-sessions.mjs verify: VERIFY OK)",
+  "addressBook": "sessionVaultFactory NOT set: a governance (Trezor) transaction; the relay and clients use SESSIONS_FACTORY meanwhile"
+}

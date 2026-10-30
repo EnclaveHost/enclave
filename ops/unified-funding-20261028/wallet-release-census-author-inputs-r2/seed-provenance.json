@@ -1,0 +1,12 @@
+{
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-census-r2-20261029/seed",
+  "sourceRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-ui-root-review-r1-repaired/candidate",
+  "projection": "exact original121 manifest names, excluding13 reference copies in root test tree",
+  "seedEntries": 121,
+  "rootRepairs": {
+    "enclave/site/js/core/wallet-release-controller.js": "d9c501d31e3d5843c1a794b777c96cbe5fe72bde5a81880bc82f96698ac79bab",
+    "enclave/site/js/core/wallet-release-view.js": "b6dee9719edc2145d40410183e9ca37932c2048edfcbea5cb4abdc8882892bc9"
+  },
+  "preAuthorProductEdits": [],
+  "originalReportCaveat": "REPORT-WALLET-RELEASE-R1.md was present at timeout but lacked successful transcript mutation attribution; preserved as evidence, not clean author final."
+}

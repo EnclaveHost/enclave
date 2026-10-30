@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-30T00:30:10.932481+00:00",
+  "service": {
+    "MainPID": "270588",
+    "WorkingDirectory": "/opt/nan-relay",
+    "InvocationID": "1ddd9115fa804568a55375b1c984d548"
+  },
+  "files": {
+    "sessions.mjs": {
+      "sha256": "483b1c5ef29d83c937a5fd5b15ea3b2e940025d76706a1c5a63867f33c55c4e3"
+    },
+    "secrets.js": {
+      "sha256": "4c49127164e716a7431b1e2d62cd703f82b7a849641205e5bdf28d3bd17a198b"
+    },
+    "secrets-release.mjs": {
+      "sha256": "48cf67ee80a088f3b713eaed401273a97aecb3aeca7204f320e0f22083405715"
+    },
+    "shield-secrets.mjs": {
+      "sha256": "744e687237a28b23b1e0954b5b408eeb904cb8882b16c8df39fd8e8aeba144e5"
+    },
+    "session-api-auth.mjs": {
+      "absent": true
+    }
+  },
+  "readOnly": true
+}

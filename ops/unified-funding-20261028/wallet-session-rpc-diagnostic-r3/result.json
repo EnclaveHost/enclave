@@ -1,0 +1,112 @@
+[
+  {
+    "url": "https://mainnet.base.org",
+    "result": [
+      {
+        "name": "chain",
+        "ok": false,
+        "errors": [
+          {
+            "name": "HttpRequestError",
+            "short": "HTTP request failed.",
+            "details": "Too Many Requests",
+            "message": "HTTP request failed.\n\nStatus: 429\nURL: https://mainnet.base.org/\nRequest body: {\"method\":\"eth_chainId\",\"params\":[]}\n\nDetails: Too Many Requests\nVersion: viem@2.53.1"
+          }
+        ]
+      },
+      {
+        "name": "logs",
+        "ok": false,
+        "errors": [
+          {
+            "name": "HttpRequestError",
+            "short": "HTTP request failed.",
+            "details": "Too Many Requests",
+            "message": "HTTP request failed.\n\nStatus: 429\nURL: https://mainnet.base.org/\nRequest body: {\"method\":\"eth_getLogs\",\"params\":[{\"address\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"topics\":[\"0x23c373344ac1f1f50daef0ec31f6924948297610efa8499362428205bcc86b4f\"],\"fromBlock\":\"0x3262564\",\"toBlock\":\"0x3267383\"}]}\n\nDetails: Too Many Requests\nVersion: viem@2.53.1"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "url": "https://base.drpc.org",
+    "result": [
+      {
+        "name": "chain",
+        "ok": true,
+        "count": null,
+        "emptyCode": false
+      },
+      {
+        "name": "logs",
+        "ok": false,
+        "errors": [
+          {
+            "name": "RpcRequestError",
+            "code": 35,
+            "short": "RPC Request failed.",
+            "details": "ranges over 10000 blocks are not supported on free plan",
+            "message": "RPC Request failed.\n\nURL: https://base.drpc.org\nRequest body: {\"method\":\"eth_getLogs\",\"params\":[{\"address\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"topics\":[\"0x23c373344ac1f1f50daef0ec31f6924948297610efa8499362428205bcc86b4f\"],\"fromBlock\":\"0x3262564\",\"toBlock\":\"0x3267383\"}]}\n\nDetails: ranges over 10000 blocks are not supported on free plan\nVersion: viem@2.53.1"
+          },
+          {
+            "code": 35,
+            "message": "ranges over 10000 blocks are not supported on free plan"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "url": "https://1rpc.io/base",
+    "result": [
+      {
+        "name": "chain",
+        "ok": false,
+        "errors": [
+          {
+            "name": "ResourceNotFoundRpcError",
+            "code": -32001,
+            "short": "Requested resource not found.",
+            "details": "You've reached the usage limit for your current plan. To continue with higher limits and uninterrupted access, please upgrade here: https://www.1rpc.io/#pricing",
+            "message": "Requested resource not found.\n\nURL: https://1rpc.io/base\nRequest body: {\"method\":\"eth_chainId\",\"params\":[]}\n\nDetails: You've reached the usage limit for your current plan. To continue with higher limits and uninterrupted access, please upgrade here: https://www.1rpc.io/#pricing\nVersion: viem@2.53.1"
+          },
+          {
+            "name": "RpcRequestError",
+            "code": -32001,
+            "short": "RPC Request failed.",
+            "details": "You've reached the usage limit for your current plan. To continue with higher limits and uninterrupted access, please upgrade here: https://www.1rpc.io/#pricing",
+            "message": "RPC Request failed.\n\nURL: https://1rpc.io/base\nRequest body: {\"method\":\"eth_chainId\",\"params\":[]}\n\nDetails: You've reached the usage limit for your current plan. To continue with higher limits and uninterrupted access, please upgrade here: https://www.1rpc.io/#pricing\nVersion: viem@2.53.1"
+          },
+          {
+            "code": -32001,
+            "message": "You've reached the usage limit for your current plan. To continue with higher limits and uninterrupted access, please upgrade here: https://www.1rpc.io/#pricing"
+          }
+        ]
+      },
+      {
+        "name": "logs",
+        "ok": false,
+        "errors": [
+          {
+            "name": "ResourceNotFoundRpcError",
+            "code": -32001,
+            "short": "Requested resource not found.",
+            "details": "You've reached the usage limit for your current plan. To continue with higher limits and uninterrupted access, please upgrade here: https://www.1rpc.io/#pricing",
+            "message": "Requested resource not found.\n\nURL: https://1rpc.io/base\nRequest body: {\"method\":\"eth_getLogs\",\"params\":[{\"address\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"topics\":[\"0x23c373344ac1f1f50daef0ec31f6924948297610efa8499362428205bcc86b4f\"],\"fromBlock\":\"0x3262564\",\"toBlock\":\"0x3267383\"}]}\n\nDetails: You've reached the usage limit for your current plan. To continue with higher limits and uninterrupted access, please upgrade here: https://www.1rpc.io/#pricing\nVersion: viem@2.53.1"
+          },
+          {
+            "name": "RpcRequestError",
+            "code": -32001,
+            "short": "RPC Request failed.",
+            "details": "You've reached the usage limit for your current plan. To continue with higher limits and uninterrupted access, please upgrade here: https://www.1rpc.io/#pricing",
+            "message": "RPC Request failed.\n\nURL: https://1rpc.io/base\nRequest body: {\"method\":\"eth_getLogs\",\"params\":[{\"address\":\"0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b\",\"topics\":[\"0x23c373344ac1f1f50daef0ec31f6924948297610efa8499362428205bcc86b4f\"],\"fromBlock\":\"0x3262564\",\"toBlock\":\"0x3267383\"}]}\n\nDetails: You've reached the usage limit for your current plan. To continue with higher limits and uninterrupted access, please upgrade here: https://www.1rpc.io/#pricing\nVersion: viem@2.53.1"
+          },
+          {
+            "code": -32001,
+            "message": "You've reached the usage limit for your current plan. To continue with higher limits and uninterrupted access, please upgrade here: https://www.1rpc.io/#pricing"
+          }
+        ]
+      }
+    ]
+  }
+]
