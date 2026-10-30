@@ -1,0 +1,5 @@
+## October30 03:16UTC: first bounded contract compilation resource stop
+
+Foundrypackage D=it/work/wallet-owned-session-foundry-r1-20261029 exactPREPARED0b2f1fe90bf30ada28a925429a69a3d5fb1338c1eaecae84940e550a8373b030 reviewed/86pins35seed0drift/netnamespaceconfirmed; inputsdb10e808c82b PUSHED. ONEinvocationc8ae998b3b28482aa5cfcbc0196cb241 TERMINAL/Main0/stageprocessesempty. OuterSTOP99/SIGTERM at526MiB>512MiBRSS cap/min31457after~9s. Compilerlog onlyCompiling33filesSolc0.8.35; RESULTabsent/NOcompileoutcome/NOsize/NOtests. All86inputs+35runsources unchanged. Preservefailure/partials; no unchangedrerun/capraise/code-sizeoverride/automaticretry.
+
+PeerPREPAREONLY smaller product-only native-solc standardJSON outputSelection/newcontracts+requiredlibrary underSAME512/450/floor27648/CPU1noswap, exactsourcebytes/settings/imports; omit broad historical ledger/test compile targets. No execution/author/repair/live/finance delegated. RootmustreviewnewclosurebeforeONEnewattempt. Originalrev15d+separateexactrev16dfixtures preserved. ExistingNode7PASS3FAIL remain onlyactualtestresult. Allbrowserhumanhandoffsunsigned/no migrationtransaction; walletmigrationpriority unchanged.
