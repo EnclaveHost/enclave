@@ -1,0 +1,20 @@
+{
+  "rc": 255,
+  "reason": null,
+  "elapsedSeconds": 1.2905705620069057,
+  "stdout": "ARMED_UNIT_CRASH\nSTOP_POST_JSON={\"action\": \"stop-post\", \"errors\": [], \"ok\": true, \"stopPostDetached\": true}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 108,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 27647,
+  "stdinBytesRequested": 27647,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

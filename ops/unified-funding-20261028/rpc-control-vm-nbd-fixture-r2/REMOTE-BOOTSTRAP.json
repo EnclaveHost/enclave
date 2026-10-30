@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.5855892181862146,
+  "stdout": "RESULT_JSON={\"action\": \"bootstrap\", \"errors\": [], \"executableMount\": {\"device\": \"8:1\", \"fstype\": \"ext4\", \"options\": [\"commit=30\", \"discard\", \"errors=remount-ro\", \"relatime\", \"rw\"], \"source\": \"/dev/sda1\", \"target\": \"/\"}, \"loadModule\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.013822632958181202, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"ok\": true, \"runMount\": {\"device\": \"0:26\", \"fstype\": \"tmpfs\", \"options\": [\"inode64\", \"mode=755\", \"nodev\", \"noexec\", \"nosuid\", \"relatime\", \"rw\", \"size=813120k\"], \"source\": \"tmpfs\", \"target\": \"/run\"}, \"state\": {\"claimed\": false, \"deviceNumber\": \"43:7\", \"execIdentity\": [2049, 1842471], \"moduleInitiallyLoaded\": false, \"moduleLoadedByFixture\": true, \"nonce\": \"02e05fc9-0cc3-4e60-bd4c-133134ff7b9d\", \"rootIdentity\": [26, 19556], \"stopPostSha256\": \"3adf186d6562fe7a8f38e4901dd3ffb9a6e5788fe18478badd838bd416a2187e\", \"unitPrefix\": \"enclave-rpc-nbd-fixture-\"}}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 1172,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 56550,
+  "stdinBytesRequested": 56550,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

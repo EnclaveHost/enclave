@@ -1,0 +1,452 @@
+{
+  "status": "DISPOSABLE_STORAGE_PASSED_NOT_PRODUCTION_ADMITTED",
+  "errors": [],
+  "results": {
+    "mkfs": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.11221073614433408,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "parentSha256Before": "efd4bce7aa49fd616786f8810a9e149d6020a8e8d9328fcf4a167f318daea990",
+    "createOverlay": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.11346303718164563,
+      "stdout": "Formatting '/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030-r2/artifacts/overlay.qcow2', fmt=qcow2 cluster_size=65536 extended_l2=off compression_type=zlib size=67108864 backing_file=/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030-r2/artifacts/parent.raw backing_fmt=raw lazy_refcounts=off refcount_bits=16\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 389,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "remote:policy": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.842305911006406,
+      "stdout": "RESULT_JSON={\"action\": \"policy\", \"errors\": [], \"executableMount\": {\"device\": \"8:1\", \"fstype\": \"ext4\", \"options\": [\"commit=30\", \"discard\", \"errors=remount-ro\", \"relatime\", \"rw\"], \"source\": \"/dev/sda1\", \"target\": \"/\"}, \"ok\": true, \"runMount\": {\"device\": \"0:26\", \"fstype\": \"tmpfs\", \"options\": [\"inode64\", \"mode=755\", \"nodev\", \"noexec\", \"nosuid\", \"relatime\", \"rw\", \"size=813120k\"], \"source\": \"tmpfs\", \"target\": \"/run\"}}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 416,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 27648,
+      "stdinBytesRequested": 27648,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "remoteSocketDirectory": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.5058895598631352,
+      "stdout": "{\"path\": \"/home/controladmin/rpc-nbd-fixture-r2\", \"uid\": 1000, \"mode\": \"0o700\"}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 80,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 204,
+      "stdinBytesRequested": 204,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "remote:bootstrap": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.5855892181862146,
+      "stdout": "RESULT_JSON={\"action\": \"bootstrap\", \"errors\": [], \"executableMount\": {\"device\": \"8:1\", \"fstype\": \"ext4\", \"options\": [\"commit=30\", \"discard\", \"errors=remount-ro\", \"relatime\", \"rw\"], \"source\": \"/dev/sda1\", \"target\": \"/\"}, \"loadModule\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.013822632958181202, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"ok\": true, \"runMount\": {\"device\": \"0:26\", \"fstype\": \"tmpfs\", \"options\": [\"inode64\", \"mode=755\", \"nodev\", \"noexec\", \"nosuid\", \"relatime\", \"rw\", \"size=813120k\"], \"source\": \"tmpfs\", \"target\": \"/run\"}, \"state\": {\"claimed\": false, \"deviceNumber\": \"43:7\", \"execIdentity\": [2049, 1842471], \"moduleInitiallyLoaded\": false, \"moduleLoadedByFixture\": true, \"nonce\": \"02e05fc9-0cc3-4e60-bd4c-133134ff7b9d\", \"rootIdentity\": [26, 19556], \"stopPostSha256\": \"3adf186d6562fe7a8f38e4901dd3ffb9a6e5788fe18478badd838bd416a2187e\", \"unitPrefix\": \"enclave-rpc-nbd-fixture-\"}}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 1172,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 56550,
+      "stdinBytesRequested": 56550,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "secondWriter:overlay": {
+      "rc": 1,
+      "reason": null,
+      "elapsedSeconds": 0.1055926161352545,
+      "stdout": "",
+      "stderr": "qemu-nbd: Failed to blk_new_open '/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030-r2/artifacts/overlay.qcow2': Failed to get \"write\" lock\nIs another process using the image [/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030-r2/artifacts/overlay.qcow2]?\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 333
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "secondWriter:parent": {
+      "rc": 1,
+      "reason": null,
+      "elapsedSeconds": 0.007591523928567767,
+      "stdout": "",
+      "stderr": "qemu-nbd: Failed to blk_new_open '/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030-r2/artifacts/parent.raw': Failed to get \"write\" lock\nIs another process using the image [/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030-r2/artifacts/parent.raw]?\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 327
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "remote:write": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 1.574556440114975,
+      "stdout": "RESULT_JSON={\"action\": \"write\", \"dataBytes\": 270336, \"dataSha256\": \"f0a46b972fe9327d3931e0e42144a0c0c32e9e9043223ed27acdc490a8300600\", \"detach\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0025558279594406486, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"errors\": [], \"exportInfo\": {\"bytes\": 67108864, \"flags\": 3181}, \"filesystemUuid\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 37}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.3698086909716949, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"506ef1b6-8c8c-4edf-a868-14209a28d0f7\\n\", \"truncated\": false}, \"mount\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.11489473597612232, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"ok\": true, \"unknownExport\": {\"unknownRejected\": true}, \"unmount\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.05899824702646583, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}}\nSTOP_POST_JSON={\"action\": \"stop-post\", \"errors\": [], \"ok\": true, \"stopPostDetached\": true}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 1966,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 27647,
+      "stdinBytesRequested": 27647,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "stop:tunnel-write": {
+      "pid": 2761957,
+      "rc": 0,
+      "reaped": true
+    },
+    "stop:export-write": {
+      "pid": 2761953,
+      "rc": 0,
+      "reaped": true
+    },
+    "remote:socket-clear-1": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.5521307580638677,
+      "stdout": "RESULT_JSON={\"action\": \"socket-clear\", \"errors\": [], \"ok\": true}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 65,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 27654,
+      "stdinBytesRequested": 27654,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "checkAfterWrite": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.10870260302908719,
+      "stdout": "No errors were found on the image.\n8/1024 = 0.78% allocated, 25.00% fragmented, 0.00% compressed clusters\nImage end offset: 851968\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 131,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "remote:read": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 1.5556993810459971,
+      "stdout": "RESULT_JSON={\"action\": \"read\", \"dataBytes\": 270336, \"dataSha256\": \"f0a46b972fe9327d3931e0e42144a0c0c32e9e9043223ed27acdc490a8300600\", \"detach\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0023531500482931733, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"errors\": [], \"exportInfo\": {\"bytes\": 67108864, \"flags\": 3181}, \"filesystemUuid\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 37}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.3552116199862212, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"506ef1b6-8c8c-4edf-a868-14209a28d0f7\\n\", \"truncated\": false}, \"mount\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.1127813730854541, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"ok\": true, \"unknownExport\": {\"unknownRejected\": true}, \"unmount\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.014971970929764211, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}}\nSTOP_POST_JSON={\"action\": \"stop-post\", \"errors\": [], \"ok\": true, \"stopPostDetached\": true}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 1965,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 27646,
+      "stdinBytesRequested": 27646,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "stop:tunnel-read": {
+      "pid": 2762045,
+      "rc": 0,
+      "reaped": true
+    },
+    "stop:export-read": {
+      "pid": 2762042,
+      "rc": 0,
+      "reaped": true
+    },
+    "remote:socket-clear-2": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.4547775511164218,
+      "stdout": "RESULT_JSON={\"action\": \"socket-clear\", \"errors\": [], \"ok\": true}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 65,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 27654,
+      "stdinBytesRequested": 27654,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "convertReadback": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.11500490503385663,
+      "stdout": "",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "filesystemCheck": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.10777224879711866,
+      "stdout": "Pass 1: Checking inodes, blocks, and sizes\nPass 2: Checking directory structure\nPass 3: Checking directory connectivity\nPass 4: Checking reference counts\nPass 5: Checking group summary information\n/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-nbd-fixture-prep-20261030-r2/artifacts/recovered.raw: 13/16384 files (7.7% non-contiguous), 2163/16384 blocks\n",
+      "stderr": "e2fsck 1.47.4 (6-Mar-2025)\n",
+      "bytesObserved": {
+        "stdout": 370,
+        "stderr": 27
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "remote:crash": {
+      "rc": 255,
+      "reason": null,
+      "elapsedSeconds": 1.2905705620069057,
+      "stdout": "ARMED_UNIT_CRASH\nSTOP_POST_JSON={\"action\": \"stop-post\", \"errors\": [], \"ok\": true, \"stopPostDetached\": true}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 108,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 27647,
+      "stdinBytesRequested": 27647,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "remote:crash-verify": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.5508963169995695,
+      "stdout": "RESULT_JSON={\"action\": \"crash-verify\", \"actualAbruptCleanupVerified\": true, \"crashUnit\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 135}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.004598496947437525, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nResult=signal\\nExecMainCode=2\\nExecMainStatus=9\\nControlGroup=\\nActiveState=failed\\nInvocationID=67f8c9502c1a45508a51565c27a07aa5\\n\", \"truncated\": false}, \"errors\": [], \"ok\": true}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 643,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 27654,
+      "stdinBytesRequested": 27654,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "stop:tunnel-crash": {
+      "pid": 2762101,
+      "rc": 0,
+      "reaped": true
+    },
+    "stop:export-crash": {
+      "pid": 2762068,
+      "rc": 0,
+      "reaped": true
+    },
+    "remote:socket-clear-3": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.5581912328489125,
+      "stdout": "RESULT_JSON={\"action\": \"socket-clear\", \"errors\": [], \"ok\": true}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 65,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 27654,
+      "stdinBytesRequested": 27654,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "stop:tunnel-disconnect": {
+      "pid": 2762171,
+      "rc": 255,
+      "reaped": true
+    },
+    "remote:disconnect": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 3.2710381881333888,
+      "stdout": "READY_DISCONNECT\nRESULT_JSON={\"action\": \"disconnect\", \"disconnectErrno\": 5, \"errors\": [], \"exportInfo\": {\"bytes\": 67108864, \"flags\": 3181}, \"filesystemUuid\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 37}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.34448370710015297, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"506ef1b6-8c8c-4edf-a868-14209a28d0f7\\n\", \"truncated\": false}, \"ok\": true, \"unknownExport\": {\"unknownRejected\": true}}\nSTOP_POST_JSON={\"action\": \"stop-post\", \"errors\": [], \"ok\": true, \"stopPostDetached\": true}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 727,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 27652,
+      "stdinBytesRequested": 27652,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "parentSha256After": "efd4bce7aa49fd616786f8810a9e149d6020a8e8d9328fcf4a167f318daea990",
+    "remote:cleanup": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.611286137951538,
+      "stdout": "RESULT_JSON={\"action\": \"cleanup\", \"errors\": [], \"ok\": true, \"state\": {\"attachCgroup\": \"0::/system.slice/enclave-rpc-nbd-fixture-disconnect-r2.service\", \"claimed\": false, \"cleanupCompleted\": true, \"deviceNumber\": \"43:7\", \"execIdentity\": [2049, 1842471], \"moduleInitiallyLoaded\": false, \"moduleLoadedByFixture\": true, \"nbdPid\": \"295820\", \"nonce\": \"02e05fc9-0cc3-4e60-bd4c-133134ff7b9d\", \"rootIdentity\": [26, 19556], \"socketIdentity\": [2049, 1843864], \"stopPostSha256\": \"3adf186d6562fe7a8f38e4901dd3ffb9a6e5788fe18478badd838bd416a2187e\", \"unitPrefix\": \"enclave-rpc-nbd-fixture-\"}, \"stop:bootstrap\": {\"bytesObserved\": {\"stderr\": 123, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0038476920453831553, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 5, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"Failed to stop enclave-rpc-nbd-fixture-bootstrap-r2.service: Unit enclave-rpc-nbd-fixture-bootstrap-r2.service not loaded.\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"stop:crash\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.003777240985073149, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"stop:disconnect\": {\"bytesObserved\": {\"stderr\": 125, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0031939910259097815, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 5, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"Failed to stop enclave-rpc-nbd-fixture-disconnect-r2.service: Unit enclave-rpc-nbd-fixture-disconnect-r2.service not loaded.\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"stop:read\": {\"bytesObserved\": {\"stderr\": 113, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0026705319760367274, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 5, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"Failed to stop enclave-rpc-nbd-fixture-read-r2.service: Unit enclave-rpc-nbd-fixture-read-r2.service not loaded.\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"stop:write\": {\"bytesObserved\": {\"stderr\": 115, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.003404444898478687, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 5, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"Failed to stop enclave-rpc-nbd-fixture-write-r2.service: Unit enclave-rpc-nbd-fixture-write-r2.service not loaded.\\n\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}, \"unloadModule\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 0}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.06745271105319262, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"\", \"truncated\": false}}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 3466,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 27649,
+      "stdinBytesRequested": 27649,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "remote:verify": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.5674723938573152,
+      "stdout": "RESULT_JSON={\"action\": \"verify\", \"errors\": [], \"ok\": true, \"remoteCleanupVerified\": true, \"unit:bootstrap\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 73}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.003926901961676776, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=inactive\\nSubState=dead\\nInvocationID=\\n\", \"truncated\": false}, \"unit:cleanup\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 73}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.005023751989938319, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=inactive\\nSubState=dead\\nInvocationID=\\n\", \"truncated\": false}, \"unit:crash\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 105}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0037256350042298436, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=failed\\nSubState=failed\\nInvocationID=67f8c9502c1a45508a51565c27a07aa5\\n\", \"truncated\": false}, \"unit:crash-verify\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 73}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.004422137048095465, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=inactive\\nSubState=dead\\nInvocationID=\\n\", \"truncated\": false}, \"unit:disconnect\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 73}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.004299667896702886, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=inactive\\nSubState=dead\\nInvocationID=\\n\", \"truncated\": false}, \"unit:policy\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 73}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0058360499097034335, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=inactive\\nSubState=dead\\nInvocationID=\\n\", \"truncated\": false}, \"unit:read\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 73}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.004540177993476391, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=inactive\\nSubState=dead\\nInvocationID=\\n\", \"truncated\": false}, \"unit:socket-clear-1\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 73}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.005000849952921271, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=inactive\\nSubState=dead\\nInvocationID=\\n\", \"truncated\": false}, \"unit:socket-clear-2\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 73}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.003857041010633111, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=inactive\\nSubState=dead\\nInvocationID=\\n\", \"truncated\": false}, \"unit:socket-clear-3\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 73}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0048374340403825045, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=inactive\\nSubState=dead\\nInvocationID=\\n\", \"truncated\": false}, \"unit:write\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 73}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.0038864760426804423, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nControlGroup=\\nActiveState=inactive\\nSubState=dead\\nInvocationID=\\n\", \"truncated\": false}, \"units\": [{\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"InvocationID\": \"\", \"MainPID\": \"0\", \"SubState\": \"dead\"}, {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"InvocationID\": \"\", \"MainPID\": \"0\", \"SubState\": \"dead\"}, {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"InvocationID\": \"\", \"MainPID\": \"0\", \"SubState\": \"dead\"}, {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"InvocationID\": \"\", \"MainPID\": \"0\", \"SubState\": \"dead\"}, {\"ActiveState\": \"failed\", \"ControlGroup\": \"\", \"InvocationID\": \"67f8c9502c1a45508a51565c27a07aa5\", \"MainPID\": \"0\", \"SubState\": \"failed\"}, {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"InvocationID\": \"\", \"MainPID\": \"0\", \"SubState\": \"dead\"}, {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"InvocationID\": \"\", \"MainPID\": \"0\", \"SubState\": \"dead\"}, {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"InvocationID\": \"\", \"MainPID\": \"0\", \"SubState\": \"dead\"}, {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"InvocationID\": \"\", \"MainPID\": \"0\", \"SubState\": \"dead\"}, {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"InvocationID\": \"\", \"MainPID\": \"0\", \"SubState\": \"dead\"}, {\"ActiveState\": \"inactive\", \"ControlGroup\": \"\", \"InvocationID\": \"\", \"MainPID\": \"0\", \"SubState\": \"dead\"}]}\n",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 6617,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 27648,
+      "stdinBytesRequested": 27648,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "stop:export-disconnect": {
+      "pid": 2762168,
+      "rc": 0,
+      "reaped": true
+    }
+  },
+  "remoteCleanupVerified": true,
+  "chainDisksTouched": false,
+  "chainClientsStarted": false,
+  "productionChanged": false
+}
