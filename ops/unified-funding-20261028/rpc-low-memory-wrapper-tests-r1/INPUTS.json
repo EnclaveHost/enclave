@@ -1,0 +1,38 @@
+{
+  "test_chain_service.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-wrapper-tests-r1/test_chain_service.py",
+    "sha256": "541342a40999cbfb4f186487540b716357423398e45e976e81a336e6c3a63330"
+  },
+  "test_coverage_activation.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-wrapper-tests-r1/test_coverage_activation.py",
+    "sha256": "24c37c51d20f164434739093dd513d9206968e0ac60aec1ba59271b1116fa6f7"
+  },
+  "test_low_memory.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-wrapper-tests-r1/test_low_memory.py",
+    "sha256": "6aa9a284156c4d1f272ea55354d08ff9012bf99c3f237aa09e4cfc7511b3c828"
+  },
+  "harness.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-wrapper-tests-r1/harness.py",
+    "sha256": "fc34604e28526e5cea38922f317612e77e3196de2d872351bda635b98cfa53e2"
+  },
+  "chain_service.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-current-wrapper-r1/candidate/chain_service.py",
+    "sha256": "9b8c4c71bb3ad8d28de370922f35c49b92c0c03d527eb504520173d488727b94"
+  },
+  "baseline-chain_service.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-current-wrapper-r1/baseline-chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  "PROFILE.json": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-current-wrapper-r1/PROFILE.json",
+    "sha256": "40d5044a267bfd352e8f7681dffbad840d43604e14849804e59570df4d664d72"
+  },
+  "readiness/readiness_sampler.py": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/readiness/readiness_sampler.py",
+    "sha256": "9aa80ab8a2cbe156f513349f44366c4ad2c8588539666ac802ed9015c771d055"
+  },
+  "snapshot-manifest-observed.json": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/base-download-tuning/snapshot-manifest-observed.json",
+    "sha256": "1f0c4e6c259d4353f598a94ac75a0540321ced2b52b464fb4e11c2ec34c649f2"
+  }
+}

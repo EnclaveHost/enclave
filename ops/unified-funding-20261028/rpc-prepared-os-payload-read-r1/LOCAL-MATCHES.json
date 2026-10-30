@@ -1,0 +1,50 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/l1-proof-window-stage/patched/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/base-wrapper-integration-tested/stage/base/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-wrapper-integration-stage/base/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source-scan-repair-stage/runs/20261026T140354Z-1874342/repaired/ops/rpc-backend-bootstrap/2026-10-25/base-wrapper-integration-tested/stage/base/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source-scan-repair-stage/runs/20261026T140354Z-1874342/repaired/ops/rpc-backend-bootstrap/2026-10-25/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source-scan-repair-stage/runs/20261026T140354Z-1874342/head/ops/rpc-backend-bootstrap/2026-10-25/base-wrapper-integration-tested/stage/base/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source-scan-repair-stage/runs/20261026T140354Z-1874342/head/ops/rpc-backend-bootstrap/2026-10-25/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source-scan-repair-stage/runs/20261026T140251Z-1872580/head/ops/rpc-backend-bootstrap/2026-10-25/base-wrapper-integration-tested/stage/base/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source-scan-repair-stage/runs/20261026T140251Z-1872580/head/ops/rpc-backend-bootstrap/2026-10-25/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source-scan-repair-stage/runs/20261026T140251Z-1872580/repaired/ops/rpc-backend-bootstrap/2026-10-25/base-wrapper-integration-tested/stage/base/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source-scan-repair-stage/runs/20261026T140251Z-1872580/repaired/ops/rpc-backend-bootstrap/2026-10-25/chain_service.py",
+    "sha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92"
+  }
+]

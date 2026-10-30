@@ -1,0 +1,7 @@
+{
+  "argvSha256": "2390dd9dcf53196dfc516f289c40c81592e05120409cbc8bc5811988e90a7633",
+  "exe": "/home/steven/enclave-prod/bin/guestd.sdshield-9d1562738cde",
+  "pid": 2622904,
+  "scope": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2622889-i44579195.scope",
+  "startTime": 166098891
+}

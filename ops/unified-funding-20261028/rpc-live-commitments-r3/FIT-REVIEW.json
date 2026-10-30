@@ -1,0 +1,10 @@
+{
+  "snapshotOnly": true,
+  "headroomMiB": 9220,
+  "rpc16GiBCapFitsSnapshot": false,
+  "rpc8GiBCapAnd512MiBHelpersRemaining": 516,
+  "reservedExternalRPC": false,
+  "pendingMustRemain": true,
+  "autonomousCreateRaceResolved": false,
+  "claim": "6GiB guest/8GiB total is an unmeasured trial candidate only. No boot admission."
+}

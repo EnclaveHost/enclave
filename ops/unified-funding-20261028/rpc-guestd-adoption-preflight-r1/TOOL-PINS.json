@@ -1,0 +1,40 @@
+{
+  "files": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+      "realpath": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+      "sha256": "969d9273e53c79abf8604c363daa58b41a462bc4b7f3d03d813980edb771f6f4",
+      "bytes": 7846
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+      "realpath": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+      "sha256": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6",
+      "bytes": 4228
+    },
+    {
+      "path": "/usr/bin/systemd-run",
+      "realpath": "/usr/bin/systemd-run",
+      "sha256": "62a4f4021eb356f8124953eea7ba7c95b2daf96c2e83808399ad043ba2447a99",
+      "bytes": 105920
+    },
+    {
+      "path": "/usr/bin/taskset",
+      "realpath": "/usr/bin/taskset",
+      "sha256": "8bf4947cca932588598aa0b2413f520df438f6964057edff09a112518decc75d",
+      "bytes": 30888
+    },
+    {
+      "path": "/usr/bin/python3",
+      "realpath": "/usr/bin/python3.14",
+      "sha256": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b",
+      "bytes": 14424
+    },
+    {
+      "path": "/usr/bin/node",
+      "realpath": "/usr/bin/node",
+      "sha256": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9",
+      "bytes": 56530480
+    }
+  ]
+}
