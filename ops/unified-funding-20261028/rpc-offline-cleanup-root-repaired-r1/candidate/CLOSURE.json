@@ -1,0 +1,40 @@
+{
+  "status": "source-authored-not-run",
+  "executed": [],
+  "modified": ["candidate/offline_mask.py"],
+  "new": ["candidate/test_exporter_cleanup.py", "candidate/test_offline_revalidation.py", "candidate/REPORT.md",
+          "candidate/CLOSURE.json"],
+  "untouchedProtectedMethods": ["OsEffects.sparse_copy", "OsEffects.hold_qemu_locks", "OsEffects.scan_holders",
+                                "Writer.holders"],
+  "protectedMethodNote": "bodies unchanged; line numbers shifted, re-verify by AST source segment",
+  "standardLibraryHelpers": ["threading.Thread", "threading.Lock", "os.pidfd_open", "signal.pidfd_send_signal",
+                             "signal.pthread_sigmask", "os.waitid(WNOWAIT)", "/proc/PID/stat", "/proc/self/mountinfo"],
+  "targetedCases": {
+    "test_exporter_cleanup.py": ["normal_termination_verifies_descendants_and_mount",
+                                 "mounted_wrong_size_startup_is_cleaned_up",
+                                 "leader_exited_child_ignoring_term_is_escalated_before_reap",
+                                 "cancellation_reaches_the_same_cleanup", "pid_identity_mismatch_never_signals",
+                                 "unrelated_recycled_member_is_not_owned",
+                                 "stderr_overflow_during_unrelated_parent_work",
+                                 "no_ready_with_unjoined_or_failed_exporter"],
+    "test_offline_revalidation.py": ["positive_sequence_all_mutations_succeed",
+                                     "every_regular_unit_file_hashed_and_same_size_drift_caught",
+                                     "ro_to_rw_boundary_drift", "immediate_unlink_replacement_refused",
+                                     "archive_drift_before_unlink_refused", "unexpected_archive_occupant_refused",
+                                     "immediate_rm_replacement_refused", "own_step_with_extra_change_refused",
+                                     "complete_link_and_fragment_timestamps_required",
+                                     "native_ea_list_nonempty_and_rc0_error"]
+  },
+  "proposedCommands": ["cd candidate && /usr/bin/python3 -I -m unittest -v test_offline_mask",
+                       "cd candidate && /usr/bin/python3 -I -m unittest -v test_exporter_cleanup test_offline_revalidation"],
+  "unresolvedRisks": [
+    "holder visibility out of scope and unqualified; READY fixture vm/holder mocks remain mocks",
+    "native ea_list, nbdfuse/qemu-nbd process tree, pidfd, mountinfo and drainer behaviour not natively qualified",
+    "all-regular-file hashing over three inventories increases runtime; bounded, fails closed on timeout",
+    "setsid'd descendants are caught via ppid only while the leader lives (session/group members always)",
+    "unreadable leader start time or incomplete teardown leaves the exporter running and reports FAILED",
+    "single-bytecode cancellation window between operate finally entry and cleanup deferral",
+    "settle check runs after the journal 'done' record (still FAILED on refusal)",
+    "no test, import or native run performed by the author"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-cleanup-native-negative-r1/run.py": "c7c3eb25f8f4ffcb6de4a7ba40f9f56b794cff0d699c59bd8c39567961a1b318",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-cleanup-root-repaired-r1/candidate/offline_mask.py": "9744e66c7ef920f7c1ef7f21f947e0420b0e9a80505b0d1ffee1bd17f0760200",
+  "/usr/bin/nbdfuse": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01",
+  "/usr/bin/qemu-nbd": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934",
+  "/usr/bin/fusermount3": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f",
+  "/usr/bin/python3": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b",
+  "/usr/bin/node": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py": "969d9273e53c79abf8604c363daa58b41a462bc4b7f3d03d813980edb771f6f4",
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6"
+}
