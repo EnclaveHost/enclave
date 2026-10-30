@@ -1,0 +1,38 @@
+{
+  "finishedAt": 1793339726.3056357,
+  "networkNamespace": true,
+  "results": [
+    {
+      "name": "base",
+      "sha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+      "argv": [
+        "rpc",
+        "--help"
+      ],
+      "rc": 0,
+      "outputBytes": 80864
+    },
+    {
+      "name": "reth",
+      "sha256": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250",
+      "argv": [
+        "node",
+        "--help"
+      ],
+      "rc": 0,
+      "outputBytes": 58246
+    },
+    {
+      "name": "lighthouse",
+      "sha256": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96",
+      "argv": [
+        "bn",
+        "--help"
+      ],
+      "rc": 0,
+      "outputBytes": 35834
+    }
+  ],
+  "noDataDirSupplied": true,
+  "noNodeStarted": true
+}
