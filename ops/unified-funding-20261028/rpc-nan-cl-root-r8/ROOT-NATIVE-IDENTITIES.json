@@ -1,0 +1,61 @@
+{
+  "at": 1793380082.6374977,
+  "unit": "enclave-rpc-nan-cl-native-n8-20261030.service",
+  "show": "ActiveState=active\nInvocationID=ae026f555f4a47899780e985ca1eaf73\nMainPID=2938518\n",
+  "identities": [
+    {
+      "pid": 2938518,
+      "start": "168516703",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2938519,
+      "start": "168516709",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2938526,
+      "start": "168516713",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2938533,
+      "start": "168516715",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2938783,
+      "start": "168519625",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2938778,
+      "start": "168519615",
+      "exe": "/usr/bin/qemu-nbd",
+      "cwd": "/",
+      "affinity": [
+        1
+      ]
+    }
+  ]
+}

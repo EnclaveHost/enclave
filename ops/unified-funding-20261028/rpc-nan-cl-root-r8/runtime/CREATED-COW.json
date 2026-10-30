@@ -1,0 +1,7 @@
+{
+  "path": "/vm/enclave-volumes/rpc-nan-cl-n8/overlay.qcow2",
+  "device": 64769,
+  "inode": 148393125,
+  "bytes": 256216,
+  "initialSha256": "ddea119560fa26f6d193adac91c43d6eff03ef89ea4ed69d643c62f175e994bf"
+}

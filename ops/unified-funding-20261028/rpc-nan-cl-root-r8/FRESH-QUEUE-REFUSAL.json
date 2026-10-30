@@ -1,0 +1,9 @@
+{
+  "at": 1793380019.418799,
+  "invocation": "ee330669d589494cbc93cb14984eb703",
+  "exit": 98,
+  "reason": "small allocation held by journal read",
+  "childAttemptAbsent": true,
+  "remoteNotStarted": true,
+  "priorHolderTerminal": "ActiveState=inactive\nMainPID=0\n"
+}
