@@ -124,8 +124,8 @@ export function derive({ record, component }) {
   let inference = null;
   if (v4) {
     const i = r.inference;
-    if (!i || !["qwen2.5-0.5b-q8-gguf", "qwen3.8-27b-mtp-q4-vl-gguf"].includes(i.model)
-      || !Number.isInteger(i.gpuMilli) || i.gpuMilli < (i.model === "qwen2.5-0.5b-q8-gguf" ? 65 : 500) || i.gpuMilli > 1000)
+    if (!i || !["qwen2.5-0.5b-q8-gguf", "qwen3.8-27b-mtp-q4-vl-gguf", "z-image-turbo-q4km-sd"].includes(i.model)
+      || !Number.isInteger(i.gpuMilli) || i.gpuMilli < (i.model === "qwen2.5-0.5b-q8-gguf" ? 65 : i.model === "z-image-turbo-q4km-sd" ? 100 : 500) || i.gpuMilli > 1000)
       throw new Error("invalid measured inference profile");
     inference = { model: i.model, gpuMilli: i.gpuMilli };
   } else if (r.inference != null) throw new Error("inference requires V4");
