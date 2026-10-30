@@ -24,3 +24,11 @@ for line in (f'uint256 private constant HALF_N = 0x{half};', f'BOOK_KEY_REGISTRY
     assert not m.scan_text(line, 'public-source.js')
     assert any(f.rule == 'eth-key' for f in m.scan_text(line.replace('HALF_N', 'PRIVATE_KEY').replace('BOOK_KEY_REGISTRY', 'PRIVATE_KEY'), 'public-source.js'))
 print('Public-content exceptions and adjacent secret detection passed')
+
+# Exact config-line exceptions do not exempt changed or adjacent credential text.
+config = p.parent.parent / '.gitleaks.toml'
+for line in config.read_text().splitlines():
+    if m.hashlib.sha256(line.strip().encode()).hexdigest() in m.VERIFIED_CONFIG_LINES:
+        assert not m.scan_text(line, '.gitleaks.toml')
+        planted = ' privateKey = "' + secrets.token_hex(32) + '"'
+        assert any(f.rule == 'eth-key' for f in m.scan_text(line + planted, '.gitleaks.toml'))
