@@ -1,0 +1,26 @@
+{
+  "sourceRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/r1",
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-maintenance-qmp-author-r1-20261029/seed",
+  "seedEntries": 4,
+  "productPreEdits": 0,
+  "originalTestCount": 13,
+  "originalTestMethods": [
+    "test_real_pinned_render_has_only_os_and_readonly_seed",
+    "test_rejects_chain_disk_public_forward_extra_device_and_ram_drift",
+    "test_launcher_pin_drift_refused",
+    "test_active_production_refused",
+    "test_os_inode_drift_and_symlink_refused",
+    "test_sparse_copy_hash_readback_and_timeout",
+    "test_backup_failure_never_writes_prepared_or_launches",
+    "test_cleanup_cannot_stop_foreign_invocation",
+    "test_no_guest_shutdown_event_is_not_success",
+    "test_powerdown_requires_event_exit_and_inactive_unit",
+    "test_chain_uuid_or_second_disk_refuses_before_changes",
+    "test_fragment_drift_refuses_without_moving_files",
+    "test_full_mask_preserves_originals_and_removes_enablement"
+  ],
+  "originalTestsSha256": "e35025e3c119b449a558fa1965260c2245107a44d8073fb5ac5bb3a434442951",
+  "originalFailureRoot": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/postrestore-maintenance-stage/production-20261028",
+  "sourceOnly": true,
+  "limits": "Historical exact source and failure only. Original failure has no phase/trace, cause unknown. No runtime readiness or fixes proved."
+}

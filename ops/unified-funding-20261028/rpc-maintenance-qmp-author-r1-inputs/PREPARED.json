@@ -1,0 +1,58 @@
+{
+  "status": "PREPARED_NOT_LAUNCHED",
+  "priority": "ROOT_REVIEW_PENDING_NO_LAUNCH",
+  "seedEntries": 4,
+  "readonlyInputPins": 25,
+  "freshSession": true,
+  "sourceTools": [
+    "Read",
+    "Grep",
+    "Write",
+    "Edit"
+  ],
+  "turnLimit": 55,
+  "childTimeoutSec": 1800,
+  "outerTimeoutSec": 2100,
+  "queueMiB": 1536,
+  "hardMemoryMiB": 1536,
+  "rssMiB": 1408,
+  "availableMemoryFloorMiB": 27648,
+  "cpuIndex": 1,
+  "cpus": 1,
+  "swapMiB": 0,
+  "persistentTmpdir": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-maintenance-qmp-author-r1-20261029/owned-tmp",
+  "claudeExecutable": {
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "accountCheckedNow": false,
+  "productPreEdits": 0,
+  "scope": "Exact maintenance QMP transport/diagnostics source-only repair; original13tests/guestmask/guards unchanged",
+  "rootAdmissionGate": "root-author-approval.json must bind this PREPARED sha256 with launchAuthorized true; root independently checks Max first",
+  "sourceClosureLimitations": [
+    "Original tests have external metadata setup; root fixture qualification needed before execution.",
+    "Original production BlockingIOError phase/cause unknown.",
+    "This package grants no boot, retry, image/DB, resource, activation or financial action."
+  ],
+  "hashes": {
+    "ACCOUNT-PREFLIGHT.md": "ea744144afe802746f415f0c342412acbf03794429fbe350cad2eedc7a66e54d",
+    "PLAN.md": "79ed6b8829a331023da92efcaa13db0f9f6806cca2e09dcffebb9d90b9ca4480",
+    "REVIEW-STATUS.txt": "9e81936d5662fb9ddc92ccab4a22f47bdf0d9800496b0a62745e78a322286f36",
+    "SOURCE-NOTES.md": "b9593d4ab086417e4d8dbb8a5bf285d27327dd402e031fa9dc3c259b8178af48",
+    "TASK.txt": "9880a09fce546186b29c0b4e67f2be724dc5500b147fea0b3858fe8aa1f7ba96",
+    "account-requirements.json": "f7f904f166ddbb3f4c8a0c039b4a520d42823408422fbc2bc8f2861553466d34",
+    "allowed-edit-paths.json": "9cd6cfa3dae61eb3d722d6255387958c1af173d72892947f350344e35f8ab8af",
+    "collect-terminal.py": "c0a16176148b0e3abb0acd6fcb10f3aca56257246298653c53183396ac4504c5",
+    "dependency-closure.json": "5d542e6bd4fddc18b907494fae968778ec8b87b41c47240484ad44277b8f2586",
+    "input-pins.json": "77f7eeec91bab2bc482ffc235ec87cf2b99f7ed84dc08fe1090b1d497e6f9ea9",
+    "launch-command.txt": "1105d129d60143fa18073985fe3b96ccdd9f83f7fabdee1925ea1286ecb8130d",
+    "preparation-audit.json": "b1eb49361dc9e14ed6be9f447ecfefa4b8ab13a7f5c9576897235501c6e9cb77",
+    "prepare.py": "b3a862718de1c2e3dc18fd2e777b927fcb907abcec6e09a23d2004e75c19c02b",
+    "readonly-progress.py": "7657e3cf867451e36d2651f2f8ff67ca30ce88216f3c75459538ce2172b7bf61",
+    "root-preflight.py": "2883cd6a1eaa2df7a0d88e52b59b67d1c3c2b5cfadd1399ff1193fd23ea0d08d",
+    "run.py": "eb894da24ff0253e60c2aef5f7db80bb8df6aa7dc39b076793b86e81fb9d540e",
+    "seed-pins.json": "95d8ed393f86be8837ab2c06e06d745fd7e93614faac0332cc452c8d3fdf1db6",
+    "seed-provenance.json": "0e1c581b750d52b226d252bc0c3d662e64b4675008ba2e7d93bfa15a48a148d5",
+    "turn-metric-investigation.json": "9e8987ce7979409ffe37c141e2638409796b08d2f955e1fb8366880b078a3ec8"
+  }
+}

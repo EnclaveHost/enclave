@@ -1,0 +1,11 @@
+# Source navigation and constraints
+
+maint_boot.py489–536 is the existing QMP class. Constructor creates/connects before cleanup, _read restarts timeout on each recv, cmd sends no id and accepts any non-event response, events list grows, and pump uses per-read timeout. Calls at verify_prelaunch, wait_ssh, powerdown, cleanup and cmd_launch need coherent deadline propagation. Existing injected qmp factory/fake command signatures must remain supported deliberately, not through a catch-and-resend fallback.
+
+cmd_launch708+ writes single-use LAUNCHED first, reloads pins/checks backup/current identity/argv, creates an exact unique transient unit with QEMU paused, then tries QMP until qmpS deadline. verify_prelaunch must succeed before cont. The catch records only class/message before owned cleanup; finalization captures bounded console and writes RESULT. New safe phase diagnostics should help locate a future failure without claiming the prior errno11 was a QMP-connect failure.
+
+cleanup639+ queries QMP state if available, uses quit only for prelaunch or ACPI for running, then stops only the exact observed InvocationID. A bounded transport repair must not strand an owned guest or broaden cleanup to foreign units/processes. Close sockets in all terminal paths. Keep private socket path, prelaunch checks, evidence and success requirements unchanged.
+
+Original tests:10 Host methods +3 Guest methods. Host.setUp loads the captured pinned launcher from a host-specific default and reads a host-specific manifest; these tests are not currently isolated from those metadata paths. They do not authorize live image access. Preserve them byte-identically and report future harness requirements. Test source may simulate processes/files but must not call real systemd, QEMU, SSH or access images.
+
+evidence/production-failure contains original plan/PREPARED/LAUNCHED/RESULT bytes. RESULT: success=false, BlockingIOError errno11, no phase/trace, empty console, cleanup reports unitgone/pidgone. These facts cannot identify which syscall raised. evidence/captured-launcher.py is the exact matching launcher source for reference, never execute it. No manifest/image/secret from a live runtime is copied here.

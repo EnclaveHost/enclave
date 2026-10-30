@@ -1,0 +1,16 @@
+{
+  "sourceFiles": 4,
+  "candidateFiles": 4,
+  "candidateEqualsSeed": true,
+  "productPreEdits": 0,
+  "originalTests": 13,
+  "readonlyInputPins": 25,
+  "inputDrift": [],
+  "authorLaunched": false,
+  "accountCheckedNow": false,
+  "testsRun": false,
+  "buildsRun": false,
+  "imageOrDatabaseRead": false,
+  "networkOrRemoteRead": false,
+  "runtimeOrFinancialAction": false
+}
