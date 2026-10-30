@@ -1,0 +1,16 @@
+{
+  "image": "/home/steven/enclave-prod/dist-leasegas-deabf8f90/initramfs.cpio.gz",
+  "identity": [
+    64768,
+    199138992,
+    279389821,
+    1792568404185745675,
+    1792569058220039054
+  ],
+  "sha256": "c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3",
+  "targets": {
+    "app/supervisor.js": "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951",
+    "opt/metal/gsup.mjs": "c2896d743e36be8fa1832f1f6f0e41042140b61549fd780f32c1921d5a157e99",
+    "opt/metal/agent.mjs": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a"
+  }
+}

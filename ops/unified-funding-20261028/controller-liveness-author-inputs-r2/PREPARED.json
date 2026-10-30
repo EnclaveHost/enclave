@@ -1,0 +1,63 @@
+{
+  "accountCommandRunDuringPreparation": false,
+  "allowedTools": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Edit",
+    "Write"
+  ],
+  "astParsedOnly": [
+    "common.py",
+    "preflight.py",
+    "run.py",
+    "collect.py"
+  ],
+  "authorLaunched": false,
+  "buildRun": false,
+  "candidateSeedFiles": 15,
+  "claudeExecutable": {
+    "bytes": 237375560,
+    "path": "/home/steven/.local/share/claude/versions/2.1.281",
+    "realpath": "/home/steven/.local/share/claude/versions/2.1.281",
+    "sha256": "56fe3da88458465fb27d7e9299dddb3fead55750fb9c2de795f233b5eea6dce1"
+  },
+  "coldControllerActivationQualified": false,
+  "externalInputFiles": 22,
+  "hashes": {
+    "ADDENDUM-RESUME.md": "0f6ba189781a7857cf3245e3362952fe1b9fb592e47c62bdac2de04295cd43c1",
+    "LAUNCH.json": "a1b602da84a8f5bf6321ca8fff4ad43b92a8591dcc7c234422bc69491fac0d27",
+    "ROOT-REGRESSIONS.json": "68a1530a65aa1418e23264c55f806116661c10d2bbe6636e4f737c725750b3c3",
+    "SEED-PINS.json": "1a2cfcc8fc839f64fd61f3fcb7dde120525ed489f01e0f38cffc8368629292c7",
+    "SOURCE-PINS.json": "4bdc46c8af567bf80d39b50f0f54f633cd46251f1ac50424727793e41274e317",
+    "TASK.txt": "ff6a0f86a5203aa5a3993e98e46ea421d2b505692ddfc5f047af56a966f2597e",
+    "TOOL-PINS.json": "7e4a3f0fa5b6736ab030ecdc4f5a7c5921b56d4eaea1f5f7edaf51978c3de7c9",
+    "collect.py": "ce9788675f713b6ce1f6f41c95833af9b3beac90e720b082611504088d8faa81",
+    "common.py": "b66e4d20d50f075f2e4cc49103c59036f0b127b2caa74be83f4cf111cd01b2c7",
+    "preflight.py": "2642eeb5d7410b771a0fb3b4ce7d14863d8ea77f954b36868eb4f7d6e97e7b66",
+    "run.py": "abd0512622cc3219215e40925d21de0b8209d4da5319edffb52122086e896379"
+  },
+  "limits": {
+    "childTimeoutSeconds": 900,
+    "cpu": 1,
+    "floorMiB": 27648,
+    "maxTurns": 30,
+    "memoryMiB": 1536,
+    "outerTimeoutSeconds": 1200,
+    "rssMiB": 1408,
+    "swapMiB": 0
+  },
+  "outerControllerMemoryMiB": 128,
+  "requiredAccount": {
+    "email": "steven.r.batchelor@gmail.com",
+    "loggedIn": true,
+    "subscriptionType": "max"
+  },
+  "revision": "r2-resume-deferral",
+  "rootAndRunnerIndependentAccountVerification": true,
+  "rootRegressionScenarios": 16,
+  "scope": "source-only-controller-liveness-author",
+  "status": "PREPARED_NOT_LAUNCHED",
+  "supersedesDeliverySha256": "5c2bb8bb052c12b664ffe1e1555b2b00578144965a2664b32b83b23ee3988a8f",
+  "testsRun": false
+}

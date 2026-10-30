@@ -1,0 +1,22 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-installed-image-read-r1/read.py",
+    "sha256": "288c540e66fcd64a9a71b04b7fab45899236f5260e05ca06707d790972d94284"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/controller-installed-image-read-r1/INPUT.json",
+    "sha256": "28f661a6460681217441483c439bcbb6f666d2dcebf1f535d34cc4217bf372be"
+  },
+  {
+    "path": "/usr/bin/python3",
+    "sha256": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+    "sha256": "969d9273e53c79abf8604c363daa58b41a462bc4b7f3d03d813980edb771f6f4"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+    "sha256": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6"
+  }
+]
