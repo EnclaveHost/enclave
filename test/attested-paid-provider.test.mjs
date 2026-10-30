@@ -197,11 +197,14 @@ async function startBackend(upstream) {
 let worldP = null;
 const world = () => (worldP ||= (async () => {
   const port = await freePort();
-  const anvil = spawn('anvil', ['--port', String(port), '--chain-id', '8453', '--network', 'optimism', '--silent', '--code-size-limit', '30000', '--block-time', '1'], { stdio: 'ignore' });
+  const anvil = spawn('anvil', ['--port', String(port), '--chain-id', '8453', '--optimism', '--silent', '--code-size-limit', '30000', '--block-time', '1'], { stdio: ['ignore', 'ignore', 'pipe'] });
+  let startupError = '', spawnFailed = false;
+  anvil.stderr.on('data', (b) => { startupError = (startupError + b).slice(-4000); });
+  anvil.on('error', (e) => { startupError = e.message; spawnFailed = true; });
   children.push(anvil);
   const rpc = `http://127.0.0.1:${port}`, chain = defineChain({ id: 8453, name: 'anvil', nativeCurrency: { name: 'E', symbol: 'E', decimals: 18 }, rpcUrls: { default: { http: [rpc] } } });
   const pub = createPublicClient({ chain, transport: viemHttp(rpc) });
-  for (let i = 0; ; i++) { try { await pub.getBlockNumber(); break; } catch { if (i > 150) throw new Error('anvil did not start'); await sleep(100); } }
+  for (let i = 0; ; i++) { try { await pub.getBlockNumber(); break; } catch { if (anvil.exitCode !== null || spawnFailed || i > 150) throw new Error('anvil did not start: ' + startupError); await sleep(100); } }
   const wc = (who) => createWalletClient({ account: ACC[who], chain, transport: viemHttp(rpc) });
   const rawRpc = async (method, params = []) => { const r = await fetch(rpc, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) }); const j = await r.json(); if (j.error) throw new Error(j.error.message); return j.result; };
   const deploy = async (abi, bytecode, args = []) => { const r = await pub.waitForTransactionReceipt({ hash: await wc('admin').deployContract({ abi, bytecode, args }) }); assert.equal(r.status, 'success'); return r.contractAddress.toLowerCase(); };

@@ -117,8 +117,8 @@ test("move: the actual source releases only after the ledger shows it, the quoru
   const before = await get(id);
   const x = await cli(["move", id, TARGET, ...mg]);
   assert.equal(x.code, 0, x.err + x.out);
-  assert.match(x.out, /the source reports the lease released \(0x[0-9a-f]{64}\); confirming on the quorum/);
-  assert.match(x.out, /lease released \(quorum, block \d+\)/);
+  assert.match(x.out, /the source host reports its release receipt \(0x[0-9a-f]{64}\) \(the host's claim, not verified here\); reading the quorum/);
+  assert.match(x.out, /no runner on the ledger \(quorum, blocks \d+\.\.\d+\)/);
   assert.match(x.out, /running on 0x[0-9a-f]{8}… now \(quorum, block \d+\)/);
   const after = await get(id);
   assert.equal(after.runner.toLowerCase(), TARGET.toLowerCase());
@@ -148,7 +148,7 @@ test("move back: a slow release answer is delivered (not cut by re-authorization
   const x = await cli(["move", id, r.runner, "--wait", "12", ...mg]);
   tgt.mode.release = undefined;
   assert.equal(x.code, 0, x.err + x.out);
-  assert.match(x.out, /the source reports the lease released \(0x[0-9a-f]{64}\)/, "the answer arrived although the lease ended under it");
+  assert.match(x.out, /the source host reports its release receipt \(0x[0-9a-f]{64}\) \(the host's claim, not verified here\)/, "the answer arrived although the lease ended under it");
   assert.match(x.out, /declines: management claimHint refused \(HTTP 503\).*not claiming/);
   assert.match(x.out, /released and queued: no host has claimed it within 12s/);
   assert.match((await get(id)).runner, /^0x0{64}$/);
@@ -165,7 +165,7 @@ test("move: a lost release answer is decided by the quorum, never resent", T, as
   tgt.mode.release = undefined;
   assert.equal(x.code, 0, x.err + x.out);
   assert.match(x.out, /release answer: .*\(outcome unknown\); reading the quorum/);
-  assert.match(x.out, /lease released \(quorum, block \d+\)/);
+  assert.match(x.out, /no runner on the ledger \(quorum, blocks \d+\.\.\d+\)/);
   assert.deepEqual(tgt.chainEffects, ["claim", "release", "release"], "exactly one release for this move (the claim above was the test's own)");
   assert.match((await get(id)).runner, /^0x0{64}$/);
   noEnclave();

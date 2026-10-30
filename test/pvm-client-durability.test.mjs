@@ -1,7 +1,7 @@
 // The installed client's rollback memory under crashes, stalls, concurrency and failed writes (client/DESIGN.md "State").
 // Every interleaving is forced by a deterministic barrier -- a carrier that holds a request until the test releases it, or
 // a driver process that pauses between reading the state and committing (test/fixtures/pvm-client-store-driver.mjs) --
-// never by timing. The first test reproduces the audit finding on the shipped 0.1.0 artifact (4e55879b) with the same
+// never by timing. The first test reproduces the audit finding on the shipped 0.1.0 artifact (d1bed366ff7bd71a133d8d5ca735e90b1d81415f) with the same
 // barriers the fixed 0.2.0 client then survives.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -78,8 +78,7 @@ async function barrierRun(bin, label) {   // the crash/stall and the overlap, wi
 
 test("the finding, reproduced on the shipped 0.1.0 artifact: a kill at a stalled carrier and an overlapping older run bring the floor back", async (t) => {
   const old = path.join(tmp("pvm-010-"), "pvm-client-0.1.0.mjs");
-  try { fs.writeFileSync(old, execFileSync("git", ["show", "4e55879b:shielded/anchor/avf/client/dist/pvm-client.mjs"], { cwd: new URL("..", import.meta.url).pathname })); }
-  catch { t.skip("4e55879b not in this checkout"); return; }
+  fs.writeFileSync(old, execFileSync("git", ["show", "d1bed366ff7bd71a133d8d5ca735e90b1d81415f:shielded/anchor/avf/client/dist/pvm-client.mjs"], { cwd: new URL("..", import.meta.url).pathname }));
   assert.equal(sha(fs.readFileSync(old)), "52d4483245eeb4fa37f4f57eb2c7e416a9c5c57c54d1436dabffdae6f230897c");
   const o = await barrierRun(old, "010");
   assert.equal(o.serialAtBarrier, 1, "0.1.0: the accepted policy is not recorded when its evidence request is already out");
@@ -224,8 +223,7 @@ async function sameVersionRestage(bin) {
 }
 test("the update finding, reproduced on the shipped 0.2.0 artifact and refused by the current one: a refused same-version re-stage must leave the staged bytes untouched", async (t) => {
   const old = path.join(tmp("pvm-020-"), "pvm-client-0.2.0.mjs");
-  try { fs.writeFileSync(old, execFileSync("git", ["show", "6784f671:shielded/anchor/avf/client/dist/pvm-client.mjs"], { cwd: new URL("..", import.meta.url).pathname })); }
-  catch { t.skip("6784f671 not in this checkout"); return; }
+  fs.writeFileSync(old, execFileSync("git", ["show", "d0e24ebb8525ffc16cdf8a9ee089ba2ba6e06ae0:shielded/anchor/avf/client/dist/pvm-client.mjs"], { cwd: new URL("..", import.meta.url).pathname }));
   assert.equal(sha(fs.readFileSync(old)), "3782de92df2ecc0d13262fc94470b90e694654f35452211b68073468b3f1ded6");
   const o = await sameVersionRestage(old);
   assert.equal(o.a.ok, true); assert.equal(o.b.ok, false); assert.notEqual(o.bCode, 0); assert.match(o.b.reasons[0], /already staged: 9\.3\.0 cannot replace it/);

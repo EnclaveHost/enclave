@@ -3,7 +3,7 @@
 // policy server that holds each tab's policy until the test releases it -- never timing. The browser is killed (SIGKILL,
 // the whole process group: harsher than closing the tab) while its page is stalled at the carrier, then relaunched on the
 // same profile with its session files removed (no restored tab may re-run a page). The shipped 0.1.0 extension
-// (4e55879b) reproduces the audit finding; 0.2.0 keeps the newer floor and serializes tabs under its lock.
+// (d1bed366ff7bd71a133d8d5ca735e90b1d81415f) reproduces the audit finding; 0.2.0 keeps the newer floor and serializes tabs under its lock.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -106,7 +106,7 @@ async function stallKillRollback(zipBytes, v2) {
 const skip = (!fs.existsSync(CFT) && "no Chrome for Testing") || (!fs.existsSync(ZIP) && "no built extension");
 
 test("the finding, in a real browser on the shipped 0.1.0 extension: killed while stalled at the carrier, it forgets the newer policy and accepts the older", { skip, timeout: 180000 }, async () => {
-  const old = execFileSync("git", ["-C", REPO, "show", "4e55879b:shielded/anchor/avf/client/dist/pvm-client-ext.zip"], { maxBuffer: 1 << 26 });
+  const old = execFileSync("git", ["-C", REPO, "show", "d1bed366ff7bd71a133d8d5ca735e90b1d81415f:shielded/anchor/avf/client/dist/pvm-client-ext.zip"], { maxBuffer: 1 << 26 });
   assert.equal(sha(old), "8235d20cf437a58076556beea427e10caf8858668c8a894da5e1f7ae0687ac53", "the shipped 0.1.0 extension");
   const o = await stallKillRollback(old, false);
   console.log("0.1.0", JSON.stringify(o));

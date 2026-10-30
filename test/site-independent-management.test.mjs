@@ -546,8 +546,8 @@ test("a passkey account (Safe) as the identity: Manage signs with the account's 
 
   // 2) release the second record from the vault to the Safe (Environment tab, a passkey-signed owner operation). A record the
   //    Safe holds itself is managed only once the Safe lets its vault act for it on the ledger; this rig's ledger (the
-  //    repository's HEAD source) has no setDelegate, so the panel says so and offers nothing to sign (the Safe's delegation
-  //    against the deployed ledger is exercised on the Base fork, test/site-independent-passkey-ui.test.mjs)
+  //    current source) supports delegation, but never grants it just because the account signed in.
+  //    The panel must offer an explicit passkey approval while management remains refused until it is granted.
   await page.goto(DASH + "/dashboard");
   await page.evaluate(() => customElements.whenDefined("c-deployments"));
   await page.locator(".enc-search").fill(toSafe.slice(2, 14));
@@ -560,8 +560,8 @@ test("a passkey account (Safe) as the identity: Manage signs with the account's 
   const g0 = sup.hits.length;
   const refusedOut = await click(row, ".em-status");
   assert.match(refusedOut, /\[x\]/); assert.equal(sup.hits.length, g0, "the host did not act for an undelegated Safe-held record");
-  await page.waitForFunction(() => /Your passkey account holds this deployment, and this ledger cannot let a session vault act for it/.test(document.querySelector(".enc-mgmt-deleg")?.textContent || ""), null, { timeout: 30000 });
-  assert.equal(await row.locator(".em-deleg-go").count(), 0, "nothing to sign on a ledger without delegation");
+  await page.waitForFunction(() => /one passkey approval; your wallet pays gas/.test(document.querySelector(".enc-mgmt-deleg")?.textContent || ""), null, { timeout: 30000 });
+  assert.equal(await row.locator(".em-deleg-go").isEnabled(), true, "delegation requires the account's explicit approval");
 
   // 3) back to the wallet identity: the account's records are not this identity's, refused before any request
   await page.locator(".acct-wallet").click();

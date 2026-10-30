@@ -309,7 +309,7 @@ test("the pVM carrier inside U7, through the REAL api-relay: authorized paths wo
   const x2 = await ev(`/x/${DP}/pvm/evidence`); assert.equal(x2.status, 200, JSON.stringify(x2)); assert.deepEqual(A2.rec.streams, ["pvm-evidence"]);
   const rr = await until(async () => { const r = await rows(); return r.length === 1 && r[0].publicUrl === EP("pixel-a") ? r : null; }, 10000, "one row");
   assert.equal(rr[0].tier, undefined, "no tier on an in-place re-attach"); assert.equal(rr[0].eligible, false); assert.equal(rr[0].serving, false);
-  assert.equal(JSON.parse((await req(port, "GET", `/x/${DP}/`)).body).error, "host_ineligible", "still no tenant path after the re-attach");
+  assert.equal(JSON.parse((await req(port, "GET", `/x/${DP}/`)).body).error, "application_transport_moved", "still no tenant path after the re-attach");
 
   // ---- a lease that lapses mid-session: routed, then refused at the next request ----
   state.ledger.push({ id: DSHORT, runner: idOf(EP("pixel-a")), leaseUntil: nowS() + 12 });

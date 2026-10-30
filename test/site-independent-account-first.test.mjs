@@ -48,6 +48,8 @@ test.before(async () => {
       "--base-fee", "0", "--prune-history", "4", "--transaction-block-keeper", "16"], { stdio: "ignore" });
     cleanups.push(() => anvil.kill("SIGKILL"));
     for (let i = 0; i < 120; i++){ try { await rpc("eth_chainId", []); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
+    // Keep historical contract state while satisfying the live block-freshness policy locally.
+    await rpc("evm_setNextBlockTimestamp", [Math.floor(Date.now() / 1000)]); await rpc("evm_mine", []);
     // the TEST's own key: it deploys the repository's ledger/factory/catalog and publishes an app - never in the page
     driver = privateKeyToAccount(generatePrivateKey());
     await rpc("anvil_setBalance", [driver.address, "0x56bc75e2d63100000"]);

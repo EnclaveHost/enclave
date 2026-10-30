@@ -50,6 +50,8 @@ test.before(async () => {
       "--prune-history", "4", "--transaction-block-keeper", "16"], { stdio: "ignore" });   // bounded anvil memory: only recent block states are kept
     cleanups.push(() => anvil.kill("SIGKILL"));
     for (let i = 0; i < 120; i++){ try { await rpc("eth_chainId", []); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
+    // Keep the forked state but mine a current local block; live freshness checks stay enabled.
+    await rpc("evm_setNextBlockTimestamp", [Math.floor(Date.now() / 1000)]); await rpc("evm_mine", []);
     // a fresh gas payer, unlocked locally (it owns nothing; it only pays gas)
     payer = privateKeyToAccount(generatePrivateKey());
     await rpc("anvil_setBalance", [payer.address, "0x56bc75e2d63100000"]);

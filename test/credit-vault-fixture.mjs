@@ -1,5 +1,5 @@
 // Shared rig for the credit-vault independence tests (test/credit-vault-independent.test.mjs, test/credit-vault-browser
-// .test.mjs): anvil with RIP-7212 (--network optimism), two loopback RPC origins in front of it, the PRODUCTION credit-vault
+// .test.mjs): anvil with RIP-7212 (--optimism), two loopback RPC origins in front of it, the PRODUCTION credit-vault
 // factory bytecode (test/fixtures/credit-vault-d36100ae.json) deployed twice (an older and the book's current factory),
 // the live rev-16d ledger + schema-4 registry + the real address book (test/fixtures/credit-vault-independence-chain.json),
 // and a P-256 "passkey" that answers navigator.credentials.get exactly as an authenticator does.
@@ -74,11 +74,14 @@ export async function rpcProxy(target){
 }
 export async function startChain(chainId, stops){
   const port = await freePort();
-  const anvil = spawn("anvil", ["--port", String(port), "--chain-id", String(chainId), "--network", "optimism", "--silent", "--code-size-limit", "30000"], { stdio: "ignore" });
+  const anvil = spawn("anvil", ["--port", String(port), "--chain-id", String(chainId), "--optimism", "--silent", "--code-size-limit", "30000"], { stdio: ["ignore", "ignore", "pipe"] });
+  let startupError = "", spawnFailed = false;
+  anvil.stderr.on("data", (b) => { startupError = (startupError + b).slice(-4000); });
+  anvil.on("error", (e) => { startupError = e.message; spawnFailed = true; });
   stops.push(() => anvil.kill("SIGKILL"));
   const url = `http://127.0.0.1:${port}`;
   const pub = createPublicClient({ transport: viemHttp(url) });
-  for (let i = 0; ; i++){ try { await pub.getChainId(); break; } catch { if (i > 150) throw new Error("anvil did not start"); await sleep(100); } }
+  for (let i = 0; ; i++){ try { await pub.getChainId(); break; } catch { if (anvil.exitCode !== null || spawnFailed || i > 150) throw new Error("anvil did not start: " + startupError); await sleep(100); } }
   const proxies = [await rpcProxy(url), await rpcProxy(url)];
   stops.push(() => proxies.forEach((p) => p.close()));
   const wallet = (k) => createWalletClient({ account: ACCT[k], transport: viemHttp(url), chain: { id: chainId, name: "anvil", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [url] } } } });

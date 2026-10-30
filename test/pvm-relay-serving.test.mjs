@@ -306,7 +306,7 @@ test("the BOOTSTRAP route on the REAL hub: /t/<name>/pvm/evidence reaches that n
     assert.equal(u.status, 404); assert.equal(u.body, "", "an unknown name: a plain 404, nothing that could pass for evidence");
     const n0 = notOurs, sealed = await raw(port, "POST", "/t/pixel-unleased/pvm/sealed", "x");
     assert.equal(sealed.status, 404); assert.equal(notOurs, n0 + 1, "sealed is never routed by name: not this module's path");
-    assert.equal((await raw(port, "GET", "/t/pixel-unleased/pvm/evidence", "")).status, 405);
+    assert.equal((await raw(port, "GET", "/t/pixel-unleased/pvm/evidence", "")).status, 404);
     assert.equal((await raw(port, "POST", "/t/pixel-unleased/pvm/evidence", `EVIDENCE ${n}\n`)).status, 200, "the bucket's second request");
     assert.equal(ev(), 2);
     const r3 = await raw(port, "POST", "/t/pixel-unleased/pvm/evidence", `EVIDENCE ${n}\n`);

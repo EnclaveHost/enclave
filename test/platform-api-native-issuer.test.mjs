@@ -506,7 +506,7 @@ test('total loss: the admin recovers the group from one sink\'s pair; the restor
   assert.equal((await peerPost(M[0], BOOTSTRAP_PATH, pkg)).status, 200);
   await waitFor('every fresh member holds the key', () => M.every((m) => m.role.status().haveKey), 60000);
   const lead = await waitFor('a primary', () => leaderOf(M), 60000);
-  assert.equal(issuerOf(lead).state, 'active', 'the restored credentials started the issuer');
+  await waitFor('the restored credentials started the issuer', () => issuerOf(lead).state === 'active', 30000);
   await waitFor('every fresh boot issued from the recovered CA credentials', async () => (await Promise.all(M.map((m) => bothNames(m, m.config.nativeControl.names)))).every(Boolean), 90000);
   assert.ok(!logs.join('\n').includes(NCA.keyLine));
 });

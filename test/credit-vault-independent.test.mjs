@@ -2,7 +2,7 @@
 // cli/credit-vault.mjs). Everything that decides authority is real: the PRODUCTION credit-vault factory bytecode
 // (test/fixtures/credit-vault-d36100ae.json, origin https://enclave.host), the live rev-16d ledger and schema-4 registry
 // sources (test/fixtures/credit-vault-independence-chain.json), the real address book, anvil's RIP-7212 P-256 precompile
-// (--network optimism), P-256 passkey assertions signed by @noble/curves in the exact WebAuthn shape, the site's own
+// (--optimism), P-256 passkey assertions signed by @noble/curves in the exact WebAuthn shape, the site's own
 // quorum reader over two RPC origins, the CLI and its relay as separate code paths. Stand-ins: MockUSDC (a settled card
 // top-up is modelled as USDC minted to the vault, which is what the relay's float deposit amounts to) and the ETH/USD feed.
 // Runs inside an unshared network namespace (test/run-credit-vault.sh): no Enclave API, RPC or DNS is reachable, and a

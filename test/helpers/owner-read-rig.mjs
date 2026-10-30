@@ -63,7 +63,10 @@ export async function ownerReadWorld() {
   const wallet = (a) => createWalletClient({ account: a, chain, transport: viemHttp(url) });
   const send = async (a, address, abi, functionName, args) => {
     const r = await pub.waitForTransactionReceipt({ hash: await wallet(a).writeContract({ address, abi, functionName, args }) });
-    if (r.status !== "success") throw new Error(`${functionName} reverted`); return r;
+    if (r.status !== "success") throw new Error(`${functionName} reverted`);
+    // The CLI reads one confirmed block; make this fixture write visible there.
+    await pub.request({ method: "evm_mine", params: [] });
+    return r;
   };
   const deploy = async (a, c, args = []) => (await pub.waitForTransactionReceipt({ hash: await wallet(a).deployContract({ abi: c.abi, bytecode: c.bytecode, args }) })).contractAddress.toLowerCase();
   const deployer = await acct(), enclaveWallet = await acct();

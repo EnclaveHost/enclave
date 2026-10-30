@@ -19,7 +19,7 @@ try { ({ chromium } = require("playwright")); } catch {}
 const skip = haveTools() || (!chromium && "needs Playwright (cd e2e && npm ci) and its Chromium");
 
 let rig, browser, context, page;
-const requests = [], refused = [], pageErrors = [];
+const requests = [], refused = [], pageErrors = [], hostProbes = [];
 
 test.before(async () => {
   if (skip) return;
@@ -34,6 +34,18 @@ test.before(async () => {
   // Enclave refuses service: every enclave.host origin (API, upload gateway, site, DNS names) is unreachable.
   await context.route((url) => /(^|\.)enclave\.host$/i.test(url.hostname) || /upload-token/.test(url.pathname), (route) => {
     refused.push(route.request().url()); return route.abort("blockedbyclient");
+  });
+  // The rig's registered hosts are unresolvable *.independent.test names. The page's admission read probes only their
+  // signed capacity record (js/core/host-liveness.js, GET <endpoint>/v1/host/capacity); answered here, locally, as a host
+  // publishing none (404) - liveness then rests on the registry write alone. Any other path to them is refused.
+  const hostNames = new Set([rig.endpoint, rig.endpoint2].map((e) => new URL(e).hostname));
+  await context.route((url) => hostNames.has(url.hostname), (route) => {
+    const u = new URL(route.request().url());
+    if (route.request().method() === "GET" && u.pathname === "/v1/host/capacity" && !u.search) {
+      hostProbes.push(u.href);
+      return route.fulfill({ status: 404, headers: { "access-control-allow-origin": "*", "content-type": "text/plain" }, body: "no capacity record" });
+    }
+    refused.push(u.href); return route.abort("blockedbyclient");
   });
   context.on("request", (r) => requests.push(r.url()));
   await context.addInitScript({ content: walletScript({ rpc: rig.rpc, address: rig.owner }) });
@@ -137,16 +149,28 @@ test("publish through the real form: local CID, one signature per adapter, two o
 test("deploy and fund on the pinned ledger at the registry's price; an independent host claims; the list shows it", { skip, timeout: 180000 }, async () => {
   assert.ok(appId, "needs the published app");
   await walletReady();
-  await page.evaluate(async (ref) => {
-    const m = await import("/js/pages/deploy.js");
-    await m.deployOnChain({ reference: ref, gpuMilli: 0, cpuMilli: 100, ports: "", isPublic: true, fundUsd: 1, asset: "USDC" });
-  }, `catalog://${appId}/0`);
+  // the deploy's toasts (refusals) are returned so a missing record names its cause
+  const deployOnce = (ref) => page.evaluate(async (ref) => {
+    const toasts = [], on = (e) => toasts.push(String(e.detail && e.detail.message));
+    document.addEventListener("enclave:toast", on);
+    try { await (await import("/js/pages/deploy.js")).deployOnChain({ reference: ref, gpuMilli: 0, cpuMilli: 100, ports: "", isPublic: true, fundUsd: 1, asset: "USDC" }); }
+    finally { document.removeEventListener("enclave:toast", on); }
+    return toasts;
+  }, ref);
+  // an owner's own public release stays pending until the catalog admin approves it: no record, no signature
+  const n0 = (await ownedIds()).length;
+  const pending = await deployOnce(`catalog://${appId}/0`);
+  assert.ok(pending.some((t) => /^Deploy refused: /.test(t)), "a pending release is refused: " + JSON.stringify(pending));
+  assert.equal((await ownedIds()).length, n0, "no record for a pending release");
+  await rig.write(rig.wc(KEYS.deployer), rig.addresses.catalog, rig.abi.catalog, "setApproval", [appId, 0n, 1]);
+  const toasts = await deployOnce(`catalog://${appId}/0`);
   let row;
   for (let i = 0; i < 120 && !row; i++){
     row = (await ownedIds()).find((d) => d.owner.toLowerCase() === rig.owner.toLowerCase() && d.balance6 > 0n);
     if (!row) await new Promise((r) => setTimeout(r, 500));
   }
-  assert.ok(row, "a funded deployment owned by the wallet exists");
+  assert.ok(row, "a funded deployment owned by the wallet exists; deploy toasts: " + JSON.stringify(toasts)
+    + "; run log: " + JSON.stringify(((await page.locator("body").textContent().catch(() => "")) || "").match(/\[(x|!)\][^\n]{0,200}/g)));
   depId = row.id;
   assert.equal(row.appRef, `catalog://${appId}/0`);
   const cap = await rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.abi.ledger, functionName: "capOf", args: [depId] });
@@ -635,7 +659,11 @@ test("Connect: a native-client starting profile from the network profile's pins,
 test("nothing reached Enclave: no enclave.host request, no upload-token call, no other origin", { skip }, () => {
   if (process.env.IND_DEBUG) console.log({ refused, hosts: [...new Set(requests.map((u) => new URL(u).host))], pageErrors });
   assert.deepEqual(refused, [], "the browser never tried an Enclave origin");
-  const hosts = new Set(requests.map((u) => new URL(u).hostname));
+  // the registered hosts' own capacity probes were answered by the local fixture above (and only that path, GET)
+  const hostOrigins = new Set([rig.endpoint, rig.endpoint2].map((e) => new URL(e).origin));
+  for (const u of requests.filter((u) => hostOrigins.has(new URL(u).origin)))
+    assert.ok(hostProbes.includes(u), "only the local capacity fixture answered a registered host: " + u);
+  const hosts = new Set(requests.filter((u) => !hostOrigins.has(new URL(u).origin)).map((u) => new URL(u).hostname));
   for (const h of hosts) assert.ok(["localhost", "127.0.0.1", "127.0.0.2"].includes(h), "unexpected origin " + h);
   assert.deepEqual(pageErrors.filter((e) => !/ResizeObserver/.test(e)), [], "no uncaught page errors");
 });

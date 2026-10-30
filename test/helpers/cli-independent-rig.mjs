@@ -95,7 +95,7 @@ export async function startRig() {
     process.once("exit", killAnvil);   // even a crashed test process leaves no chain behind
     stops.push(() => { process.removeListener("exit", killAnvil); killAnvil(); });
     const rpc = `http://127.0.0.1:${anvilPort}`;
-    const pc = createPublicClient({ chain, transport: viemHttp(rpc) });
+    const pc = createPublicClient({ chain, transport: viemHttp(rpc), cacheTime: 0 });
     for (let i = 0; i < (reth ? 600 : 100); i++) { try { await pc.getChainId(); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
     const wc = (key) => createWalletClient({ chain, account: privateKeyToAccount(key), transport: viemHttp(rpc) });
     const dep = wc(KEYS.deployer);
@@ -415,7 +415,16 @@ export async function startStorage(r, { dir }) {
 export async function startActualHost(r, { id, owner, dir, token, host = { key: KEYS.operator, endpoint: r.endpoint }, leaseUntil,
   rpc = r.rpc, claim = false, env = {}, stateFile = null, seed = true, script = "supervisor.js", appRef = r.appRef,
   preload = path.join(REPO, "test/helpers/loopback-only-fetch.mjs") }) {
+  // Preserve the host's keys across process restarts, independently of its deployment state file.
+  // CI has no writable /mnt/ramdisk; each rig owns and removes its own key directories.
+  r.hostKeyDirs ??= new Map();
+  if (!r.hostKeyDirs.has(host.endpoint)) {
+    const keys = fs.mkdtempSync(path.join(os.tmpdir(), "move-host-keys-"));
+    r.hostKeyDirs.set(host.endpoint, keys);
+    r.stops.push(() => fs.rmSync(keys, { recursive: true, force: true }));
+  }
   const effects = [], mode = {}, vmId = "vm-move-1";
+  let vmPresent = seed;
   const manager = http.createServer(async (req, res) => {
     const raw = await body(req);
     const json = (status, v) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(v)); };
@@ -423,15 +432,17 @@ export async function startActualHost(r, { id, owner, dir, token, host = { key: 
     if (req.method === "DELETE" && u.pathname.startsWith("/vms/")) {
       if (mode.deleteDelayMs) await new Promise((ok) => setTimeout(ok, mode.deleteDelayMs));
       effects.push({ delete: u.pathname.slice(5), refused: mode.stop === "fail" });
+      if (mode.stop !== "fail") vmPresent = false;
       return mode.stop === "fail" ? json(500, { error: "manager busy" }) : json(200, {});
     }
     if (req.method === "POST" && u.pathname === "/vms") {
       let name = null; try { name = JSON.parse(raw).name || null; } catch {}
+      vmPresent = true;
       effects.push({ launched: true, name, at: Date.now() });   // name: the deployment id the supervisor launches
       return json(201, { id: vmId, hostPort: 0, status: "running" });
     }
-    if (req.method === "GET" && u.pathname === "/vms") return json(200, mode.stop === "fail" ? [{ id: vmId, name: id, status: "running" }] : []);
-    if (req.method === "GET" && u.pathname.startsWith("/vms/")) return json(200, { id: vmId, status: "running" });
+    if (req.method === "GET" && u.pathname === "/vms") return json(200, vmPresent ? [{ id: vmId, name: id, status: "running" }] : []);
+    if (req.method === "GET" && u.pathname.startsWith("/vms/")) return vmPresent ? json(200, { id: vmId, status: "running" }) : json(404, { error: "not found" });
     return json(200, { ok: true });
   });
   r.stops.push(r.closeServer(manager));
@@ -455,7 +466,7 @@ export async function startActualHost(r, { id, owner, dir, token, host = { key: 
   const port = await freePort();
   const child = spawn(process.execPath, ["--import", preload, script], {
     cwd: REPO, stdio: ["ignore", "pipe", "pipe"],
-    env: { PATH: process.env.PATH, HOME: dir, SECRET: "move-fixture-secret", PORT: String(port), ENABLE_MPS: "0", STATE_FILE: stateFile, GPU_COUNT: "0",
+    env: { PATH: process.env.PATH, HOME: dir, SECRET: "move-fixture-secret", PORT: String(port), ENABLE_MPS: "0", STATE_FILE: stateFile, GPU_COUNT: "0", SESSION_KEY_DIR: r.hostKeyDirs.get(host.endpoint),
       PROVISION_BACKEND: "vm", VMMGR_URL: `http://127.0.0.1:${manager.address().port}`, BASE_RPC: rpc, BASE_RPCS: rpc, ENCLAVE_CONTRACT_PINS_FILE: pinFile,
       ADDRESS_BOOK_ADDRESS: "", PUBLIC_URL: host.endpoint, REGISTRY_PRIVATE_KEY: host.key, MANAGEMENT_GATEWAY: "1", MANAGEMENT_GATEWAY_TOKEN: token,
       MOVE_HOLDOFF_SEC: "30", SECRETS_API: "", DOMAINS_API: "", CERTS_API: "", DNS_API: "", APP_CERT_DOMAIN: "",
