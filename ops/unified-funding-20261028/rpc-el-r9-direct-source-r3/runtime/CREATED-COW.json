@@ -1,0 +1,7 @@
+{
+  "path": "/vm/enclave-volumes/rpc-control-l1-client-r9/overlay.qcow2",
+  "device": 64769,
+  "inode": 148393144,
+  "bytes": 256216,
+  "initialSha256": "a7d5b69a999f02a29332809042d42d4a99ebaced1155c12979faec5d02ad4be7"
+}

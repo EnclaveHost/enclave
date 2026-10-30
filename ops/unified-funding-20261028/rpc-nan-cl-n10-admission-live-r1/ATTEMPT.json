@@ -1,0 +1,11 @@
+{
+  "at": 1793390582.6953652,
+  "scope": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p3030237-i44979918.scope",
+  "pinsSha256": "d90427587ddc020bc1cf200533233c86069ef11f71e731f2f3a0a9b1d902d64f",
+  "privateCowOnly": true,
+  "noRetry": true,
+  "admissionMetadataSha256": {
+    "ROOT-ADMISSION.json": "02b30ad26e21de4cd00c459d1d9594671a95bdd5c4d0d21e182a56234bdabb0a",
+    "FRESH-OBSERVATION.json": "2cb00c5d241c139ed93c2fbff51d12a695ebc85997b0e89d65d2084447f733a9"
+  }
+}

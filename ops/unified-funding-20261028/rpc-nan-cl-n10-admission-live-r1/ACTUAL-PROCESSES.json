@@ -1,0 +1,67 @@
+{
+  "at": 1793390597.2939856,
+  "unit": "enclave-rpc-nan-cl-n10-prepared-r1-20261030.service",
+  "manager": "ActiveState=active\nInvocationID=788a6b50252d41b893d1aeb9d95f481b\nMainPID=3030236\nResult=success\n",
+  "processes": [
+    {
+      "pid": 3030236,
+      "ppid": 1899,
+      "startTicks": 169569607,
+      "exe": "/usr/bin/python3.14",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-nan-cl-n10-prepared-r1-20261030.service",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 3030237,
+      "ppid": 3030236,
+      "startTicks": 169569613,
+      "exe": "/usr/bin/node",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p3030237-i44979918.scope",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 3030244,
+      "ppid": 3030237,
+      "startTicks": 169569617,
+      "exe": "/usr/bin/node",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p3030237-i44979918.scope",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 3030251,
+      "ppid": 3030244,
+      "startTicks": 169569620,
+      "exe": "/usr/bin/python3.14",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p3030237-i44979918.scope",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 3030508,
+      "ppid": 3030251,
+      "startTicks": 169571063,
+      "exe": "/usr/bin/scp",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p3030237-i44979918.scope",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 3030509,
+      "ppid": 3030508,
+      "startTicks": 169571063,
+      "exe": "/usr/bin/ssh",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p3030237-i44979918.scope",
+      "affinity": [
+        1
+      ]
+    }
+  ]
+}

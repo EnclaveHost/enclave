@@ -1,0 +1,34 @@
+{
+  "authorized": true,
+  "scope": "actual-nan-cl-bounded-client-n10",
+  "runtimePinsSha256": "d90427587ddc020bc1cf200533233c86069ef11f71e731f2f3a0a9b1d902d64f",
+  "observationSha256": "2cb00c5d241c139ed93c2fbff51d12a695ebc85997b0e89d65d2084447f733a9",
+  "observedPendingMiB": 0,
+  "ordinaryOsExecutables": [
+    "/usr/bin/dbus-daemon",
+    "/usr/bin/sleep",
+    "/usr/bin/udevadm",
+    "/usr/lib/polkit-1/polkitd",
+    "/usr/lib/systemd/systemd",
+    "/usr/lib/systemd/systemd-journald",
+    "/usr/lib/systemd/systemd-networkd",
+    "/usr/lib/systemd/systemd-resolved",
+    "/usr/lib/systemd/systemd-timesyncd",
+    "/usr/sbin/atd",
+    "/usr/sbin/cron",
+    "/usr/sbin/multipathd",
+    "/usr/sbin/qemu-ga",
+    "/usr/sbin/rsyslogd",
+    "/usr/sbin/sshd"
+  ],
+  "existingOtherProcesses": [
+    "500189:1075251477:/usr/bin/sudo",
+    "500190:1075251478:/usr/bin/systemd-run",
+    "500191:1075251479:/usr/bin/python3.12",
+    "1281392:867080689:/usr/bin/bash"
+  ],
+  "creatorCmdlineSha256": "8a016019ad176a0fcc7113d7117b64a69fdde83a4f54ffc33dc2017f147ea65f",
+  "elTrialTerminalAndClean": true,
+  "scheduleAndTimersReviewedThroughAt": 1793393056.4467614,
+  "rootReview": "Root verified EL r9 terminal2, all9 local processes gone, exact pins unchanged, independent remote cleanup and original/frozen integrity passed. Fresh Nan same boot,21 processes, empty systemd jobs and at queue; no pending native clients. OS services and unchanged creator plus transient fresh-read sudo/systemd-run/python classified by exact pid/start. Schedule/config hashes exactly match previously reviewed n9: sysstat at ten-minute intervals within horizon through20:44 UTC; hourly cron empty, no user crontabs; apt21:46 and other timers outside horizon. 7294576 KiB available less4352MiB full trial leaves over2048MiB operational OS reserve, continuous guard required; not a universal reservation. Same4GiB client cap and no swap, only qualified allocator configuration changes. No serving managers, app funds, or RPC consumers modified."
+}

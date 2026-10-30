@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.9665155350230634,
+  "stdout": "{\"root\": \"/run/enclave-rpc-l1-client-r9\", \"programSha256\": \"8841ed1d4262cd03da1587c00c89bf9b7215aa397dc386df684fb69931b43fb9\", \"sliceMaximum\": 134217728, \"clientStarted\": false}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 178,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 23520,
+  "stdinBytesRequested": 23520,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

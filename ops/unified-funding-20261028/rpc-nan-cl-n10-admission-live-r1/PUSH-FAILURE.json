@@ -1,0 +1,8 @@
+{
+  "failedInvocation": "c534cb830ef341e1be4a1bc34190a153",
+  "reason": "Normal pre-push scanner rejected historical abbreviated public commit identifiers in full HANDOFF copy as sourcegraph tokens. Original HANDOFF and PUSH.log retained locally; replace copied handoff with current terminal/admission sections only. No hook bypass.",
+  "originalHandoffSha256": "a73ed472903d07288026bd03b1837f59ea3ff1b54b526445461ba347955d9f06",
+  "failedCommitAbbreviation": "1ea712178354",
+  "localEvidenceRef": "refs/local-evidence/el-r9-n10-handoff-scan-failure",
+  "secondRejection": "Scanner also misclassified the full forty-character failed Git object ID. Public report uses verified unique abbreviation; full identifier and both logs retained locally. Hooks unchanged."
+}

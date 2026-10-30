@@ -1,0 +1,9 @@
+{
+  "actualValidatorPassed": true,
+  "age": 21.487821578979492,
+  "admissionFileSha256": "02b30ad26e21de4cd00c459d1d9594671a95bdd5c4d0d21e182a56234bdabb0a",
+  "sourceUnchanged": true,
+  "residualBytes": 2906243072,
+  "policyNotWorstCaseReservation": true,
+  "nativeLaunched": false
+}

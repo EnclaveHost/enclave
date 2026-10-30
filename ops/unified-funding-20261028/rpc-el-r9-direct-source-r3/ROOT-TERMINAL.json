@@ -1,0 +1,29 @@
+{
+  "at": 1793390520.0757399,
+  "unit": "ActiveState=failed\nInvocationID=7e9733f7884a46cd8b79fda5e93079b2\nMainPID=0\nExecMainStatus=2\n",
+  "pins": {
+    "SOURCE-PINS.json": {
+      "count": 33,
+      "sha256": "6151ee864c64e5d5edbf568adc3afd233d35f6cefb3d6b704a46d3ee9450be3c",
+      "drift": []
+    },
+    "PINS.json": {
+      "count": 18,
+      "sha256": "a346117a236c215064a2e37e56b32e188eb66d309ecfdc668c4fc3bb82fa24a6",
+      "drift": []
+    }
+  },
+  "knownPidsGone": [
+    2996377,
+    2996379,
+    2996386,
+    2996393,
+    2996491,
+    2996498,
+    2996499,
+    2996509,
+    2996510
+  ],
+  "remoteCleanupVerified": true,
+  "originalAndFrozenUnchanged": true
+}
