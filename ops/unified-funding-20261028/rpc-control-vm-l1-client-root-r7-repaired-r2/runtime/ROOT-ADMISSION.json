@@ -1,0 +1,9 @@
+{
+  "authorized": true,
+  "scope": "actual-l1-el-only-bounded-client-r7",
+  "pinsSha256": "99c64973ca8d4983a47065e396def9b8d4833e34917fbc03dc6f4157b4afb658",
+  "at": 1793379024.1673164,
+  "reviewedHorizonSeconds": 1800,
+  "freshObservationSha256": "d5eca29ab99de763b9d4a37a0833e46dc67c36cd2689c8478bfc4744dbeb4ccc",
+  "review": "Same boot, 7 full service caps reserved, no queued jobs, observed OS and transport processes. Sysstat and fwupd-refresh due within horizon; existing uncapped OS work covered operationally by residual and continuous 1536MiB headroom guard, not a worst-case hard reservation. No OS cap changes. New private child only; frozen r6 and original read-only; one bounded execution."
+}

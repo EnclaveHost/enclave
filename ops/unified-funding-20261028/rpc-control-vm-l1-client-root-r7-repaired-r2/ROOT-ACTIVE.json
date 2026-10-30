@@ -1,0 +1,70 @@
+{
+  "at": 1793379032.092775,
+  "unit": "enclave-rpc-control-vm-l1-client-native-r7-20261030.service",
+  "show": "ActiveState=active\nInvocationID=0f4d4e51b3504a1d87e938bc0a4567eb\nMainPID=2929793\nControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-control-vm-l1-client-native-r7-20261030.service\n",
+  "identities": [
+    {
+      "pid": 2929793,
+      "start": "168413789",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2929796,
+      "start": "168413794",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2929803,
+      "start": "168413797",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2929810,
+      "start": "168413799",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2929890,
+      "start": "168414549",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2929891,
+      "start": "168414549",
+      "exe": "/usr/bin/ssh",
+      "cwd": "/home/steven",
+      "affinity": [
+        1
+      ]
+    },
+    {
+      "pid": 2929887,
+      "start": "168414539",
+      "exe": "/usr/bin/qemu-nbd",
+      "cwd": "/",
+      "affinity": [
+        1
+      ]
+    }
+  ]
+}

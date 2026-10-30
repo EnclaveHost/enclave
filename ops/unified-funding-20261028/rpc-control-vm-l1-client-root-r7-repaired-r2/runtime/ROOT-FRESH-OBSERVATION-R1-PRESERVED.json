@@ -1,0 +1,238 @@
+{
+  "at": 1793378966.8932307,
+  "boot": "b39ecfe2-82b2-4c2a-a596-a52630bb59fd",
+  "memory": "MemTotal:        8131180 kB\nMemFree:         2379504 kB\nMemAvailable:    7128000 kB\nBuffers:          106552 kB\nCached:          4815624 kB\nSwapCached:            0 kB\nActive:          1290596 kB\nInactive:        4132964 kB\nActive(anon):     411348 kB\nInactive(anon):   103600 kB\nActive(file):     879248 kB\nInactive(file):  4029364 kB\nUnevictable:       30536 kB\nMlocked:           27452 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:               888 kB\nWriteback:             4 kB\nAnonPages:        532060 kB\nMapped:           193952 kB\nShmem:              4796 kB\nKReclaimable:     114260 kB\nSlab:             198656 kB\nSReclaimable:     114260 kB\nSUnreclaim:        84396 kB\nKernelStack:        3648 kB\nPageTables:        13848 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     4065588 kB\nCommitted_AS:    1281804 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:       37176 kB\nVmallocChunk:          0 kB\nPercpu:             8288 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nUnaccepted:            0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:      214332 kB\nDirectMap2M:     6076416 kB\nDirectMap1G:     3145728 kB\n",
+  "groups": {
+    "enclave-api-relay.service": {
+      "memory.current": "241344512",
+      "memory.max": "1610612736",
+      "memory.swap.max": "max"
+    },
+    "enclave-control-tls.service": {
+      "memory.current": "90025984",
+      "memory.max": "268435456",
+      "memory.swap.max": "max"
+    },
+    "enclave-dns.service": {
+      "memory.current": "55373824",
+      "memory.max": "268435456",
+      "memory.swap.max": "max"
+    },
+    "enclave-native-discovery.service": {
+      "memory.current": "19845120",
+      "memory.max": "134217728",
+      "memory.swap.max": "max"
+    },
+    "enclave-policy-migration-bridge.service": {
+      "memory.current": "30396416",
+      "memory.max": "268435456",
+      "memory.swap.max": "max"
+    },
+    "enclave-provider-migration-mirror.service": {
+      "memory.current": "46047232",
+      "memory.max": "201326592",
+      "memory.swap.max": "max"
+    },
+    "enclave-rpc-gateway.service": {
+      "memory.current": "82771968",
+      "memory.max": "201326592",
+      "memory.swap.max": "max"
+    }
+  },
+  "processes": [
+    {
+      "pid": 1,
+      "exe": "/usr/lib/systemd/systemd",
+      "cgroup": "0::/init.scope"
+    },
+    {
+      "pid": 347,
+      "exe": "/usr/lib/systemd/systemd-journald",
+      "cgroup": "0::/system.slice/systemd-journald.service"
+    },
+    {
+      "pid": 404,
+      "exe": "/usr/sbin/multipathd",
+      "cgroup": "0::/system.slice/multipathd.service"
+    },
+    {
+      "pid": 410,
+      "exe": "/usr/bin/udevadm",
+      "cgroup": "0::/system.slice/systemd-udevd.service/udev"
+    },
+    {
+      "pid": 502,
+      "exe": "/usr/lib/linux-tools-6.8.0-147/hv_kvp_daemon",
+      "cgroup": "0::/system.slice/hv-kvp-daemon.service"
+    },
+    {
+      "pid": 639,
+      "exe": "/usr/lib/systemd/systemd-resolved",
+      "cgroup": "0::/system.slice/systemd-resolved.service"
+    },
+    {
+      "pid": 659,
+      "exe": "/usr/lib/systemd/systemd-timesyncd",
+      "cgroup": "0::/system.slice/systemd-timesyncd.service"
+    },
+    {
+      "pid": 720,
+      "exe": "/usr/lib/systemd/systemd-networkd",
+      "cgroup": "0::/system.slice/systemd-networkd.service"
+    },
+    {
+      "pid": 771,
+      "exe": "/usr/sbin/cron",
+      "cgroup": "0::/system.slice/cron.service"
+    },
+    {
+      "pid": 772,
+      "exe": "/usr/bin/dbus-daemon",
+      "cgroup": "0::/system.slice/dbus.service"
+    },
+    {
+      "pid": 777,
+      "exe": "/usr/bin/caddy",
+      "cgroup": "0::/system.slice/enclave-control-tls.service"
+    },
+    {
+      "pid": 786,
+      "exe": "/usr/lib/linux-tools-6.8.0-147/hv_vss_daemon",
+      "cgroup": "0::/system.slice/hv-vss-daemon.service"
+    },
+    {
+      "pid": 787,
+      "exe": "/usr/lib/polkit-1/polkitd",
+      "cgroup": "0::/system.slice/polkit.service"
+    },
+    {
+      "pid": 796,
+      "exe": "/usr/lib/systemd/systemd-logind",
+      "cgroup": "0::/system.slice/systemd-logind.service"
+    },
+    {
+      "pid": 803,
+      "exe": "/usr/libexec/udisks2/udisksd",
+      "cgroup": "0::/system.slice/udisks2.service"
+    },
+    {
+      "pid": 828,
+      "exe": "/usr/bin/node",
+      "cgroup": "0::/system.slice/enclave-native-discovery.service"
+    },
+    {
+      "pid": 839,
+      "exe": "/usr/bin/node",
+      "cgroup": "0::/system.slice/enclave-policy-migration-bridge.service"
+    },
+    {
+      "pid": 840,
+      "exe": "/usr/bin/node",
+      "cgroup": "0::/system.slice/enclave-provider-migration-mirror.service"
+    },
+    {
+      "pid": 858,
+      "exe": "/usr/sbin/rsyslogd",
+      "cgroup": "0::/system.slice/rsyslog.service"
+    },
+    {
+      "pid": 892,
+      "exe": "/usr/bin/python3.12",
+      "cgroup": "0::/system.slice/unattended-upgrades.service"
+    },
+    {
+      "pid": 921,
+      "exe": "/usr/sbin/agetty",
+      "cgroup": "0::/system.slice/system-getty.slice/getty@tty1.service"
+    },
+    {
+      "pid": 952,
+      "exe": "/usr/sbin/ModemManager",
+      "cgroup": "0::/system.slice/ModemManager.service"
+    },
+    {
+      "pid": 9137,
+      "exe": "/usr/sbin/sshd",
+      "cgroup": "0::/system.slice/ssh.service"
+    },
+    {
+      "pid": 101767,
+      "exe": "/usr/bin/node",
+      "cgroup": "0::/system.slice/enclave-rpc-gateway.service"
+    },
+    {
+      "pid": 105063,
+      "exe": "/usr/bin/node",
+      "cgroup": "0::/system.slice/enclave-dns.service"
+    },
+    {
+      "pid": 200620,
+      "exe": "/usr/libexec/fwupd/fwupd",
+      "cgroup": "0::/system.slice/fwupd.service"
+    },
+    {
+      "pid": 246373,
+      "exe": "/usr/bin/ssh",
+      "cgroup": "0::/system.slice/enclave-control-tunnel-eu-central.service"
+    },
+    {
+      "pid": 246408,
+      "exe": "/usr/bin/ssh",
+      "cgroup": "0::/system.slice/enclave-control-tunnel-us-west.service"
+    },
+    {
+      "pid": 246410,
+      "exe": "/usr/bin/ssh",
+      "cgroup": "0::/system.slice/enclave-control-tunnel-ap-southeast.service"
+    },
+    {
+      "pid": 270588,
+      "exe": "/usr/bin/node",
+      "cgroup": "0::/system.slice/enclave-api-relay.service"
+    },
+    {
+      "pid": 288480,
+      "exe": "/usr/bin/ssh",
+      "cgroup": "0::/system.slice/enclave-control-tunnel-ca-east.service"
+    },
+    {
+      "pid": 305524,
+      "exe": "/usr/sbin/sshd",
+      "cgroup": "0::/user.slice/user-1000.slice/session-1905.scope"
+    },
+    {
+      "pid": 305528,
+      "exe": "/usr/lib/systemd/systemd",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/init.scope"
+    },
+    {
+      "pid": 305529,
+      "exe": "/usr/lib/systemd/systemd-executor",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/init.scope"
+    },
+    {
+      "pid": 305596,
+      "exe": "/usr/sbin/sshd",
+      "cgroup": "0::/user.slice/user-1000.slice/session-1905.scope"
+    },
+    {
+      "pid": 305597,
+      "exe": "/usr/bin/sudo",
+      "cgroup": "0::/user.slice/user-1000.slice/session-1905.scope"
+    },
+    {
+      "pid": 305598,
+      "exe": "/usr/bin/systemd-run",
+      "cgroup": "0::/user.slice/user-1000.slice/session-1905.scope"
+    },
+    {
+      "pid": 305599,
+      "exe": "/usr/bin/python3.12",
+      "cgroup": "0::/system.slice/enclave-rpc-el-r7-fresh.service"
+    }
+  ],
+  "jobs": "",
+  "services": "  cron.service                                loaded active running Regular background program processing daemon\n  dbus.service                                loaded active running D-Bus System Message Bus\n  enclave-api-relay.service                   loaded active running Enclave API relay (fleet discovery + placement)\n  enclave-control-tls.service                 loaded active running Enclave control API and download TLS front\n  enclave-control-tunnel-ap-southeast.service loaded active running Encrypted control and DNS ingress via ap-southeast\n  enclave-control-tunnel-ca-east.service      loaded active running Encrypted control and DNS ingress via ca-east\n  enclave-control-tunnel-eu-central.service   loaded active running Encrypted control and DNS ingress via eu-central\n  enclave-control-tunnel-us-west.service      loaded active running Encrypted control and DNS ingress via us-west\n  enclave-dns.service                         loaded active running Enclave authoritative DNS (app + ip zones)\n  enclave-native-discovery.service            loaded active running Enclave native ENS route discovery\n  enclave-policy-migration-bridge.service     loaded active running Temporary public owner-policy replication during nan retirement\n  enclave-provider-migration-mirror.service   loaded active running Legacy API consumes signed provider records from independent directories\n  enclave-rpc-el-r7-fresh.service             loaded active running /usr/bin/python3 -B -\n  enclave-rpc-gateway.service                 loaded active running Enclave Alchemy RPC gateway with shared read cache\n  fwupd.service                               loaded active running Firmware update daemon\n  getty@tty1.service                          loaded active running Getty on tty1\n  hv-kvp-daemon.service                       loaded active running Hyper-V KVP Protocol Daemon\n  hv-vss-daemon.service                       loaded active running Hyper-V VSS Protocol Daemon\n  ModemManager.service                        loaded active running Modem Manager\n  multipathd.service                          loaded active running Device-Mapper Multipath Device Controller\n  polkit.service                              loaded active running Authorization Manager\n  rsyslog.service                             loaded active running System Logging Service\n  ssh.service                                 loaded active running OpenBSD Secure Shell server\n  systemd-journald.service                    loaded active running Journal Service\n  systemd-logind.service                      loaded active running User Login Management\n  systemd-networkd.service                    loaded active running Network Configuration\n  systemd-resolved.service                    loaded active running Network Name Resolution\n  systemd-timesyncd.service                   loaded active running Network Time Synchronization\n  systemd-udevd.service                       loaded active running Rule-based Manager for Device Events and Files\n  udisks2.service                             loaded active running Disk Manager\n  unattended-upgrades.service                 loaded active running Unattended Upgrades Shutdown\n  user@1000.service                           loaded active running User Manager for UID 1000\n",
+  "timers": "Fri 2026-10-30 16:50:00 UTC       33s Fri 2026-10-30 16:40:09 UTC     9min ago sysstat-collect.timer          sysstat-collect.service\nFri 2026-10-30 17:02:37 UTC     13min Fri 2026-10-30 16:23:09 UTC    26min ago fwupd-refresh.timer            fwupd-refresh.service\nFri 2026-10-30 18:27:25 UTC  1h 37min Fri 2026-10-30 13:36:09 UTC 3h 13min ago apt-daily.timer                apt-daily.service\nFri 2026-10-30 22:50:58 UTC        6h Fri 2026-10-30 10:50:01 UTC 5h 59min ago enclave-native-certs.timer     enclave-native-certs.service\nSat 2026-10-31 00:00:00 UTC        7h Fri 2026-10-30 00:00:04 UTC      16h ago dpkg-db-backup.timer           dpkg-db-backup.service\nSat 2026-10-31 00:00:00 UTC        7h Fri 2026-10-30 00:00:04 UTC      16h ago logrotate.timer                logrotate.service\nSat 2026-10-31 00:07:00 UTC        7h Fri 2026-10-30 00:07:04 UTC      16h ago sysstat-summary.timer          sysstat-summary.service\nSat 2026-10-31 06:02:27 UTC       13h Fri 2026-10-30 06:16:24 UTC      10h ago apt-daily-upgrade.timer        apt-daily-upgrade.service\nSat 2026-10-31 07:11:10 UTC       14h Fri 2026-10-30 10:48:24 UTC       6h ago man-db.timer                   man-db.service\nSat 2026-10-31 08:37:24 UTC       15h Fri 2026-10-30 08:37:24 UTC       8h ago update-notifier-download.timer update-notifier-download.service\nSat 2026-10-31 08:47:49 UTC       15h Fri 2026-10-30 08:47:49 UTC       8h ago systemd-tmpfiles-clean.timer   systemd-tmpfiles-clean.service\nSat 2026-10-31 10:45:29 UTC       17h Fri 2026-10-30 14:01:50 UTC 2h 47min ago motd-news.timer                motd-news.service\nSun 2026-11-01 03:10:14 UTC 1 day 10h Sun 2026-10-25 03:10:43 UTC   5 days ago e2scrub_all.timer              e2scrub_all.service\nMon 2026-11-02 00:54:49 UTC    2 days Mon 2026-10-26 00:46:24 UTC   4 days ago fstrim.timer                   fstrim.service\nWed 2026-11-04 03:45:19 UTC    4 days Wed 2026-10-28 08:27:54 UTC   2 days ago update-notifier-motd.timer     update-notifier-motd.service\n-                                   - -                                      - apport-autoreport.timer        apport-autoreport.service\n-                                   - -                                      - snapd.snap-repair.timer        snapd.snap-repair.service\n-                                   - -                                      - ua-timer.timer                 ua-timer.service\n",
+  "residualAfterTrialAndServiceGrowth": 2227732480
+}
