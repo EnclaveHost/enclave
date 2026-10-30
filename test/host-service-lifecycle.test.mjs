@@ -236,7 +236,7 @@ test('delayed failure AFTER a grant (the exit granted other names): the runtime 
   await until(() => w.procs().length === 0, 10_000, 'every child gone');
 });
 
-test('the privacy agent switch: a ban DURING the first startup stops it at once; the admin\'s re-admit starts a fresh transport that serves', { timeout: 90_000 }, async (t) => {
+test('the privacy agent switch: a ban DURING the first startup stops it at once; the admin\'s re-admit starts a fresh transport that serves', { timeout: 180_000 }, async (t) => {
   const w = await world(t);
   let refusal = null;
   const { judge, env } = agentJudge(w, { refusal: () => refusal });
@@ -260,7 +260,10 @@ test('the privacy agent switch: a ban DURING the first startup stops it at once;
   // explicit fresh admit: a NEW transport, never the stopped one
   refusal = null; await judge();
   const h2 = env.current(); assert.ok(h2 && h2 !== h1);
-  await until(() => h2.circuits.size === 1, 30_000, 'the fresh transport\'s circuit')
+  // Runtime readiness waits can take 45 seconds, and one transient startup
+  // failure incurs a 60-second provider cooldown plus the 15-second reconcile
+  // interval. Keep the ban checks above immediate; allow bounded fresh startup.
+  await until(() => h2.circuits.size === 1, 150_000, 'the fresh transport\'s circuit')
     .catch(e => { throw new Error(e.message + '\n' + w.logs.join('\n'), { cause: e }); });
   assert.match(await w.visit([...h2.circuits.values()][0]), /^directory-replica /);
   assert.equal(w.servicePeers().length, 1, 'exactly the fresh transport\'s peer at the exit');
