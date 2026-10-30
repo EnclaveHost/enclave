@@ -1,0 +1,7 @@
+# Actual prepared OS payload provenance
+
+Invocation3463ade78d354b81aa6fdc6146ecd060 completed0/Main0. Read-only fixed three-file extraction using qualified exporter/OFD/workflow locking. One exporter and its child exited normally; drainer joined, no mount or survivor. Image identity unchanged. Inner peak21MiB/min32731,256hard220RSSfloor27648CPU1noswap/sharedqueue. No VM/client, image writes or financial effects.
+
+The installed wrapper SHA75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92 matches the current tracked ops wrapper, not stale node-payload-v4. It includes absolute Base history/state retention, actual coverage, local finality/origin and blob checks. The installed public chain configuration SHA81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7 is reproduced exactly by adding the previously installed baseRetention {historyFromBlock:48000000,stateHistoryFromBlock:52500000} to node-payload-v4/chain.json. Reproduction lives in rpc-low-memory-current-wrapper-r1. Configuration remains unchanged; coverage approval remains false. No claim that required history exists or Base is ready.
+
+Manifest SHA c35ec24b39b4cff06a72c00a5fcc032a035658d314771f9072b881f9258a0fb7 and three binary hashes match prior exact-binary help evidence. Null baseOriginL1Block in the selected summary came from looking for an older config field; it is not evidence of missing origin data. No JWT or private guest journal was read/exported.
