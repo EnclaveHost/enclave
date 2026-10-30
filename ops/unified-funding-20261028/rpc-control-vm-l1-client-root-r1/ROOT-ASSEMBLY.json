@@ -1,0 +1,8 @@
+{
+  "status": "FROZEN_UNRUN",
+  "remoteProgramSha256": "547f53a57343dc1f3e3cfdfa80e76361c6fed1201fba0948d3eb000dc7d6840f",
+  "runSha256": "5e5c1bd00aba71cd0fb35f57572a516f4fe81f80d64d66a67f1f1bac3f6313c2",
+  "rootAdditionalChange": "Fresh guest full service-growth and trial-growth headroom check before bootstrap writes",
+  "pythonAstParsed": true,
+  "nativeExecuted": false
+}

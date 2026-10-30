@@ -1,0 +1,108 @@
+{
+  "at": 1793367390.0702717,
+  "source": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030",
+  "files": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/MANIFEST.json",
+      "file": "MANIFEST.json",
+      "sha256": "4b0d19d547a7f37ed3fe9ce140f9e8dcf4afe96f7dfeff6cbb9ee998150463de",
+      "bytes": 11046
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/PREPARATION.json",
+      "file": "PREPARATION.json",
+      "sha256": "ea37294f711ee3a4e54f7860523d95f4d6ee392040489f8f61aca71e01062087",
+      "bytes": 455
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/RUNTIME-DESIGN.md",
+      "file": "RUNTIME-DESIGN.md",
+      "sha256": "67cf47f75a98de0addb2b37395d098d68560d446036bebce8080b1925b42a751",
+      "bytes": 2224
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/capture-local.py",
+      "file": "capture-local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+      "bytes": 6709
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/capture-remote.py",
+      "file": "capture-remote.py",
+      "sha256": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655",
+      "bytes": 6692
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/client-main.py",
+      "file": "client-main.py",
+      "sha256": "8b768468060c4082fd7fe6604a0217d57c03438dc23b2e0e98400e915fd01c41",
+      "bytes": 13460
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/client-operations.py",
+      "file": "client-operations.py",
+      "sha256": "0f9588744d30bf3cba1bacdce74e6a8ea8a555303f9913a94b2371b10313da8f",
+      "bytes": 11331
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/disks.json",
+      "file": "disks.json",
+      "sha256": "6c8a37995ff67410332f856fbbd2a9dddf9a13a48e073f3c9716884962a916f2",
+      "bytes": 145
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/original-reth.toml",
+      "file": "original-reth.toml",
+      "sha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7",
+      "bytes": 2611
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/proposed-reth.toml",
+      "file": "proposed-reth.toml",
+      "sha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320",
+      "bytes": 2577
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/remote-program.py",
+      "file": "remote-program.py",
+      "sha256": "b7ca752640f7286d61632363b71dcf37ec9242147b4d9a87e62387dfdea0c420",
+      "bytes": 37477
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/reth-stage-only.patch",
+      "file": "reth-stage-only.patch",
+      "sha256": "aae647cd9e69d5326b5a193c30cc30f51f80278d60303aefcb989c4b587e286e",
+      "bytes": 1963
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/run-body.py",
+      "file": "run-body.py",
+      "sha256": "ab58b4344ed3e8b3f55f0e7ae12e265a398605c7aca2cc34b5aab702bd5118d5",
+      "bytes": 14974
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/run.py",
+      "file": "run.py",
+      "sha256": "8e3d9a02ed8cd4e01fcd2c2d1e7c64b60d6e6d3673c0d7fea695396ee88511dc",
+      "bytes": 20507
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/transport-helpers.py",
+      "file": "transport-helpers.py",
+      "sha256": "4a62361de1f8aca726f0483f009ae75b4dcf1438d9745e9c2144a0d58ad8c5e6",
+      "bytes": 8239
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/trial-chain-service.py",
+      "file": "trial-chain-service.py",
+      "sha256": "1d82f1e1b86caabb36c012e97f67b1dd3ec0429b6c9b7a4892437823db51b69c",
+      "bytes": 38726
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-l1-client-prep-20261030/wrapper-private-paths.patch",
+      "file": "wrapper-private-paths.patch",
+      "sha256": "0ef24df1c698e35e0a762ceef404f79d216d5f2fa686ce03398809ba49ae1309",
+      "bytes": 1269
+    }
+  ]
+}

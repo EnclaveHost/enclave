@@ -1,0 +1,9 @@
+# Root review: bounded L1 startup, not production cutover
+
+Reviewed the component source, combined programs, manifest and dependencies. Original draft retained in original-draft; ORIGINAL-DRAFT.json records the handoff bytes. Corrected draft defects before execution: stale launch-intent overwrite, restrictive umask on public binary directories, helper/watchdog/NBD lifetimes, cleanup result prefixes, and transport teardown ordering. The peer corrected these in component files; root regenerated stale combined programs and remapped payload paths to this frozen copy. Root additionally checks the full current guest headroom before bootstrap writes.
+
+One native startup and graceful-stop attempt is admitted only by a fresh matching ROOT-ADMISSION.json. Local outer deadline720 seconds, shared512 MiB job/450 MiB RSS/27648 MiB hostfloor/CPU1/noSwap. Existing VM allocation and seven service caps unchanged. Shared clients2304 MiB, shared attachment128 MiB, shared guardian128 MiB; continuous guest1536 MiB residual plus remaining service and trial cap growth. Upload/bootstrap occurs before clients, not in parallel. Dedicated current unused numeric identities; no root network clients or recursive chown. JWT private and never captured.
+
+New exclusive private COW, no old metadata artifact mutation. Original header/stat/OFD protection, NVMe300000000000-byte free floor and finite COW growth guard. Independent watchdog and its emergency StopPost stop clients before unmount/detach. Final independent remote death/device verification precedes tunnel close; separate socket cleanup follows tunnel death. Source review and Python AST parsing are not native qualification. No automatic retry.
+
+Success means bounded startup/stop observed only. Production traffic, Base activation and existing hosts remain unchanged. Canonical sync, finality, custody/blob/history/proof and sustained-fit evidence remain mandatory before consumer cutover.
