@@ -1,10 +1,13 @@
 {
+  "HANDOFF-LATEST.md": "b0b98c8f8f5b77207981df91e84bc9c0c71bf2532ba6a2fcf5f6e2ccad99c351",
   "PLAN.md": "41ff1df8419388976cea86be147c26f17b9fd69f2b7342d138a12174dfa03525",
   "PREPARED.json": "0fe297a61c75a10ff6b8dcf5b430ac0cd2b405f4ab1c17dce5d2cb1a8c851990",
   "REVIEW-STATUS.txt": "66a5caef30efb38a18474c069d4d6a7c979534f2362314682eb503abc2ddb752",
   "ROOT-ADMISSION.md": "e1328b02824d13868c896719b71ef0893f951a608dd98dec6f556bef0e475a6c",
   "TASK.txt": "5da3c1481461770272253db732e6adcbf3e7252f48632f1265667b134a3b76c0",
   "account-requirements.json": "ab643c5fa65ecb743346bf25ca9f3c4fec86e2aa9ade9ed89194f89201621cf4",
+  "account-verification.json": "8f2349ef4dd4bdced4c14177ee787fb2f6bed2014e08ea0937c064d4e3a9dd00",
+  "admission-record.json": "bc337276cddf41b8e334a496959da5216867eeee409945e31fa1f11d4e6dc93c",
   "allowed-edit-paths.json": "18770c41878c471a054308d908aae7c4c1f1510d8efcc4312515777dbaa347c7",
   "collect-terminal.py": "c0a16176148b0e3abb0acd6fcb10f3aca56257246298653c53183396ac4504c5",
   "dependency-closure.json": "3e7449f4031c35c0427a5f01029edc4874d3b007e079760daa5df74f74999d6c",
