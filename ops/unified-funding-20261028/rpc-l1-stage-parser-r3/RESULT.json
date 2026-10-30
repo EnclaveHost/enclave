@@ -1,0 +1,49 @@
+{
+  "status": "HARNESS_EXPECTATION_NOT_SATISFIED",
+  "positiveAcceptedThenDatadirRefused": true,
+  "negativeTypedConfigRejected": false,
+  "results": {
+    "positive": {
+      "rc": 1,
+      "reason": null,
+      "elapsedSeconds": 0.12708318210206926,
+      "stdout": "\u001b[2m2026-10-30T12:25:04.331135Z\u001b[0m \u001b[32m INFO\u001b[0m Initialized tracing, debug log directory: /tmp/.cache/reth/logs/mainnet\n\u001b[2m2026-10-30T12:25:04.331995Z\u001b[0m \u001b[32m INFO\u001b[0m Starting Reth \u001b[3mversion\u001b[0m\u001b[2m=\u001b[0m\"2.8.0 (05ba481)\"\n\u001b[2m2026-10-30T12:25:04.332005Z\u001b[0m \u001b[32m INFO\u001b[0m Opening database \u001b[3mpath\u001b[0m\u001b[2m=\u001b[0m\"/proc/enclave-rpc-parser-r3/db\"\n\u001b[2m2026-10-30T12:25:04.332109Z\u001b[0m \u001b[31mERROR\u001b[0m shutting down due to error \u001b[3merr\u001b[0m\u001b[2m=\u001b[0mCould not create database directory /proc/enclave-rpc-parser-r3/db\n",
+      "stderr": "Error: Could not create database directory /proc/enclave-rpc-parser-r3/db\n\nCaused by:\n   0: failed to create dir \"/proc/enclave-rpc-parser-r3/db\": No such file or directory (os error 2)\n   1: No such file or directory (os error 2)\n\nLocation:\n    crates/storage/db/src/mdbx.rs:86:14\n\nStack backtrace:\n   0: <unknown>\n   1: <unknown>\n   2: <unknown>\n   3: <unknown>\n   4: <unknown>\n   5: <unknown>\n   6: <unknown>\n   7: <unknown>\n   8: <unknown>\n   9: __libc_start_main\n  10: <unknown>\n\n",
+      "bytesObserved": {
+        "stdout": 517,
+        "stderr": 485
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "negative": {
+      "rc": 1,
+      "reason": null,
+      "elapsedSeconds": 0.15476205409504473,
+      "stdout": "\u001b[2m2026-10-30T12:25:04.486223Z\u001b[0m \u001b[32m INFO\u001b[0m Initialized tracing, debug log directory: /tmp/.cache/reth/logs/mainnet\n\u001b[2m2026-10-30T12:25:04.487117Z\u001b[0m \u001b[32m INFO\u001b[0m Starting Reth \u001b[3mversion\u001b[0m\u001b[2m=\u001b[0m\"2.8.0 (05ba481)\"\n\u001b[2m2026-10-30T12:25:04.487130Z\u001b[0m \u001b[32m INFO\u001b[0m Opening database \u001b[3mpath\u001b[0m\u001b[2m=\u001b[0m\"/proc/enclave-rpc-parser-r3/db\"\n\u001b[2m2026-10-30T12:25:04.487239Z\u001b[0m \u001b[31mERROR\u001b[0m shutting down due to error \u001b[3merr\u001b[0m\u001b[2m=\u001b[0mCould not create database directory /proc/enclave-rpc-parser-r3/db\n",
+      "stderr": "Error: Could not create database directory /proc/enclave-rpc-parser-r3/db\n\nCaused by:\n   0: failed to create dir \"/proc/enclave-rpc-parser-r3/db\": No such file or directory (os error 2)\n   1: No such file or directory (os error 2)\n\nLocation:\n    crates/storage/db/src/mdbx.rs:86:14\n\nStack backtrace:\n   0: <unknown>\n   1: <unknown>\n   2: <unknown>\n   3: <unknown>\n   4: <unknown>\n   5: <unknown>\n   6: <unknown>\n   7: <unknown>\n   8: <unknown>\n   9: __libc_start_main\n  10: <unknown>\n\n",
+      "bytesObserved": {
+        "stdout": 517,
+        "stderr": 485
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    }
+  },
+  "sourceProfileAppliedToProduction": false,
+  "databaseCreated": false
+}

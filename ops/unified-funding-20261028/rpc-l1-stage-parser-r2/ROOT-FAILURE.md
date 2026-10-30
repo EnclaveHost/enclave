@@ -1,0 +1,1 @@
+Invocation52ebd61e8fac4f6caac9113211178411 terminal2/Main0. Both cases refused CLI mutually exclusive --disable-discovery and --disable-dns-discovery before TOML parse. Root harness failure, proposed productTOML unchanged/unvalidated. Separate r3 removes only redundant DNS-discovery flag; network namespace and all other restrictions unchanged.

@@ -1,0 +1,1 @@
+ONE separate r2 corrects only root network-namespace witness; same binary/proposedTOML/negative/config behavior,512hard450RSSfloor27648CPU1noSwap. Original before-execution harness failure retained. No real chain data/network.

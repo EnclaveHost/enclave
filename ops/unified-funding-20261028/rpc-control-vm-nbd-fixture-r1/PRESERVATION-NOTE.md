@@ -1,0 +1,1 @@
+The first normal push of local commit a793cc3cf was rejected by the secret scanner on historical abbreviated public commit IDs in the copied full HANDOFF. No hook bypass. The original full HANDOFF and rejected commit remain local. This package includes the relevant latest record only, reducing unnecessary duplication. No product/evidence result changed.

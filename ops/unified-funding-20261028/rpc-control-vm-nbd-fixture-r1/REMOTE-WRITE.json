@@ -1,0 +1,20 @@
+{
+  "rc": 2,
+  "reason": null,
+  "elapsedSeconds": 0.8261253000237048,
+  "stdout": "RESULT_JSON={\"action\": \"write\", \"errors\": [\"PermissionError:[Errno 13] Permission denied: '/run/enclave-rpc-nbd-fixture-r1/nbd-client'\"], \"exportInfo\": {\"bytes\": 67108864, \"flags\": 3181}, \"ok\": false, \"unknownExport\": {\"unknownRejected\": true}}\nSTOP_POST_JSON={\"action\": \"stop-post\", \"errors\": [], \"ok\": true, \"stopPostDetached\": true}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 336,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 24848,
+  "stdinBytesRequested": 24848,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

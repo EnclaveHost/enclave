@@ -1,0 +1,1 @@
+ONE separate r3 corrects redundant conflicting DNS-discovery CLI flag only; same product TOML/exact Reth bytes.512hard450RSSfloor27648CPU1noSwap/netns. Preserve r1/r2 failed harness evidence; no real chain DB/client.
