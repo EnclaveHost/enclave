@@ -1,0 +1,67 @@
+{
+  "at": "2026-10-30T05:24:55.560793+00:00",
+  "units": "Id=enclave-rpc-production-vm.service\nActiveState=inactive\nSubState=dead\nFragmentPath=/home/steven/.config/systemd/user/enclave-rpc-production-vm.service\nMainPID=0\n\nId=enclave-rpc-production-guard.service\nActiveState=inactive\nSubState=dead\nFragmentPath=/home/steven/.config/systemd/user/enclave-rpc-production-guard.service\nMainPID=0\n",
+  "manifestSha256": "a28432151c9a24bd207d9adaab401ca4e24a9cdc39807489f12c3000b0936441",
+  "vm": {
+    "guestMemBytes": 68719476736,
+    "hostReserveBytes": 17179869184,
+    "memoryMaxBytes": 70866960384,
+    "vcpus": 8
+  },
+  "disks": {
+    "base": {
+      "backing": "hdd",
+      "bytes": 4000000000000,
+      "format": "qcow2",
+      "ino": 3221,
+      "label": "enc-base-origin",
+      "mount": "/srv/enclave-base-holder",
+      "path": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+      "role": "base",
+      "serial": "ERPC-BASE-740457FE",
+      "uuid": "11c6bbac-f823-4052-a87a-066eed6ad590"
+    },
+    "l1": {
+      "backing": "nvme",
+      "bytes": 4000000000000,
+      "format": "qcow2",
+      "ino": 147981798,
+      "label": "enc-l1-origin",
+      "mount": "/srv/enclave-l1-pair",
+      "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+      "role": "l1",
+      "serial": "ERPC-L1-6DA15A8D",
+      "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0"
+    },
+    "os": {
+      "backing": "nvme",
+      "bytes": 34359738368,
+      "format": "qcow2",
+      "ino": 147981797,
+      "path": "/vm/enclave-volumes/rpc-production/os.qcow2",
+      "serial": "ERPC-OS-C0D16DA3"
+    }
+  },
+  "ports": {
+    "forwards": [
+      {
+        "name": "base-rpc",
+        "port": 28545,
+        "target": 18545
+      },
+      {
+        "name": "l1-el",
+        "port": 28645,
+        "target": 18645
+      },
+      {
+        "name": "l1-cl",
+        "port": 25052,
+        "target": 15052
+      }
+    ],
+    "ssh": 22850
+  },
+  "memAvailable": "MemAvailable:   34756760 kB",
+  "noStartOrMutation": true
+}
