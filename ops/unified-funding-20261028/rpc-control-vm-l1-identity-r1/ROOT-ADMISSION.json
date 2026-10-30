@@ -1,0 +1,7 @@
+{
+  "authorized": true,
+  "scope": "actual-l1-cow-identity-r1",
+  "pinsSha256": "9b4fb2a4da227eb557ff0882c68802b700bf542be427556e52b61d69b68ed539",
+  "at": 1793365090.2520216,
+  "review": "Root-written and reviewed narrow readonly UID/GID/collision observation through qualified RO private COW path. No static inventory repeat, no client/account/config mutation. Existing host/guest/resource/storage floors unchanged."
+}

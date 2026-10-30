@@ -1,0 +1,12 @@
+{
+  "EXTERNAL-PINS.json": "1d321f9c1fa23c6f145fa6656ac92d48b6ae465ed6943cb6deb98afbd885861a",
+  "IDENTITY.patch": "1f88e9ff82b79226510eb8c15c1e0cc108b5d72121fcfbbb68faa8153ef647d1",
+  "MANIFEST.json": "14668b51abece08e66a1fa08ed5b15fa74bbdbfa050684d4284ecce94ab75dc3",
+  "ROOT-REVIEW.md": "f696445e4e1bf9977fe83e0d5ec1da883b241bb6bda38ab129587043890ff5a1",
+  "capture-local.py": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c",
+  "capture-remote.py": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655",
+  "launch-command.txt": "e594a5c1ee5f71f64a9a6710fb8a43ca06034fb218fbf20a09dd7c4b69aa97c2",
+  "remote-body.py": "b90217d37abbdfd685a7fbe8b58c95a70d6c4002d388ae7f9224e7d0baa070db",
+  "run-body.py": "b58a9927c8f5780cc7c522f1a1ac96453b7be244ef57a92ed4a04d4cb6ce4959",
+  "run.py": "d7d33a23da78297725c1e3f5a3b3fbcefd2e562b608755b979e4c541c885516c"
+}

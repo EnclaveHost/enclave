@@ -1,0 +1,216 @@
+{
+  "accountsModified": false,
+  "action": "read",
+  "clientStarted": false,
+  "configModified": false,
+  "detach": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.002554286038503051,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "errors": [],
+  "exportInfo": {
+    "bytes": 4000000000000,
+    "flags": 1039
+  },
+  "filesystemSuperblock": {
+    "incompat": 706,
+    "needsRecovery": false,
+    "state": 1
+  },
+  "filesystemUuid": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 37
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.38721222698222846,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0\n",
+    "truncated": false
+  },
+  "lastHeadroom": {
+    "available": 7268286464,
+    "existingRemainingCapGrowth": 2416287744,
+    "floor": 1610612736,
+    "helperCurrent": 12345344,
+    "helperMaximum": 268435456,
+    "residual": 4595908608
+  },
+  "mount": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.11796172091271728,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "mounted": {
+    "deviceNumber": "43:7",
+    "expectedProductionMount": "/srv/enclave-l1-pair",
+    "filesystemOptions": "ro,norecovery",
+    "options": "ro,nosuid,nodev,noexec,relatime",
+    "path": "/run/enclave-rpc-l1-identity-r1/mnt",
+    "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0"
+  },
+  "ok": true,
+  "ownership": {
+    "candidateUids": [
+      50001,
+      50002
+    ],
+    "matchingAccounts": [],
+    "matchingGroups": [],
+    "matchingProcesses": [],
+    "paths": {
+      "anchor": {
+        "bytes": 4096,
+        "gid": 0,
+        "inode": 1740801,
+        "mode": 16877,
+        "present": true,
+        "uid": 0
+      },
+      "cl": {
+        "bytes": 4096,
+        "gid": 986,
+        "inode": 540673,
+        "mode": 16872,
+        "present": true,
+        "uid": 995
+      },
+      "cl/beacon": {
+        "bytes": 4096,
+        "gid": 986,
+        "inode": 540674,
+        "mode": 16872,
+        "present": true,
+        "uid": 995
+      },
+      "cl/beacon/chain_db": {
+        "bytes": 69632,
+        "gid": 986,
+        "inode": 540679,
+        "mode": 16872,
+        "present": true,
+        "uid": 995
+      },
+      "data": {
+        "bytes": 4096,
+        "gid": 987,
+        "inode": 1789953,
+        "mode": 16872,
+        "present": true,
+        "uid": 997
+      },
+      "data/db": {
+        "bytes": 4096,
+        "gid": 987,
+        "inode": 1792001,
+        "mode": 16872,
+        "present": true,
+        "uid": 997
+      },
+      "data/db/mdbx.dat": {
+        "bytes": 279172874240,
+        "gid": 987,
+        "inode": 1792003,
+        "mode": 33188,
+        "present": true,
+        "uid": 997
+      },
+      "data/reth.toml": {
+        "bytes": 2611,
+        "gid": 987,
+        "inode": 1791598,
+        "mode": 33184,
+        "present": true,
+        "uid": 997
+      },
+      "data/static_files": {
+        "bytes": 122880,
+        "gid": 987,
+        "inode": 1789956,
+        "mode": 16872,
+        "present": true,
+        "uid": 997
+      },
+      "tmp": {
+        "bytes": 4096,
+        "gid": 987,
+        "inode": 1292289,
+        "mode": 16872,
+        "present": true,
+        "uid": 997
+      },
+      "tmp-cl": {
+        "bytes": 4096,
+        "gid": 986,
+        "inode": 1130497,
+        "mode": 16872,
+        "present": true,
+        "uid": 995
+      }
+    },
+    "processCount": 160
+  },
+  "unknownExport": {
+    "unknownRejected": true
+  },
+  "unmount": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.006934320088475943,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  }
+}

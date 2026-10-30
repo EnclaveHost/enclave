@@ -1,0 +1,161 @@
+--- metadata/remote-body.py
++++ identity/remote-body.py
+@@ -2,8 +2,8 @@
+ import pathlib, json, hashlib, stat, socket, struct, errno, mmap, fcntl, sys, resource, tomllib
+ P=pathlib.Path
+ M=json.loads(MANIFEST_JSON);ACTION=ACTION_VALUE
+-ROOT=P('/run/enclave-rpc-l1-metadata-r1');STATE=ROOT/'state.json'
+-EXEC=P('/var/lib/enclave-rpc-l1-metadata-r1')
++ROOT=P('/run/enclave-rpc-l1-identity-r1');STATE=ROOT/'state.json'
++EXEC=P('/var/lib/enclave-rpc-l1-identity-r1')
+ DEV=P('/dev/nbd7');SYS=P('/sys/block/nbd7');MOUNT=ROOT/'mnt'
+ out={'action':ACTION,'ok':False,'errors':[]};client=None;mounted=False;cleaning=False
+ def sha(p):
+@@ -114,7 +114,7 @@
+         if current:
+             assert unitof(current)==s.get('attachCgroup') and (not s.get('nbdPid') or current==s['nbdPid']),'foreign-nbd-pid'
+         assert size() in (0,M['bytes']),'device-size-drift'
+-        cmd('detach',['/var/lib/enclave-rpc-l1-metadata-r1/nbd-client','-d',str(DEV)],8)
++        cmd('detach',['/var/lib/enclave-rpc-l1-identity-r1/nbd-client','-d',str(DEV)],8)
+     until=time.monotonic()+5
+     while not idle() and time.monotonic()<until:time.sleep(.1)
+     assert idle() and not mounts(),'device-cleanup-incomplete'
+@@ -149,7 +149,7 @@
+     os.umask(0o077)
+     resource.setrlimit(resource.RLIMIT_FSIZE,(1<<20,1<<20))
+     assert os.geteuid()==0 and read('/proc/sys/kernel/random/boot_id')==M['bootId']
+-    cg=read('/proc/self/cgroup');assert cg.startswith('0::/system.slice/enclave-rpc-l1-metadata-') and cg.endswith('.service')
++    cg=read('/proc/self/cgroup');assert cg.startswith('0::/system.slice/enclave-rpc-l1-identity-') and cg.endswith('.service')
+     c=P('/sys/fs/cgroup'+cg[3:]);assert read(c/'memory.max')==str(256<<20) and read(c/'memory.swap.max')=='0'
+     if ACTION not in ('cleanup','verify','stop-post'):
+         available=next(int(l.split()[1]) for l in P('/proc/meminfo').read_text().splitlines() if l.startswith('MemAvailable:'))
+@@ -217,30 +217,36 @@
+                 assert part not in ('..','.','')
+                 q=q/part;st=q.lstat();assert not stat.S_ISLNK(st.st_mode),'symlink-not-admitted'
+             return q
+-        def meta(rel,required=False):
++        paths={}
++        for rel in ('data','data/db','data/db/mdbx.dat','data/reth.toml','data/static_files','cl','cl/beacon','cl/beacon/chain_db','tmp','tmp-cl','anchor'):
+             headroom()
+-            try:q=confined(rel);st=q.stat()
+-            except FileNotFoundError:
+-                assert not required,'required-path-missing:'+rel
+-                return {'present':False}
+-            return {'present':True,'bytes':st.st_size,'mode':st.st_mode,'inode':st.st_ino,'mtimeNs':st.st_mtime_ns,'directory':stat.S_ISDIR(st.st_mode),'regular':stat.S_ISREG(st.st_mode)}
+-        out['paths']={rel:meta(rel,rel in ('snapshot-complete','data','data/reth.toml','data/db','data/static_files')) for rel in ('snapshot-complete','data','data/reth.toml','data/db','data/db/mdbx.dat','data/static_files','cl','cl/beacon','cl/beacon/chain_db','anchor/state.ssz','anchor/block.ssz')}
+-        q=confined('data/reth.toml');assert q.is_file() and q.stat().st_size<=1<<20
+-        raw=q.read_bytes();profile=tomllib.loads(raw.decode())
+-        assert profile.get('static_files',{}).get('blocks_per_file'),'missing-static-segment-config'
+-        assert isinstance(profile.get('prune'),dict),'missing-prune-profile'
+-        # Standard Reth TOML is public configuration. Refuse unexpected key-bearing fields.
+-        assert not any(word in raw.lower() for word in (b'private_key',b'jwtsecret',b'jwt_secret',b'password')),'unexpected-sensitive-config-field'
+-        out['effectiveRethToml']={'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'text':raw.decode(),'parsed':profile}
+-        out['staticFiles']=[]
+-        for index,q in enumerate(confined('data/static_files').iterdir()):
+-            headroom();assert index<1024,'static-inventory-limit'
+-            st=q.lstat();assert not stat.S_ISLNK(st.st_mode),'static-symlink'
+-            out['staticFiles'].append({'name':q.name,'bytes':st.st_size,'mode':st.st_mode,'mtimeNs':st.st_mtime_ns})
+-        out['staticFiles'].sort(key=lambda x:x['name'])
+-        marker=confined('snapshot-complete');assert marker.is_file() and marker.stat().st_size<=65536
+-        raw=marker.read_bytes();out['snapshotMarker']={'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
+-        out['clientStarted']=False;out['configModified']=False;out['databaseContentRead']=False
++            try:st=confined(rel).stat()
++            except FileNotFoundError:paths[rel]={'present':False};continue
++            paths[rel]={'present':True,'uid':st.st_uid,'gid':st.st_gid,'mode':st.st_mode,'bytes':st.st_size,'inode':st.st_ino}
++        assert paths['data']['present'] and paths['cl']['present']
++        uids={paths['data']['uid'],paths['cl']['uid'],50001,50002}
++        gids={paths['data']['gid'],paths['cl']['gid'],50001,50002}
++        raw=P('/etc/passwd').read_bytes();assert len(raw)<=65536
++        accounts=[]
++        for line in raw.decode().splitlines():
++            row=line.split(':');assert len(row)==7
++            if int(row[2]) in uids:accounts.append({'name':row[0],'uid':int(row[2]),'gid':int(row[3])})
++        raw=P('/etc/group').read_bytes();assert len(raw)<=65536
++        groups=[]
++        for line in raw.decode().splitlines():
++            row=line.split(':');assert len(row)==4
++            if int(row[2]) in gids:groups.append({'name':row[0],'gid':int(row[2])})
++        processes=[];count=0
++        for proc in P('/proc').iterdir():
++            if not proc.name.isdigit():continue
++            count+=1;assert count<=512
++            try:lines=(proc/'status').read_text().splitlines()
++            except FileNotFoundError:continue
++            ids=next([int(x) for x in line.split()[1:]] for line in lines if line.startswith('Uid:'))
++            if set(ids)&uids:processes.append({'pid':int(proc.name),'uids':ids})
++            headroom()
++        out['ownership']={'paths':paths,'candidateUids':[50001,50002],'matchingAccounts':accounts,'matchingGroups':groups,'matchingProcesses':processes,'processCount':count}
++        out['clientStarted']=False;out['accountsModified']=False;out['configModified']=False
+         detach(s)
+     elif ACTION=='stop-post':
+         s=state();assert sha(ROOT/'stop-post.py')==s['stopPostSha256']
+@@ -252,7 +258,7 @@
+         s=state()
+         if SYS.exists():detach(s)
+         for name in ('bootstrap','read'):
+-            unit='enclave-rpc-l1-metadata-'+name+'-r1.service'
++            unit='enclave-rpc-l1-identity-'+name+'-r1.service'
+             cmd('stop:'+name,['/usr/bin/systemctl','stop',unit],8,allowed=(0,5))
+         if s.get('moduleLoadedByFixture') and P('/sys/module/nbd').exists():
+             for q in P('/sys/block').glob('nbd*'):
+@@ -265,7 +271,7 @@
+         if s.get('moduleLoadedByFixture'):assert not P('/sys/module/nbd').exists()
+         units=[]
+         for name in ('policy','bootstrap','read','cleanup'):
+-            unit='enclave-rpc-l1-metadata-'+name+'-r1.service'
++            unit='enclave-rpc-l1-identity-'+name+'-r1.service'
+             value=cmd('unit:'+name,['/usr/bin/systemctl','show',unit,'--property=ActiveState,SubState,ControlGroup,MainPID,InvocationID'],3)
+             props=dict(l.split('=',1) for l in value.splitlines() if '=' in l)
+             assert props.get('ActiveState') in ('inactive','failed') and props.get('MainPID')=='0','unit-still-live'
+--- metadata/run-body.py
++++ identity/run-body.py
+@@ -2,7 +2,7 @@
+ from pathlib import Path
+ import hashlib,json,fcntl,struct,stat,sys,resource
+ P=Path(__file__).resolve().parent;M=json.loads((P/'MANIFEST.json').read_text())
+-art=Path(M['overlayDirectory']);sockdir=Path('/run/user/1000/rpc-l1-metadata-r1')
++art=Path(M['overlayDirectory']);sockdir=Path('/run/user/1000/rpc-l1-identity-r1')
+ parent=Path(M['parent']['path']);overlay=art/'overlay.qcow2'
+ exporter=None;tunnel=None;lockfd=None;remote_attempted=False;cut=False
+ results={};errors=[];owned=[];cleaning=False;remote_calls={}
+@@ -68,8 +68,8 @@
+     if action=='bootstrap':script+='STOP_POST_SOURCE='+repr(prefix+"ACTION_VALUE='stop-post'\n"+body)+'\n'
+     script+=body
+     assert len(script.encode())<=131072
+-    unit='enclave-rpc-l1-metadata-'+call_name+'-r1'
+-    post=" '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-l1-metadata-r1/stop-post.py'" if action=='read' else ''
++    unit='enclave-rpc-l1-identity-'+call_name+'-r1'
++    post=" '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-l1-identity-r1/stop-post.py'" if action=='read' else ''
+     cmd='/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit='+unit+' --property=RuntimeMaxSec=55 --property=TimeoutStopSec=25 --property=MemoryMax=256M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=TasksMax=32 --property=KillMode=control-group --property=UMask=0077'+post+' /usr/bin/python3 -B -'
+     r=capture([*sshargs(),M['target'],cmd],95,stdin=script.encode(),limit=1048576)
+     results['remote:'+call_name]=r;record('REMOTE-'+call_name.upper()+'.json',r)
+@@ -112,7 +112,7 @@
+     global lockfd,remote_attempted
+     os.umask(0o077);verify()
+     a=json.loads((P/'ROOT-ADMISSION.json').read_text())
+-    assert a['authorized'] is True and a['scope']=='actual-l1-cow-metadata-r1' and a['pinsSha256']==sha(P/'PINS.json') and 0<=time.time()-a['at']<=300
++    assert a['authorized'] is True and a['scope']=='actual-l1-cow-identity-r1' and a['pinsSha256']==sha(P/'PINS.json') and 0<=time.time()-a['at']<=300
+     assert os.sched_getaffinity(0)=={1} and os.uname().machine=='x86_64'
+     cg=Path('/proc/self/cgroup').read_text().strip();assert cg.startswith('0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-') and cg.endswith('.scope')
+     c=Path('/sys/fs/cgroup'+cg[3:]);assert (c/'memory.max').read_text().strip()==str(512<<20) and (c/'memory.swap.max').read_text().strip()=='0'
+@@ -140,10 +140,7 @@
+     results['remoteSocketDirectory']=r;assert r['rc']==0 and not r['reason']
+     remote_attempted=True;remote('bootstrap');start_export('metadata')
+     value=remote('read')
+-    record('MOUNTED-METADATA.json',value)
+-    raw=value['effectiveRethToml']['text'].encode()
+-    assert hashlib.sha256(raw).hexdigest()==value['effectiveRethToml']['sha256']
+-    with (P/'actual-reth.toml').open('xb') as f:f.write(raw)
++    record('MOUNTED-IDENTITY.json',value)
+     parent_identity();header_pin()
+     results['parentIdentityAfterRead']=parent_identity()
+ try:
+@@ -165,7 +162,7 @@
+     if (P/'ATTEMPT.json').exists():
+         try:verify()
+         except Exception as e:errors.append('input-drift:'+type(e).__name__)
+-        status='ACTUAL_L1_METADATA_READ_NO_CLIENT_ADMISSION' if not errors and cleaned else 'METADATA_FAILED_NO_RETRY'
++        status='ACTUAL_L1_IDENTITY_READ_NO_CLIENT_ADMISSION' if not errors and cleaned else 'IDENTITY_FAILED_NO_RETRY'
+         record('RESULT.json',{'status':status,'errors':errors,'results':results,'remoteCleanupVerified':cleaned,'originalWritten':False,'chainClientsStarted':False,'overlayRetained':str(overlay),'productionChanged':False})
+         print(json.dumps({'status':status,'errors':errors,'remoteCleanupVerified':cleaned}))
+     else:print(json.dumps({'status':'REFUSED_BEFORE_METADATA','errors':errors}))
