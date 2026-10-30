@@ -1,0 +1,20 @@
+{
+  "rc": 1,
+  "reason": null,
+  "elapsedSeconds": 0.5640742632094771,
+  "stdout": "",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\nTraceback (most recent call last):\n  File \"<stdin>\", line 146, in <module>\nAssertionError: preexisting-trial-unit\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 336
+  },
+  "stdinBytesWritten": 18645,
+  "stdinBytesRequested": 18645,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

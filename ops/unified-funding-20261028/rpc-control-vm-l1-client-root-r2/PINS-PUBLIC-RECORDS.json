@@ -1,0 +1,166 @@
+{
+  "originalLocalFile": "PINS.json",
+  "originalSha256": "de902a05f4ce25e3898b1213d645d5619361411fb255314cd23600089c2cd20e",
+  "records": [
+    {
+      "path": "EXTERNAL-PINS.json",
+      "sha256": "6a3aec1a355b6f33d70f4e7737a054ba748e5d50c776210c7d1089b5fd195157"
+    },
+    {
+      "path": "MANIFEST.json",
+      "sha256": "03c2fd0e6315913d3644d408e249135d73bdecbe284e01e7462fe17b2ee640d5"
+    },
+    {
+      "path": "ORIGINAL-DRAFT.json",
+      "sha256": "428a25161791a90de8d4e718810d6c603c50fde095b84c6af34e7b208ada98c7"
+    },
+    {
+      "path": "PREPARATION.json",
+      "sha256": "ea37294f711ee3a4e54f7860523d95f4d6ee392040489f8f61aca71e01062087"
+    },
+    {
+      "path": "ROOT-ASSEMBLY.json",
+      "sha256": "2768e9322442635e46c4825352479642118804f948ac5322a8bb00738b856801"
+    },
+    {
+      "path": "ROOT-REVIEW.md",
+      "sha256": "da2ae93ecc585f3b38dc09a0be036e8fae095708131aceb28010749554d85026"
+    },
+    {
+      "path": "RUNTIME-DESIGN.md",
+      "sha256": "67cf47f75a98de0addb2b37395d098d68560d446036bebce8080b1925b42a751"
+    },
+    {
+      "path": "capture-local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "capture-remote.py",
+      "sha256": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655"
+    },
+    {
+      "path": "client-main.py",
+      "sha256": "ac664cae0a5e381a20a3e46d7af228a19e7c4171b06ce93346565f7033284b2e"
+    },
+    {
+      "path": "client-operations.py",
+      "sha256": "a623ce0f45e359a85ec0c71fb99deb588ec1338687e6a35b6f3d0e4b17ffed51"
+    },
+    {
+      "path": "disks.json",
+      "sha256": "6c8a37995ff67410332f856fbbd2a9dddf9a13a48e073f3c9716884962a916f2"
+    },
+    {
+      "path": "launch-command.txt",
+      "sha256": "9f8a9d9ddc9305c273fa2cf6a78218c02dc74a5f3e5f0e73d6bd26653f1ea749"
+    },
+    {
+      "path": "original-draft/MANIFEST.json",
+      "sha256": "4b0d19d547a7f37ed3fe9ce140f9e8dcf4afe96f7dfeff6cbb9ee998150463de"
+    },
+    {
+      "path": "original-draft/ORIGINAL-DRAFT.json",
+      "sha256": "428a25161791a90de8d4e718810d6c603c50fde095b84c6af34e7b208ada98c7"
+    },
+    {
+      "path": "original-draft/PREPARATION.json",
+      "sha256": "ea37294f711ee3a4e54f7860523d95f4d6ee392040489f8f61aca71e01062087"
+    },
+    {
+      "path": "original-draft/RUNTIME-DESIGN.md",
+      "sha256": "67cf47f75a98de0addb2b37395d098d68560d446036bebce8080b1925b42a751"
+    },
+    {
+      "path": "original-draft/capture-local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "original-draft/capture-remote.py",
+      "sha256": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655"
+    },
+    {
+      "path": "original-draft/client-main.py",
+      "sha256": "8b768468060c4082fd7fe6604a0217d57c03438dc23b2e0e98400e915fd01c41"
+    },
+    {
+      "path": "original-draft/client-operations.py",
+      "sha256": "0f9588744d30bf3cba1bacdce74e6a8ea8a555303f9913a94b2371b10313da8f"
+    },
+    {
+      "path": "original-draft/disks.json",
+      "sha256": "6c8a37995ff67410332f856fbbd2a9dddf9a13a48e073f3c9716884962a916f2"
+    },
+    {
+      "path": "original-draft/original-reth.toml",
+      "sha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7"
+    },
+    {
+      "path": "original-draft/proposed-reth.toml",
+      "sha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320"
+    },
+    {
+      "path": "original-draft/remote-program.py",
+      "sha256": "b7ca752640f7286d61632363b71dcf37ec9242147b4d9a87e62387dfdea0c420"
+    },
+    {
+      "path": "original-draft/reth-stage-only.patch",
+      "sha256": "aae647cd9e69d5326b5a193c30cc30f51f80278d60303aefcb989c4b587e286e"
+    },
+    {
+      "path": "original-draft/run-body.py",
+      "sha256": "ab58b4344ed3e8b3f55f0e7ae12e265a398605c7aca2cc34b5aab702bd5118d5"
+    },
+    {
+      "path": "original-draft/run.py",
+      "sha256": "8e3d9a02ed8cd4e01fcd2c2d1e7c64b60d6e6d3673c0d7fea695396ee88511dc"
+    },
+    {
+      "path": "original-draft/transport-helpers.py",
+      "sha256": "4a62361de1f8aca726f0483f009ae75b4dcf1438d9745e9c2144a0d58ad8c5e6"
+    },
+    {
+      "path": "original-draft/trial-chain-service.py",
+      "sha256": "1d82f1e1b86caabb36c012e97f67b1dd3ec0429b6c9b7a4892437823db51b69c"
+    },
+    {
+      "path": "original-draft/wrapper-private-paths.patch",
+      "sha256": "0ef24df1c698e35e0a762ceef404f79d216d5f2fa686ce03398809ba49ae1309"
+    },
+    {
+      "path": "original-reth.toml",
+      "sha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7"
+    },
+    {
+      "path": "proposed-reth.toml",
+      "sha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320"
+    },
+    {
+      "path": "remote-program.py",
+      "sha256": "8122716e590c8137b5d83774ab7d657c4609f956ed5a1f485fd8810a12c9401e"
+    },
+    {
+      "path": "reth-stage-only.patch",
+      "sha256": "aae647cd9e69d5326b5a193c30cc30f51f80278d60303aefcb989c4b587e286e"
+    },
+    {
+      "path": "run-body.py",
+      "sha256": "a088d58c3c4ba14de7f5a75975f2725e2fa4c4c03fbd54a1d69347d3acaaf3cc"
+    },
+    {
+      "path": "run.py",
+      "sha256": "5f178c35350af87035c341b8666b95f4597f49bdcb214a06bc7d40c64e4046ff"
+    },
+    {
+      "path": "transport-helpers.py",
+      "sha256": "04e5289e9f90e6d38fec86d7b9ad53a699fc9ca3b33cc4bc60ca0eb28f7cf8d2"
+    },
+    {
+      "path": "trial-chain-service.py",
+      "sha256": "6c01b56151123d8b6238764e06bc2739d8ddd358623b739d0870690dd1e9a664"
+    },
+    {
+      "path": "wrapper-private-paths.patch",
+      "sha256": "78a5650b4b90b1fcce5693f02e5e46251acb8dfc87d90db29dc059573e38d25a"
+    }
+  ]
+}

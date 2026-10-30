@@ -1,0 +1,19 @@
+{
+  "authorized": true,
+  "scope": "actual-l1-bounded-client-r1",
+  "pinsSha256": "4159e6cec275509aa941d2da8694a4b5fe07e29360cb3d724714dd379286d01f",
+  "at": 1793367674.5106792,
+  "hostAvailableMiB": 30139,
+  "oldUnits": {
+    "enclave-rpc-production-vm.service": {
+      "ActiveState": "inactive",
+      "MainPID": "0"
+    },
+    "enclave-rpc-production-guard.service": {
+      "ActiveState": "inactive",
+      "MainPID": "0"
+    }
+  },
+  "sourceCommit": "6d94c2b2ece70cbd1e6ffe7ec2a681040b86880b",
+  "review": "Exact frozen components and resource/ownership/cleanup/storage closure reviewed. ONE bounded startup only; no retry/consumer switch/Base activation. Dedicated identities and private COW authorized by production task."
+}

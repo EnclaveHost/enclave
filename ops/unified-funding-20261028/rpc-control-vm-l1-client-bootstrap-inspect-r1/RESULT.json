@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.7006550100632012,
+  "stdout": "{\"enclavel1attachr1.slice\": {\"rc\": 0, \"properties\": \"ControlGroup=\\nLoadState=loaded\\nActiveState=inactive\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"stderr\": \"\"}, \"enclavel1trialr1.slice\": {\"rc\": 0, \"properties\": \"ControlGroup=\\nLoadState=loaded\\nActiveState=inactive\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"stderr\": \"\"}, \"enclavel1guardianr1.slice\": {\"rc\": 0, \"properties\": \"ControlGroup=\\nLoadState=loaded\\nActiveState=inactive\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"stderr\": \"\"}, \"enclave-rpc-l1-helper-r1.service\": {\"rc\": 0, \"properties\": \"MainPID=0\\nControlGroup=\\nLoadState=not-found\\nActiveState=inactive\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"stderr\": \"\"}, \"enclave-rpc-l1-watch-r1.service\": {\"rc\": 0, \"properties\": \"MainPID=0\\nControlGroup=\\nLoadState=not-found\\nActiveState=inactive\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"stderr\": \"\"}, \"enclave-rpc-l1-nbd-r1.service\": {\"rc\": 0, \"properties\": \"MainPID=0\\nControlGroup=\\nLoadState=not-found\\nActiveState=inactive\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"stderr\": \"\"}, \"enclave-rpc-l1-el-trial-r1.service\": {\"rc\": 0, \"properties\": \"MainPID=0\\nControlGroup=\\nLoadState=not-found\\nActiveState=inactive\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"stderr\": \"\"}, \"enclave-rpc-l1-cl-trial-r1.service\": {\"rc\": 0, \"properties\": \"MainPID=0\\nControlGroup=\\nLoadState=not-found\\nActiveState=inactive\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"stderr\": \"\"}, \"enclave-rpc-l1-bootstrap-r1.service\": {\"rc\": 0, \"properties\": \"MainPID=0\\nControlGroup=\\nLoadState=loaded\\nActiveState=failed\\nFragmentPath=/run/systemd/transient/enclave-rpc-l1-bootstrap-r1.service\\nDropInPaths=\\nTransient=yes\\nInvocationID=84f891800cd94d12a5f59f6a2703418f\\n\", \"stderr\": \"\"}, \"/run/enclave-rpc-l1-client-r1\": {\"exists\": false}, \"/var/lib/enclave-rpc-l1-client-r1\": {\"exists\": false}, \"/srv/enclave-l1-pair\": {\"exists\": false}, \"/sys/module/nbd\": {\"exists\": false}, \"/run/systemd/system/enclavel1attachr1.slice\": {\"exists\": false}, \"/run/systemd/system/enclavel1trialr1.slice\": {\"exists\": false}, \"/run/systemd/system/enclavel1guardianr1.slice\": {\"exists\": false}}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 2264,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 957,
+  "stdinBytesRequested": 957,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

@@ -1,0 +1,25 @@
+--- reviewed/chain_service.py
++++ trial/chain_service.py
+@@ -18,10 +18,10 @@
+ import urllib.request
+ import urllib.error
+ 
+-ROOT = pathlib.Path('/opt/enclave-rpc')
++ROOT = pathlib.Path('/var/lib/enclave-rpc-l1-client-r2/payload')
+ MANIFEST = json.loads((ROOT / 'manifest.json').read_text())
+-DISKS = json.loads(pathlib.Path('/etc/enclave-rpc-vm/disks.json').read_text())['disks']
+-CONFIG = json.loads(pathlib.Path('/etc/enclave-rpc/chain.json').read_text())
++DISKS = json.loads((ROOT / 'disks.json').read_text())['disks']
++CONFIG = json.loads((ROOT / 'chain.json').read_text())
+ 
+ def mount(role, side):
+     d = next(d for d in DISKS if d['role'] == role)
+@@ -472,7 +472,7 @@
+         state_from = state_history_from_block(CONFIG, required=False) if side == 'base' else None
+         prune = prune_args(profile, history_from, state_from)
+     env = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': datadir, 'TMPDIR': base + ('/tmp-cl' if side == 'cl' else '/tmp')}
+-    jwt = '/etc/enclave-rpc/jwt.hex'
++    jwt = str(ROOT / 'jwt.hex')
+     if side == 'el':
+         # The snapshot wrote the exact 140000-block prune profile to reth.toml. Pass all of it (never --full,
+         # a different preset): any partial --prune.* set would replace the persisted profile.

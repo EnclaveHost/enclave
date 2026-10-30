@@ -1,0 +1,8 @@
+{
+  "status": "FROZEN_UNRUN",
+  "predecessorPins": "4159e6cec275509aa941d2da8694a4b5fe07e29360cb3d724714dd379286d01f",
+  "observedFailure": "unused implicit slice LoadState=loaded",
+  "remoteProgramSha256": "8122716e590c8137b5d83774ab7d657c4609f956ed5a1f485fd8810a12c9401e",
+  "runSha256": "5f178c35350af87035c341b8666b95f4597f49bdcb214a06bc7d40c64e4046ff",
+  "pythonAstParsed": true
+}

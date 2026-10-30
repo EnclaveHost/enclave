@@ -1,0 +1,294 @@
+{
+  "status": "CLIENT_TRIAL_FAILED_NO_RETRY",
+  "errors": [
+    "AssertionError:bootstrap"
+  ],
+  "results": {
+    "originalBackingChain": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.10547965299338102,
+      "stdout": "[\n    {\n        \"children\": [\n            {\n                \"name\": \"file\",\n                \"info\": {\n                    \"children\": [\n                    ],\n                    \"virtual-size\": 528387407872,\n                    \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n                    \"format\": \"file\",\n                    \"actual-size\": 461808537600,\n                    \"format-specific\": {\n                        \"type\": \"file\",\n                        \"data\": {\n                        }\n                    },\n                    \"dirty-flag\": false\n                }\n            }\n        ],\n        \"virtual-size\": 4000000000000,\n        \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"cluster-size\": 65536,\n        \"format\": \"qcow2\",\n        \"actual-size\": 461808537600,\n        \"format-specific\": {\n            \"type\": \"qcow2\",\n            \"data\": {\n                \"compat\": \"1.1\",\n                \"compression-type\": \"zlib\",\n                \"lazy-refcounts\": false,\n                \"refcount-bits\": 16,\n                \"corrupt\": false,\n                \"extended-l2\": false\n            }\n        },\n        \"dirty-flag\": false\n    }\n]\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 1204,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "createPrivateClientCow": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.16011480102315545,
+      "stdout": "Formatting '/vm/enclave-volumes/rpc-control-l1-client-r1/overlay.qcow2', fmt=qcow2 cluster_size=65536 extended_l2=off compression_type=zlib size=4000000000000 backing_file=/vm/enclave-volumes/rpc-production/l1-origin.qcow2 backing_fmt=qcow2 lazy_refcounts=off refcount_bits=16\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 277,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "backingChain": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.10471934895031154,
+      "stdout": "[\n    {\n        \"children\": [\n            {\n                \"name\": \"file\",\n                \"info\": {\n                    \"children\": [\n                    ],\n                    \"virtual-size\": 256512,\n                    \"filename\": \"/vm/enclave-volumes/rpc-control-l1-client-r1/overlay.qcow2\",\n                    \"format\": \"file\",\n                    \"actual-size\": 258048,\n                    \"format-specific\": {\n                        \"type\": \"file\",\n                        \"data\": {\n                        }\n                    },\n                    \"dirty-flag\": false\n                }\n            }\n        ],\n        \"backing-filename-format\": \"qcow2\",\n        \"virtual-size\": 4000000000000,\n        \"filename\": \"/vm/enclave-volumes/rpc-control-l1-client-r1/overlay.qcow2\",\n        \"cluster-size\": 65536,\n        \"format\": \"qcow2\",\n        \"actual-size\": 258048,\n        \"format-specific\": {\n            \"type\": \"qcow2\",\n            \"data\": {\n                \"compat\": \"1.1\",\n                \"compression-type\": \"zlib\",\n                \"lazy-refcounts\": false,\n                \"refcount-bits\": 16,\n                \"corrupt\": false,\n                \"extended-l2\": false\n            }\n        },\n        \"full-backing-filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"backing-filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"dirty-flag\": false\n    },\n    {\n        \"children\": [\n            {\n                \"name\": \"file\",\n                \"info\": {\n                    \"children\": [\n                    ],\n                    \"virtual-size\": 528387407872,\n                    \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n                    \"format\": \"file\",\n                    \"actual-size\": 461808537600,\n                    \"format-specific\": {\n                        \"type\": \"file\",\n                        \"data\": {\n                        }\n                    },\n                    \"dirty-flag\": false\n                }\n            }\n        ],\n        \"virtual-size\": 4000000000000,\n        \"filename\": \"/vm/enclave-volumes/rpc-production/l1-origin.qcow2\",\n        \"cluster-size\": 65536,\n        \"format\": \"qcow2\",\n        \"actual-size\": 461808537600,\n        \"format-specific\": {\n            \"type\": \"qcow2\",\n            \"data\": {\n                \"compat\": \"1.1\",\n                \"compression-type\": \"zlib\",\n                \"lazy-refcounts\": false,\n                \"refcount-bits\": 16,\n                \"corrupt\": false,\n                \"extended-l2\": false\n            }\n        },\n        \"dirty-flag\": false\n    }\n]\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 2616,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "uploadDirectory": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.8027755350340158,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 173,
+      "stdinBytesRequested": 173,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:reth": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 1.6445542329456657,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:lighthouse": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 1.5022772720549256,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:manifest.json": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.35354825505055487,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:chain.json": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.45716103189624846,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:chain_service.py": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.45100649702362716,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:disks.json": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.4477092418819666,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:original-reth.toml": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.45249712583608925,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:proposed-reth.toml": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.4618109369184822,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "upload:program.py": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.3508652539458126,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 222
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "bootstrap": {
+      "rc": 1,
+      "reason": null,
+      "elapsedSeconds": 0.5640742632094771,
+      "stdout": "",
+      "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\nTraceback (most recent call last):\n  File \"<stdin>\", line 146, in <module>\nAssertionError: preexisting-trial-unit\n",
+      "bytesObserved": {
+        "stdout": 0,
+        "stderr": 336
+      },
+      "stdinBytesWritten": 18645,
+      "stdinBytesRequested": 18645,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    }
+  },
+  "remoteCleanupVerified": false,
+  "parentUnchanged": true,
+  "privateCowRetained": "/vm/enclave-volumes/rpc-control-l1-client-r1/overlay.qcow2",
+  "productionReady": false,
+  "consumerChanged": false,
+  "baseStarted": false
+}

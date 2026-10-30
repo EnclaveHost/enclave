@@ -1,0 +1,9 @@
+{
+  "status": "SOURCE_PREPARATION_ONLY_NOT_NATIVE_VALIDATION",
+  "originalTomlSha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7",
+  "proposedTomlSha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320",
+  "stageOnlyDifference": true,
+  "pruneStaticAndOtherFieldsPreserved": true,
+  "nativeRethParserQualified": false,
+  "trialWrapperSha256": "1d82f1e1b86caabb36c012e97f67b1dd3ec0429b6c9b7a4892437823db51b69c"
+}
