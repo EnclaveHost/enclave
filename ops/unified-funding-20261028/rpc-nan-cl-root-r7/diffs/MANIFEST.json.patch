@@ -1,0 +1,126 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/source/MANIFEST.json
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r7/source/MANIFEST.json
+@@ -1,17 +1,17 @@
+ {
+-  "nonce": "9b69383d-8eb4-4aa4-bd83-ec7ac3f9a5bf",
++  "nonce": "d01cf27c-1b0a-4794-bea0-0de09bff0431",
+   "unitPrefix": "enclave-rpc-nan-",
+   "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0",
+   "bytes": 4000000000000,
+-  "exportName": "enclave-nan-cl-9b69383d-8eb4-4aa4-bd83-ec7ac3f9a5bf",
+-  "remoteSocket": "/root/rpc-nan-client-n6/export.sock",
++  "exportName": "enclave-nan-cl-d01cf27c-1b0a-4794-bea0-0de09bff0431",
++  "remoteSocket": "/root/rpc-nan-client-n7/export.sock",
+   "target": "nan",
+   "knownHosts": "/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts",
+   "bootId": "4b84b9bd-a89d-4b37-94cb-26334dbf4666",
+   "client": {
+     "archiveMember": "sbin/nbd-client",
+     "bytes": 56376,
+-    "path": "/root/rpc-nan-upload-n6/nbd-client",
++    "path": "/root/rpc-nan-upload-n7/nbd-client",
+     "sha256": "0a256b67962d1ffc1ab8bacecd4319b8e459a0535467abb66f83329ce5221167"
+   },
+   "remotePins": [
+@@ -171,8 +171,8 @@
+     "source": "/dev/sda1",
+     "fstype": "ext4"
+   },
+-  "overlayDirectory": "/vm/enclave-volumes/rpc-nan-cl-n6",
+-  "expectedProductionMount": "/srv/enclave-nan-cl-n6/volume",
++  "overlayDirectory": "/vm/enclave-volumes/rpc-nan-cl-n7",
++  "expectedProductionMount": "/srv/enclave-nan-cl-n7/volume",
+   "parent": {
+     "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+     "device": 64769,
+@@ -183,8 +183,8 @@
+     "mode": 33152,
+     "header104Sha256": "b06a08884bafb1540f1115ce307ef52c715b66a791665f59f90b52b3b400cb8c"
+   },
+-  "uploadDirectory": "/root/rpc-nan-upload-n6",
+-  "programSha256": "ade556d3ca3fbd6c43301d2b88033f89c76698d9d2c149fc37695fdd41eee581",
++  "uploadDirectory": "/root/rpc-nan-upload-n7",
++  "programSha256": "466d01f7c5ba464a9adf931abecc585ac81f7d2e0f0c9b27614e7ea47b68983b",
+   "originalTomlSha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7",
+   "proposedTomlSha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320",
+   "identities": {
+@@ -212,10 +212,10 @@
+       "sha256": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96"
+     },
+     "manifest.json": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/source/payload-manifest.json",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r7/source/payload-manifest.json",
+       "destination": "manifest.json",
+       "bytes": 740,
+-      "sha256": "aa54c7511ecc50d5e49f09f503b77defa2465cecf9bcfa282440084de3fe4b59"
++      "sha256": "c31080fdba2e6805ad36a92ffb4c9841d9884d1c5f4c2ac6a8514fe26197d2a7"
+     },
+     "chain.json": {
+       "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-current-wrapper-r1/installed-chain.json",
+@@ -224,16 +224,16 @@
+       "sha256": "81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7"
+     },
+     "chain_service.py": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/source/trial-chain-service.py",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r7/source/trial-chain-service.py",
+       "destination": "chain_service.py",
+       "bytes": 40169,
+-      "sha256": "47a9eaede23ce632eaccb590037e99f3043352046466e5b7d1e6f7d6bcdbd7dc"
++      "sha256": "1c3bad99b1857252d5ce60158f6a5bb748db9c1f98790773b1a21464d3a893fe"
+     },
+     "disks.json": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/source/disks.json",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r7/source/disks.json",
+       "destination": "disks.json",
+       "bytes": 154,
+-      "sha256": "34e2662b045c3eaf678f13934888324e816369d57246d6c289d9510a618494fe"
++      "sha256": "e34f178bc5ac17b5899c7bc471ef2aacefe4d6f7d7f39f9a08f5b0131d29f4be"
+     }
+   },
+   "metadataOverlayReference": {
+@@ -246,7 +246,7 @@
+     "mode": 33152,
+     "sha256": "ddea119560fa26f6d193adac91c43d6eff03ef89ea4ed69d643c62f175e994bf"
+   },
+-  "overlayPath": "/vm/enclave-volumes/rpc-nan-cl-n6/overlay.qcow2",
++  "overlayPath": "/vm/enclave-volumes/rpc-nan-cl-n7/overlay.qcow2",
+   "lighthouseCacheProfile": {
+     "state": 2,
+     "coldHdiff": 1,
+@@ -255,15 +255,15 @@
+   },
+   "sshUid": 0,
+   "ownedSlices": [
+-    "enclavenantrialn6.slice",
+-    "enclavenanattachn6.slice",
+-    "enclavenanguardn6.slice"
++    "enclavenantrialn7.slice",
++    "enclavenanattachn7.slice",
++    "enclavenanguardn7.slice"
+   ],
+   "localNbdClient": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nbd-local-public-copy-r1/nbd-client",
+   "admission": {
+     "authorized": false,
+     "scope": "nan-cl-only-4096",
+-    "nonce": "9b69383d-8eb4-4aa4-bd83-ec7ac3f9a5bf",
++    "nonce": "d01cf27c-1b0a-4794-bea0-0de09bff0431",
+     "observedPendingMiB": null,
+     "osReserveMiB": 2048,
+     "creatorClassification": "two-launches-before-wait-no-repeated-allocator",
+@@ -317,5 +317,16 @@
+     "source": "/var/lib/enclave-rpc-nan-client-n5/payload/bin/lighthouse",
+     "bytes": 105018160,
+     "sha256": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96"
++  },
++  "freshMetadataPolicy": {
++    "excludedRuntimeFiles": [
++      "ROOT-ADMISSION.json",
++      "FRESH-OBSERVATION.json"
++    ],
++    "assemblyAndCommitBeforeObservation": true,
++    "manifestImmutable": true,
++    "admissionInMemoryOnly": true,
++    "metadataByteLimit": 1048576,
++    "minimumAdmissionRemainingAtLoadSeconds": 510
+   }
+ }

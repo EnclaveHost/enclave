@@ -1,0 +1,145 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/source/run-body.py
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r7/source/run-body.py
+@@ -2,10 +2,10 @@
+ from pathlib import Path
+ import hashlib,json,fcntl,struct,stat,sys,resource
+ P=Path(__file__).resolve().parent;M=json.loads((P/'MANIFEST.json').read_text())
+-art=P/'artifacts';sockdir=Path('/run/user/1000/rpc-nan-client-n6')
++art=P/'artifacts';sockdir=Path('/run/user/1000/rpc-nan-client-n7')
+ parent=Path(M['parent']['path']);overlay=Path(M['overlayPath'])
+ exporter=None;tunnel=None;lockfd=None;remote_attempted=False;cut=False;workflow=None;main_completed=False;overlay_identity=None;overlay_creating=False
+-results={};errors=[];owned=[];cleaning=False;remote_calls={};preparation_deadline=None;main_phase=False
++results={};errors=[];owned=[];cleaning=False;remote_calls={};preparation_deadline=None;main_phase=False;admission_metadata_hashes={}
+ def sha(p):
+     with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+ def record(n,v):
+@@ -14,8 +14,49 @@
+     for n,h in json.loads((P/'PINS.json').read_text()).items():assert sha(P/n)==h,'input-drift:'+n
+     for row in json.loads((P/'EXTERNAL-PINS.json').read_text()):
+         q=Path(row['path']);assert str(q.resolve())==row['realpath'] and q.stat().st_size==row['bytes'] and sha(q)==row['sha256'],'external-drift'
++def validate_admission_metadata(admit, observation, observation_sha, now, manifest, pins_sha):
++    # Root supplies only fresh metadata after source/runtime preparation and commit.
++    # This is local reviewed admission, not a cryptographic remote authorization claim.
++    a=admit['admission'];template=manifest['admission']
++    assert template['authorized'] is False,'committed-manifest-must-be-unadmitted'
++    assert admit['authorized'] is True and admit['scope']=='actual-nan-cl-bounded-client-n7','root-admission-scope'
++    assert admit['nonce']==manifest['nonce'] and admit['bootId']==manifest['bootId'],'root-admission-identity'
++    assert admit['pinsSha256']==pins_sha,'root-admission-pins'
++    assert admit['observationSha256']==observation_sha,'root-observation-pin'
++    assert admit['admissionSha256']==hashlib.sha256(json.dumps(a,sort_keys=True).encode()).hexdigest(),'root-admission-hash'
++    for key in ('scope','nonce','osReserveMiB','creatorClassification'):
++        assert a[key]==template[key],'admission-fixed-policy:'+key
++    assert a['authorized'] is True and a['observedPendingMiB']>=0,'admission-policy'
++    assert observation['readOnly'] is True and not observation['errors'] and observation['boot']==manifest['bootId'],'observation-identity'
++    assert a['at']==observation['at']<=admit['at']<=now and now-admit['at']<=300,'admission-observation-order'
++    assert a['at']<=now<a['expiresAt'] and 0<a['expiresAt']-a['at']<=600,'stale-Nan-admission'
++    assert a['expiresAt']-now>=510,'fresh-admission-headroom-at-load'
++    for key in ('scheduleFiles','scheduleDirectories','timerConfigFiles','timerUnitPaths','creatorClassification'):
++        assert a[key]==observation[key],'admission-observation-mismatch:'+key
++    timer_rows=sorted([line.split()[-2:],line.split()[:4] if line.split()[0]!='-' else ['-']] for line in observation['timers']['stdout'].splitlines() if line.strip())
++    assert a['timerRows']==timer_rows,'admission-timer-rows'
++    return a
++
++def load_fresh_admission():
++    global admission_metadata_hashes
++    values={}
++    for name in ('ROOT-ADMISSION.json','FRESH-OBSERVATION.json'):
++        q=P/name;fd=os.open(q,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC)
++        with os.fdopen(fd,'rb') as f:
++            st=os.fstat(f.fileno())
++            assert stat.S_ISREG(st.st_mode) and st.st_uid==os.geteuid() and not st.st_mode&0o022 and st.st_nlink==1 and st.st_size<=1048576,'admission-metadata-authority'
++            raw=f.read(1048577);assert len(raw)==st.st_size,'admission-metadata-size'
++            end=os.fstat(f.fileno());pathst=q.lstat()
++            for attr in ('st_dev','st_ino','st_size','st_mtime_ns','st_ctime_ns','st_mode','st_uid','st_nlink'):
++                assert getattr(st,attr)==getattr(end,attr)==getattr(pathst,attr),'admission-metadata-drift'
++        admission_metadata_hashes[name]=hashlib.sha256(raw).hexdigest();values[name]=json.loads(raw)
++    admit=values['ROOT-ADMISSION.json']
++    M['admission']=validate_admission_metadata(admit,values['FRESH-OBSERVATION.json'],admission_metadata_hashes['FRESH-OBSERVATION.json'],time.time(),M,sha(P/'PINS.json'))
++    return admit
++
+ def guard():
+     if cleaning:return
++    for name,h in admission_metadata_hashes.items():assert sha(P/name)==h,'fresh-metadata-drift'
+     if preparation_deadline is not None and not main_phase:
+         assert time.time()<=preparation_deadline,'preparation-time-budget'
+     if lockfd is not None:parent_identity()
+@@ -76,7 +117,7 @@
+     common=(P/'capture-remote.py').read_text()
+     body=r"""
+ import pathlib,json,hashlib,stat,sys
+-P=pathlib.Path;root=P('/run/enclave-rpc-nan-client-n6');os.umask(0o077)
++P=pathlib.Path;root=P('/run/enclave-rpc-nan-client-n7');os.umask(0o077)
+ assert os.geteuid()==0
+ assert P('/proc/sys/kernel/random/boot_id').read_text().strip()==M['bootId']
+ assert os.statvfs('/var/lib').f_bavail*os.statvfs('/var/lib').f_frsize>=8<<30
+@@ -87,8 +128,8 @@
+ program=P(M['uploadDirectory'])/'program.py';st=program.lstat()
+ assert stat.S_ISREG(st.st_mode) and st.st_size<=131072
+ raw=program.read_bytes();assert hashlib.sha256(raw).hexdigest()==M['programSha256']
+-unit=P('/run/systemd/system/enclavenanattachn6.slice');assert not unit.exists()
+-for name in ('enclavenanattachn6.slice','enclavenantrialn6.slice','enclavenanguardn6.slice','enclave-rpc-nan-helper-n6.service','enclave-rpc-nan-watch-n6.service','enclave-rpc-nan-nbd-n6.service','enclave-rpc-nan-cl-trial-n6.service'):
++unit=P('/run/systemd/system/enclavenanattachn7.slice');assert not unit.exists()
++for name in ('enclavenanattachn7.slice','enclavenantrialn7.slice','enclavenanguardn7.slice','enclave-rpc-nan-helper-n7.service','enclave-rpc-nan-watch-n7.service','enclave-rpc-nan-nbd-n7.service','enclave-rpc-nan-cl-trial-n7.service'):
+  r=capture(['/usr/bin/systemctl','show',name,'--property=LoadState,ActiveState,FragmentPath,DropInPaths,ControlGroup,InvocationID,Transient'],3,limit=4096);assert not r['reason'] and not r['truncated'],'unit-observation-failed'
+  info=dict(line.split('=',1) for line in r['stdout'].splitlines() if '=' in line)
+  if name.endswith('.slice'):
+@@ -111,18 +152,18 @@
+     policy=(P/'nan-admission.py').read_text()
+     definitions="from pathlib import Path as P\nimport hashlib\ncleaning=False\nACTION='bootstrap'\nlast_guard=0\nout={}\ndef read(p):return P(p).read_text().strip()\ndef sha(p):\n with P(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()\n"
+     script=common+'\nM='+repr(M)+'\n'+definitions+policy+'\nfresh_nan_policy()\n'+body
+-    command='/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit=enclave-rpc-nan-bootstrap-n6 --property=User=root --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=AllowedCPUs=1 --property=RuntimeMaxSec=40 --property=TimeoutStopSec=10 --property=UMask=0077 /usr/bin/python3 -B -'
++    command='/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit=enclave-rpc-nan-bootstrap-n7 --property=User=root --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=AllowedCPUs=1 --property=RuntimeMaxSec=40 --property=TimeoutStopSec=10 --property=UMask=0077 /usr/bin/python3 -B -'
+     r=capture([*sshargs(),M['target'],command],55,stdin=script.encode(),limit=65536);results['bootstrap']=r
+     record('BOOTSTRAP.json',r);assert r['rc']==0 and not r['reason'] and not r['truncated'],'bootstrap'
+ def remote(action):
+     if action=='main':
+-        unit='enclave-rpc-nan-helper-n6';slice_name='enclavenanattachn6.slice';runtime=510;stop_seconds=145;seconds=665
+-        post=" '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-nan-client-n6/program.py wait-cleanup'"
++        unit='enclave-rpc-nan-helper-n7';slice_name='enclavenanattachn7.slice';runtime=510;stop_seconds=145;seconds=665
++        post=" '--property=ExecStopPost=/usr/bin/python3 -B /run/enclave-rpc-nan-client-n7/program.py wait-cleanup'"
+     elif action=='verify':
+-        unit='enclave-rpc-nan-verify-n6';slice_name='enclavenanguardn6.slice';runtime=45;stop_seconds=10;seconds=60;post=''
++        unit='enclave-rpc-nan-verify-n7';slice_name='enclavenanguardn7.slice';runtime=45;stop_seconds=10;seconds=60;post=''
+     else:
+-        unit='enclave-rpc-nan-'+action+'-n6';slice_name='enclavenanguardn6.slice';runtime=10;stop_seconds=5;seconds=20;post=''
+-    command='/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit='+unit+' --slice='+slice_name+' --property=User=root --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=TasksMax=64 --property=RuntimeMaxSec='+str(runtime)+' --property=TimeoutStopSec='+str(stop_seconds)+' --property=KillMode=control-group --property=UMask=0077'+post+' /usr/bin/python3 -B /run/enclave-rpc-nan-client-n6/program.py '+action
++        unit='enclave-rpc-nan-'+action+'-n7';slice_name='enclavenanguardn7.slice';runtime=10;stop_seconds=5;seconds=20;post=''
++    command='/usr/bin/sudo -n /usr/bin/systemd-run --quiet --wait --pipe --unit='+unit+' --slice='+slice_name+' --property=User=root --property=MemoryMax=128M --property=MemorySwapMax=0 --property=CPUQuota=100% --property=TasksMax=64 --property=RuntimeMaxSec='+str(runtime)+' --property=TimeoutStopSec='+str(stop_seconds)+' --property=KillMode=control-group --property=UMask=0077'+post+' /usr/bin/python3 -B /run/enclave-rpc-nan-client-n7/program.py '+action
+     r=capture([*sshargs(),M['target'],command],seconds,limit=2097152);results['remote:'+action]=r;record('REMOTE-'+action.upper()+'.json',r)
+     assert r['rc']==0 and not r['reason'] and not r['truncated'],'remote:'+action
+     lines=[json.loads(l[len('RESULT_JSON='):]) for l in r['stdout'].splitlines() if l.startswith('RESULT_JSON=')]
+@@ -146,20 +187,18 @@
+ def run():
+     global lockfd,workflow,remote_attempted,main_completed,overlay_identity,overlay_creating,preparation_deadline,main_phase
+     os.umask(0o077);verify()
+-    admit=json.loads((P/'ROOT-ADMISSION.json').read_text())
+-    assert admit['admissionSha256']==hashlib.sha256(json.dumps(M['admission'],sort_keys=True).encode()).hexdigest()
+-    assert admit['authorized'] is True and admit['scope']=='actual-nan-cl-bounded-client-n6' and admit['pinsSha256']==sha(P/'PINS.json') and 0<=time.time()-admit['at']<=300
++    admit=load_fresh_admission()
+     preparation_deadline=admit['at']+90
+     assert os.sched_getaffinity(0)=={1}
+     cg=Path('/proc/self/cgroup').read_text().strip();assert cg.startswith('0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-') and cg.endswith('.scope')
+     c=Path('/sys/fs/cgroup'+cg[3:]);assert (c/'memory.max').read_text().strip()==str(512<<20) and (c/'memory.swap.max').read_text().strip()=='0'
+     guard();parent_identity();header_pin()
+     assert not overlay.parent.exists(),'client-COW-directory-preexists'
+-    record('ATTEMPT.json',{'at':time.time(),'scope':cg,'pinsSha256':sha(P/'PINS.json'),'privateCowOnly':True,'noRetry':True})
++    record('ATTEMPT.json',{'at':time.time(),'scope':cg,'pinsSha256':sha(P/'PINS.json'),'privateCowOnly':True,'noRetry':True,'admissionMetadataSha256':dict(admission_metadata_hashes)})
+     art.mkdir(mode=0o700);sockdir.mkdir(mode=0o700);overlay.parent.mkdir(mode=0o700)
+     assert overlay.parent.stat().st_dev==M['parent']['device']
+     resource.setrlimit(resource.RLIMIT_FSIZE,(8<<30,8<<30))
+-    workflow=os.open(overlay.parent/'client-trial-n6.lock',os.O_CREAT|os.O_EXCL|os.O_RDWR|os.O_CLOEXEC,0o600);fcntl.flock(workflow,fcntl.LOCK_EX|fcntl.LOCK_NB)
++    workflow=os.open(overlay.parent/'client-trial-n7.lock',os.O_CREAT|os.O_EXCL|os.O_RDWR|os.O_CLOEXEC,0o600);fcntl.flock(workflow,fcntl.LOCK_EX|fcntl.LOCK_NB)
+     lockfd=os.open(parent,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC)
+     for byte in (201,202,203):fcntl.fcntl(lockfd,fcntl.F_OFD_SETLK,struct.pack('@hhqqi4x',fcntl.F_RDLCK,os.SEEK_SET,byte,1,0))
+     occupied=fcntl.fcntl(lockfd,fcntl.F_OFD_GETLK,struct.pack('@hhqqi4x',fcntl.F_WRLCK,os.SEEK_SET,100,200,0));assert struct.unpack('@hhqqi4x',occupied)[0]==fcntl.F_UNLCK
+@@ -209,7 +248,9 @@
+         os.close(lockfd)
+     if workflow is not None:os.close(workflow)
+     if (P/'ATTEMPT.json').exists():
+-        try:verify()
++        try:
++            verify()
++            for name,h in admission_metadata_hashes.items():assert sha(P/name)==h,'fresh-metadata-drift'
+         except Exception as e:errors.append('input-drift:'+type(e).__name__)
+         status='BOUNDED_L1_START_STOP_OBSERVED_NOT_PRODUCTION_READY' if not errors and cleaned and main_completed else 'CLIENT_TRIAL_FAILED_NO_RETRY'
+         record('RESULT.json',{'status':status,'errors':errors,'results':results,'remoteCleanupVerified':cleaned,'parentUnchanged':not any(x.startswith('parent-final:') for x in errors),'privateCowRetained':str(overlay),'productionReady':False,'consumerChanged':False,'baseStarted':False})

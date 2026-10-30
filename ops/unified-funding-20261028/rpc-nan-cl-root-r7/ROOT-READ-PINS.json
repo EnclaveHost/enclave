@@ -1,0 +1,17 @@
+{
+  "originalFileSha256": "3931a3f3c620ecd8efbe29e043186a73fc7d5e5b09306a5a67586c0d44c203e1",
+  "publicContentPins": [
+    {
+      "path": "fresh-read.py",
+      "sha256": "0502ab7bfff9a295b6c55eecb4def8a273b513e8c5a11390dffb40647ef3853b"
+    },
+    {
+      "path": "fresh-read-body.py",
+      "sha256": "694f35bf33c0c6034af21c33eea10cbe29a565f0724119ed1abdb78315781372"
+    },
+    {
+      "path": "source/capture-remote.py",
+      "sha256": "aee3fe3b07126b8cc8b3b3fd4225ebc94e42ae2344177ef316106899ec642655"
+    }
+  ]
+}

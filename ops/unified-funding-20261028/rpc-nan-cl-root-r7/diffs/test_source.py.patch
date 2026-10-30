@@ -1,0 +1,59 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r6/test_source.py
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r7/test_source.py
+@@ -256,5 +256,56 @@
+   self.target.write_bytes(b'keep')
+   with self.assertRaises(FileExistsError):self.copy()
+   self.assertEqual(self.target.read_bytes(),b'keep')
++
++class FreshMetadata(unittest.TestCase):
++ def setUp(self):
++  import hashlib,copy
++  self.copy=copy.deepcopy;self.hashlib=hashlib
++  self.m={'nonce':'fixture-nonce','bootId':'fixture-boot','admission':{'authorized':False,'scope':'nan-cl-only-4096','nonce':'fixture-nonce','osReserveMiB':2048,'creatorClassification':'two-launches-before-wait-no-repeated-allocator'}}
++  self.o={'readOnly':True,'errors':[],'boot':'fixture-boot','at':100,'scheduleFiles':[],'scheduleDirectories':[],'timerConfigFiles':[],'timerUnitPaths':{},'creatorClassification':'two-launches-before-wait-no-repeated-allocator','timers':{'stdout':''}}
++  a=dict(self.m['admission'],authorized=True,at=100,expiresAt=700,observedPendingMiB=0,timerRows=[])
++  for k in ('scheduleFiles','scheduleDirectories','timerConfigFiles','timerUnitPaths'):a[k]=self.o[k]
++  self.a={'authorized':True,'scope':'actual-nan-cl-bounded-client-n7','nonce':'fixture-nonce','bootId':'fixture-boot','pinsSha256':'pins','observationSha256':'observation','at':101,'admission':a}
++  fn=next(n for n in ast.parse((p/'source/run-body.py').read_text()).body if isinstance(n,ast.FunctionDef) and n.name=='validate_admission_metadata')
++  self.g={'json':json,'hashlib':hashlib};exec(compile(ast.Module(body=[fn],type_ignores=[]),'fresh-metadata-fixture','exec'),self.g)
++ def check(self,now=102):
++  self.a['admissionSha256']=self.hashlib.sha256(json.dumps(self.a['admission'],sort_keys=True).encode()).hexdigest()
++  return self.g['validate_admission_metadata'](self.a,self.o,'observation',now,self.m,'pins')
++ def test_accept_bound_metadata_without_manifest_mutation(self):
++  before=self.copy(self.m);self.assertTrue(self.check()['authorized']);self.assertEqual(self.m,before)
++ def test_wrong_pins(self):
++  self.a['pinsSha256']='wrong'
++  with self.assertRaisesRegex(AssertionError,'pins'):self.check()
++ def test_wrong_observation(self):
++  self.a['observationSha256']='wrong'
++  with self.assertRaisesRegex(AssertionError,'observation-pin'):self.check()
++ def test_wrong_boot(self):
++  self.a['bootId']='wrong'
++  with self.assertRaisesRegex(AssertionError,'identity'):self.check()
++ def test_wrong_scope(self):
++  self.a['scope']='other'
++  with self.assertRaisesRegex(AssertionError,'scope'):self.check()
++ def test_wrong_nonce(self):
++  self.a['admission']['nonce']='wrong'
++  with self.assertRaisesRegex(AssertionError,'fixed-policy'):self.check()
++ def test_reserve_cannot_change(self):
++  self.a['admission']['osReserveMiB']=1024
++  with self.assertRaisesRegex(AssertionError,'fixed-policy'):self.check()
++ def test_cannot_refresh_observation_time(self):
++  self.a['admission']['at']=101
++  with self.assertRaisesRegex(AssertionError,'order'):self.check()
++ def test_more_than_600_seconds_refused(self):
++  self.a['admission']['expiresAt']=701
++  with self.assertRaisesRegex(AssertionError,'stale'):self.check()
++ def test_less_than_510_remaining_refused(self):
++  with self.assertRaisesRegex(AssertionError,'headroom'):self.check(191)
++ def test_exact_510_remaining_allowed(self):self.check(190)
++ def test_schedules_bound(self):
++  self.a['admission']['scheduleFiles']=[{'path':'changed'}]
++  with self.assertRaisesRegex(AssertionError,'mismatch'):self.check()
++ def test_committed_authorization_refused(self):
++  self.m['admission']['authorized']=True
++  with self.assertRaisesRegex(AssertionError,'unadmitted'):self.check()
++
+ if __name__=='__main__':unittest.main(verbosity=2)
+ 

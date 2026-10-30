@@ -1,0 +1,19 @@
+# Nan n7 — prepared only, not executed
+
+The n6 attempt spent its freshness window on preparation/commit plus uploads/bootstrap. n7 separates immutable reviewed code from fresh admission metadata. No tests, syntax check, assemble.py execution, remote call, admission or native launch was performed by this lane. Root owns them. n6 is untouched.
+
+Fresh namespace/nonce only plus the local metadata loader are changed. Lighthouse binary, debug logging/diagnostics, 360s sample window, retained n5 public binary verification, idmap/receipt, CL4096 + attach128 + guardian128 MiB, 2048 MiB OS reserve, zero swap, private original-backed COW and cleanup policies remain unchanged.
+
+Root sequence:
+1. Review and test n7; execute its pure assemble.py to produce runtime. Commit/push source and assembled runtime BEFORE the fresh observation. Do not use n6 assemble-and-read.py, which couples these stages.
+2. Collect the fresh observation through the reviewed read-only lane. Put exact JSON bytes at runtime/FRESH-OBSERVATION.json (exclusive, regular, current effective user owner, no group/other write, <=1MiB). This file and ROOT-ADMISSION.json are excluded from precomputed runtime PINS, not from eventual evidence preservation.
+3. Build complete admission object using the same root-reviewed classification as n6. at must equal observation.at (never refresh timestamp), expiresAt <= at+600. Root admission includes authorized=true, scope=actual-nan-cl-bounded-client-n7, nonce/bootId exactly from MANIFEST, at=current approval time, pinsSha256=SHA256(runtime/PINS.json), observationSha256=SHA256(exact FRESH-OBSERVATION.json bytes), admission=<complete object>, admissionSha256=SHA256(json.dumps(admission,sort_keys=True).encode()). Retain root review/test provenance as extra metadata. Write exclusively; do not edit runtime MANIFEST/PINS.
+4. Immediately launch the unchanged 900s outer. Do not perform a commit, assembly or a lengthy preservation operation between observation and launch. Preserve fresh metadata promptly outside the launch critical path without modifying pinned inputs.
+
+Runner checks exact scope/nonce/boot/pins, metadata authority/size/stability, observation time and pinned schedules/timers, <=600s admission age and >=510s remaining at load. It replaces only M['admission'] IN MEMORY; bootstrap writes its own effective root-owned remote manifest as before. It rechecks metadata hashes during active guards and final verification. Existing >=510s gate immediately before remote main remains. If local preparation is unexpectedly slow, it still refuses. At most 90s is available observation-to-main; measured n6 uploads/bootstrap about29s should fit after precommit, but this is not a proven next-run timing guarantee.
+
+Unchanged configured envelope: local preparation<=90s from root approval; helper510+stop145+capture margin10=665s; request-stop20 + verify60 + socket-clear20 + local reaping20. Total875s <900s. Admission expiry is still <=600s from observation, independent cleanup may outlive it. The pre-load510 gate is additional, not a replacement for the immediately-before-main gate. Kernel/filesystem stalls are not guaranteed bounded by arithmetic.
+
+Thirteen new metadata fixture definitions cover accepted immutable manifest, wrong pins/observation/boot/scope/nonce, changed reserve, timestamp refresh, >600s expiry, <510/exact510 remainder, schedule mismatch, and preauthorized committed manifest. Inherited root-reviewed fixture source is retained. No test result is claimed.
+
+Known inherited boundary: a refusal after bootstrap but before remote main retains empty configured slices/runtime/upload files; main-attempt independent cleanup is not automatically called in that branch. n6 root independently proved no client/mount/NBD/socket. This patch does not silently claim that branch is cleaned or change its cleanup scope. Root should retain its bounded prestate proof if another pre-main refusal occurs.
