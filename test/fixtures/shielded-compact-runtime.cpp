@@ -194,7 +194,14 @@ int main(){
     std::vector<uint8_t>read(w.size());
     assert(sh_compact_read(s,63,read.data(),read.size()-63)==SH_OK);
     assert(!memcmp(read.data(),w.data()+63,read.size()-63));
-    for(int b=1;b<=64;++b) {
+    // A whole prearranged chunk is rearranged straight into the output.
+    assert(sh_compact_read(s,0,read.data(),read.size())==SH_OK);
+    assert(!memcmp(read.data(),w.data(),read.size()));
+    // Above 64 rows (spill and source refills, up to 256) a prearranged tile
+    // takes the row-major integer GEMM; its products must match exactly too.
+    std::vector<int>batches;for(int b=1;b<=64;++b)batches.push_back(b);
+    for(int b:{65,128,256})batches.push_back(b);
+    for(int b:batches) {
       std::vector<int32_t>r(b*K),u(b*stride,INT32_MIN);
       for(auto &v:r)v=next()%SH_M_MOD;
       assert(sh_compact_refill(s,r.data(),b,u.data(),stride)==SH_OK);
