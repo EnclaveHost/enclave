@@ -1,0 +1,13 @@
+{
+  "verificationTab": "723101070",
+  "before": [
+    "https://enclave.host/js/boot.js",
+    "https://enclave.host/js/boot-wallet-release-r2.js"
+  ],
+  "after": [
+    "https://enclave.host/js/boot.js",
+    "https://enclave.host/js/boot-wallet-release-prod-r3.js"
+  ],
+  "originalPendingReviewTab": "723101015",
+  "originalNotReloaded": true
+}
