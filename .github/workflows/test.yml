@@ -154,6 +154,15 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build the complete hosted site
         run: npm run build:site
+      - name: Retain generated source for reproducible synchronization
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: generated-site-source
+          path: |
+            contracts/*.abi.json
+            site/js/gen/contract-artifacts.js
+            site/css/site.css
+          retention-days: 7
 
   native-source:
     runs-on: ubuntu-latest
