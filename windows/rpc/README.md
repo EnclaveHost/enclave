@@ -69,7 +69,7 @@ Windows API references used for this candidate:
 - [Job accounting](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_accounting_information)
 - [Job termination](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-terminatejobobject)
 
-## Candidate supervisor envelope (not yet compiled or exercised)
+## Supervisor envelope (hosted CI only)
 
 `EnterSupervisorEnvelope` optionally applies a one-shot private job to the current
 process before any `Run` attempt. It retains the noninheritable job handle until
@@ -89,7 +89,9 @@ A separate observer job cannot kill an independently scheduled owner merely by
 exiting. Task Scheduler duration settings are a potential backstop, not an exact
 process-death receipt or a memory limit.
 
-The next CI candidate runs the eight existing cases inside a256MiB supervisor
-job and adds membership/readback, one-shot refusal and failed-entry work-gate checks. Its inner128MiB
-allocation test does not behaviorally prove exhaustion of the outer256MiB cap.
-This candidate is source-only until a separate exact-commit run is reviewed.
+CI run41138722624 at cbe3ac565d6f3e3fc40a37f0c84839b609491fdc passed all11 cases:
+eight existing cases inside a256MiB supervisor job plus membership/readback,
+one-shot refusal and failed-entry work-gate checks. The observed bootstrap private
+snapshot was12488704B; the harness completed in2.956s. Its inner128MiB allocation
+test does not behaviorally prove exhaustion of the outer256MiB cap. This is hosted
+CI evidence, not target-host or independent guardian qualification.

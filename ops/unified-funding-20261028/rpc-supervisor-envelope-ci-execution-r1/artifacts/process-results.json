@@ -1,0 +1,22 @@
+[
+    {
+        "label":  "compile",
+        "pid":  8432,
+        "exitCode":  0,
+        "elapsedMs":  2194,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  29605888,
+        "outputBytes":  0
+    },
+    {
+        "label":  "inert",
+        "pid":  6052,
+        "exitCode":  0,
+        "elapsedMs":  2956,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  25473024,
+        "outputBytes":  3898
+    }
+]
