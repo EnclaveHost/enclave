@@ -1,0 +1,48 @@
+{
+  "scope": "Complete provider-agreed DelegateSet census for owner wallet and B794, plus SessionOpened/current sessionOf for B794 and all source-qualified wallet-delegated v2 vaults. Unknown delegates explicit; no migration authorization.",
+  "wallet": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+  "sourceVault": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
+  "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+  "ledger": {
+    "address": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+    "codeHash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
+    "firstVerifiedBlock": "52831588"
+  },
+  "factories": [
+    {
+      "address": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
+      "codeHash": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
+      "supported": true,
+      "creationBlock": 52286277,
+      "implementation": "0x66c76a47209f44612343dbeab98b8ef77ad01f65",
+      "implementationCodeHash": "0x3dd35d4c4bdf112e2ded90da36a16510bfe938a0c9b8b9ed4414698323efb76e",
+      "library": "0x5510ae9fed97577d75c69545384af7d8bad05027",
+      "libraryCodeHash": "0xe1535a3f96d34230e84afa199f2f2eab3a1c2f412be64d531d34d4a566680bc7"
+    },
+    {
+      "address": "0x00bb59c40768aa56e292b4e789f9f3b5826e3a8d",
+      "codeHash": "0x48a32c988ae4c7f17683853a15c212daeb1548fddcfec8bbd85bd33254501146",
+      "supported": false,
+      "reason": "historical factory recognized from prior quorum; exact v1 implementation runtime/source qualification absent, keep unknown authority"
+    }
+  ],
+  "rpcs": [
+    "https://api.enclave.host/rpc/base",
+    "https://base-mainnet.public.blastapi.io",
+    "https://base-rpc.publicnode.com"
+  ],
+  "bounds": {
+    "wallSeconds": 240,
+    "rpcCallsPerPeerPhase": 800,
+    "blocksPerRange": 20000,
+    "rangesPerStream": 256,
+    "logsPerResponse": 2048,
+    "eventsPerStream": 2048,
+    "birthSearchSteps": 32,
+    "transactionsAtBirth": 4096,
+    "creationReceipts": 32,
+    "delegates": 64,
+    "vaults": 8,
+    "sessionsPerVault": 256
+  }
+}

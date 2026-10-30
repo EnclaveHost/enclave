@@ -1,0 +1,24 @@
+{
+  "status": "PREPARED_NOT_EXECUTED",
+  "scriptSha256": "6c46aab3378b05e1aa4c5c24b461d1b55fb15268f53e67ab559276c69e648974",
+  "inputPinsSha256": "6e09614c2038432717b283471b054b00c19f0cbb432d8cd7dbf75d010641dec3",
+  "inputPins": 1961,
+  "runtimeDependencyPackages": [
+    "@adraffy/ens-normalize",
+    "@noble/ciphers",
+    "@noble/curves",
+    "@noble/hashes",
+    "@scure/base",
+    "@scure/bip32",
+    "@scure/bip39",
+    "abitype",
+    "eventemitter3",
+    "isows",
+    "ox",
+    "viem",
+    "ws"
+  ],
+  "rpcExecution": false,
+  "authorTestsBuilds": false,
+  "boundCommand": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-session-census-r1-20261029/launch-command.txt"
+}
