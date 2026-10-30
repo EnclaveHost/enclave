@@ -1,0 +1,80 @@
+[
+  {
+    "bytes": 957192,
+    "path": "/usr/bin/ssh",
+    "realpath": "/usr/bin/ssh",
+    "sha256": "0d82109d60d32e5ca4007bd39b4abf213ff037fca99491bc2669a6b52051b74c"
+  },
+  {
+    "bytes": 14424,
+    "path": "/usr/bin/python3",
+    "realpath": "/usr/bin/python3.14",
+    "sha256": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b"
+  },
+  {
+    "bytes": 56530480,
+    "path": "/usr/bin/node",
+    "realpath": "/usr/bin/node",
+    "sha256": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9"
+  },
+  {
+    "bytes": 105920,
+    "path": "/usr/bin/systemd-run",
+    "realpath": "/usr/bin/systemd-run",
+    "sha256": "62a4f4021eb356f8124953eea7ba7c95b2daf96c2e83808399ad043ba2447a99"
+  },
+  {
+    "bytes": 30888,
+    "path": "/usr/bin/taskset",
+    "realpath": "/usr/bin/taskset",
+    "sha256": "8bf4947cca932588598aa0b2413f520df438f6964057edff09a112518decc75d"
+  },
+  {
+    "bytes": 7846,
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+    "realpath": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+    "sha256": "969d9273e53c79abf8604c363daa58b41a462bc4b7f3d03d813980edb771f6f4"
+  },
+  {
+    "bytes": 4228,
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+    "realpath": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+    "sha256": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6"
+  },
+  {
+    "bytes": 1505,
+    "path": "/home/steven/.ssh/config",
+    "realpath": "/home/steven/.ssh/config",
+    "sha256": "5a33269128f231c926319ffce09d1387cd3423abf92f011652197e61c197d535"
+  },
+  {
+    "bytes": 10859,
+    "path": "/home/steven/.ssh/known_hosts",
+    "realpath": "/home/steven/.ssh/known_hosts",
+    "sha256": "4e145f2f52943c619867d76f4a8a300c2941f8f2d064eee114d54e8a300a2af5"
+  },
+  {
+    "bytes": 159,
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts",
+    "realpath": "/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts",
+    "sha256": "06b325f5a2fb8d0cce28567ce967e46cdbc75966d9f0f9d8b7ad5785a6be48f0"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030-r2/RESULT.json",
+    "realpath": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030-r2/RESULT.json",
+    "bytes": 74249,
+    "sha256": "4f65ff0850b975e29a0397a085fa29c3e9913607932c33acad6e9ac8a9170467"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030-r2/PINS.json",
+    "realpath": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030-r2/PINS.json",
+    "bytes": 3324,
+    "sha256": "0ba112d630b63680625eb1be18fc777ef85fb36ef23841269a51f58f62915376"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030-r2/observe-common.py",
+    "realpath": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-control-vm-closure-prep-20261030-r2/observe-common.py",
+    "bytes": 6545,
+    "sha256": "6dff4d95467498816c436f205a179a1c1d9158334d86c41f7baeadfa34257ee4"
+  }
+]

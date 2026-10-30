@@ -1,0 +1,7 @@
+{
+  "status": "EXACT_SOURCE_VERIFIED_NOT_EFFECTIVE_CONFIG",
+  "url": "https://raw.githubusercontent.com/paradigmxyz/reth/05ba48120a0ce8d6beb65f0b2a7ad4710f4f2915/crates/config/src/config.rs",
+  "bytes": 41515,
+  "sha256": "6e4bbddc293bbcfff4799de4456fc4b9382c34ebcc663f21fb38f017dcfe41b5",
+  "gitBlobSha": "d95d5e259ab31808179d29d8a58454fd8a947b7c"
+}
