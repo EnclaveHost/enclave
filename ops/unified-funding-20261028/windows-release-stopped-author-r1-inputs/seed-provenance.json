@@ -1,0 +1,14 @@
+{
+  "archiveBaseline": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/installed-manager-http-baseline-r1",
+  "frozenRoot": "/home/steven/Documents/Codex/2026-10-23/it/work/windows-release-stopped-author-r1-20261029/seed",
+  "seedEntries": 114,
+  "installedCapture": "/home/steven/Documents/Codex/2026-10-23/it/work/restore-queued-20261028/nucbox-reconnect-source",
+  "independentlyCapturedMatches": {
+    "agent.mjs": "a41ca4cd59252d6a00648fda88232e97fe92049c8142dc1bf7910ae38ecae1a4",
+    "host.mjs": "dde60f6ed2f53121692f94201c98e7819f3a293e5ca606e6a9ec4b39b76fab24",
+    "chain.mjs": "b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225",
+    "lease-gas-runtime.bundle.mjs": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d"
+  },
+  "preAuthorProductEdits": 0,
+  "limit": "Disk-source identity only; not loaded-code proof or current identity of every archived module."
+}

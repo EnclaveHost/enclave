@@ -1,0 +1,6 @@
+{
+  "preparedSha256": "b236ed834117574c1da5603e33ca3089dbdfb3fcd72299077022aa27eac6ab0a",
+  "launchAuthorized": true,
+  "scope": "ONE source-only invocation; no test/build/activation/financial actions",
+  "independentPreflightInvocation": "27caaad7590a44ef901c92d140352cd5"
+}

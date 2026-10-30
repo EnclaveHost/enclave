@@ -1,0 +1,15 @@
+# Installed-source navigation and activation limits
+
+`control/windows/node/agent.mjs` statically imports hosting at line45 and passes its live Host to startHostingAdmin around825–840. No agent edit is needed. Local host/stop at806 only stops a local apps entry; generic deployment route at627 does not implement DELETE release. Neither is a release command.
+
+`hosting.mjs` hostingAdminHandler around389 applies loopback and constant-time token authentication before route dispatch. Add the exact new route there. Preserve the existing bounded body helper and other route behavior.
+
+`host.mjs` construction sets cfg.dir/lease-release-journal.json at190–191. init at364 loads this host's operator and schedules work. Never execute init in tests. Inactive handling2373/#stopApp2799 does not release chain lease. #giveUp2603–2670 coalesces per-ID operations but can swallow errors; retirement at2766 includes by-name lookup. Renewal coordination at2232 and #renewVoid must be inspected for races. The new route needs positive wiring, not just a detached helper.
+
+`chain.mjs` ordinary and sponsored sends share chainTx. leaseSender270 uses configuredLeaseSender with acct and onSigned. leaseSend285 begins journal before sending, persists signed intent through onSigned, retains unknown signed outcomes; resolvePendingReleases321 uses recorded identities. Existing gate is synchronous. releaseDeployment349 currently takes no options. readDeployment183 is currently publicClient().readContract, not proof of authenticated consensus. Preserve bundle send/receipt verification and accurately describe trust limits.
+
+Read evidence/signer-callsite-excerpts.json and full bundle selectively. account.signAuthorization and signTypedData are called after async reads/admission. onSigned is AFTER signing. A scoped account wrapper may guard actual calls without editing the generated bundle, with original account identity/method binding preserved. A guard at queue entrance alone is insufficient.
+
+Startup/ownership evidence: agent285 spawns supervised children; exit handler301 restarts host/worker unless stopping. SIGINT1197 kills supervised children and TPM. Isolation-only agent startup849+ invokes manager GPU refresh and host.init909. Host1305–1324 deliberately retires/reboots manager-marked recovered VMs. Thus preserving a VM requires keeping its manager intact and proving current actual process/job boundaries. The prior identity artifact records SYSTEM scheduled task, known disk paths and listener PID; it explicitly does not prove effective NODE_DIR, job ancestry, exclusive signer or loaded-code identity. It is historical, not a current remote observation.
+
+Static module replacement requires restarting the agent; its listener/proxy/relay streams drop. No qualified graceful queue-drain endpoint exists in the captured agent. No restart, manager stop, injection, second signer, deployment or transaction is authorized by this package. These are root-owned activation blockers. Do not implement unrelated lifecycle/capacity or queue-drain work.
