@@ -1,0 +1,358 @@
+TAP version 13
+# Subtest: pins: the reviewed vault runtime is exactly the clone of the pinned implementation; CREATE derivation finds the real ledger
+not ok 1 - pins: the reviewed vault runtime is exactly the clone of the pinned implementation; CREATE derivation finds the real ledger
+  ---
+  duration_ms: 681.771501
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:60:1'
+  failureType: 'testCodeFailure'
+  error: 'fixture: ledger CREATE sender/nonce unknown; set WALLET_CENSUS_LEDGER_CREATOR'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    ledgerCreator (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census-world.fixture.mjs:30:9)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:62:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: positive: scanner -> predicate -> controller, inactive STAGING, envs3 session, 9.5 USDC runtime balance, no escrow
+not ok 2 - positive: scanner -> predicate -> controller, inactive STAGING, envs3 session, 9.5 USDC runtime balance, no escrow
+  ---
+  duration_ms: 4006.380773
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:66:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    [{"code":"read","text":"Could not read tx from https://api.example (fixture: ledger CREATE sender/nonce unknown; set WALLET_CENSUS_LEDGER_CREATOR). Incomplete, not absence; check again later (rate limits are temporary)."}]
+    + actual - expected
+    
+    + 'blocked'
+    - 'eligible'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'eligible'
+  actual: 'blocked'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:69:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: staging-only session is narrowed and disclosed; without wallet delegation envs3 is narrowed too
+not ok 3 - staging-only session is narrowed and disclosed; without wallet delegation envs3 is narrowed too
+  ---
+  duration_ms: 4070.921338
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:85:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    [{"code":"read","text":"Could not read tx from https://api.example (fixture: ledger CREATE sender/nonce unknown; set WALLET_CENSUS_LEDGER_CREATOR). Incomplete, not absence; check again later (rate limits are temporary)."}]
+    + actual - expected
+    
+    + 'blocked'
+    - 'eligible'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'eligible'
+  actual: 'blocked'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:88:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: prod-only live session would newly gain access -> blocked; expired/terminated/epoch-revoked prod-only rows are history, not authority
+not ok 4 - prod-only live session would newly gain access -> blocked; expired/terminated/epoch-revoked prod-only rows are history, not authority
+  ---
+  duration_ms: 4019.875276
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:96:1'
+  failureType: 'testCodeFailure'
+  error: 'prod-only-gain not in [{"code":"read","text":"Could not read tx from https://api.example (fixture: ledger CREATE sender/nonce unknown; set WALLET_CENSUS_LEDGER_CREATOR). Incomplete, not absence; check again later (rate limits are temporary)."}]'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    blocked (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:54:10)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:97:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: other wallet-delegated supported vault: live prod grant gains access -> blocked; its history is discovered by receipt-qualified scan
+not ok 5 - other wallet-delegated supported vault: live prod grant gains access -> blocked; its history is discovered by receipt-qualified scan
+  ---
+  duration_ms: 4033.573056
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:106:1'
+  failureType: 'testCodeFailure'
+  error: 'other-vault-gain not in [{"code":"read","text":"Could not read tx from https://api.example (fixture: ledger CREATE sender/nonce unknown; set WALLET_CENSUS_LEDGER_CREATOR). Incomplete, not absence; check again later (rate limits are temporary)."}]'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    blocked (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:54:10)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:114:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: unknown delegate blocks; revoked delegate is retained history only; event/mapping mismatch blocks; source-vault delegate blocks
+not ok 6 - unknown delegate blocks; revoked delegate is retained history only; event/mapping mismatch blocks; source-vault delegate blocks
+  ---
+  duration_ms: 4008.754811
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:123:1'
+  failureType: 'testCodeFailure'
+  error: 'unknown-delegate not in [{"code":"read","text":"Could not read tx from https://api.example (fixture: ledger CREATE sender/nonce unknown; set WALLET_CENSUS_LEDGER_CREATOR). Incomplete, not absence; check again later (rate limits are temporary)."}]'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    blocked (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:54:10)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:124:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: session or delegate added during the wallet prompt: nothing sent, durable cancel
+not ok 7 - session or delegate added during the wallet prompt: nothing sent, durable cancel
+  ---
+  duration_ms: 4010.829517
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:137:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:149:51)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: incomplete reads are explicit blockers, never absence: rate limit, range cap, truncated page, duplicate log, archive absence, disagreement, one origin
+not ok 8 - incomplete reads are explicit blockers, never absence: rate limit, range cap, truncated page, duplicate log, archive absence, disagreement, one origin
+  ---
+  duration_ms: 12149.392335
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:154:1'
+  failureType: 'testCodeFailure'
+  error: 'log-cap not in [{"code":"read","text":"Could not read tx from https://api.example (fixture: ledger CREATE sender/nonce unknown; set WALLET_CENSUS_LEDGER_CREATOR). Incomplete, not absence; check again later (rate limits are temporary)."}]'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    blocked (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:54:10)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:156:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: creation-boundary evidence: initcode, constructor args, artifact absence, failed or non-canonical witness
+not ok 9 - creation-boundary evidence: initcode, constructor args, artifact absence, failed or non-canonical witness
+  ---
+  duration_ms: 4072.196459
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:169:1'
+  failureType: 'testCodeFailure'
+  error: 'ledger-ctor-args not in [{"code":"read","text":"Could not read tx from https://api.example (fixture: ledger CREATE sender/nonce unknown; set WALLET_CENSUS_LEDGER_CREATOR). Incomplete, not absence; check again later (rate limits are temporary)."}]'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    blocked (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:54:10)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:170:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: reorged cached anchor is discarded and rebuilt; a stale, foreign or caller-built census is rejected
+not ok 10 - reorged cached anchor is discarded and rebuilt; a stale, foreign or caller-built census is rejected
+  ---
+  duration_ms: 4038.372001
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:182:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'blocked'
+    - 'eligible'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'eligible'
+  actual: 'blocked'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:184:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: concurrent rows share one history build (cached history is not cached permission)
+not ok 11 - concurrent rows share one history build (cached history is not cached permission)
+  ---
+  duration_ms: 12061.448591
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:201:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:207:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: PROD stays outside this path: unpromoted, drifted and promoted PROD are blocked
+ok 12 - PROD stays outside this path: unpromoted, drifted and promoted PROD are blocked
+  ---
+  duration_ms: 24192.892019
+  type: 'test'
+  ...
+# Subtest: invalidation during final persistence: no POST; unknown outcome is never re-signed or re-sent
+not ok 13 - invalidation during final persistence: no POST; unknown outcome is never re-signed or re-sent
+  ---
+  duration_ms: 4115.817507
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:218:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/candidate/enclave/test/wallet-release/census.test.mjs:223:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: typed data guard accepts exactly the SDK Release and nothing else
+ok 14 - typed data guard accepts exactly the SDK Release and nothing else
+  ---
+  duration_ms: 1.45703
+  type: 'test'
+  ...
+# Subtest: release calldata: exact selector, canonical round trip only
+ok 15 - release calldata: exact selector, canonical round trip only
+  ---
+  duration_ms: 1.538929
+  type: 'test'
+  ...
+# Subtest: promoted commitment is keccak256(abi.encode(string,string))
+ok 16 - promoted commitment is keccak256(abi.encode(string,string))
+  ---
+  duration_ms: 6.203534
+  type: 'test'
+  ...
+# Subtest: historical KVM 9a28642b and DNS 59f1273d stay blocked (active, lease, escrow, old reserve)
+ok 17 - historical KVM 9a28642b and DNS 59f1273d stay blocked (active, lease, escrow, old reserve)
+  ---
+  duration_ms: 7.469395
+  type: 'test'
+  ...
+# Subtest: cab8fb59: positive runtime balance alone is not a blocker; without a census only the census requirement blocks
+ok 18 - cab8fb59: positive runtime balance alone is not a blocker; without a census only the census requirement blocks
+  ---
+  duration_ms: 1.478649
+  type: 'test'
+  ...
+# Subtest: journal: put-if-absent, CAS, single writer, transitions, bounded shape
+ok 19 - journal: put-if-absent, CAS, single writer, transitions, bounded shape
+  ---
+  duration_ms: 0.937083
+  type: 'test'
+  ...
+# Subtest: checking/blocked: Move to wallet present but disabled, status is announced
+ok 20 - checking/blocked: Move to wallet present but disabled, status is announced
+  ---
+  duration_ms: 1.159661
+  type: 'test'
+  ...
+# Subtest: blocker text and codes are escaped
+ok 21 - blocker text and codes are escaped
+  ---
+  duration_ms: 0.236408
+  type: 'test'
+  ...
+# Subtest: eligible -> enabled; review shows full id, vault, fixed destination, preserved balance, signature, no widening
+ok 22 - eligible -> enabled; review shows full id, vault, fixed destination, preserved balance, signature, no widening
+  ---
+  duration_ms: 0.430627
+  type: 'test'
+  ...
+# Subtest: journal states: pending/uncertain offer only a read-only re-check; finalized offers nothing
+ok 23 - journal states: pending/uncertain offer only a read-only re-check; finalized offers nothing
+  ---
+  duration_ms: 0.428046
+  type: 'test'
+  ...
+# Subtest: the actual /sessions page wires the slot into the held card and keeps every other control
+ok 24 - the actual /sessions page wires the slot into the held card and keeps every other control
+  ---
+  duration_ms: 0.597716
+  type: 'test'
+  ...
+# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/root-boundaries.test.mjs:368
+#  Same actual controller, exact shipped SDK, inert wallet/relay and external MemoryJournal.
+#       ^^^^^^
+# SyntaxError: Unexpected identifier 'actual'
+#     at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+#     at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:110:18)
+#     at \#translate (node:internal/modules/esm/loader:559:20)
+#     at afterLoad (node:internal/modules/esm/loader:612:29)
+#     at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:617:12)
+#     at \#createModuleJob (node:internal/modules/esm/loader:640:36)
+#     at \#getJobFromResolveResult (node:internal/modules/esm/loader:353:34)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:321:41)
+#     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:680:25)
+# Node.js v22.23.3
+# Subtest: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/root-boundaries.test.mjs
+not ok 4 - /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/root-boundaries.test.mjs
+  ---
+  duration_ms: 31.222709
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-review-r2/root-boundaries.test.mjs:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 12
+# fail 13
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 85797.804669

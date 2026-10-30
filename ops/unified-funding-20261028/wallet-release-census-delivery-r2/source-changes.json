@@ -1,0 +1,45 @@
+{
+  "changes": {
+    "enclave/site/js/core/wallet-release-census.js": {
+      "seedSha256": null,
+      "finalSha256": "578e88141789d09f5a4b68ce8fe258f5d56d28297743e0aeffa5ba11ecdd4d8a",
+      "kind": "new"
+    },
+    "enclave/site/js/core/wallet-release-chain.js": {
+      "seedSha256": "66dc0b48314635b258b0e66a1e81823e2b051ae24a7f731cb531a5e143dbd6f6",
+      "finalSha256": "91b5743629a740dbedcfa750f375b979493b27fd23005c626263f897e495f452",
+      "kind": "modified"
+    },
+    "enclave/site/js/core/wallet-release-controller.js": {
+      "seedSha256": "d9c501d31e3d5843c1a794b777c96cbe5fe72bde5a81880bc82f96698ac79bab",
+      "finalSha256": "5574aed09a4cf8a5823f6ae15108e53617617009da803e0c2b713a3a7cf2f008",
+      "kind": "modified"
+    },
+    "enclave/site/js/core/wallet-release-view.js": {
+      "seedSha256": "b6dee9719edc2145d40410183e9ca37932c2048edfcbea5cb4abdc8882892bc9",
+      "finalSha256": "3b822e82bec410d63f46a3c677de54a905fe0950db165050014f2c07e7b434ab",
+      "kind": "modified"
+    },
+    "enclave/test/wallet-release/census-world.fixture.mjs": {
+      "seedSha256": null,
+      "finalSha256": "08e907cf787db17ef1c8036d6f4a5cb1063a2f7d803b00c8c52a4a2005052b47",
+      "kind": "new"
+    },
+    "enclave/test/wallet-release/census.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "3fbefcdb5bdcadf044e2d5fc3a3cc28daf16d086da77f43efedb05ab0bd35c7b",
+      "kind": "new"
+    },
+    "enclave/test/wallet-release/chain-store.test.mjs": {
+      "seedSha256": "f2e5b7134438ef1030c3988f48612c42d88a2f3a7b081e82304fc10e4f7d04fc",
+      "finalSha256": "4f46873152eb8a90321fa3cafaea3c9e17b6b08c70ed1c50edce8e5e4e767291",
+      "kind": "modified"
+    },
+    "enclave/test/wallet-release/controller.test.mjs": {
+      "seedSha256": "91dd4b676c73bcb68dad500bfed0b9a5d652578c9134628c06c1c87e8d1cdc94",
+      "finalSha256": "1dfe87751986330860bf09c1cd34e556ccb1d5cb082ac655f3cc5c919342b86e",
+      "kind": "modified"
+    }
+  },
+  "removed": []
+}

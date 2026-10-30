@@ -1,0 +1,1 @@
+External fixture only: fix missing comment prefix in root added assertion; provide observed ledger CREATE sender/nonce 0x120ba39e91395273496c4c7d065733c9db461dbb:1 rather than author brute-force of two incorrect deployers. Product unchanged. Previous bounded run stopped and retained. Public transaction hash dd c85def... is linked to prior two-provider creation provenance.
