@@ -50,3 +50,17 @@ func TestAuthenticatedPrivateCopy(t *testing.T) {
 		})
 	}
 }
+
+// The Z-Image profile is three devices in a fixed order with the published
+// volume's generic names; the guest can only ever load these exact bytes.
+func TestZImagePins(t *testing.T) {
+	want := []string{"diffusion.gguf", "llm.gguf", "vae.safetensors"}
+	if len(zImageFiles) != len(want) {
+		t.Fatalf("Z-Image is %d files", len(zImageFiles))
+	}
+	for i, f := range zImageFiles {
+		if f.name != want[i] || f.device != fmt.Sprintf("/dev/vd%c", 'a'+i) || f.size <= 0 || len(f.sha256) != 64 {
+			t.Fatalf("file %d: %+v", i, f)
+		}
+	}
+}

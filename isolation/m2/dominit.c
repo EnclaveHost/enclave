@@ -270,7 +270,9 @@ static void lo_up(void) {
  * A drop, reach or filter failure exits 125, so the app never starts privileged or unfiltered, and the domain powers
  * off as for any app exit. The app gets all three; the front none. */
 /* Measured, bundle-derived inference profile. Never read a host environment. */
-static int shield_on, shield_large, shield_load_allowed;
+static int shield_on, shield_large, shield_sd, shield_load_allowed;
+/* shield_sd: the stable-diffusion profile (Z-Image-Turbo, three model disks vda..vdc, pad bank vdd). */
+#define SHIELD_SD_MODEL "z-image-turbo-q4km-sd"
 static char shield_ram_env[96];
 static int shield_memory_group;
 #define SHIELD_CGROUP "/sys/fs/cgroup/shield-app"
@@ -318,6 +320,11 @@ static void shield_disable_model(void) {
     snprintf(shield_preloads_env, sizeof shield_preloads_env, "ENCLAVE_NN_PRELOADS=");
     /* No process may still hold the source when this is called. Remove only
      * the private copy; never change the host-backed device or its digest. */
+    if (shield_sd) {
+        unlink("/models/" SHIELD_SD_MODEL "/diffusion.gguf");
+        unlink("/models/" SHIELD_SD_MODEL "/llm.gguf");
+        unlink("/models/" SHIELD_SD_MODEL "/vae.safetensors");
+    }
     if (shield_large) {
         const char *dir = "/models/qwen3.8-27b-mtp-q4-vl-gguf/";
         char p[160];
@@ -334,13 +341,15 @@ static void shield_profile(void) {
     int n = fscanf(f, "%63s %d %llu %c", model, &milli, &bytes, &extra);
     fclose(f);
     shield_large = !strcmp(model, "qwen3.8-27b-mtp-q4-vl-gguf");
-    if (n != 3 || (!shield_large && strcmp(model, "qwen2.5-0.5b-q8-gguf")) || milli < (shield_large ? 500 : 65) || milli > 1000 ||
+    shield_sd = !strcmp(model, SHIELD_SD_MODEL);
+    if (n != 3 || (!shield_large && !shield_sd && strcmp(model, "qwen2.5-0.5b-q8-gguf")) ||
+        milli < (shield_large ? 500 : shield_sd ? 100 : 65) || milli > 1000 ||
         bytes != (31ULL * 1024 * 1024 * 1024 * milli / 1000)) {
         printf("DOM ERROR invalid measured Shield profile\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1);
     }
     snprintf(shield_workers, sizeof shield_workers,
         "SHIELDED_WORKERS=unix:/run/enclave-shield/gpu0|9501|0|%llu|/dev/enclave-shielded-shm/card-0|67108864\nunix:/run/enclave-shield/gpu1|9502|0|%llu|/dev/enclave-shielded-shm/card-1|67108864", bytes, bytes);
-    snprintf(shield_graph, sizeof shield_graph, "nn-graph=ggml::/models/%s", model);
+    snprintf(shield_graph, sizeof shield_graph, shield_sd ? "nn-graph=sd::/models/%s" : "nn-graph=ggml::/models/%s", model);
     snprintf(shield_models_env, sizeof shield_models_env, "ENCLAVE_MODELS=%s", model);
     snprintf(shield_preloads_env, sizeof shield_preloads_env, "ENCLAVE_NN_PRELOADS=%s", model);
     /* Two worker reservations, derived from the measured bundle, not the host environment. */
@@ -369,20 +378,73 @@ static void shield_profile(void) {
  * the dropped runtime can reach it, as one descriptor (spawn: fd 197). */
 #define SHIELD_SPILL_FD 197
 static int shield_spill_ok;
+/* The bank is the disk after the model's: vdb for the 27B (one model disk), vdd for the
+ * stable-diffusion profile (three). */
+static const char *shield_spill_dev(void) { return "/dev/vdb"; }   /* one model disk for both profiles */
 static void shield_spill_probe(void) {
-    if (!shield_large || access("/rt/shield-pad-spill.enabled", R_OK) != 0) return;
+    if (!(shield_large || shield_sd) || access("/rt/shield-pad-spill.enabled", R_OK) != 0) return;
+    const char *dev = shield_spill_dev();
     struct stat model, disk;
-    if (stat("/dev/vdb", &disk) != 0) { printf("DOM Shield pad spill: no disk attached\n"); return; }
+    if (stat(dev, &disk) != 0) { printf("DOM Shield pad spill: no disk attached\n"); return; }
     if (!S_ISBLK(disk.st_mode) || stat("/dev/vda", &model) != 0 || model.st_rdev == disk.st_rdev) {
-        printf("DOM Shield pad spill: /dev/vdb is not a second block device; not used\n");
-        return;
-    }
-    int fd = open("/dev/vdb", O_RDWR | O_CLOEXEC);
+            printf("DOM Shield pad spill: %s is not a block device after the model's; not used\n", dev);
+            return;
+        }
+    int fd = open(dev, O_RDWR | O_CLOEXEC);
     const off_t bytes = fd >= 0 ? lseek(fd, 0, SEEK_END) : -1;
     if (fd >= 0) close(fd);
-    if (bytes < (off_t)1 << 30) { printf("DOM Shield pad spill: /dev/vdb unusable (%s)\n", fd < 0 ? strerror(errno) : "under 1 GiB"); return; }
+    if (bytes < (off_t)1 << 30) { printf("DOM Shield pad spill: %s unusable (%s)\n", dev, fd < 0 ? strerror(errno) : "under 1 GiB"); return; }
     shield_spill_ok = 1;
-    printf("DOM Shield pad spill: /dev/vdb, %lld GiB\n", (long long)(bytes >> 30));
+    printf("DOM Shield pad spill: %s, %lld GiB\n", dev, (long long)(bytes >> 30));
+}
+
+/* The stable-diffusion profile's model is NOT copied into guest RAM: it stays on the
+ * host's NVMe as a dm-verity volume (ext4 + appended hash tree, metal/volumes.mjs) and
+ * every block is verified against the root hash in the measured /rt/shield-volume as the
+ * kernel reads it. Verified pages are ordinary page cache, so under memory pressure they
+ * are dropped and re-read (and re-verified) instead of pinning 7.8 GB of guest RAM. A
+ * tampered block is an I/O error, never a different weight. */
+static pid_t spawn(char *const argv[], char *extra, int fd3, int flags);
+static int shield_mount_volume(void) {
+    char model[64], alg[16], root[80], salt[80];
+    unsigned long long dbs, hbs, dblocks, hstart;
+    FILE *f = fopen("/rt/shield-volume", "r");
+    if (!f) return -1;
+    const int n = fscanf(f, "%63s %15s %79s %79s %llu %llu %llu %llu", model, alg, root, salt, &dbs, &hbs, &dblocks, &hstart);
+    fclose(f);
+    if (n != 8 || strcmp(model, shield_model) || strcmp(alg, "sha256") || strlen(root) != 64 || strlen(salt) != 64) return -1;
+    insmod("/dm-mod.ko.zst"); insmod("/dm-bufio.ko.zst"); insmod("/reed_solomon.ko.zst"); insmod("/dm-verity.ko.zst");
+    char a_dbs[24], a_hbs[24], a_db[24], a_hs[24];
+    snprintf(a_dbs, sizeof a_dbs, "%llu", dbs); snprintf(a_hbs, sizeof a_hbs, "%llu", hbs);
+    snprintf(a_db, sizeof a_db, "%llu", dblocks); snprintf(a_hs, sizeof a_hs, "%llu", hstart);
+    char *av[] = {"/mverity", "shieldvol", "/dev/vda", a_dbs, a_hbs, a_db, a_hs, alg, root, salt, NULL};
+    int status = 0;
+    pid_t pid = spawn(av, NULL, -1, 0);    /* its one line (the device path) goes to the serial log */
+    if (pid < 0 || waitpid(pid, &status, 0) != pid || !WIFEXITED(status) || WEXITSTATUS(status) != 0) return -1;
+    char dir[128];
+    snprintf(dir, sizeof dir, "/models/%s", shield_model);
+    mkdir("/models", 0755);
+    if (mkdir(dir, 0755) != 0 && errno != EEXIST) return -1;
+    if (mount("/dev/mapper/shieldvol", dir, "ext4", MS_RDONLY | MS_NODEV | MS_NOSUID | MS_NOEXEC, "noload") != 0) return -1;
+    printf("DOM Shield model volume: dm-verity root %s, %llu blocks, mounted read-only at %s\n", root, dblocks, dir);
+    /* 4 MiB read-ahead on the verity device and its disk. The app's cgroup cannot keep the
+     * multi-GB model files cached, so they are re-read by page faults that walk each file in
+     * order (a layer at a time); with the 128 KiB default every fault was a small verified
+     * read (~300 MB/s in the guest). Every block read ahead is still hashed against the root. */
+    for (int i = 0; i < 16; i++) {
+        char p[96], nm[32] = "";
+        snprintf(p, sizeof p, "/sys/block/dm-%d/dm/name", i);
+        FILE *nf = fopen(p, "r");
+        if (!nf) continue;
+        const int got = fscanf(nf, "%31s", nm);
+        fclose(nf);
+        if (got == 1 && !strcmp(nm, "shieldvol")) {
+            snprintf(p, sizeof p, "/sys/block/dm-%d/queue/read_ahead_kb", i);
+            if (write_sysctl(p, "4096") == 0) printf("DOM Shield model volume: read-ahead 4096 KiB\n");
+        }
+    }
+    (void)write_sysctl("/sys/block/vda/queue/read_ahead_kb", "4096");
+    return 0;
 }
 
 static int shield_rings(void) {
@@ -551,7 +613,41 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags);
 /* The app, through the seccomp statement channel: a close-on-exec pipe made here (the front, already running, never
  * holds it), handed to the child, and read to EOF - until the child's exec closes its end - so the positive line and the
  * front's statement come from init once the filter is on. -> the app's pid, or -2 when no pipe could be made. */
+/* DIAGNOSTIC releases only (/rt/shield-crash-tail.enabled, a measured marker, so a verifier sees it): the app's
+ * stderr goes to a pipe instead of /dev/null. A reader keeps only its LAST 8 KiB, in guest memory, and init prints
+ * that tail to the console only if the app exits abnormally. Normal output never leaves the guest. */
+static int crash_tail_fd = -1;
+static pid_t crash_tail_pid = -1;
+#define CRASH_TAIL_PATH "/run/app-stderr.tail"
+static pid_t crash_tail_reader(int rfd) {
+    pid_t p = fork();
+    if (p != 0) { close(rfd); return p; }
+    /* hold nothing of init's but this pipe: an inherited write end would keep someone else's pipe from ending */
+    for (int fd = 3; fd < 1024; fd++) if (fd != rfd) close(fd);
+    static char ring[8192], buf[4096];
+    size_t n = 0; ssize_t r;
+    while ((r = read(rfd, buf, sizeof buf)) > 0 || (r < 0 && errno == EINTR))
+        for (ssize_t i = 0; i < r; i++) ring[n++ % sizeof ring] = buf[i];
+    int fd = open(CRASH_TAIL_PATH, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if (fd >= 0) {
+        size_t start = n < sizeof ring ? 0 : n % sizeof ring, len = n < sizeof ring ? n : sizeof ring;
+        if (write(fd, ring + start, len - start) < 0 || (start && write(fd, ring, start) < 0)) {}
+        close(fd);
+    }
+    _exit(0);
+}
+static void crash_tail_print(void) {
+    if (crash_tail_pid <= 0) return;
+    for (int i = 0; i < 200 && waitpid(crash_tail_pid, NULL, WNOHANG) == 0; i++) usleep(10000);
+    FILE *f = fopen(CRASH_TAIL_PATH, "r");
+    if (!f) return;
+    char line[512];
+    while (fgets(line, sizeof line, f)) printf("DOM app stderr: %s%s", line, strchr(line, '\n') ? "" : "\n");
+    fclose(f);
+}
 static pid_t spawn_app(char *const argv[], char *extra, int flags) {
+    int tfd[2] = {-1, -1};
+    if (access("/rt/shield-crash-tail.enabled", R_OK) == 0 && pipe2(tfd, O_CLOEXEC) == 0) crash_tail_fd = tfd[1];
     int sfd[2];
     if (pipe2(sfd, O_CLOEXEC) != 0) {
         printf("DOM ERROR pipe: %s\n", strerror(errno));
@@ -559,10 +655,14 @@ static pid_t spawn_app(char *const argv[], char *extra, int flags) {
     }
     seccomp_status_fd = sfd[1];
     pid_t pid = spawn(argv, extra, -1, flags);
+    if (tfd[1] >= 0) { close(tfd[1]); crash_tail_fd = -1; }
     close(sfd[1]);
     seccomp_status_fd = -1;
     seccomp_statement_from(sfd[0], pid);
     close(sfd[0]);
+    /* Only now: a reader forked while init still held the statement pipe's write end would keep it open, and the
+     * statement would never end (guestd then rejects the guest: "no seccomp filter"). */
+    if (tfd[0] >= 0) crash_tail_pid = pid > 0 ? crash_tail_reader(tfd[0]) : (close(tfd[0]), -1);
     return pid;
 }
 
@@ -592,8 +692,8 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
         /* The pad spill, opened before the drop like the sources above. A
          * disk that will not open now just means no spill: the engine mints. */
         int spill_fd = -1;
-        if (shield_on && shield_load_allowed && shield_large && drop && shield_spill_ok) {
-            int fd = open("/dev/vdb", O_RDWR | O_CLOEXEC);
+        if (shield_on && shield_load_allowed && (shield_large || shield_sd) && drop && shield_spill_ok) {
+            int fd = open(shield_spill_dev(), O_RDWR | O_CLOEXEC);
             if (fd >= 0 && dup2(fd, SHIELD_SPILL_FD) == SHIELD_SPILL_FD) spill_fd = SHIELD_SPILL_FD;   /* dup2 clears CLOEXEC */
             if (fd >= 0 && fd != SHIELD_SPILL_FD) close(fd);
         }
@@ -603,6 +703,11 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             int nul = open("/dev/null", O_RDWR);
             if (nul < 0 || dup2(nul, 0) < 0 || dup2(nul, 1) < 0 || dup2(nul, 2) < 0) _exit(126);
             if (nul > 2) close(nul);
+            if (drop && crash_tail_fd >= 0 && dup2(crash_tail_fd, 2) < 0) _exit(126);   /* diagnostic release only */
+            /* DIAGNOSTIC releases only (/rt/shield-diag-stderr.enabled, a measured marker a verifier
+             * sees): the app's stderr goes to the serial console, for the Shield profile counters
+             * and stable-diffusion.cpp's phase timings. Synthetic prompts only while it is live. */
+            if (drop && con >= 0 && access("/rt/shield-diag-stderr.enabled", R_OK) == 0 && dup2(con, 2) < 0) _exit(126);
         }
         if (drop) {
             const char *bad = drop_to_app();
@@ -633,7 +738,85 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
         /* Protocol credential, not a security boundary: one app owns this guest.
          * Policy is enforced by the measured front, CID admission and host IP checks. */
         if (public_https_egress && drop) envp[ei++] = "ENCLAVE_EGRESS_CRED=guest:public-https";
-        if (shield_on && drop) {
+        if (shield_on && drop && shield_sd) {
+            /* The stable-diffusion profile: stable-diffusion.cpp on the guest CPU, its
+             * calibrated matmuls offloaded through the Shield backend (SD_ACCEL_BACKEND:
+             * a sched over [Shielded, CPU]; a backend that fails to load fails every
+             * generation, never a silent CPU run). Every image token goes through every
+             * linear at every step, so batches are wide: SHIELDED_WIDE=1 exchanges them in
+             * SHIELDED_MAX_M-row chunks, each masked and Freivalds-checked on its own. */
+            envp[ei++] = "ENCLAVE_HTTP_POOL=1";
+            envp[ei++] = "SD_ACCEL_BACKEND=/rt/backends/libggml-shielded.so";
+            envp[ei++] = "ENCLAVE_SD_USE_GPU=0";
+            envp[ei++] = "ENCLAVE_SD_MMAP=1";
+            envp[ei++] = "ENCLAVE_SD_DIFFUSION_FILE=diffusion.gguf";
+            envp[ei++] = "ENCLAVE_SD_LLM_FILE=llm.gguf";
+            envp[ei++] = "ENCLAVE_SD_VAE_FILE=vae.safetensors";
+            envp[ei++] = "ENCLAVE_SD_VAE_TILING=64:0.25";
+            envp[ei++] = "ENCLAVE_SD_FLASH_ATTN=1";
+            envp[ei++] = "SHIELDED_HOST=unix:/run/enclave-shield/gpu0";
+            envp[ei++] = "SHIELDED_PORT=9501";
+            envp[ei++] = shield_workers;
+            envp[ei++] = shield_calib;
+            envp[ei++] = shield_vram_env;
+            envp[ei++] = shield_ram_env;
+            envp[ei++] = "ENCLAVE_NN_SERVE_KIND=RAM";
+            envp[ei++] = "SHIELDED_WIDE=1";
+            envp[ei++] = "SHIELDED_MAX_M=64";
+            /* One 64-row chunk of pads per group (~0.4 GiB over the DiT); the pad
+             * spill supplies the rest of a wide step. */
+            envp[ei++] = "SHIELDED_POOL_DEPTH=64";
+            envp[ei++] = "SHIELDED_REFILL_THREADS=6";      /* of the guest's 8 vCPUs */
+            envp[ei++] = "SHIELDED_REFILL_BATCH=64";
+            /* Latency profile (2026-10-17, host Z-Image 512px/4: DiT 24.2 -> 12.2 s a step, the
+             * same PNG byte for byte): spill mints 256 rows per weight pass (the source re-encode
+             * is paid once per mint), the vector mask stream and CRT refill the 27B already uses,
+             * and the lookahead: a helper takes the next wide chunk's pads from the spill while
+             * the running chunk is on the GPU, so no chunk opens its own pads on the path. */
+            envp[ei++] = "SHIELDED_PAD_SPILL_BATCH=256";
+            envp[ei++] = "SHIELDED_MASK_CHACHA16=1";
+            envp[ei++] = "SHIELDED_REFILL_VECTOR_CRT=1";
+            envp[ei++] = "SHIELDED_LOOKAHEAD=1";
+            /* Nothing of the DiT's weights on the CPU's path during a step: in this guest's
+             * 4.8 GiB cgroup the 5 GB Q4 model cannot stay cached, so every CPU-side matmul
+             * re-read it through dm-verity (~5 GB a step). The caption rows go out under their
+             * own calibration ("lead:" sites), the bf16 refiners as float sources; only the idle
+             * mint reads the model. The field work is split over four threads by rows. */
+            envp[ei++] = "SHIELDED_LEAD_EXCHANGE=1";
+            envp[ei++] = "SHIELDED_SOURCE_FLOAT=1";
+            envp[ei++] = "SHIELDED_FIELD_THREADS=4";
+            envp[ei++] = "SHIELDED_FIELD_SPINS=20000";
+            envp[ei++] = "SHIELDED_PAD_WAIT_US=5000";
+            /* Wide matmuls pipelined over the ring: chunk c on the GPU while the link finishes
+             * c-1 and prepares c+1 (the guest's field work and the GPU used to take turns). And
+             * minting waits 8 s after the last pad is taken, not 2: the decode and PNG encode run
+             * right after the last DiT step and the mint competed with them for the vCPUs. */
+            envp[ei++] = "SHIELDED_PIPELINE=1";
+            envp[ei++] = "SHIELDED_PAD_SPILL_IDLE_MS=8000";
+            if (access("/rt/shield-diag-stderr.enabled", R_OK) == 0) envp[ei++] = "SHIELDED_PROFILE=1";   /* diagnostic only */
+            /* stable-diffusion.cpp: RoPE in one fused pass (bit-identical), and the measured tiny
+             * autoencoder (TAEF1, FLUX.1's latent space, which Z-Image uses) for the decode. */
+            envp[ei++] = "SD_ROPE_FUSED=1";
+            if (access("/rt/taef1.safetensors", R_OK) == 0) envp[ei++] = "ENCLAVE_SD_TAESD_FILE=/rt/taef1.safetensors";
+            /* Lossless bit-packed encodings (the 27B's qualified memory profile). With the
+             * measured source-weights marker, no encoded copy at all: refills re-encode
+             * from the private verified model (~4.6 GiB less, more refill CPU). */
+            envp[ei++] = "SHIELDED_COMPACT_WEIGHTS=1";
+            if (access("/rt/shield-source-weights.enabled", R_OK) == 0) envp[ei++] = "SHIELDED_SOURCE_WEIGHTS=1";
+            envp[ei++] = "SHIELDED_SHM_STREAM_LOAD=1";
+            envp[ei++] = "SHIELDED_SPLIT_COLS=1";
+            envp[ei++] = "SHIELDED_OVERLAP_VERIFY=1";
+            envp[ei++] = "SHIELDED_WEIGHT_BUDGET_FRAC=0.95";
+            if (spill_fd == SHIELD_SPILL_FD) {
+                envp[ei++] = "SHIELDED_PAD_SPILL=fd:197";
+                /* Mint only while idle: a request takes its pads from the spill, and minting
+                 * beside it took three of the guest's eight vCPUs (half the request's CPU). */
+                envp[ei++] = "SHIELDED_PAD_SPILL_BUSY_THREADS=0";
+                envp[ei++] = "ENCLAVE_SHIELD_PERF_HEADER=1";
+                envp[ei++] = "SHIELDED_PROFILE_LAYOUT=pads";
+            }
+            envp[ei++] = shield_models_env;
+        } else if (shield_on && drop) {
             /* This runtime belongs to one isolated app. Reuse only transport
              * connections; every tool request still carries fresh credentials. */
             envp[ei++] = "ENCLAVE_HTTP_POOL=1";
@@ -855,6 +1038,7 @@ static int app_argv(char *const *base, char **app, const char *cfg_env) {
             if (shield_load_allowed) { app[k++]="-S"; app[k++]=shield_graph; }
             app[k++]="--dir"; app[k++]="/models::/models";
             app[k++]="--env"; app[k++]="ENCLAVE_MODELS";
+            if (!shield_sd) {
             app[k++]="--env"; app[k++]="ENCLAVE_NN_PRELOADS";
             app[k++]="--env"; app[k++]="ENCLAVE_GGML_N_CTX";
             app[k++]="--env"; app[k++]="ENCLAVE_GGML_MAX_SESSIONS";
@@ -862,6 +1046,7 @@ static int app_argv(char *const *base, char **app, const char *cfg_env) {
             app[k++]="--env"; app[k++]="ENCLAVE_VRAM_BYTES";
             app[k++]="--env"; app[k++]="ENCLAVE_NN_SERVE_BYTES";
             app[k++]="--env"; app[k++]="ENCLAVE_NN_SERVE_KIND";
+            }
         }
         app[k++] = base[i];
     }
@@ -926,6 +1111,9 @@ int main(void) {
         printf("DOM Shield idle driver: %s\n", driver[0] ? driver : "unavailable");
         if (shield_rings() != 0) { printf("DOM ERROR invalid Shield rings\n"); reboot(RB_POWER_OFF); _exit(1); }
         shield_spill_probe();
+        if (shield_sd && shield_mount_volume() != 0) {
+            printf("DOM ERROR Shield model volume did not verify or mount\n"); fflush(stdout); reboot(RB_POWER_OFF); _exit(1);
+        }
         if (shield_large) {
             char *mv[] = {"/shieldmodel", NULL}; int status=0;
             unsigned long long oom_before = shield_oom_events();
@@ -1148,6 +1336,7 @@ int main(void) {
             continue;
         }
         if (w == app_pid || w == front_pid || (shield_on && w == shield_pid)) {
+            if (w == app_pid && !(WIFEXITED(st) && WEXITSTATUS(st) == 0)) crash_tail_print();
             printf("DOM ERROR %s exited status=%d\n", w == app_pid ? "app" : "front",
                    WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st));
             break;
