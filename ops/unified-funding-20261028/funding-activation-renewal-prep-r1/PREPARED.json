@@ -1,0 +1,28 @@
+{
+  "status": "PREPARED_INPUTS_ONLY_NOT_ADMITTED",
+  "sourcePins": 18,
+  "inputDrift": [],
+  "candidateConfigGenerated": false,
+  "reviewedNewExpiry": false,
+  "sourceChanges": false,
+  "authorLaunched": false,
+  "testsOrBuilds": false,
+  "networkReads": false,
+  "runtimeChanges": false,
+  "signatureOrFinancialAction": false,
+  "hashes": {
+    "PLAN.md": "3a4f3b5e0d9127eb40ef51701a7d73d9bf9108eb43a4c09b1d766fce1819ee2f",
+    "SOURCE-PINS.json": "2e47c1105ef2a98194a69f73e7d7f5ea18095d7cfc202bf282ea5ba5721398dd",
+    "baseline/fee-policy.json": "2db46d9857e902cbd3bf1729abaa718c7a712b4ae2e551b2c2fdb5a1672a3c5f",
+    "baseline/intake-manifest.json": "2fb3fcced1e297e3efe420a127c65b597924c09ac5aaae8958783988fb0e067c",
+    "baseline/owner-controls.json": "85f760b12491cecffae4a7a9f158d10a590205d05c4039c9d7b7295a5628f3c5",
+    "read-only-admission.json": "621fb82497c4fbcf0dc7690bf05d2b6722da6a27805e7c97c0e0fdeeadef0412",
+    "renewal-inputs.json": "11fe776cad3ca04ce691792d9fb6f682eb4224d49e7e8b179f3f17e89732cf4e"
+  },
+  "criticalLimits": {
+    "gasLimit": 1200000,
+    "maxFee6": "80000",
+    "rpcPolicy": "OWNED_INFRASTRUCTURE_ONLY_NO_DOWNGRADE"
+  },
+  "remainingGate": "Root-owned RPC recovery/readiness, fresh read-only transport admission, current relay/journal boundary, fresh observations and explicit review. No old helper reruns."
+}

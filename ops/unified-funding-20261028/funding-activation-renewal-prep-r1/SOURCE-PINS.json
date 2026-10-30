@@ -1,0 +1,74 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-inputs-r1/prepared-r1/intake-manifest.json",
+    "sha256": "2fb3fcced1e297e3efe420a127c65b597924c09ac5aaae8958783988fb0e067c"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-inputs-r1/prepared-r1/owner-controls.json",
+    "sha256": "85f760b12491cecffae4a7a9f158d10a590205d05c4039c9d7b7295a5628f3c5"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/gas-envelope-correction-r1/fee-policy.json",
+    "sha256": "2db46d9857e902cbd3bf1729abaa718c7a712b4ae2e551b2c2fdb5a1672a3c5f"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-r1/funding-activation.mjs",
+    "sha256": "7554454dbe091f4bcc7ef8e15ac5dd8082c8be6d94256f52b1c8fadcfc198645"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-r1/generated/relay/funding-activation.mjs",
+    "sha256": "7554454dbe091f4bcc7ef8e15ac5dd8082c8be6d94256f52b1c8fadcfc198645"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-r1/generated/relay/funding-route.mjs",
+    "sha256": "1989f3ebf88833ac492e4f121ff33d564b1798eae1e5239b1aae444b63b572cd"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-r1/generated/relay/fee-policy.mjs",
+    "sha256": "32bcf03ea52db9be70d86e957dd440c1697daf0eaeab79f732378002d4f2bcfd"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-activation-prep-r1/prepare-activation.mjs",
+    "sha256": "c99239008337f08f512b6867e6fabee0f89f489c5f2061d0535746e0eb1a2711"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-activation-prep-r1/capture-observation.mjs",
+    "sha256": "466c2f430a1597207a55b92d13b2367bd680f1c35873fd8b1321c234aa06807e"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-activation-prep-r1/lib/context.mjs",
+    "sha256": "73f0cc70346ad5f3a64cdd8f71fa10b4e9cf6b794e0cf65f5075f17d81789c49"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-activation-prep-r1/lib/bindings.mjs",
+    "sha256": "8177b72bbd622fc2778ef038cea4d9e6837218488b392efd5057db24c1edebde"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-activation-qualification-r2/capture-observation.candidate.mjs",
+    "sha256": "08a8ae7a474ecbc3d9257c2595413b3a2b184b4dbf1cc139d8e2b9dc1b24cd9a"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/production-activation-qualification-r2/generate-preparation-inputs.mjs",
+    "sha256": "a7bf0ad5b999e07943ed6daf912aab6bb371d23e3e36e05f1fcf8129d96905a4"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/activation-inputs-r1/install-relay-r1.py",
+    "sha256": "681bd7f256616c8403fe80375dd11f91573acbac7b43625d762f466186274764"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/gas-envelope-correction-r1/correct.py",
+    "sha256": "f55418e72ad8dd255f9e5cf35713412981c1cd5e9b4f45ac91392dd2b6e9157c"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/gas-envelope-correction-r1/ROOT-REVIEW.md",
+    "sha256": "6072eeda93d578951eb2cdd42e4d7dfeb455fdf47dcfa241cf19eb85b3b595f9"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-app-restore-observe-r1/result.json",
+    "sha256": "27f9c7468b1315ec9778437c8d38cf99dec51ffb35eac159082a776c0702e7bf"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-app-restore-host-r1/host-result.json",
+    "sha256": "36ba769a1610ad6dc78e055ba34c55144c86093a7d679bb98a6c951baa2c0a87"
+  }
+]
