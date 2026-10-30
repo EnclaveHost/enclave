@@ -1,0 +1,19 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/lease-designated-relays.test.mjs
+✔ discovery: two designated relays verified; the fleet's ad excluded, the impostor rejected, an administrator's ban honoured (3922.280313ms)
+# claim 0xdcf3db73d3bad5c665b4b138a3b9a853a96845fd20d27dde2fd6e1ea361663ed block 25 paid 490140203937 wei to 0xb92d5Bb3472D1d59198D9B92C01EaA430781D444
+# renew 0xcf2480953cb9ff51de710e272e48d9f7d23501be698668a0c190248f2c1793ae block 27 paid 211810565928 wei to 0x17d14E5b1993A60bc48E25b7d4eAaa1eC781eeB4
+# release 0x843e175b998080eeeb268b6f65c09483073a96c80dcd60bf2cd93f74e4a969da block 28 paid 173206784268 wei to 0x17d14E5b1993A60bc48E25b7d4eAaa1eC781eeB4
+# relay floats a 10000000000000000 -> 10000025140255453, b 10000000000000000 -> 10000009873574415 (reimbursed in each transaction)
+✔ a ZERO-ETH host with no relay of its own: cold claim, relay A LOST, renew and release through relay B - each paid by the app's reserve (64782.683278ms)
+✔ operator authority is judged at EVERY signature: the cached relay list never carries it; a fresh ban, an unusable or undecided policy refuse at once (1840.398728ms)
+# with every designated relay down the claim failed in 54 ms
+✔ both designated relays lost: the operation fails NotRelayed within a bound, nothing is sent, the host still holds no ETH (84.134707ms)
+✔ the packaged role: only the pinned bytes run, no key in configuration, the key is created once and never replaced (2.652069ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 74934.240545

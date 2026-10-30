@@ -20,11 +20,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { measureGflops } from './compute-measure.mjs';
+import {prepareMetalHostPolicy} from './guest/host-policy.bundle.mjs';
+import { leaseGasTransit } from './guest/lease-gas-conduit.bundle.mjs';
+import { checkOwnerNomination } from './guest/owner-nomination.mjs';
+import { checkChainVerifier } from './guest/chain-verifier.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 function arg(name, dflt) { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : dflt; }
 const cfgPath = arg('config', path.join(HERE, 'config.json'));
 const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+const HOST_ADMISSION=prepareMetalHostPolicy(cfg.hostAdmission);
 
 let stopping = false;      // hoisted: the shielded-worker supervisor reads it too
 
@@ -169,10 +174,102 @@ if (ISO) {
   ISO_RUNTIME = isoRuntimeOf(ISO, key);
   console.log(`[enclave-metal] isolation ${ISO.backend}: attested release ${ISO_RUNTIME.release === true ? 'OPTED IN (isolation.release: true)' : 'off'}`);
 }
+// MEASURED independent control (cfg.control: "direct"; docs/network/measured-control-guest.md). The supervisor runs
+// inside this CVM in ISOLATION_DIRECT_ONLY mode, configured ONLY by the owner's direct config (cfg.direct: a file). That
+// config rides fw_cfg (unmeasured) and is BOUND: its digest goes into HOST_DATA, which the PSP signs into every report,
+// and the guest refuses to start anything unless HOST_DATA names exactly the config it received. WHICH control plane a
+// node runs belongs to its identity, so metal.control=direct rides the measured cmdline. Every legacy relay, tunnel,
+// fleet, certificate and volume input is refused here rather than ignored, and only the control front's guest port may
+// be forwarded: the supervisor is reached through the attested TLS front, never on its plain port.
+let DIRECT = null;
+if (cfg.control !== undefined && cfg.control !== null) {
+  if (cfg.control !== 'direct') throw new Error('control must be "direct" (absent = the legacy control plane)');
+  if (!ISO) throw new Error('control: "direct" runs the per-app SEV-SNP tier: configure isolation (backend snp-guest-per-app)');
+  if (ISO_RUNTIME.release === true) throw new Error('control: "direct" takes no relay release ticket: isolation.release must be off');
+  if (MODE !== 'snp' && MODE !== 'dev') throw new Error(`control: "direct" binds its config through SEV-SNP HOST_DATA; mode ${MODE} cannot`);
+  for (const k of ['relayUrl', 'tunnelToken', 'fleetSecret', 'certsApi', 'acmeEabKid', 'acmeEabHmac', 'acmeBringYourOwn', 'egressHelper', 'publicUrl', 'referral', 'registryKey'])
+    if (cfg[k] !== undefined && cfg[k] !== '' && cfg[k] !== null && cfg[k] !== false)
+      throw new Error(`control: "direct" refuses ${k}: ${k === 'publicUrl' ? 'the identity comes from the bound direct config' : k === 'registryKey' ? 'give the operator key as registryKeyFile (0600)' : 'a direct control guest uses no relay, fleet, certificate or ACME service'}`);
+  if (Array.isArray(cfg.volumes) ? cfg.volumes.length : cfg.volumes) throw new Error('control: "direct" attaches no model volumes (the control guest runs no apps)');
+  const MC = await import('./guest/measured-control.mjs');
+  const viem = cfg.registryKeyFile ? await MC.loadViem() : null;
+  const config = MC.canonicalDirectConfig(JSON.parse(fs.readFileSync(String(cfg.direct || ''), 'utf8')));
+  if (config.isolation.managerUrl !== ISO_RUNTIME.managerUrl || config.isolation.dataAddr !== ISO_RUNTIME.dataAddr)
+    throw new Error('the direct config names other guestd endpoints than isolation.managerUrl / dataAddr');
+  if (config.hostAdmissionSha256 !== MC.hostAdmissionDigest(HOST_ADMISSION)) throw new Error('the direct config does not bind this hostAdmission policy (hostAdmissionSha256)');
+  const fwds = Array.isArray(cfg.hostfwd) ? cfg.hostfwd : [];
+  for (const f of fwds) if (Number(f.guest) !== config.controlPort)
+    throw new Error(`control: "direct" forwards only the control front (guest port ${config.controlPort}); guest port ${f.guest} would bypass the attested channel`);
+  let registryKey = '';
+  if (cfg.registryKeyFile) {
+    const st = fs.statSync(cfg.registryKeyFile);
+    if ((st.mode & 0o077) !== 0) throw new Error('registryKeyFile must be mode 0600 or 0400');
+    registryKey = fs.readFileSync(cfg.registryKeyFile, 'utf8').trim();
+    const op = MC.addressOfPublicKey(MC.secp256k1PublicKey(registryKey), (b) => viem.keccak256(b));
+    if (op !== config.identity.operator) throw new Error(`registryKeyFile holds operator ${op}, not the bound operator ${config.identity.operator}`);
+  }
+  const digest = MC.configDigest(config);
+  DIRECT = { config, digest, hostData: MC.hostDataHex(digest), registryKey };
+  console.log(`[enclave-metal] direct control: config ${digest.slice(0, 16)}… -> HOST_DATA ${DIRECT.hostData.slice(0, 16)}…; operator ${config.identity.operator}${registryKey ? '' : ' (no registryKeyFile: not selling)'}; control front on guest port ${config.controlPort}`);
+}
+// App-funded lease gas (network/lease-gas-conduit.mjs; work/linux-lease-activation). The operator's REVIEWED configuration:
+//   "leaseGas": { "recordFile": "<the lease-gas deployment record>", "digest": "sha256:<its reviewed digest>",
+//                 "rpcs": ["https://…", "https://…"], "relays": ["https://…"], "reserve"?: "0x…", "quorum"?: n }
+// Everything in it is public and checked here with the shared rules (the record against the digest, relay and RPC
+// origins, reserve, quorum); only the checked result crosses to the guest (fw_cfg `leaseGas`: the record's exact bytes,
+// never the host path). Absent = off, exactly as before. Present and incomplete or invalid REFUSES the launch: a partial
+// configuration never runs with the operator's own wallet paying. A direct control guest takes it only inside its
+// HOST_DATA-bound direct config.
+if (DIRECT && cfg.leaseGas !== undefined && cfg.leaseGas !== null)
+  throw new Error('control: "direct" takes leaseGas only inside the bound direct config (HOST_DATA binds it there), not from the host config');
+const LEASE_GAS = DIRECT ? null : leaseGasTransit(cfg.leaseGas, { readFile: (f) => fs.readFileSync(f),
+  verifierBound: cfg.chainVerifier !== undefined && cfg.chainVerifier !== null });   // checked below (CHAIN_VERIFIER); lease reads then use it only
+if (LEASE_GAS) console.log(`[enclave-metal] app-funded lease gas: record ${LEASE_GAS.digest.slice(0, 19)}…, reserve ${LEASE_GAS.reserve}, `
+  + `${LEASE_GAS.relays.length} relay(s), ${LEASE_GAS.rpcs.length} RPC(s)${LEASE_GAS.quorum ? `, quorum ${LEASE_GAS.quorum}` : ''}`);
+// The operator's owner nomination for the ORIGINAL EnclaveHostOwnership (metal/guest/owner-nomination.mjs): public, the host
+// controller's OWN explicit config (no remote caller can supply it); checked here, again in the guest, and by the
+// supervisor against its operator key, chain, registry and endpoint. Absent: nothing is proposed. Invalid: REFUSES the
+// launch. A direct control guest takes it only inside its HOST_DATA-bound direct config.
+if (DIRECT && cfg.ownerNomination !== undefined && cfg.ownerNomination !== null)
+  throw new Error('control: "direct" takes ownerNomination only inside the bound direct config (HOST_DATA binds it there), not from the host config');
+const OWNER_NOMINATION = DIRECT || cfg.ownerNomination === undefined || cfg.ownerNomination === null ? null : checkOwnerNomination(cfg.ownerNomination);
+if (OWNER_NOMINATION) {
+  if (OWNER_NOMINATION.endpoint !== String(cfg.publicUrl || '').replace(/\/+$/, '')) throw new Error("ownerNomination.endpoint must be this host's publicUrl");
+  if (cfg.registryKey) {   // the operator key this host hands its guest: the nomination must name exactly its address
+    const MC = await import('./guest/measured-control.mjs'), viem = await MC.loadViem();
+    const k = String(cfg.registryKey).trim(), k0x = k.startsWith('0x') ? k : `0x${k}`;   // as the supervisor reads it (either form)
+    const op = MC.addressOfPublicKey(MC.secp256k1PublicKey(k0x), (b) => viem.keccak256(b));
+    if (op !== OWNER_NOMINATION.operator) throw new Error(`ownerNomination.operator ${OWNER_NOMINATION.operator} is not this host's operator key ${op}`);
+  }
+  console.log(`[enclave-metal] owner nomination: propose ${OWNER_NOMINATION.owner} on ${OWNER_NOMINATION.ownershipContract} for host ${OWNER_NOMINATION.hostId.slice(0, 10)}… (operator ${OWNER_NOMINATION.operator})`);
+}
+// The platform host policy CARRIERS of a relay-mode guest (metal/guest/measured-control.mjs checkPolicyCarriers: the measured
+// guest's own schema): how its supervisor's gate obtains the administrator's anchored policy document without a fleet mirror,
+// from other hosts' policy-mirror roles (peers) and/or the pinned service index. Public, untrusted transport, the host
+// controller's own explicit config; checked here (written to fw_cfg in its checked form), again in the guest, and every
+// document it carries is verified by the supervisor's gate against the book's anchor and current owner. Absent: nothing
+// changes. Invalid, or naming this host itself: REFUSES the launch. A direct control guest takes them only inside its
+// HOST_DATA-bound direct config.
+if (DIRECT && cfg.platformPolicyCarriers !== undefined && cfg.platformPolicyCarriers !== null)
+  throw new Error('control: "direct" takes platformPolicyCarriers only inside the bound direct config (HOST_DATA binds it there), not from the host config');
+const POLICY_CARRIERS = DIRECT || cfg.platformPolicyCarriers === undefined || cfg.platformPolicyCarriers === null ? null
+  : (await import('./guest/measured-control.mjs')).checkPolicyCarriers(cfg.platformPolicyCarriers, { publicUrl: String(cfg.publicUrl || '') });
+if (POLICY_CARRIERS) console.log(`[enclave-metal] platform policy carriers: ${(await import('./guest/measured-control.mjs')).policyCarriersLaunchSummary(POLICY_CARRIERS)}`);
+// The host operator's explicit opt-in to the LOCAL chain verifier inside the guest (metal/guest/chain-verifier.mjs): the
+// administrator's sequencer pin, 1..16 explicit proof sources and its loopback port. Public, the host controller's own
+// config; checked here (written to fw_cfg in its checked form) and again in the guest against the image's pinned runtime.
+// Absent: nothing changes (the guest's readers keep the provider quorum). Invalid: REFUSES the launch. A direct control
+// guest takes its verifier ONLY inside the bound direct config (measured-control.mjs canonicalDirectConfig chainVerifier,
+// bound by HOST_DATA): a host-level setting for it refuses rather than being ignored or passed unbound.
+if (DIRECT && cfg.chainVerifier !== undefined && cfg.chainVerifier !== null)
+  throw new Error('control: "direct" takes chainVerifier only inside the bound direct config; remove the host-level chainVerifier');
+const CHAIN_VERIFIER = DIRECT || cfg.chainVerifier === undefined || cfg.chainVerifier === null ? null : checkChainVerifier(cfg.chainVerifier);
+if (CHAIN_VERIFIER) console.log(`[enclave-metal] local chain verifier: ${CHAIN_VERIFIER.proofSources.length} proof source(s), guest loopback port ${CHAIN_VERIFIER.port}`);
 const cmdline = [
   'console=ttyS0', 'root=/dev/ram0', 'rootfstype=ramfs', 'quiet',
   `metal.mode=${MODE}`,
   ...(ISO ? [`metal.isolation=${ISO.backend}`] : []),
+  ...(DIRECT ? ['metal.control=direct'] : []),
 ].join(' ');
 // The node's GFLOPS, MEASURED where its apps run, before the control VM starts: flops-probe (an exactly counted f32x4
 // multiply-add workload) under the guests' wasmtime, one copy per guest-pool vCPU (config gflopsCopies; default this
@@ -186,7 +283,18 @@ if (cfg.measureGflops !== false) {
     console.log(`[metal] compute measured: ${m.gflops} GFLOPS for ${m.instances} copies, ${m.perInstance} per vCPU (${m.wallMs} ms, ${m.runs} runs; ${m.method})`);
   } catch (e) { console.error(`[metal] compute NOT measured (${e.message}): the guest keeps the 62.5-per-vCPU convention`); }
 }
-const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', relayUrl: cfg.relayUrl || '', tunnelToken: cfg.tunnelToken || '',
+const runtimeCfg = { name: NAME, mode: MODE, publicUrl: DIRECT ? DIRECT.config.identity.publicUrl : (cfg.publicUrl || ''), relayUrl: cfg.relayUrl || '', tunnelToken: cfg.tunnelToken || '',
+  // the owner's direct config (bound by HOST_DATA below; the guest checks it against its own report)
+  ...(DIRECT ? { direct: DIRECT.config } : {}),
+  ...(HOST_ADMISSION?{hostAdmission:HOST_ADMISSION}:{}),
+  // the reviewed app-funded lease-gas configuration (LEASE_GAS above): public, checked again in the guest
+  ...(LEASE_GAS ? { leaseGas: LEASE_GAS } : {}),
+  // the operator's explicit owner nomination (OWNER_NOMINATION above): public, checked again in the guest and by the supervisor
+  ...(OWNER_NOMINATION ? { ownerNomination: OWNER_NOMINATION } : {}),
+  // the platform host policy carriers (POLICY_CARRIERS above): public, untrusted transport, checked again in the guest
+  ...(POLICY_CARRIERS ? { platformPolicyCarriers: POLICY_CARRIERS } : {}),
+  // the local chain verifier opt-in (CHAIN_VERIFIER above): public, checked again in the guest against the image's runtime
+  ...(CHAIN_VERIFIER ? { chainVerifier: CHAIN_VERIFIER } : {}),
   // the referral code this machine was set up with (`enclave host init --referral`): attribution only; the guest agent
   // says it when it attaches (x-metal-referral, relay/referrals.mjs). fw_cfg, so it never changes the measurement
   referral: cfg.referral || '',
@@ -196,7 +304,7 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // without registryKey the enclave serves via the tunnel but neither claims
   // nor earns. Delivered via fw_cfg like the tunnel token — out-of-band, never
   // in the launch measurement or the quote.
-  registryKey: cfg.registryKey || '', payoutAddress: cfg.payoutAddress || '',
+  registryKey: DIRECT ? DIRECT.registryKey : (cfg.registryKey || ''), payoutAddress: DIRECT ? '' : (cfg.payoutAddress || ''),
   // how app-zone certificates get minted: see certsCfg() above. Rides fw_cfg
   // like the keys: out-of-band, unmeasured.
   ...CERTS,
@@ -614,8 +722,9 @@ function baseArgs() {
     // is loud at attach time rather than a silently transparent box. Spelling
     // `policy=` out here would be belt-and-braces; it is left alone only
     // because a boot-line change to a serving box wants a real boot to test.
+    // HOST_DATA: the direct control config's binding, or the model volume set's digest (never both: direct attaches no volumes)
     a.push('-object', `sev-snp-guest,id=cx0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on,sev-device=${SEV_DEVICE}`
-      + (VOL_DIGEST ? `,host-data=${volB64(32)}` : ''));
+      + (DIRECT ? `,host-data=${Buffer.from(DIRECT.hostData, 'hex').toString('base64')}` : VOL_DIGEST ? `,host-data=${volB64(32)}` : ''));
   }
   return a;
 }

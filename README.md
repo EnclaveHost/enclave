@@ -16,7 +16,7 @@ The dated records describe three host types running each app in its own VM, with
 | host | your app runs in | status |
 |---|---|---|
 | **Confidential server** (AMD SEV-SNP) | its own SEV-SNP guest, with memory encrypted by the processor | recorded on metal0 |
-| **Windows machine running Enclave Shield** | its own VBS-isolated Hyper-V partition, booted from our measured paravisor image | recorded on one machine; host-OS memory exclusion demonstrated in a local test on 2026-10-23 (see [threat model](#threat-model-what-you-are-trusting)) |
+| **Windows machine running Enclave Shield** | its own VBS-isolated Hyper-V partition, booted from our measured paravisor image | recorded on one machine; host exclusion not yet tested by us (below) |
 | **Android phone** (pVM tier) | its own protected VM (pKVM), CPU only | recorded on one Pixel 10 |
 
 The [2026-10-14 Shield record](docs/shielded-inference.md) documents masked GPU offload on metal0's two V100-class cards and the Windows host's integrated GPU. The design masks protected tensors and checks returned results; its security claims depend on the trusted CPU component and the assumptions in that record. Review has been internal only. This deployment evidence does not establish every Shield CPU-isolation backend or independent validation of the complete design.
@@ -32,7 +32,7 @@ Each kind of host protects against different parties, and each still relies on s
 | host | protects your app from | you still trust | who checks the evidence |
 |---|---|---|---|
 | **Confidential server** | the host OS, hypervisor and operator, and other tenants: the processor encrypts the guest's memory and keeps them out | AMD (processor and its signing chain; the root key is pinned), and the image built from this repo's release tag | the site and `enclave attest` check the server's report (AMD chain, a fresh nonce). Unpinned, the verdict is **limited**: the measurement is compared against Enclave's published allowlist. Pin a measurement you derived yourself (`enclave attest --expect`) for **verified**. For a public deployment, its **Verify** button then checks the app's own guest in your browser, for card and wallet accounts alike. The guest's report, fetched from the app's public address over a fresh nonce, must bind the key the app's TLS certificate carries, name this deployment and app, come from the same processor, and match the relay's published prediction of that guest (`/v1/expected-guest`). That makes it **limited** too. Run live against production on 2026-10-17: all 18 checks passed on a public app's guest on metal0. **Gaps:** the CLI checks only the server, and a private deployment has no public address to ask. |
-| **Enclave Shield on Windows** | other tenants (the hypervisor separates partitions); host-OS memory exclusion **demonstrated on the Windows reference host** in the 2026-10-23 local test: a privileged host memory capture read an ordinary guest's memory but not a VBS-isolated guest's. This demonstration is not attested by the per-app signed report, which still records `host_excluded: no` | Microsoft (Hyper-V hypervisor, secure kernel, boot chain), the machine's owner and anyone with physical access. Partition memory is **not** encrypted. | the relay checks both at attach. Your browser can check them too: a Shield deployment's **Verify** button checks the machine's TPM-quoted boot (with a credential the page mints itself), then that app's own partition report under that boot's key, over a fresh nonce. That works for card and wallet accounts alike. The verdict stays **limited**, because the per-app signed report does not attest host exclusion and the image list is the operator's. The CLI does not do this check yet. |
+| **Enclave Shield on Windows** | other tenants (the hypervisor separates partitions); host-OS exclusion is an intended property of the VBS design, **not a demonstrated Enclave guarantee** (our own host-side test has not run, so these hosts report `host_excluded: no`) | Microsoft (Hyper-V hypervisor, secure kernel, boot chain), the machine's owner and anyone with physical access. Partition memory is **not** encrypted. | the relay checks both at attach. Your browser can check them too: a Shield deployment's **Verify** button checks the machine's TPM-quoted boot (with a credential the page mints itself), then that app's own partition report under that boot's key, over a fresh nonce. That works for card and wallet accounts alike. The verdict stays **limited**, because host exclusion is unevidenced and the image list is the operator's. The CLI does not do this check yet. |
 | **Android phone** | the Android host OS, which pKVM keeps out of the VM's memory, and other tenants | Google (pKVM, the DICE/RKP attestation chain to Google's pinned root; revocation is not checked) and the phone's hardware | the relay checks each app's protected VM at attach. For a public deployment, its **Verify** button checks that VM in your browser too, for card and wallet accounts alike. It verifies the phone first, then the app VM's evidence, fetched from the app's public address over a fresh nonce. That evidence must chain to Google's root, bind the key the app's TLS certificate carries, name the app the deployment runs, and come from the phone's own VM or a sibling VM. A sibling must prove it holds the phone's registered proof key, which only VMs of the pinned build ever hold. **Limited:** the expected app, the allow-lists and the proof key are the relay's statements. Run live against production on 2026-10-18: all 14 checks passed on a public hello-world deployment on the Pixel 10, including its sibling statement recovering to the phone's registered proof key. **Gap:** a private deployment has no public address to ask. |
 
 Across every host:
@@ -166,7 +166,7 @@ last successfully deployed commit and deploys only what changed:
 
 | what changed | what happens |
 |---|---|
-| `site/**` | scp + IPFS publish to the site box (`site/deploy.sh`) |
+| `site/**`, `cli/install.*`, `cli/host.ps1` | one content-addressed site release is built and verified (`site`), then delivered to every operator target in `vars.SITE_DELIVERY_TARGETS` (SSH hosts running the release agent, kubo nodes, local roots), activated as a journalled, fenced rollout (failures compensated; unknown outcomes reported pending until `site-release resolve`), and published through an owner-approved session or left as the owner's exact plan (`site-deliver`, [docs/site-release.md](docs/site-release.md)) |
 | `relay/**` | scp + systemd restart on the relay box (`relay/deploy.sh`) |
 | `contracts/<Name>.sol` | that contract deploys to Base (`scripts/deploy-*.mjs`), **after a one-click approval** on the `contract-deploy` environment; addresses are wired into `enclaves/cpu/config.yml` + the site and committed back |
 | `Dockerfile` / `supervisor.js` / `package*.json` | a new release (`release-cpu.yml` builds the supervisor image, tags `vX.Y.Z-cpu` and publishes the GitHub Release) |
@@ -189,9 +189,11 @@ Deliberately still manual:
   of the pipeline continues on the next push. Replacing a live contract is a
   migration, not a deploy: see [Contract upgrades and refunds](#contract-upgrades-and-refunds).
 
-One-time setup on a new machine/repo: `scripts/ci-setup.sh` (SSH deploy key,
-repo secrets/vars, the `contract-deploy` environment), then set
-`DEPLOYER_PRIVATE_KEY` on that environment. The local `scripts/hooks/pre-push`
+For one-time CI setup, first select the API/DNS targets and supply verified SSH
+host keys as described in [CI setup](scripts/CI-SETUP.md), then run
+`scripts/ci-setup.sh`. Configure `DEPLOYER_PRIVATE_KEY` in the reviewed
+`contract-deploy` environment only if CI will perform contract deployments.
+The local `scripts/hooks/pre-push`
 site-deploy hook predates this pipeline and is now redundant; disable it with
 `git config --unset core.hooksPath` if you don't want pushes deploying the site
 twice.
@@ -201,7 +203,7 @@ twice.
 - `npm test` runs the supervisor/contract test suite (`test/*.test.mjs`).
 - `npm install` also points `core.hooksPath` at `.githooks/`: the pre-commit and pre-push hooks refuse cryptocurrency private keys (Ethereum/Bitcoin hex, WIF, xprv, BIP39 seed phrases, keystore JSON) and, when [gitleaks](https://github.com/gitleaks/gitleaks) is on your PATH, provider tokens too. GitHub's own push protection never sees a raw wallet key, so the hook is the real block; `.github/workflows/secret-scan.yml` is the backstop. A confirmed false positive is bypassed with `--no-verify`.
 - `npm run build:site` bundles the site into `site/dist/` (Tailwind + esbuild + build-time component prerender). `site/` itself is valid unbundled ES modules; serve it raw for dev, or `npm run watch:site` for CSS. Site URLs are extensionless (`/apps`, `/dashboard`): `site/_redirects` rewrites them on the DNSLink/subdomain IPFS gateway, and the router always fetches the real `.html` files, so soft navigation works on any dumb static server; only a HARD reload of a pretty URL needs rewrite support (use `npx serve site`, or just hit the `.html` path; the router re-prettifies the bar).
-- `site/deploy.sh` builds and publishes the site to the box and IPFS (the IPNS gateway caches ~5 min). CI does this automatically on push.
+- `site/deploy.sh prepare --out DIR --base BASE` builds the site into ONE content-addressed release, keeping the old hashed chunks and CSP hashes 48h for cached tabs. `site/deploy.sh deliver --release DIR --targets FILE --approve CID [--publish FILE]` mirrors it to the operator's own targets, activates them in a journalled, fenced rollout (`--journal DIR`; `resolve` settles any interrupted one), and publishes. CI runs the same commands; no host is built in ([docs/site-release.md](docs/site-release.md)).
 
 ## Documentation & support
 

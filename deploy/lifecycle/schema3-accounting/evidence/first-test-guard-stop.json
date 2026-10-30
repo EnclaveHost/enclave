@@ -1,0 +1,18 @@
+{
+  "exitCode": 99,
+  "testExecutionStarted": false,
+  "phase": "Solc compilation",
+  "innerPeakMiB": 654,
+  "outerPeakMiB": 717,
+  "innerCapMiB": 650,
+  "outerCapMiB": 768,
+  "minAvailableMiB": 33812,
+  "sourceHashesAtStop": {
+    "candidate/test/AccountingConservation.t.sol": "901f869c2eb2741bf341587af5966af558cf6f065df3f6402ee6886b30a427c5",
+    "candidate/test/Lifecycle.t.sol": "ab938a43c2e596aa2d20f3578ec42dd92e75a2dce5942c1592b4ecc3f40b937d",
+    "candidate/test/LifecycleProofOfTime.t.sol": "ed9f381c6fd68eac64d61751263837f9e325620a301452276deb5f7d3de479a0",
+    "candidate/test/LifecycleCutoff.t.sol": "928a59450dbe51663b45c89cd74a440bbb4994cef79e0ba28023360ab42a96c6",
+    "candidate/deploy/EnclaveProofOfTime.sol": "946f0b90db1597ee95316029f467b8c7588e962c72168e78da77d3886f72eec5",
+    "candidate/deploy/EnclaveDeployments.sol": "c720f1bfe021abcc4f080a5646d756c60a14cd2be8b746d995e3d1ba8b21da15"
+  }
+}

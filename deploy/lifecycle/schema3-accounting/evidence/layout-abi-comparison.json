@@ -1,0 +1,5 @@
+{
+  "storageLayoutEqual": true,
+  "publicAbiExactlyEqual": true,
+  "checks": "read-only completed compiler outputs; no behavior qualification"
+}

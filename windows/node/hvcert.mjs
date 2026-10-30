@@ -88,9 +88,11 @@ export function issuer({ endpoint, sign, base, request = requestCert }) {
   return async (name, csrPem, spkiHash) => {
     const r = await request({ name, csrPem, spkiHash, endpoint, sign, ...(base ? { base } : {}) });
     if (r && r.ok && r.certPem) return r.certPem;
-    const e = new Error(r && r.retryAfterSec && !r.error ? `the order for ${name} is in flight (${r.why})`
+    const pending = !!(r && r.retryAfterSec && !r.error);
+    const e = new Error(pending ? `the order for ${name} is in flight (${r.why})`
       : `the certificate service refused ${name}: ${r ? `${r.error || ""} ${r.why || ""}`.trim() : "no answer"}`);
     if (r && r.retryAfterSec) e.retryMs = Math.min(3600_000, Math.max(5_000, Number(r.retryAfterSec) * 1000));
+    if (pending) e.certPending = true;     // the service's 202 (in flight, paced, backing off): a wait, not a refusal
     throw e;
   };
 }
@@ -136,7 +138,9 @@ export function createHvCertPass({ client, dataAddr, runtimeId: pinned, endpoint
         : `${id.slice(0, 10)} certificate: ${name} installed in partition ${iso.instance} (key ${got.key.slice(0, 16)}…, `
           + `${String(got.issuer).slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}; domain ${got.verdict})`);
     } catch (e) {
-      const failures = (s && s.instanceId === iso.instance && s.failures || 0) + 1;
+      // A 202 is waited out at the service's own hint and does not count: counting each in-flight poll made the next
+      // genuine refusal back off as if it were the tenth (2026-10-21, ef514ed3: 3600 s after one refusal, not 30 s).
+      const failures = (s && s.instanceId === iso.instance && s.failures || 0) + (e.certPending ? 0 : 1);
       const wait = e.retryMs || Math.min(3600_000, CERT_RETRY_BASE_MS * 2 ** (failures - 1));
       st.set(id, { instanceId: iso.instance, backoffUntil: t + wait, failures, why: e.message });
       log(`${id.slice(0, 10)} certificate: none for ${name} (${e.message}); retry in ${Math.round(wait / 1000)}s`);

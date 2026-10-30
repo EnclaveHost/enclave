@@ -1,0 +1,12 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/connectivity-chain.test.mjs
+✔ direct policy and split are agreed at the same block as the lease (6.782434ms)
+✔ one peer cannot fabricate a policy or bind a foreign ledger (2.318081ms)
+✔ TUNA provider identity and proof key join the same-block lease quorum (2.722878ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 291.195495

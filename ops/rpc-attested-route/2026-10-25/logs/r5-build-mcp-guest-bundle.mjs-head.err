@@ -1,0 +1,15 @@
+node:internal/fs/promises:639
+  return new FileHandle(await PromisePrototypeThen(
+                        ^
+
+Error: ENOENT: no such file or directory, open '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-stage/tmp/base-head/metal/guest/mcp-server.bundle.mjs'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1252:14)
+    at async file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-stage/tmp/base-head/scripts/build-mcp-guest-bundle.mjs:32:21 {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-stage/tmp/base-head/metal/guest/mcp-server.bundle.mjs'
+}
+
+Node.js v22.23.3

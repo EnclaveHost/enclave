@@ -33,6 +33,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia, foundry } from "viem/chains";
 import { createPublicKey, verify as nodeVerify, createHash } from "node:crypto";
 import { sessionVaultAbi, sessionVaultFactoryAbi } from "./sessions-abi.mjs";
+import { relayChain } from "./store.js";
 import { verifyQuote, parseSnpReport, provenSnpChip, seedCertChain } from "./snp-verify.mjs";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -1223,12 +1224,22 @@ export async function initSessions({ dataDir, JsonStore, alert, log } = {}) {
   const netName = process.env.SESSIONS_NETWORK || "base";
   const net = NETS[netName];
   if (!net) { _why = `unknown SESSIONS_NETWORK ${netName}`; console.error(`[sessions] ${_why}`); return null; }
+  // Under the relay's verifier authority (relay/store.js relayChain(): network/chain-authority.mjs) the relayer reads proven
+  // state and sends ONLY to the bound own backend (pending nonce, fee hints and eth_sendRawTransaction there; receipts checked
+  // by the verifier); SESSIONS_RPC and a non-base SESSIONS_NETWORK were refused at startup, and the public defaults are never
+  // used. An invalid selection throws here: sessions stay off with the reason, never on the provider path.
+  let authority = null;
+  try { authority = await relayChain(); }
+  catch (e) { _why = `sessions: the chain authority selection is invalid (${e.message})`; console.error(`[sessions] ${_why}`); return null; }
+  if (authority && (netName !== "base" || String(process.env.SESSIONS_RPC || "").trim())) {
+    _why = "sessions: under the verifier authority SESSIONS_NETWORK must be base and SESSIONS_RPC unset"; console.error(`[sessions] ${_why}`); return null;
+  }
   const rpcs = (process.env.SESSIONS_RPC || "").split(",").map((s) => s.trim()).filter(Boolean);
-  const transport = fallback((rpcs.length ? rpcs : net.rpc).map((u) => http(u, { retryCount: 2, retryDelay: 400 })));
+  const transport = authority ? authority.transport : fallback((rpcs.length ? rpcs : net.rpc).map((u) => http(u, { retryCount: 2, retryDelay: 400 })));
   // a local chain may carry another id (the e2e rig runs anvil as 8453); real networks keep theirs
-  const chain = netName === "local" && process.env.SESSIONS_CHAIN_ID
+  const chain = authority ? authority.client.chain : netName === "local" && process.env.SESSIONS_CHAIN_ID
     ? { ...net.chain, id: Number(process.env.SESSIONS_CHAIN_ID) } : net.chain;
-  const pc = createPublicClient({ chain, transport });
+  const pc = authority ? authority.client : createPublicClient({ chain, transport });
   const account = privateKeyToAccount(key);
   const wc = createWalletClient({ chain, account, transport });
   const path = (n) => `${dataDir}/${n}`;

@@ -76,3 +76,11 @@ test('v5 direct routes (Enclave network policy): accepted only with a trusted ch
  await assert.rejects(verifyRoute(bundle({...r,routes:[{...r.routes[0],transport:'enclave-network'}]}),opts),/invalid public route/,'a direct policy routes only direct');
  await assert.rejects(verifyRoute(bundle({...r,routes:[{...r.routes[0],address:'9.9.9.9'}]}),opts),/./,'another address than the qualified one');
 });
+test('platform host policy: a route to a refused lease host is rejected; an admitted host verifies as before',async t=>{
+ const {record,bundle,options}=await fixture(t);
+ let asked=null;
+ await assert.rejects(verifyRoute(bundle(record),{...options,hostAdmission:async(l)=>{asked=l.runner;return {admit:false,reason:'banned by platform policy #2 (operator): abuse'};}}),/route host refused by platform host policy: banned/);
+ assert.equal(asked,runner);
+ await assert.rejects(verifyRoute(bundle(record),{...options,hostAdmission:async()=>undefined}),/no decision/,'a missing decision refuses');
+ assert.equal((await verifyRoute(bundle({...record,sequence:2}),{...options,hostAdmission:async()=>({admit:true})})).routes.length,1);
+});

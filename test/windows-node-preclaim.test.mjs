@@ -12,7 +12,7 @@ import path from "node:path";
 import http from "node:http";
 import { once } from "node:events";
 import { fakeBaseRpc, DEPLOYMENTS, CATALOG, enclaveIdOf } from "./helpers/fake-base-rpc.mjs";
-import { REC, DEP, FakeHost, bootManager, closeManagers } from "./helpers/hv-fake-manager.mjs";
+import { REC, DEP, FakeHost, bootManager, closeManagers, clientFor } from "./helpers/hv-fake-manager.mjs";
 
 process.env.NODE_OPERATOR_KEY = "0x" + "7f".repeat(32);
 const rpc = await fakeBaseRpc();
@@ -55,6 +55,8 @@ async function node(answer) {
     cpuPricePerSec6: 12, ramGb: 64, log: () => {}, engineRetired: true, isolationManager: `http://127.0.0.1:${port}`,
     isolationRuntimeId: REC.runtimeId, relayBase: r.base });
   h.chainReady = true; h.registered = { endpoint: ENDPOINT, cpuPricePerSec6: 12n, gpuPricePerSec6: 0n };
+  // the manager's RAM view, as the agent reads it before any scan (agent.mjs refreshPartitionGpu): unread, nothing is claimed
+  h.noteManagerMemory(await clientFor(port).health());
   return { h, r };
 }
 const TX = /^eth_(sendRawTransaction|sendTransaction|estimateGas|getTransactionCount)$/;

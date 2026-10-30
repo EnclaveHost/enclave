@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-25T17:43:09.207266+00:00",
+  "measurement": "4287b65e718ff958027f31beec6a0753d42784086807b950f557a963cd0277f33c9869173420f03f5fb53e4ad2859be9",
+  "frozenPinsSha256": "bf6252fdcc15c86649f2462257e0675d2503fc1e8c7a8feb0d11900b87a83d5d",
+  "capMiB": 3072,
+  "cpuQuota": "200%",
+  "admissionMiB": 87040,
+  "guardFloorMiB": 83968,
+  "admissionBasis": "RPC failed: reserve 67584 + canary 3072 + floor 16384",
+  "guestMemMiB": 2048,
+  "cpus": 4,
+  "childTimeoutS": 420,
+  "killAfterS": 40,
+  "kds": "off",
+  "registry": "none (verifier-only rule)",
+  "exclusiveBothQueueLanes": true,
+  "qemusAtAdmission": {
+    "count": 4,
+    "pids": [
+      "1036966",
+      "2129788",
+      "2129873",
+      "3817658"
+    ],
+    "unitNames": "REDACTED (machine inventory) for publication",
+    "sha256OfOriginalJson": "1a7f80eff4245a028c0b384f83b8644d954094832afdccd3f3b38b95e063cc7c"
+  }
+}

@@ -27,6 +27,7 @@ import { createHash, createPublicKey, createPrivateKey, generateKeyPairSync, dif
          createCipheriv, createDecipheriv, sign as edSign, verify as edVerify } from "node:crypto";
 import fs from "node:fs";
 import { endpointOperator, recoverOp, makeReplayCache, rowOf, holdsLease } from "./fleet-auth.js";
+import { needsWriterAuthority } from "./lease-generation.mjs";
 
 export const RELEASE_DOMAIN = Buffer.from("enclave-secrets-release-v1\n");
 export const SEAL_INFO = Buffer.from("enclave-secrets-release-v1 seal\n");
@@ -294,6 +295,21 @@ const PREDICT_WAIT_MS = 10_000;
 // its duration (enclave-87, 09-26: a 60 s expected-guest at 07:34Z could not be attributed - neither the relay nor Caddy logs
 // per request). The step's outcome is unchanged.
 export const SLOW_STEP_MS = 5_000;
+// the most a release spends on the writer-authority fact before it goes out without it (the guest's release window is 100 s)
+export const WRITER_AUTHORITY_BUDGET_MS = 15_000;
+// shorter (never longer) in tests: SECRETS_RELEASE_WRITER_AUTHORITY_MS in 100..15000
+export const writerAuthorityBudgetMs = () => { const v = Number(process.env.SECRETS_RELEASE_WRITER_AUTHORITY_MS); return v >= 100 && v <= WRITER_AUTHORITY_BUDGET_MS ? v : WRITER_AUTHORITY_BUDGET_MS; };
+// run(signal) under a deadline that CANCELS it: the signal fires at `ms` and again once run settles, so a cooperating
+// callee (relay/lease-generation.mjs) stops its pending requests and retry sleeps and sends nothing more. The race only
+// bounds the wait for a callee that would ignore the signal; it is not the cancellation.
+export async function withAbortDeadline(run, ms) {
+  const ac = new AbortController();
+  const fired = new Promise((_, no) => ac.signal.addEventListener("abort", () => no(ac.signal.reason), { once: true }));
+  fired.catch(() => {});
+  const t = setTimeout(() => ac.abort(Object.assign(new Error(`no answer within ${ms} ms`), { code: "deadline" })), ms);
+  try { return await Promise.race([run(ac.signal), fired]); }
+  finally { clearTimeout(t); ac.abort(new Error("settled")); }
+}
 export async function timedStep(what, id, step, fn, log = console.error) {
   const t0 = Date.now();
   try { return await fn(); }
@@ -313,13 +329,47 @@ const predictionRefusal = (p) => {
 // The owner's decision lives ONLY in SECRETS_RELEASE_DEPLOYMENTS; a supervisor asks here at spawn to choose the guest image
 // (enclave-5d, d1's option (i)). Public: deployment ids are public on chain and the answer names nothing else. 503 while
 // release is off or not fully configured, which a supervisor reads as not listed; the missing pieces are not named here.
+// An id listed by SECRETS_RELEASE_APP_REFS needs ITS row (its appRef): read here by id through the agreeing catalog RPCs
+// (ctx.confirmRow, the release's own read), bounded below the supervisor's 5-s status read (supervisor.js releaseListedFor).
+// It used to wait on the full-ledger scan over the single BASE_RPC (ctx.ledgerRows), which can take longer than the
+// supervisor waits (2026-10-22: one public read of an unlisted id timed out at 15 s while a direct one took 652 ms; the
+// supervisor journal showed "release list could not be read" refusals for some unlisted deployments), and a FAILED scan
+// answered listed:false. A row that cannot be read - or a confirmed row that is not exactly this deployment's, with a string
+// appRef - is now 503 release_status_unavailable, which the supervisor reads as unknown (its claim waits, its spawn
+// retries): never "not listed" on a transient failure or a malformed answer.
+export const STATUS_ROW_MS = 4_000;
+// shorter (never longer) in tests: SECRETS_RELEASE_STATUS_ROW_MS in 50..STATUS_ROW_MS
+const statusRowMs = () => { const v = Number(process.env.SECRETS_RELEASE_STATUS_ROW_MS); return v >= 50 && v <= STATUS_ROW_MS ? v : STATUS_ROW_MS; };
+async function statusListed(ctx, cfg, id) {
+  if (cfg.deployments === "*" || (cfg.deployments && cfg.deployments.has(id))) return true;
+  if (!cfg.appRefs || !cfg.appRefs.size) return false;
+  const ms = statusRowMs();
+  let timer;
+  const deadline = new Promise((_, no) => { timer = setTimeout(() => no(Object.assign(new Error(`no row within ${ms} ms`), { code: "deadline" })), ms); });
+  try {
+    const row = await Promise.race([Promise.resolve().then(() => ctx.confirmRow(id)), deadline]);
+    // exactly this deployment's record, or unknown: a missing, mismatched or malformed row never reads as "not listed"
+    if (!row || typeof row !== "object" || String(row.id ?? "").toLowerCase() !== id || typeof row.appRef !== "string")
+      throw Object.assign(new Error("the confirmed row is not this deployment's record"), { code: "bad_row" });
+    return cfg.appRefs.has(row.appRef.toLowerCase());
+  } catch (e) {
+    if (e && e.code === "no_deployment") return false;    // the agreeing RPCs say the ledger holds no such deployment
+    throw e;
+  } finally { clearTimeout(timer); }
+}
 export async function releaseStatus(u, req, res, ctx, { bad, rate }) {
   if (!rate(`status:${ctx.clientIp(req)}`)) return bad(429, "rate_limited", "Too many status requests; retry shortly.");
   const cfg = releaseConfig();
   if (missingFor(ctx, cfg).length) return bad(503, "release_off", "Attested release is not enabled on this relay.");
   const id = String(u.searchParams.get("id") || "").toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(id)) return bad(422, "bad_id", "id must be a bytes32 deployment id.");
-  ctx.json(res, 200, { id, listed: await releaseListed(ctx, cfg, id) }, req);
+  let listed;
+  try { listed = await statusListed(ctx, cfg, id); }
+  catch (e) {
+    console.warn(`[secrets-release] release-status ${id.slice(0, 10)}: the row could not be read (${(e && e.code) || "error"}: ${String((e && e.message) || e).split("\n")[0].slice(0, 160)})`);
+    return bad(503, "release_status_unavailable", "The release list could not be read for this deployment just now; retry shortly.");
+  }
+  ctx.json(res, 200, { id, listed }, req);
 }
 
 // GET /v1/expected-guest?id=0x<64 hex> -> { id, catalogRef, appId, images: [{ release, runtimeId, measurement,
@@ -582,6 +632,22 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
       bad(503, "custody_unconfirmed", `The deployment's custody state could not be confirmed (${why}); retry shortly.`); return true;
     }
   }
+  // storage writer fencing (work/storage-front-binding-interface.txt): the writer authority of the lease this release is
+  // for (relay/lease-generation.mjs: one fresh agreed snapshot, the FINALIZED Claimed log replayed to the row), bound to THIS
+  // lease holder's runner id, when the config refers to ENCLAVE_WRITER_AUTHORITY. It never blocks or burns the release: a
+  // claim not yet final (Base: ~20 min), an unavailable quorum or no reader means the release goes out WITHOUT it and the
+  // guest establishes it from its own measured RPC quorum while it waits, alive, with the app not started
+  // (isolation/m2/front). A guest that died on a 503 here would be counted an app death and its lease released by the host.
+  // `runner` goes with it always: the lease holder this release is for, so the guest's own read binds to it and never
+  // adopts a later holder's lease.
+  let facts = null;
+  if (needsWriterAuthority(config)) {
+    facts = { runner: t.epId };
+    if (typeof ctx.leaseGeneration === "function") {
+      try { facts.writerAuthority = (await withAbortDeadline((signal) => ctx.leaseGeneration(id, { runner: t.epId, signal }), writerAuthorityBudgetMs())).fact; }
+      catch (e) { console.warn(`[secrets-release] ${id}: released without the writer authority; the guest reads it itself (${(e && e.code) || "error"}: ${String((e && e.message) || e).split("\n")[0].slice(0, 160)})`); }
+    }
+  }
   // the AMD collateral the evidence will need, fetched BEFORE the ticket is consumed (enclave-d1): a KDS or CRL outage is the
   // relay's own 503 and keeps the ticket, instead of a verifier "rejected" that would burn it. It judges nothing.
   // Only for a report that names a chip the ticket was issued for (enclave-d1): a 503 keeps the ticket, so otherwise one ticket
@@ -639,6 +705,7 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   const plaintext = JSON.stringify({ id, envelopeSha256: sha256(Buffer.from(envelope)).toString("hex"), config,
                                      secrets: custody ? {} : envOf(id) || {},
                                      ...(custody && !custody.cleared ? { custody } : {}),
+                                     ...(facts ? { facts } : {}),
                                      issuedAt: new Date().toISOString() });
   let sealed;
   try { sealed = sealRelease({ id, ticket, sealKey, plaintext }); }

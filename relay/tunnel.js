@@ -177,6 +177,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                                   onReferral = () => {},
                                   operatorFor = null, operatorAttach = false,
                                   trustedOperators = [], operatorsUnrestricted = false,
+                                  // platform host policy (relay/api-relay.js): hostAdmission(name) -> { admit, status, reason };
+                                  // null = off. Every attach path asks it; attached tunnels are re-asked (hot ban) every hostPolicyRecheckMs.
+                                  hostAdmission = null, hostPolicyRecheckMs = 60_000,
                                   // this relay's public origin (selfRoutedUrl form 2) and, for an hv-node's owner-only
                                   // serving, what a hosting delegation must name: { chainId, registry: () => address }
                                   tunnelOrigin = "https://api.enclave.host", ownerOnly = null,
@@ -234,6 +237,27 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   // that, owner-only serving is SUSPENDED - the row stays attached but serves nothing - until a read succeeds again: the same
   // owner resumes it, any other ends it (re-attach needed). Delegations keep expiring by the clock throughout. Each state change
   // is logged once, not per re-check.
+  // HOT BAN: an attached box the platform policy now EXPLICITLY refuses (ban, allowlist miss, deregistered) is cut off at
+  // once - terminated and removed from discovery. An undecided answer (RPC outage, node behind the anchor) leaves an
+  // attached box alone (new attaches are refused meanwhile); only an explicit refusal detaches.
+  const EXPLICIT_REFUSAL = new Set(["current", "stale-grace", "stale", "inactive"]);
+  async function recheckHostPolicy() {
+    for (const [name, t] of [...tunnels]) {
+      let d; try { d = await hostAdmission(name, { fresh: true }); } catch { continue; }
+      if (tunnels.get(name) !== t || d?.admit === true || !EXPLICIT_REFUSAL.has(d?.status)) continue;
+      console.error(`[tunnel] ${name} DETACHED by the platform host policy: ${d.reason}`);
+      try { t.ws.send(JSON.stringify({ t: "detach", reason: `platform host policy: ${d.reason}` })); } catch {}
+      try { t.ws.terminate(); } catch {}
+      if (tunnels.get(name) === t) { tunnels.delete(name); try { onChange("detach", name); } catch {} }
+    }
+  }
+  if (hostAdmission) setInterval(() => recheckHostPolicy().catch((e) => console.error(`[tunnel] host policy recheck: ${e.message}`)), hostPolicyRecheckMs).unref?.();
+  const policyRefusal = async (name) => {
+    if (!hostAdmission) return null;
+    const d = await hostAdmission(name).catch((e) => ({ admit: false, reason: e.message }));
+    return d && d.admit === true ? null : `${name} is refused by the platform host policy: ${d?.reason || "no decision"}`;
+  };
+
   async function recheckOwnerOnly() {
     for (const [name, t] of [...tunnels]) {
       // A NEW HOST registers after it attaches (relay/host-sponsor.mjs): its attach carried a v2 signature by the CLAIMANT,
@@ -458,7 +482,13 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     if (!NAME_RE_OK.test(name)) { socket.write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"); return socket.destroy(); }
 
     // Token path (bootstrap / first-party): authorize before the handshake.
-    if (tokenOk(name, token)) return wss.handleUpgrade(req, socket, head, (ws) => bind(name, ws, { via: "token", referral }));
+    if (tokenOk(name, token)) {
+      if (!hostAdmission) return wss.handleUpgrade(req, socket, head, (ws) => bind(name, ws, { via: "token", referral }));
+      return policyRefusal(name).then((why) => {
+        if (why) { console.log(`[tunnel] ${name} token attach REFUSED: ${why}`); socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"); return socket.destroy(); }
+        wss.handleUpgrade(req, socket, head, (ws) => bind(name, ws, { via: "token", referral }));
+      });
+    }
 
     // Operator path: prove the NAME from the chain, with no quote at all. For a
     // relay this is the only identity that exists — it runs no measured image —
@@ -518,6 +548,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             // A live holder is only displaceable by the same on-chain owner —
             // which this signature just proved. Two boxes sharing one operator
             // key is the operator's own business; a stranger cannot get here.
+            const policyWhy = await policyRefusal(name);
+            if (settled) return;
+            if (policyWhy) return deny(policyWhy);
             clearTimeout(timer); settled = true;
             try { ws.send(JSON.stringify({ t: "attest-result", ok: true })); } catch {}
             bind(name, ws, { via: "operator", referral });
@@ -667,6 +700,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             // name would be held by a tunnel that answers nothing, forever.
             if (settled) return;
             if (!res.ok) return deny(res.reasons[res.reasons.length - 1] || "quote invalid");
+            { const policyWhy = await policyRefusal(name); if (settled) return; if (policyWhy) return deny(policyWhy); }
             // WHOSE NAME IS THIS? A quote proves the image, not the box, so a
             // name that is REGISTERED ON CHAIN belongs to whoever registered it
             // — and only that operator's key can take it, whether the real box

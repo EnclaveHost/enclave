@@ -151,7 +151,7 @@
    Quick-deploy modal (store card "Deploy →")
    ============================================================ */
 .qd-overlay{position:fixed;inset:0;z-index:80;background:rgba(4,7,11,.72);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;}
-.qd-card{width:min(430px,94vw);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px;}
+.qd-card{width:min(430px,94vw);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px;max-height:calc(100dvh - 40px);overflow-y:auto;}
 .qd-h{font-family:var(--font-mono);font-size:1rem;}
 .qd-h b{color:var(--jade);}
 .qd-ver{color:var(--text-dim);font-size:.8rem;}

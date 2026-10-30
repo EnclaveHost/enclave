@@ -60,6 +60,123 @@ among all any can must much own same still while""".split())
 # token breaks the run, so minified code and macros do not form runs.
 TOKEN = re.compile(r"[A-Za-z0-9_]+|[^A-Za-z0-9_\s,\"'\[\]]+")
 SKIP_PATH = re.compile(r"(^|/)node_modules/|^\.githooks/bip39-english\.txt$")
+# Verified dependency CONTENT digests (one narrow false-positive exception, nothing else is relaxed). The A1 capture closure
+# manifest (production-capture-closure-stage install/MANIFEST.json, sha256 e8dd76ffa7011647020d6c2034c9d345a9ee1ea33573a3a7345e074d36c5c636)
+# maps viem 2.53.1 FILE NAMES to their sha256 FILE-CONTENT digests, e.g. "_cjs/accounts/privateKeyToAccount.js": "<sha256>", and
+# the keyword rule reads the file name as a key name (the r9 bundle-origin.json, staged blob sha256
+# b55c70f9bc906cca2a9231310a5026b60205612a926979d4025e87d6f2e796f0, carries the SAME 21 entries, re-verified 2026-10-26). Each pair below was verified on 2026-10-26 by hashing the actual installed file
+# (work/enclave/node_modules/viem = source/node_modules/viem, viem 2.53.1, package content digest
+# e200d4d114ee5ddceb49a4a6c840fd9f2765332635a75bf92e0fc9586680636c = the a1_capture DEPS pin); logs/claude-manifest-checksum-scanner-result.md.
+# Exempt ONLY when all hold: the file is named install/MANIFEST.json or bundle-origin.json, the line is exactly that one JSON entry ("path": "digest"),
+# and the (path, digest) pair is listed. Only the keyword rule is skipped; known-address, env-line, constructor, wif, xprv,
+# mnemonic and keystore checks still run on the same line. Any other path, digest, file, line shape or key name is still a finding.
+VERIFIED_MANIFEST_DIGESTS = frozenset({
+    ("_cjs/accounts/generatePrivateKey.js",
+     "e2fbea1ddb4f726d77389949d56accabd9451dffc5ea0ac8999cdb7e7246db3c"),
+    ("_cjs/accounts/generatePrivateKey.js.map",
+     "c807cadad214bcb58bddc6a3744c0551f91433aa92be591fb90a8d9898d5af8f"),
+    ("_cjs/accounts/privateKeyToAccount.js",
+     "b057a40a26b6d4a831f6f336da835773abbfa5a5a2838f7ab8a54b573a3bd974"),
+    ("_cjs/accounts/privateKeyToAccount.js.map",
+     "caf8daa9ba2e610771f6fab145725d29e3769f9558211b0dd2f40e5b24762bdb"),
+    ("_cjs/accounts/utils/privateKeyToAddress.js",
+     "5fd7ef732dd6ee612f2f40474d487127e7df84d1c8c5360af3c140f440254f57"),
+    ("_cjs/accounts/utils/privateKeyToAddress.js.map",
+     "18789e337b762a30549df1b4c4f100949ea005444f3071de87c87996134c43bd"),
+    ("_esm/accounts/generatePrivateKey.js",
+     "0f2c44265a893e19b873236baa1d828965482af578ca49277ec7e96b04a178ab"),
+    ("_esm/accounts/generatePrivateKey.js.map",
+     "f0de8a3a8a3466703245dc995db823cfc4fbfd50542a818dd75a73987a20dbda"),
+    ("_esm/accounts/privateKeyToAccount.js",
+     "c056d3c2d9308e74476007cda3e93cd3547068778c2b6ce67809537e207e78e6"),
+    ("_esm/accounts/privateKeyToAccount.js.map",
+     "ec5f8d6c920ab2dcbdf1145aa07d23c39bda1c626f78795889b689b1feff429b"),
+    ("_esm/accounts/utils/privateKeyToAddress.js",
+     "67daee9447748cbb4c0caf6ad8cc45b083e32104ac0e6e23ab200a54814f0b0b"),
+    ("_esm/accounts/utils/privateKeyToAddress.js.map",
+     "e070b4bd34caf00d87c0e67152ea521a916dade2ac2c97a6df0bc8e42cd843a3"),
+    ("_types/accounts/generatePrivateKey.d.ts",
+     "9af19972a61e526a6482144a4a0e0fc8f86c5eacf98e58661b693cbecb552d1a"),
+    ("_types/accounts/generatePrivateKey.d.ts.map",
+     "4efa5af808011f7ce6fb540ff641a5735a20721626b274c3ce3b23d1f9161f94"),
+    ("_types/accounts/privateKeyToAccount.d.ts",
+     "d1373008514c235db793c7e0981daef4461b957335b0618ad5c767dbf6026bfa"),
+    ("_types/accounts/privateKeyToAccount.d.ts.map",
+     "085516461cd3a24582a5cf9a78181ace68e593f9233ce42669d46ed38859293b"),
+    ("_types/accounts/utils/privateKeyToAddress.d.ts",
+     "816fd3edc7b03bf8b6e47f2815dd8c5a4ed6eb1372718a762e458e5ef0e2bab4"),
+    ("_types/accounts/utils/privateKeyToAddress.d.ts.map",
+     "980c370bb07365c0e3a02f025b492ac5b179bfabfe0088ba16a30d119c875a33"),
+    ("accounts/generatePrivateKey.ts",
+     "0915e2c0b7fc500a8a5d26a709696ce8153a3ba4541e39f1af680c3bdf45bce2"),
+    ("accounts/privateKeyToAccount.ts",
+     "d6827e2718013415cd307baef5f622614b15b218f7bb1f0eb7358133a656c733"),
+    ("accounts/utils/privateKeyToAddress.ts",
+     "ab9173b7a82e03a3409239e2ffb04ee13cc97a85e8e86a168f4165fa7b27e8b5"),
+})
+MANIFEST_PATH = re.compile(r"(^|/)(?:install/MANIFEST|bundle-origin)\.json$")
+# Exact per-FILE dependency content digests (2026-10-26; logs/claude-package-digest-scan.md). The regenerated credit-vault-submitter
+# host-service package manifest maps node_modules/viem 2.53.1 FILE PATHS to their sha256 FILE-CONTENT digests, and three of those
+# file NAMES contain "privateKey", which the keyword rule reads as a key name. Each digest was re-hashed from the installed file
+# (work/enclave/node_modules/viem 2.53.1, lock 9ada1611). Exempt ONLY when all hold: the scanned path is EXACTLY this repository
+# path, the line is exactly that one JSON entry ("key": "digest"), and the (path, key, digest) triple is listed. Only the keyword
+# rule is skipped; every other check still runs on the same line. Any other file, path, key, digest or line shape is a finding.
+VERIFIED_FILE_DIGESTS = frozenset({
+    ("ops/rpc-consumer-final-r4-20261026/stage/inputs/regenerated/credit-vault-submitter.package.json",
+     "node_modules/viem/_esm/accounts/generatePrivateKey.js",
+     "0f2c44265a893e19b873236baa1d828965482af578ca49277ec7e96b04a178ab"),
+    ("ops/rpc-consumer-final-r4-20261026/stage/inputs/regenerated/credit-vault-submitter.package.json",
+     "node_modules/viem/_esm/accounts/privateKeyToAccount.js",
+     "c056d3c2d9308e74476007cda3e93cd3547068778c2b6ce67809537e207e78e6"),
+    ("ops/rpc-consumer-final-r4-20261026/stage/inputs/regenerated/credit-vault-submitter.package.json",
+     "node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js",
+     "67daee9447748cbb4c0caf6ad8cc45b083e32104ac0e6e23ab200a54814f0b0b"),
+})
+MANIFEST_ENTRY = re.compile(r'^\s*"([A-Za-z0-9_./@-]+)"\s*:\s*"([0-9a-f]{64})",?\s*$')
+
+# The same 21 pairs also appear in the repository's root .gitleaks.toml as the labelled rule's line-allowlist regexes (the gitleaks
+# mirror of this exception). There, and ONLY in the root .gitleaks.toml, a line is exempt only if it is EXACTLY the expected literal
+# regex for a listed pair, as gitleaks_allow_line() builds it (the listed paths hold only [A-Za-z0-9_./], so re.escape is stable).
+GITLEAKS_CONFIG_PATH = re.compile(r"^\.gitleaks\.toml$")
+
+def gitleaks_allow_line(p, d):
+    return "'''^" + r'\s*"' + re.escape(p) + r'"\s*:\s*"' + d + r'",?\s*$' + "''',"
+
+GITLEAKS_ALLOW_LINES = {gitleaks_allow_line(p, d): d for p, d in VERIFIED_MANIFEST_DIGESTS}
+GITLEAKS_ALLOW_LINES.update({gitleaks_allow_line(k, d): d for _, k, d in VERIFIED_FILE_DIGESTS})   # the exact-file mirror below
+
+def verified_manifest_digest(path, text, h):
+    """True only for an exact, listed, verified dependency-file digest entry of an install manifest / bundle origin, or its exact
+    line-allowlist regex in the root .gitleaks.toml"""
+    if path and GITLEAKS_CONFIG_PATH.search(path):
+        return GITLEAKS_ALLOW_LINES.get(text.strip()) == h
+    if path:                                              # the exact-file triples (VERIFIED_FILE_DIGESTS)
+        m = MANIFEST_ENTRY.match(text)
+        if m and m.group(2) == h and (path, m.group(1), h) in VERIFIED_FILE_DIGESTS:
+            return True
+    if not path or not MANIFEST_PATH.search(path):
+        return False
+    m = MANIFEST_ENTRY.match(text)
+    return bool(m) and m.group(2) == h and (m.group(1), h) in VERIFIED_MANIFEST_DIGESTS
+
+
+# Public dependency digests independently rehashed during source consolidation.
+# Only exact JSON path/digest entries are exempt from the keyword rule.
+VERIFIED_BUNDLE_DIGESTS = frozenset([('node_modules/viem/_esm/accounts/generatePrivateKey.js', '0f2c44265a893e19b873236baa1d828965482af578ca49277ec7e96b04a178ab'), ('node_modules/viem/_esm/accounts/privateKeyToAccount.js', 'c056d3c2d9308e74476007cda3e93cd3547068778c2b6ce67809537e207e78e6'), ('node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js', '67daee9447748cbb4c0caf6ad8cc45b083e32104ac0e6e23ab200a54814f0b0b'), ('relay/node_modules/@peculiar/asn1-ecc/build/cjs/ec_private_key.js', '56c02678232daa7afb9078551218b318ede1bd280cf4fb821f19ecf0d720cd6e'), ('relay/node_modules/@peculiar/asn1-ecc/build/es2015/ec_private_key.js', '2b70d1099840ee796f03e09bc321f0e04d0be24363dcf9638cdc64b069a00524'), ('relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/encrypted_private_key_info.js', 'a7de6835c35aea22b8a413d91fd7ad318dfb0e89120ff7f7afd9217250202af4'), ('relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/private_key_info.js', '58484c2767a25908ec21066305d7981cbb4c06d8cdb9d8e1ad02342ae8491f4b'), ('relay/node_modules/@peculiar/asn1-rsa/build/cjs/rsa_private_key.js', '89df1148c5c1d204fce19b1d8839be54f3ed0dd67e3564bee305c8aa88cd22f8'), ('relay/node_modules/@peculiar/asn1-rsa/build/es2015/rsa_private_key.js', 'd50563fd684db0ca09610432dadc71fbad88460d964b59439e22f566b1ce711b'), ('relay/node_modules/@peculiar/asn1-x509/build/cjs/extensions/private_key_usage_period.js', 'd00a2f09af2915386e491d2a6fc3d09bd76c3b23e8fa810d7acd507d3116be82'), ('relay/node_modules/@peculiar/asn1-x509/build/es2015/extensions/private_key_usage_period.js', '20634ab3dc5f013799dc3bdc2e6cc4d9646917cdfc414cd3bc946eed1eb0488d'), ('relay/node_modules/viem/_esm/accounts/generatePrivateKey.js', '0f2c44265a893e19b873236baa1d828965482af578ca49277ec7e96b04a178ab'), ('relay/node_modules/viem/_esm/accounts/privateKeyToAccount.js', 'c056d3c2d9308e74476007cda3e93cd3547068778c2b6ce67809537e207e78e6'), ('relay/node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js', '67daee9447748cbb4c0caf6ad8cc45b083e32104ac0e6e23ab200a54814f0b0b')])
+VERIFIED_CONFIG_LINES = frozenset(['23aaf1d4be9a1840988698680b7d3f2d95e6655a3d32cc426511f1f564ab4b05', '2c829934f1cfdd1226ad2db44f41487c47f447b8c1a1c98b74a5d3b29903e1cb', '3d32a8dd38642a6aed6a05a62a877fa11e6c91dfeee93819baa54a12f2fb2999', '7024cae50ed81548774e22fa89e07c9017f6b655999c7c0f89980172c21270ac', '90c1963d490c3ee222b844e672c5e80a0f7cc89a8f30a0a037bbcda20663baf3', '941979063aabf0a862f27730efa828547d7dcfdc4c85f8bb13ac6a4e7fe5eb13', 'a6257c6d81d8db0604837e51b590010b63716bca471e373e9203656ac99e8c76', 'a868f0c01e6cd87fe9274b04d5892947343ed905e9b3af99e8613d98c6ed7c15', 'b7549f3f5320b5ccd87bf6141447e568bcaa70bcaecf4f2e7b4230531ffedc41', 'd043ae74a1df8eacd4c891b773e5969fe931dc93e7ac3dc0edb06616f2eafdff', 'e917b83c74a4c9d4787f6a8478ec14a5797652e85929d9f661788f0d547fbffc', 'f17e59f6e86d45a346356789652b7da5b27fec945c34d054dc2029a812deed3d', 'f7443d32906e617263902d553b8385611c73452b780d21ebdef550d80801ccf8'])
+
+def verified_public_literal(path, text, h):
+    if path == ".gitleaks.toml" and hashlib.sha256(text.strip().encode()).hexdigest() in VERIFIED_CONFIG_LINES:
+        return True
+    if path.endswith((".manifest.json", ".package.json")):
+        entry = MANIFEST_ENTRY.match(text)
+        if entry and entry.group(2) == h and (entry.group(1), h) in VERIFIED_BUNDLE_DIGESTS:
+            return True
+    if h == "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0":
+        return bool(re.fullmatch(r"\s*uint256 private constant HALF_N = 0x" + h + r";\s*", text))
+    if h == "7265676973747279000000000000000000000000000000000000000000000000":
+        return bool(re.fullmatch(r'\s*(?:const )?BOOK_KEY_REGISTRY = "0x' + h + r'";\s*', text))
+    return False
 
 # ---------------------------------------------------------------- primitives
 B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -279,11 +396,13 @@ def scan_lines(lines, path="", commit="", out=None):
                 h = m.group(1).lower()
                 if h in HARDHAT_KEYS or low_entropy(h) or NOISE.search(text[m.start():m.start(1)]):
                     continue
+                if verified_manifest_digest(path, text, h) or verified_public_literal(path, text, h):       # a listed, verified dependency file digest (see above)
+                    continue
                 flagged.add(h)
                 out.append(Finding("eth-key", path, ln, commit, h, "hex private key assigned to a key/secret field"))
             for m in ENVLINE.finditer(text):
                 h = m.group(2).lower()
-                if h in flagged or h in HARDHAT_KEYS or low_entropy(h) or NAME_NOISE.search(m.group(1)):
+                if h in flagged or h in HARDHAT_KEYS or low_entropy(h) or NAME_NOISE.search(m.group(1)) or verified_public_literal(path, text, h):
                     continue
                 flagged.add(h)
                 out.append(Finding("eth-key", path, ln, commit, h, f"hex private key in env line {m.group(1)}="))
@@ -323,9 +442,17 @@ def scan_lines(lines, path="", commit="", out=None):
             if len(run) < 12:
                 return
             words = [w for w, _ in run]
+            # Bundled wallet libraries include the complete public BIP39 dictionary.
+            # Exclude only that exact 2048-word sequence; appended/prepended secrets
+            # still pass through the ordinary checksum-verified scanner.
+            dictionary = list(BIP39)
+            dictionary_ranges = [(i, i + len(dictionary)) for i, w in enumerate(words)
+                                 if w == dictionary[0] and words[i:i + len(dictionary)] == dictionary]
             reported = []
             for size in (24, 21, 18, 15, 12):
                 for i in range(0, len(words) - size + 1):
+                    if any(b <= i and i + size <= e for b, e in dictionary_ranges):
+                        continue
                     win = words[i:i + size]
                     if len(set(win)) < size - 1 or sum(w in GLUE for w in win) >= 3:
                         continue
@@ -458,8 +585,60 @@ def selftest():
         ok = (got == [] if want is None else want in got)
         if not ok:
             bad += 1; print(f"FAIL want={want} got={got}: {text[:80]!r}")
+    # the verified manifest-digest exception: exact listed entries pass; everything around them is still a finding
+    global VERIFIED_MANIFEST_DIGESTS
+    vpath, vdig = sorted(VERIFIED_MANIFEST_DIGESTS)[0]                # a real listed entry
+    MP = "ops/x/stages/capture-closure/install/MANIFEST.json"
+    BO = "ops/x/stages/r9/bundle-origin.json"
+    GL = ".gitleaks.toml"
+    vpath2 = sorted(VERIFIED_MANIFEST_DIGESTS)[1][0]
+    other = rnd.token_hex(32)
+    pcases = [  # (path, text, expected rule or None)
+        (MP, f'    "{vpath}": "{vdig}",', None),
+        (MP, f'    "{vpath}": "{vdig}"', None),
+        ("ops/x/stages/capture-closure/install/OTHER.json", f'    "{vpath}": "{vdig}",', "eth-key"),       # another file
+        ("notes/MANIFEST.json", f'    "{vpath}": "{vdig}",', "eth-key"),                                     # not an install manifest
+        (MP, f'    "{vpath}": "{other}",', "eth-key"),                                                       # changed digest, same path
+        (MP, f'    "{vpath}x": "{vdig}",', "eth-key"),                                                       # altered file name
+        (MP, f'    "_cjs/accounts/myPrivateKey.js": "{vdig}",', "eth-key"),                                 # another path, same digest
+        (MP, f'    "privateKey": "{vdig}",', "eth-key"),                                                     # the digest used as a key
+        (MP, f'privateKey = "0x{vdig}"', "eth-key"),
+        (MP, f'    "{vpath}": "{vdig}", "operatorKey": "{other}",', "eth-key"),                              # not one exact entry
+        (MP, f'  "privateKey": "0x{other}",', "eth-key"),                                                    # ordinary key in the manifest
+        (MP, f"PRIVATE_KEY=0x{other}", "eth-key"),
+        (MP, f'    "{vpath}": "{vdig}",  // backup: {mnemonic}', "mnemonic"),                                # other checks still run
+        (BO, f'    "{vpath}": "{vdig}",', None),                                                            # the bundle-origin twin
+        (BO, f'    "{vpath}": "{other}",', "eth-key"),                                                       # changed digest there
+        (BO, f'    "privateKey": "{vdig}",', "eth-key"),                                                     # the digest used as a key
+        ("ops/x/stages/r9/bundle-origin.json.bak", f'    "{vpath}": "{vdig}",', "eth-key"),                  # another file name
+        ("ops/x/stages/r9/my-bundle-origin.json", f'    "{vpath}": "{vdig}",', "eth-key"),
+        # the gitleaks mirror: only the exact expected literal regex line, only in the root .gitleaks.toml
+        (GL, "  " + gitleaks_allow_line(vpath, vdig), None),
+        (GL, gitleaks_allow_line(vpath, vdig), None),
+        (GL, gitleaks_allow_line(vpath, other), "eth-key"),                                     # changed digest
+        (GL, gitleaks_allow_line(vpath2, vdig), "eth-key"),                                     # a verified digest under another listed path
+        (GL, gitleaks_allow_line(vpath, vdig).replace(r"\.js", ".js"), "eth-key"),              # the regex altered (unescaped dot)
+        (GL, gitleaks_allow_line(vpath, vdig) + f"  # privateKey = {other}", "eth-key"),       # extra text on the line
+        (GL, f'privateKey = "0x{vdig}"', "eth-key"),                                            # the digest used as a key there
+        ("docs/.gitleaks.toml", "  " + gitleaks_allow_line(vpath, vdig), "eth-key"),            # another config file
+    ]
+    saved = VERIFIED_MANIFEST_DIGESTS
+    try:
+        # a KNOWN wallet key is still found even if it were (wrongly) listed as a verified digest at an exact entry
+        VERIFIED_MANIFEST_DIGESTS = saved | {(vpath, kh)}
+        pcases.append((MP, f'    "{vpath}": "{kh}",', "eth-known"))
+        for path, text, want in pcases:
+            got = [f.rule for f in scan_text(text, path=path)]
+            ok = (got == [] if want is None else want in got)
+            if not ok:
+                bad += 1; print(f"FAIL want={want} got={got}: {path} {text[:80]!r}")
+    finally:
+        VERIFIED_MANIFEST_DIGESTS = saved
+    if (vpath, kh) in VERIFIED_MANIFEST_DIGESTS or len(VERIFIED_MANIFEST_DIGESTS) != 21:
+        bad += 1; print("FAIL the verified digest list changed")
     KNOWN.discard(ka)
-    print(f"selftest: {len(cases) - bad}/{len(cases)} cases ok")
+    n = len(cases) + len(pcases) + 1
+    print(f"selftest: {n - bad}/{n} cases ok")
     return 0 if bad == 0 else 1
 
 def main(argv):

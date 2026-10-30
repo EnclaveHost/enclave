@@ -1,0 +1,53 @@
+// The Enclave host challenge service as a STANDALONE host launcher (the same network/challenge-replica-host.mjs the host's
+// network runtime runs from cfg.enclaveNetwork.challengeReplica), for staging beside a host's existing services without
+// restarting its privacy agent or apps. Bundled into the release as challenge-host.mjs
+// (scripts/build-challenge-replica-release.mjs), so a host runs exactly the reviewed bytes with no node_modules.
+//   node challenge-host.mjs check <config.json>      judge the configuration and the pinned release; print the plan. Starts nothing.
+//   node challenge-host.mjs run <config.json>        start and supervise it (platform host policy gate, replica, HTTPS front);
+//                                                   SIGTERM/SIGINT stop it cleanly (exit 0)
+//   node challenge-host.mjs ad <config.json> --chain-id N --index 0x.. --operator 0x.. --slot N --sequence N --expires UNIX --ttl-days D
+//                                                   the UNSIGNED EnclaveServiceIndex kind-dns advertisement (never sent)
+// <config.json>: {"challengeReplica": {...}} or the bare object (challenge-replica-host.mjs challengeReplicaConfig). It names
+// files (front key, Shield policy, reviewed profile) by path; it carries no secret itself.
+// --extra-ca-file F (run only): trust F for the REPLICA'S OWN outbound TLS (RPCs, peers). For loopback test fixtures; it
+// changes no attestation trust (TPM roots, Shield images and SNP measurements come from the pinned policy files).
+import './host-services/argv-guard.mjs';
+import fs from 'node:fs';
+import {challengeReplicaConfig, verifyReplicaRelease, challengeReplicaEnv, challengeReplicaAdDraft, startChallengeReplica, hostPolicyGateEnv} from './challenge-replica-host.mjs';
+
+const [cmd, file, ...rest] = process.argv.slice(2);
+const flag = (k) => { const i = rest.indexOf(k); return i >= 0 ? rest[i + 1] : undefined; };
+const usage = 'usage: challenge-host.mjs check|run|ad <config.json> [--extra-ca-file F] [ad: --chain-id --index --operator --slot --sequence --expires --ttl-days]';
+if (!['check', 'run', 'ad'].includes(cmd) || !file) { console.error(usage); process.exit(2); }
+let cfg;
+try {
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^﻿/, ''));
+  cfg = challengeReplicaConfig(raw && typeof raw === 'object' && raw.challengeReplica ? raw.challengeReplica : raw);
+} catch (e) { console.error(`refused: ${e.message}`); process.exit(3); }
+const log = (m) => console.log(`${new Date().toISOString()} ${m}`);
+if (cmd === 'check') {
+  try {
+    const release = verifyReplicaRelease(cfg.release);
+    const env = challengeReplicaEnv(cfg);
+    console.log(JSON.stringify({ok: true, role: cfg.role, release, zones: cfg.zones, ns: cfg.nsNames,
+      listen: {dns: `${cfg.listen.dns.ip}:${cfg.listen.dns.port}`, api: `${cfg.listen.api.ip}:${cfg.listen.api.port}`, front: `${cfg.front.listen.ip}:${cfg.front.listen.port}`},
+      frontOrigin: cfg.front.origin, evidence: {snp: !!cfg.snp, shield: !!cfg.shield}, childEnv: Object.keys(env).sort(),
+      platformHostPolicy: cfg.hostPolicy.policy === 'off' ? 'OFF (explicitly configured)' : {gateEnv: hostPolicyGateEnv(cfg.hostPolicy).env, endpoint: cfg.hostPolicy.endpoint,
+        stateDir: cfg.hostPolicy.stateDir, carriers: cfg.hostPolicy.carriers}}, null, 1));
+  } catch (e) { console.error(`refused: ${e.message}`); process.exit(3); }
+} else if (cmd === 'ad') {
+  try {
+    const n = (k) => { const v = Number(flag(k)); if (!Number.isSafeInteger(v)) throw new Error(`${k} must be an integer`); return v; };
+    const d = challengeReplicaAdDraft(cfg, {chainId: n('--chain-id'), index: flag('--index'), operator: flag('--operator'), slot: n('--slot'),
+      sequence: n('--sequence'), expiresAt: n('--expires'), ttlSec: n('--ttl-days') * 86400});
+    console.log(JSON.stringify(d, (k, v) => (typeof v === 'bigint' ? v.toString() : v), 1));
+  } catch (e) { console.error(`refused: ${e.message}`); process.exit(3); }
+} else {
+  let h;
+  try { h = await startChallengeReplica(cfg, {log, ...(flag('--extra-ca-file') ? {extraCaFile: flag('--extra-ca-file')} : {})}); }
+  catch (e) { console.error(`refused: ${e.message}`); process.exit(3); }
+  log(`challenge host running: ${JSON.stringify({role: cfg.role, front: h.frontPort, release: h.release.dnsSha256, status: h.status()})}`);
+  let stopping = false;
+  const stop = async (sig) => { if (stopping) return; stopping = true; log(`challenge host: ${sig}, stopping`); await h.close(); log('challenge host stopped'); process.exit(0); };
+  process.on('SIGTERM', () => stop('SIGTERM')); process.on('SIGINT', () => stop('SIGINT'));
+}

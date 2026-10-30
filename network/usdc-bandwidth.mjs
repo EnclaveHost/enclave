@@ -24,6 +24,13 @@ export function meterKey(id,hostId,nonce){return keccak256(encodeAbiParameters([
 // admitting each charge; a positive cap batches settlement off the packet path.
 // Outstanding credit can be lost on owner revocation/lease loss, just as unpaid
 // native TUNA traffic can be lost. It is never a second customer balance.
+// LeaseReader.readAt at a snapshot's own block (quorum: the first value two clients return; verifier: proof-backed at that
+// block). An injected reader without it keeps the original two-client rule.
+const readAtBlock=(reader,pin,read)=>typeof reader.readAt==='function'?reader.readAt(pin,read):(async()=>{
+  const values=await Promise.all(reader.clients.map(client=>Promise.resolve().then(()=>read(client,BigInt(pin.blockNumber))).catch(()=>null)));
+  for(const v of values)if(v!==null&&values.filter(x=>x===v).length>=2)return v;
+  return null;
+})();
 export class USDCBandwidthSettlement {
  constructor({directory,transactionDirectory,leaseReader,proofAccount,wallet,client,maxPending6,intervalMs=10000,now=Date.now,log=()=>{}}){
   if(!/^(0|[1-9]\d{0,11})$/.test(maxPending6||'')||intervalMs<1000||intervalMs>20000)throw Error('explicit bounded provider credit required');
@@ -41,10 +48,11 @@ export class USDCBandwidthSettlement {
  async chainBytes(lease,c){
   const cacheKey=lease.id+':'+this.meterHost(lease)+':'+c.nonce+':'+lease.blockHash;
   if(this.confirmed.has(cacheKey))return this.confirmed.get(cacheKey);
-  const args={address:c.address,abi:bandwidthABI,functionName:'bytesServed',args:[meterKey(lease.id,this.meterHost(lease),c.nonce)],blockNumber:BigInt(lease.blockNumber)};
-  const values=await Promise.all(this.leaseReader.clients.map(client=>client.readContract(args).then(String).catch(()=>null)));
-  for(const value of values)if(value!==null&&values.filter(v=>v===value).length>=2){if(this.confirmed.size>1024)this.confirmed.clear();this.confirmed.set(cacheKey,BigInt(value));return BigInt(value);}
-  throw Error('bandwidth payment quorum unavailable');
+  // Read at the lease snapshot's own block: two agreeing clients (quorum) or proof-backed at that block (verifier).
+  const args={address:c.address,abi:bandwidthABI,functionName:'bytesServed',args:[meterKey(lease.id,this.meterHost(lease),c.nonce)]};
+  const value=await readAtBlock(this.leaseReader,{blockNumber:lease.blockNumber,blockHash:lease.blockHash},(client,blockNumber)=>client.readContract({...args,blockNumber}).then(String)).catch(()=>null);
+  if(value!==null){if(this.confirmed.size>1024)this.confirmed.clear();this.confirmed.set(cacheKey,BigInt(value));return BigInt(value);}
+  throw Error(this.leaseReader.authority==='verifier'?'bandwidth payment state unverified':'bandwidth payment quorum unavailable');
  }
  async authorizeDebit({deploymentId,policyHash,cumulativeBytes,cumulativeCost6,pricePerGiB6,nonce,counters}){
   const key=deploymentId.slice(2)+'-'+nonce;this.apps.set(key,{deploymentId,nonce,pricePerGiB6});
@@ -111,10 +119,9 @@ export class USDCBandwidthSettlement {
      const lease=this.leaseReader.get(prior.deploymentId),c=lease?.connectivity;
      if(!c)throw Error('bandwidth transaction state unknown');
      const host=(prior.meter||'direct')==='direct'?lease.runner:prior.meter;
-     const args={address:c.address,abi:bandwidthABI,functionName:'bytesServed',args:[meterKey(lease.id,host,prior.nonce)],blockNumber:BigInt(lease.blockNumber)};
-     const values=(await Promise.all(this.leaseReader.clients.map(cl=>cl.readContract(args).then(String).catch(()=>null)))).filter(v=>v!==null);
-     const agreed=values.find(v=>values.filter(x=>x===v).length>=2);
-     if(agreed===undefined)throw Error('bandwidth transaction state unknown');
+     const args={address:c.address,abi:bandwidthABI,functionName:'bytesServed',args:[meterKey(lease.id,host,prior.nonce)]};
+     const agreed=await readAtBlock(this.leaseReader,{blockNumber:lease.blockNumber,blockHash:lease.blockHash},(cl,blockNumber)=>cl.readContract({...args,blockNumber}).then(String)).catch(()=>null);
+     if(agreed===null)throw Error('bandwidth transaction state unknown');
      await this.transactions.set(key,{...prior,state:BigInt(agreed)>=BigInt(prior.bytes)?'confirmed':'dropped'});
      return this.sendReceipt(id,s);
     }

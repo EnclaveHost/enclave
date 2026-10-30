@@ -9,8 +9,21 @@ import {EventEmitter} from 'node:events';import {randomBytes,createHash} from 'n
 import {spawn,execFile} from 'node:child_process';import {promisify} from 'node:util';import {createInterface} from 'node:readline';
 import {createAppBroker} from './app-broker.mjs';
 import {wireGuardKeypair} from './wg-grants.mjs';
+import {HOST_RPC_LABEL} from './host-service-names.mjs';
+// a host-service circuit asks the exit for its public RPC name exactly when the host's granted set carries one (public-rpc)
+const wantsRpc=(service)=>!!service&&service.granted.some((n)=>n.startsWith(HOST_RPC_LABEL+'-'));
 const execute=promisify(execFile),digest=s=>createHash('sha256').update(s).digest('hex');
 export const RENEW_MS=4*60000;
+const sameNames=(a,b)=>Array.isArray(a)&&a.length===b.length&&[...a].sort().join('\n')===[...b].sort().join('\n');
+const loopPort=v=>Number.isInteger(v)&&v>=1&&v<=65535;
+// a host-service circuit's routing (host-service-transport.mjs): {names:{name:{http,tls|null}}, granted:[every derived
+// name the exit must grant], dns:{tcp,udp}|null} - loopback role ports only
+function serviceSpec(s){
+ if(!s||typeof s!=='object'||!s.names||typeof s.names!=='object'||!Array.isArray(s.granted)||!s.granted.length)throw new Error('host-service circuit: names and the granted set required');
+ for(const t of Object.values(s.names))if(!loopPort(t?.http)||(t.tls!==null&&t.tls!==undefined&&!loopPort(t.tls)))throw new Error('host-service circuit: role ports must be ports');
+ if(s.dns&&(!(s.dns.tcp===null||loopPort(s.dns.tcp))||!(s.dns.udp===null||loopPort(s.dns.udp))))throw new Error('host-service circuit: dns ports must be ports');
+ return s;
+}
 async function freePort(){const s=net.createServer();await new Promise((r,j)=>{s.once('error',j);s.listen(0,'127.0.0.1',r)});const p=s.address().port;await new Promise(r=>s.close(r));return p;}
 async function json(file,value){await fs.writeFile(file,JSON.stringify(value),{mode:0o600});}
 
@@ -32,12 +45,25 @@ export function renewGrants({every,until,renew,closed,retrying,refused,now=Date.
  return {cancel(){cancelled=true;clearTimeout(timer);}};
 }
 
+// The Windows sandbox policies of one circuit (enclave-circuit-firewall install): the WireGuard program in tunnel mode -
+// UDP to its ONE public WireGuard peer, TCP to exact loopback ports - and, with ingress, the worker (TCP loopback only).
+// DNS of a host-service circuit reaches route-dns over loopback TCP only: TCP 53 as TCP, UDP 53 datagrams framed onto TCP
+// (network/wg/udpforward.go), because the firewall grants a tunnel-mode program UDP to public peers and nothing else.
+export function circuitFirewallPolicies({wgDir,dir,files,udpPeer,ports,ingress,service=null,rolePorts=[],brokerPort}){
+ const dnsTcp=service?.dns?.tcp?[`127.0.0.1:${service.dns.tcp}`]:[];
+ const policies=[{directory:wgDir,appContainer:true,tunnel:true,programs:[{path:files.wg,udp:[udpPeer],connect:ingress?[`127.0.0.1:${ports.ingress}`,`127.0.0.1:${ports.redirect}`,...dnsTcp]:[],listen:[ports.socks,ports.control,ports.guardSocks]}]}];
+ if(ingress)policies.push({directory:dir,appContainer:true,programs:[{path:files.node,connect:service?rolePorts:['127.0.0.1:'+brokerPort],listen:[ports.ingress,ports.redirect]}]});
+ return policies;
+}
+
 export class WgCircuitRuntime {
  // paceMbps: the host's uplink; each tunnel's real UDP socket is paced to it (network/wg/pace.go), 0 = unpaced
- constructor({directory,wgBinary,nodeBinary,workerModule,firewallBinary,grants,authorize,forward,platform=process.platform==='win32'?'windows':'plain',renewMs=RENEW_MS,resolvers=['1.1.1.1','9.9.9.9'],paceMbps=0,log=()=>{}}){
+ // serviceWorkerModule: the host-service ingress worker (host-service-ingress.mjs; bundled on Windows), only for start({service})
+ constructor({directory,wgBinary,nodeBinary,workerModule,serviceWorkerModule=null,firewallBinary,grants,authorize,forward,platform=process.platform==='win32'?'windows':'plain',renewMs=RENEW_MS,resolvers=['1.1.1.1','9.9.9.9'],paceMbps=0,log=()=>{}}){
   if([directory,wgBinary,nodeBinary,workerModule].some(v=>typeof v!=='string'||!path.isAbsolute(v))||(platform==='windows'&&!path.isAbsolute(firewallBinary||'')))throw new Error('explicit Enclave-network runtime paths required');
+  if(serviceWorkerModule!==null&&(typeof serviceWorkerModule!=='string'||!path.isAbsolute(serviceWorkerModule)))throw new Error('explicit host-service worker path required');
   if(!(Number.isFinite(paceMbps)&&paceMbps>=0&&paceMbps<=100000))throw new Error('paceMbps must be a number of Mbps');
-  Object.assign(this,{directory,wgBinary,nodeBinary,workerModule,firewallBinary,grants,authorize,forward,platform,renewMs,resolvers,paceMbps,log});this.active=new Set();this.closed=false;
+  Object.assign(this,{directory,wgBinary,nodeBinary,workerModule,serviceWorkerModule,firewallBinary,grants,authorize,forward,platform,renewMs,resolvers,paceMbps,log});this.active=new Set();this.closed=false;
  }
  async close(){this.closed=true;await Promise.all([...this.active].map(c=>c.close('runtime stopped')));}
  async prepare(dir){
@@ -48,9 +74,20 @@ export class WgCircuitRuntime {
  // kind 'network': {guard, exit} verified provider records; ingress/egress what the policy authorizes on this circuit.
  // kind 'byo': byo = parsed WireGuard config (network/wg-config.mjs) with endpoint already resolved to {address,port}.
  // exitRole 'control' + gate: the host's own control circuit (no app; egress only, admitted by `gate`, not by an app's lease)
- async start({deploymentId,names,kind='network',guard,exit,byo,ingress=false,egress=false,fallback=false,exitRole='exit',gate}){
+ // exitRole 'service' + service: the host's own public service roles (host-service-transport.mjs): ingress only, through
+ // the host-service worker to loopback role ports - no broker, no app forwarder; the exit must grant exactly service.granted
+ // signal (AbortSignal): the caller's stop. The startup ends at its next step with err.cancelled, every child is killed and
+ // the circuit never comes up. A grant request already sent is not cut off: its answer is awaited, so a withdrawal is
+ // ordered after it (a provider cannot be un-asked); a host-service circuit that does not come up after asking its exit
+ // withdraws that grant (signed revoke through its still-running guard tunnel) before its processes end; if that fails,
+ // the grant lapses at its expiry (10 min) and its names lead to a key nobody holds.
+ async start({deploymentId,names,kind='network',guard,exit,byo,ingress=false,egress=false,fallback=false,exitRole='exit',gate,service=null,signal=null}){
   const authorize=gate||this.authorize;
   if(this.closed)throw new Error('runtime stopped');
+  if(signal?.aborted)throw cancelledStartup(signal);
+  if(service&&(kind!=='network'||!ingress||egress||exitRole!=='service'||!this.serviceWorkerModule))throw new Error('a host-service circuit is a network circuit with ingress only, exit role service and the host-service worker');
+  if(exitRole==='service'&&!service)throw new Error('exit role service needs the host-service routing');
+  if(service)serviceSpec(service);
   if(kind==='network'&&(!guard||!exit||guard.address===exit.address))throw new Error('a guard and a different exit are required');
   if(kind==='byo'&&(!byo||ingress))throw new Error('a BYO tunnel carries egress only');
   const id=randomBytes(16).toString('hex'),tag=digest(deploymentId+id).slice(0,32);
@@ -58,7 +95,10 @@ export class WgCircuitRuntime {
   const circuit=new EventEmitter();Object.assign(circuit,{id,deploymentId,kind,closed:false,transport:kind==='byo'?'byo-wireguard':'enclave-network',fallback,
    providers:kind==='network'?{guard,exit,public:{address:exit.address,fallback}}:{byo:{address:byo.endpoint.address}}});
   this.active.add(circuit);
-  const children=[],exits=[],sockets=new Set(),installed=[];let broker,worker,wg,wgLines,egressServer,renewal,closing,pending;
+  const children=[],exits=[],sockets=new Set(),installed=[];let broker,worker,wg,wgLines,egressServer,renewal,closing,pending,outer,keys,exitAsked=false,exitRefused=false;
+  // a stop wakes whatever step is waiting (the tunnel's or the worker's readiness); `live()` after every other await
+  const onAbort=()=>pending?.reject?.(cancelledStartup(signal));signal?.addEventListener('abort',onAbort,{once:true});
+  const live=()=>{if(circuit.closed||this.closed)throw new Error('runtime stopped');if(signal?.aborted)throw cancelledStartup(signal);};
   const launch=(folder,exe,args)=>{
    if(circuit.closed||this.closed)throw new Error('runtime stopped');
    const child=this.platform==='windows'?spawn(this.firewallBinary,['sandbox',path.join(folder,path.basename(exe,'.exe')+'-sandbox.json')],{stdio:['pipe','pipe','pipe'],windowsHide:true})
@@ -80,26 +120,30 @@ export class WgCircuitRuntime {
   };
   circuit.publishDiscovery=()=>{};   // routes are published through the relay, not a peer-to-peer network
   try{
-   await this.prepare(dir);await this.prepare(wgDir);
+   await this.prepare(dir);await this.prepare(wgDir);live();
    const ports={ingress:await freePort(),redirect:await freePort(),socks:await freePort(),control:await freePort(),guardSocks:await freePort()};
    if(new Set(Object.values(ports)).size!==5)throw new Error('local circuit port collision');
    const files={wg:this.platform==='windows'?path.join(wgDir,'enclave-wg.exe'):this.wgBinary,node:this.platform==='windows'?path.join(dir,'worker.exe'):this.nodeBinary};
-   if(this.platform==='windows')await Promise.all([[this.wgBinary,files.wg],[this.nodeBinary,files.node],[this.workerModule,path.join(dir,'worker.mjs')]].map(([a,b])=>fs.copyFile(a,b)));
-   const workerModule=this.platform==='windows'?path.join(dir,'worker.mjs'):this.workerModule;
+   const sourceWorker=service?this.serviceWorkerModule:this.workerModule;
+   if(this.platform==='windows')await Promise.all([[this.wgBinary,files.wg],[this.nodeBinary,files.node],[sourceWorker,path.join(dir,'worker.mjs')]].map(([a,b])=>fs.copyFile(a,b)));
+   const workerModule=this.platform==='windows'?path.join(dir,'worker.mjs'):sourceWorker;
    // the control plane: who the tunnels are with
-   let guardGrant,exitGrant,keys={guard:wireGuardKeypair(),exit:wireGuardKeypair()};
+   let guardGrant,exitGrant;keys={guard:wireGuardKeypair(),exit:wireGuardKeypair()};
    if(kind==='network'){
-    guardGrant=await this.grants.request({provider:guard,url:`http://${guard.address}:${guard.ports.control}`,role:'guard',deploymentId,wgPublicKey:keys.guard.publicKey});
+    live();guardGrant=await this.grants.request({provider:guard,url:`http://${guard.address}:${guard.ports.control}`,role:'guard',deploymentId,wgPublicKey:keys.guard.publicKey});
    }
+   live();
    const udpPeer=kind==='network'?`${guard.address}:${guard.ports.guard}`:`${byo.endpoint.address}:${byo.endpoint.port}`;
-   if(ingress){
+   // a host-service circuit: the worker gets its name table and two listen ports; it reaches only the role ports
+   const rolePorts=service?[...new Set(Object.values(service.names).flatMap(t=>[t.http,t.tls]).filter(Boolean))].map(p=>'127.0.0.1:'+p):[];
+   if(service){await json(path.join(dir,'worker.json'),{names:service.names,tlsPort:ports.ingress,httpPort:ports.redirect});live();}
+   else if(ingress){
     const token=randomBytes(32).toString('hex');
     broker=await createAppBroker({tcpPort:0,token,deploymentId,authorize,forward:this.forward,log:this.log});
     await json(path.join(dir,'worker.json'),{deploymentId,names,ingressPort:ports.ingress,redirectPort:ports.redirect,broker:{port:broker.port,token}});
    }
    if(this.platform==='windows'){
-    const policies=[{directory:wgDir,appContainer:true,tunnel:true,programs:[{path:files.wg,udp:[udpPeer],connect:ingress?[`127.0.0.1:${ports.ingress}`,`127.0.0.1:${ports.redirect}`]:[],listen:[ports.socks,ports.control,ports.guardSocks]}]}];
-    if(ingress)policies.push({directory:dir,appContainer:true,programs:[{path:files.node,connect:['127.0.0.1:'+broker.port],listen:[ports.ingress,ports.redirect]}]});
+    const policies=circuitFirewallPolicies({wgDir,dir,files,udpPeer,ports,ingress,service,rolePorts,brokerPort:broker?.port});
     await json(path.join(wgDir,'enclave-wg-sandbox.json'),{directory:wgDir,executable:files.wg,args:[]});
     if(ingress)await json(path.join(dir,'worker-sandbox.json'),{directory:dir,executable:files.node,args:['--preserve-symlinks','--preserve-symlinks-main',workerModule,path.join(dir,'worker.json')]});
     for(const p of policies){if(circuit.closed)throw new Error('runtime stopped');const f=path.join(p.directory,'firewall-config.json');await json(f,p);installed.push(p.directory);await execute(this.firewallBinary,['install',f],{timeout:30000});}
@@ -115,28 +159,35 @@ export class WgCircuitRuntime {
     else if(v.type==='conn'){this.log(`circuit ${id.slice(0,8)} conn ${JSON.stringify(v).slice(0,2400)}`);}
     else events.emit(v.type,v);});
    wg.once('exit',()=>void circuit.close('tunnel process exited'));
-   const next=(type,ms=45000)=>new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error(type+' timeout')),ms);pending={reject};events.once(type,v=>{clearTimeout(t);pending=null;resolve(v);});});
+   // a wait that a close or a stop rejects also clears its timeout (no timer outlives the startup)
+   const next=(type,ms=45000)=>new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error(type+' timeout')),ms);pending={reject:e=>{clearTimeout(t);reject(e);}};events.once(type,v=>{clearTimeout(t);pending=null;resolve(v);});});
    const send=v=>wg.stdin.write(JSON.stringify(v)+'\n');
-   let outer;
    if(kind==='network'){
     send({type:'outer',...(this.paceMbps?{paceMbps:this.paceMbps}:{}),peer:{privateKey:keys.guard.privateKey,publicKey:guardGrant.providerPublicKey,endpoint:guardGrant.endpoint,addresses:[guardGrant.clientAddress],mtu:1420,keepalive:25},
      control:`${exit.address}:${exit.ports.control}`,controlListen:`127.0.0.1:${ports.control}`,
      guardSocks:{listen:`127.0.0.1:${ports.guardSocks}`,only:[`${exit.address}:443`,`${exit.address}:80`]}});
-    outer=await next('outer-ready');
-    exitGrant=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress});
+    outer=await next('outer-ready');live();
+    exitAsked=true;
+    exitGrant=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress,rpc:wantsRpc(service)})
+     .catch(e=>{exitRefused=e.refused===true;throw e;});   // an explicit refusal (403) leaves no peer at the exit
+    if(service&&!sameNames(exitGrant.names,service.granted))throw Object.assign(new Error('the exit granted other names than this host\'s service names'),{providerRole:'public'});
+    live();
    }
    if(ingress){
     worker=launch(dir,files.node,['--preserve-symlinks','--preserve-symlinks-main',workerModule,path.join(dir,'worker.json')]);
     worker.stderr.on('data',b=>this.log(String(b).slice(0,1000)));worker.once('exit',()=>void circuit.close('ingress worker exited'));
-    await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error('ingress worker startup timeout')),15000);pending={reject};
+    await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error('ingress worker startup timeout')),15000);pending={reject:e=>{clearTimeout(t);reject(e);}};
      createInterface({input:worker.stdout}).on('line',l=>{try{const e=JSON.parse(l);if(e.type==='ready'&&e.ingress===ports.ingress&&e.redirect===ports.redirect){clearTimeout(t);pending=null;resolve();}}catch{}});});
+    live();
    }
    const inner=kind==='network'
     ?{privateKey:keys.exit.privateKey,publicKey:exitGrant.providerPublicKey,endpoint:exitGrant.endpoint,addresses:[exitGrant.clientAddress],dns:this.resolvers,mtu:1340,keepalive:25}
     :{privateKey:byo.privateKey,publicKey:byo.publicKey,...(byo.presharedKey?{presharedKey:byo.presharedKey}:{}),endpoint:udpPeer,addresses:byo.addresses,dns:byo.dns,mtu:byo.mtu,keepalive:byo.keepalive||25};
    send({type:'inner',...(kind!=='network'&&this.paceMbps?{paceMbps:this.paceMbps}:{}),peer:inner,...(egress?{egress:{user:'',pass:'',listen:`127.0.0.1:${ports.socks}`}}:{}),
-    ...(ingress?{ingress:{'443':`127.0.0.1:${ports.ingress}`,'80':`127.0.0.1:${ports.redirect}`}}:{})});
-   const ready=await next('ready');
+    ...(ingress?{ingress:{'443':`127.0.0.1:${ports.ingress}`,'80':`127.0.0.1:${ports.redirect}`,...(service?.dns?.tcp?{'53':`127.0.0.1:${service.dns.tcp}`}:{})}}:{}),
+    // DNS datagrams the exit forwards (kernel dns_dnat) to this host's tunnel address: relayed to route-dns over its TCP port
+    ...(service?.dns?.tcp?{udpIngress:{'53':`127.0.0.1:${service.dns.tcp}`}}:{})});
+   const ready=await next('ready');live();
    if(egress&&ready.egress!==`127.0.0.1:${ports.socks}`)throw new Error('egress listener mismatch');
    // the app's egress entry: gated by admission here, then the tunnel's SOCKS
    if(egress){
@@ -149,21 +200,39 @@ export class WgCircuitRuntime {
    if(kind==='network')renewal=renewGrants({every:this.renewMs,until:Math.min(guardGrant.expiresAt,exitGrant.expiresAt),closed:()=>circuit.closed,
     renew:async()=>{
      const g2=await this.grants.request({provider:guard,url:`http://${guard.address}:${guard.ports.control}`,role:'guard',deploymentId,wgPublicKey:keys.guard.publicKey});
-     const x2=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress});
+     const x2=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress,rpc:wantsRpc(service)});
      // a provider that lost this peer (restarted without its table) hands out a new address: the tunnel cannot use it,
      // so rebuild now rather than wait for the route probes to fail
      if(g2.clientAddress!==guardGrant.clientAddress)throw Object.assign(new Error('the guard changed this circuit\'s address'),{providerRole:'guard'});
      if(x2.clientAddress!==exitGrant.clientAddress)throw Object.assign(new Error('the exit changed this circuit\'s address'),{providerRole:'public'});
+     if(service&&!sameNames(x2.names,service.granted))throw Object.assign(new Error('the exit granted other names than this host\'s service names'),{providerRole:'public'});
      return Math.min(g2.expiresAt,x2.expiresAt);
     },
     retrying:e=>this.log(`circuit ${id}: renewal unanswered, retrying: ${e.message}`),
     refused:e=>{this.log(`circuit ${id}: renewal refused: ${e.message}`);circuit.failureRole=e.providerRole;void circuit.close('grant renewal failed: '+e.message);}});
    if(circuit.closed||this.closed)throw new Error('circuit stopped during startup');
+   live();
    Object.assign(circuit,{address:kind==='network'?exit.address:null,port:443,ingress,egressReady:!!egress,
     egress:egress?'127.0.0.1:'+egressServer.address().port:null,
     isolation:{platform:this.platform,directory:dir,wgDirectory:wgDir,guardAddress:kind==='network'?outer.guardSocks:null},
-    tunnel:kind==='network'?{guard:guardGrant.clientAddress,exit:exitGrant.clientAddress}:{byo:byo.addresses[0]}});
+    tunnel:kind==='network'?{guard:guardGrant.clientAddress,exit:exitGrant.clientAddress}:{byo:byo.addresses[0]},
+    // a host-service circuit is withdrawn at the exit (a signed revoke through the guard) before it closes
+    ...(service?{service:{names:exitGrant.names,exitKey:keys.exit.publicKey,control:outer.control}}:{})});
+   signal?.removeEventListener('abort',onAbort);
    return circuit;
-  }catch(e){await circuit.close(e.message);throw e;}
+  }catch(e){
+   signal?.removeEventListener('abort',onAbort);
+   // a host-service circuit that asked its exit and did not come up: withdraw that grant while the guard tunnel still runs
+   if(service&&exitAsked&&!exitRefused){
+    const lapse=`the grant lapses at its expiry`;
+    if(circuit.closed||!outer||wg?.exitCode!==null)this.log(`host service grant at ${exit.address} not withdrawn (its tunnel is gone): ${lapse}`);
+    else await this.grants.revoke({provider:exit,url:`http://${outer.control}`,wgPublicKey:keys.exit.publicKey})
+     .then(()=>this.log(`host service grant at ${exit.address} withdrawn (circuit did not come up: ${e.message})`),
+      r=>this.log(`host service grant at ${exit.address} not withdrawn: ${r.message}; ${lapse}`));
+   }
+   await circuit.close(e.message);throw e;
+  }
  }
 }
+// the error a cancelled startup ends with (err.cancelled): the caller stopped, the providers did nothing wrong
+function cancelledStartup(signal){return Object.assign(new Error('circuit startup cancelled: '+(signal?.reason?.message||signal?.reason||'stopped')),{cancelled:true});}

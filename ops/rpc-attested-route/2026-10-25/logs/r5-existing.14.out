@@ -1,0 +1,13 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/network-authority-pins.test.mjs
+✔ network lease and operator reads survive an unavailable/hostile address book with explicit pins (5.551288ms)
+✔ network pins are complete, copied and immutable, with no partial fallback (0.593746ms)
+✔ pinned SessionVault signatures use one fresh agreeing block without book discovery (23.623341ms)
+✔ network host verifies a vault policy with pinned authorities and refuses conflicting registry settings (82.980979ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 408.99832

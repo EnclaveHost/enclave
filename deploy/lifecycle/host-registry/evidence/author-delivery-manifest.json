@@ -1,0 +1,7 @@
+{
+  "REPORT.md": "08f2f98b04ea01dd084f73c68448d6341d960524514dc1b284f105219e63e771",
+  "contracts/EnclaveHostLifecycleRegistry.sol": "df9fb48ff773d850aa1a67e53dbc0998da1a8472d3acb943eb4022436d464b6a",
+  "foundry.toml": "04bb2a171438a365fcf61089fb0099f9e6083aba0b4b62a048935ee52a3c9596",
+  "test/HostLifecycleRegistry.t.sol": "3cfbcfb90ebb5a17fbf6cfb1fb0269ca99312ba4e6ed310b6187494245c7f536",
+  "test/HostLifecycleSponsorBudget.t.sol": "62feb7450a28a18a3758550920648856180001e1b048fd6ebf60812eae2c0254"
+}

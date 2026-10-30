@@ -61,6 +61,8 @@ import {createShieldSecretRelease} from './shield-secrets.mjs';
 //                                  follow every registered enclave (+ loud warning).
 //   CORS_ORIGINS       optional    comma-separated allowed browser origins
 //                                  (default https://enclave.host,https://www.enclave.host)
+//   CORS_PUBLIC_ORIGINS optional   comma-separated EXACT origins answered with Allow-Origin but never Allow-Credentials
+//                                  (default: the site's ENS origins https://enclavehost.eth, .eth.link, .eth.limo)
 //   SSO_SIGNER_KEY     optional    secp256k1 private key (0x-hex) for minting
 //                                  Sign-in-with-Enclave (EST1) tokens - a
 //                                  DEDICATED key, never one that signs
@@ -73,7 +75,10 @@ import {createShieldSecretRelease} from './shield-secrets.mjs';
 //   FANOUT_MAX_INFLIGHT optional   global cap on concurrent upstream fan-out (256)
 //   AVAIL_POLL_SEC     optional    availability poll cadence (default 10)
 //   REGISTRY_POLL_SEC  optional    registry re-read cadence (default 300)
-//   STALE_AFTER_SEC    optional    drop enclaves silent on-chain > this (3600)
+//   STALE_AFTER_SEC    optional    how long an operator's own registry write counts as liveness evidence (3600);
+//                                  a direct row is listed only while it answers /availability AND has fresh evidence:
+//                                  that, or its unexpired operator-signed record at /v1/host/capacity
+//                                  (relay/registry-liveness.mjs). Hosts send no periodic heartbeat transaction.
 //   MCP_DOMAIN         optional    Host(s) served as the MCP endpoint (default
 //                                  mcp.enclave.host); /mcp on the API host
 //                                  serves it too. See mcp.js.
@@ -84,7 +89,7 @@ import fs from "node:fs";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mjs";
 import { isBlockedHost } from "./net-guard.mjs";
-import { isMcpHost, handleMcp } from "./mcp.js";
+import { isMcpHost, handleMcp, useMcpChainClient } from "./mcp.js";
 import { handleAccount, initAccounts, verifyAccountSession, vaultKeyOf, setSessionHooks } from "./auth.js";
 import { vaultAddressFor } from "./vaultsvc.js";
 import { handleSso, initSso } from "./sso.js";
@@ -103,9 +108,12 @@ import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
 import { createPlacement, pinnedHost } from "./placement.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson, agreeingRead } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
+import { createLeaseGenerationReader, memoryStore, fileStore, startTracker, refusingWriterAuthority } from "./lease-generation.mjs";
+import { createRegistryLiveness } from "./registry-liveness.mjs";
 import { createReferrals } from "./referrals.mjs";
 import { withDetachGrace } from "./route-grace.mjs";
-import {LeaseReader,createNetworkRoutes,DurableState,createLeaseSource,createRegistryOperator,createNetworkApi} from "./network-runtime.bundle.mjs";
+import {LeaseReader,createNetworkRoutes,DurableState,createLeaseSource,createRegistryOperator,createNetworkApi,networkReaderOptions,
+        createHostPolicyRuntime,resolveHostPolicyConfig,leaseHostAdmission,freshAdmissions,relayChainAuthority} from "./network-runtime.bundle.mjs";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, pvmCpuAvailability, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
@@ -114,6 +122,7 @@ import { hostSponsor, hostSponsorRouter } from "./host-sponsor.mjs";
 import { hostNames, hostNamesRouter } from "./host-names.mjs";
 import { dataDir, JsonStore, dataFile, rpcPool } from "./store.js";
 import { screenAddress } from "./ofac.js";
+import { RAD_PATHS } from "./attestation-paths.mjs";
 import { expectedGuest, prepareGuestUpdate, prewarmReleasePredictions } from "./secrets-release.mjs";
 import { custodyConfig, createCustodyReader } from "./custody-state.mjs";
 import { expectedForRow, prepareForRow } from "./guest-prediction-row.mjs";
@@ -196,6 +205,25 @@ const TRUSTED_OPERATORS = OPERATORS_UNRESTRICTED ? []
       ? _rawOperators.toLowerCase().split(",").map((s) => s.trim()).filter(Boolean)
       : DEFAULT_TRUSTED_OPERATORS.slice());
 
+// PLATFORM HOST POLICY (network/platform-host-policy-config.mjs): ON for the production chain and address book
+// (ADDRESS_BOOK_ADDRESS = the admin's EnclaveAddressBook) and ACTIVATED by the admin's anchor; ENCLAVE_PLATFORM_HOST_POLICY
+// overrides (production | off | JSON). Enforced IN ADDITION to TRUSTED_OPERATORS on discovery/dial, tunnel attach (and a
+// hot-ban sweep of attached tunnels) and route verification. Undecided (policy unreadable, behind the anchor) admits nothing new.
+const HOST_POLICY_RESOLVED = resolveHostPolicyConfig({ env: process.env, chainId: 8453, book: (process.env.ADDRESS_BOOK_ADDRESS || "").trim() || null });
+const HOST_POLICY = createHostPolicyRuntime(HOST_POLICY_RESOLVED, { log: (m) => console.log(m) });
+if (HOST_POLICY) {
+  console.log(`[host-policy] platform host policy ON (${HOST_POLICY_RESOLVED.source}; activation ${HOST_POLICY.activation})`);
+  const refresh = () => HOST_POLICY.gate.refresh().then((p) => { if (p) console.log(`[host-policy] platform policy #${p.policy.sequence} ${p.digest.slice(0, 18)}...`); },
+    (e) => console.error(`[host-policy] refresh failed (${e.code || "error"}): ${e.message}`));
+  refresh(); setInterval(refresh, 5 * 60_000).unref();
+} else console.log(`[host-policy] platform host policy off: ${HOST_POLICY_RESOLVED.reason}`);
+// attach/listing use the bounded admit cache (30 s); the tunnel hub's hot-ban sweep asks { fresh: true } (uncached)
+const hostPolicyFresh = HOST_POLICY ? freshAdmissions(HOST_POLICY.gate) : null;
+const hostPolicyAdmission = HOST_POLICY ? async (name, { fresh = false } = {}) => {
+  const id = String(await endpointId(boxOrigin(name) || `${TUNNEL_ORIGIN}/t/${name}`)).toLowerCase();
+  return (await (fresh ? hostPolicyFresh : HOST_POLICY.admissions)([id]))[id] || { admit: false, reason: "no decision" };
+} : null;
+
 async function tunnelNameOwner(name) {
   if (!REGISTRY_ADDRESS) return null;
   // A minted box name (boxhost.js) registers under its OWN host, so its id is
@@ -218,7 +246,7 @@ function hostSponsorRoutes() {
     try {
       sponsor = hostSponsor({ hub: tunnelHub, endpointOf: (n) => boxOrigin(n) || `${TUNNEL_ORIGIN}/t/${n}`,
                               ownerOf: async (n) => (await tunnelNameOwner(n)) || "", verifierKey: vk, bundlerKey: bk,
-                              paymaster: pm, registry: REGISTRY_ADDRESS, rpc: BASE_RPC, log: (m) => console.log(m) });
+                              paymaster: pm, registry: REGISTRY_ADDRESS, rpc: BASE_RPC, authority: RELAY_CHAIN, log: (m) => console.log(m) });
       console.log(`[sponsor] host registrations sponsored: paymaster ${pm}, verifier ${sponsor.verifier}, bundler ${sponsor.bundler}`);
     } catch (e) { console.error(`[sponsor] OFF: ${e.message}`); }
   }
@@ -273,7 +301,8 @@ const tunnelHub = createTunnelHub({
   operatorAttach: /^(1|true|yes|on)$/i.test((process.env.TUNNEL_OPERATOR_ATTACH || "").trim()),
   // and the owner still has to clear the same operator bar the dial path uses —
   // a tunnel row bypasses that filter, so it is enforced at attach instead
-  trustedOperators: TRUSTED_OPERATORS, operatorsUnrestricted: OPERATORS_UNRESTRICTED,
+  trustedOperators: TRUSTED_OPERATORS, operatorsUnrestricted: OPERATORS_UNRESTRICTED, hostAdmission: hostPolicyAdmission,
+  hostPolicyRecheckMs: Math.max(1, Number(process.env.HOST_POLICY_RECHECK_SEC) || 60) * 1000,   // the hot-ban sweep of attached tunnels
   // this relay's own public origin: a tunnel's self-routed /t/<name> URL must name it (selfRoutedUrl form 2, enclave-bf);
   // and what an hv-node's hosting delegation must name (relay/host-delegation.mjs): Base, and this relay's registry
   tunnelOrigin: TUNNEL_ORIGIN, ownerOnly: { chainId: 8453, registry: () => REGISTRY_ADDRESS },
@@ -294,6 +323,19 @@ let   REGISTRY_ADDRESS  = (process.env.REGISTRY_ADDRESS || "").trim();   // env 
 let   DEPLOYMENTS_ADDRESS = (process.env.DEPLOYMENTS_ADDRESS || "").trim(); // EnclaveDeployments ledger; book overrides too
 const ADDRESS_BOOK      = (process.env.ADDRESS_BOOK_ADDRESS || "").trim();
 const BASE_RPC          = process.env.BASE_RPC || "https://mainnet.base.org";
+// THE RELAY'S CHAIN AUTHORITY (relay/relay-chain-authority.mjs): unset, chain() and the store's pool use BASE_RPC and its
+// fallbacks exactly as before. With ENCLAVE_CHAIN_AUTHORITY=verifier every read of chain() and of the pool is proven by the
+// local verifier, sends go only to the bound own backend, and no provider client exists (BASE_RPC must then be unset). An
+// invalid or mixed selection stops the relay HERE, before any key is loaded or any chain server is contacted.
+const RELAY_CHAIN = (() => {
+  try { return relayChainAuthority(process.env); }
+  catch (e) { console.error(`fatal: relay chain authority: ${e.message}`); process.exit(1); }
+})();
+if (RELAY_CHAIN) useMcpChainClient(RELAY_CHAIN.client);     // MCP reads: the same authority, never its public list
+if (RELAY_CHAIN) { const d = RELAY_CHAIN.describe();
+  console.log(`[chain] relay chain authority: local verifier ${d.verifier} (unsafe tier, no L1 finality); `
+    + (d.backend ? `sends and pool/fee hints only via the own backend ${d.backend.label}, bound to the verifier's head` : "no own transaction backend: nothing is sent")
+    + "; logs prove inclusion only; no provider RPC is used"); }
 const STATIC_ENCLAVES   = (process.env.ENCLAVES || "").split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean);
 const PORT              = parseInt(process.env.API_RELAY_PORT || "8100", 10);
 const AVAIL_POLL_SEC    = parseInt(process.env.AVAIL_POLL_SEC || "10", 10);
@@ -336,6 +378,13 @@ function warnIfUnauthenticated() {
 // CORS (fix 5): allowlist instead of reflecting any Origin with credentials.
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || "https://enclave.host,https://www.enclave.host")
   .split(",").map((s) => s.trim()).filter(Boolean);
+// The same site published under its ENS name: the native https://enclavehost.eth and the eth.link / eth.limo gateway
+// hosts (those two are a third party's servers). Its pages call this API with fetch() that sends no browser credentials
+// (a session rides in the Authorization header the page itself sets), so an exact Allow-Origin is all they need; they
+// never get Allow-Credentials, so no cookie a proxied app may have set on this origin is ever readable from them.
+// Exact https origins only: no wildcard, no reflection.
+const CORS_PUBLIC_ORIGINS = (process.env.CORS_PUBLIC_ORIGINS ?? "https://enclavehost.eth,https://enclavehost.eth.link,https://enclavehost.eth.limo")
+  .split(",").map((s) => s.trim()).filter((s) => /^https:\/\/[a-z0-9.-]+$/.test(s));
 // Trusted-proxy switch (fix 6): Caddy fronts the relay in production and sets
 // x-forwarded-host / x-forwarded-for. Default trusts those (current behavior).
 // Set TRUSTED_PROXY to an off value (0/false/off/no/none) when the relay is
@@ -533,6 +582,7 @@ async function registryAbi(client, addr) {
 
 let _client = null;
 async function chain() {
+  if (!_client && RELAY_CHAIN) _client = RELAY_CHAIN.client;   // the same authority as the store's pool; never BASE_RPC
   if (!_client) {
     const { createPublicClient, http: viemHttp } = await import("viem");
     const { base } = await import("viem/chains");
@@ -699,19 +749,26 @@ async function discoverRegistry() {
   for (let start = 0; start < total; start += 50)
     out.push(...await c.readContract({ address: REGISTRY_ADDRESS, abi,
       functionName: "getPage", args: [BigInt(start), 50n] }));
-  const now = Math.floor(Date.now() / 1000);
   warnIfUnauthenticated();
-  const fresh = out.filter((e) => e.active && now - Number(e.lastSeen) <= STALE_AFTER_SEC);
-  // Snapshot every live entry's declarations before the dial-safety filters —
-  // see declaredById above. Deregistered and stale rows are excluded with the
-  // rest: a box that stopped saying it is here declares nothing.
-  declaredById = new Map(await Promise.all(fresh.map(async (e) =>
+  // ADMISSION is the registry's active flag (plus the operator allowlist and the dial-safety filters below). Whether
+  // an admitted row is UP is decided per poll from authenticated evidence (pollAvailability, registry-liveness.mjs),
+  // never from a periodic on-chain write: hosts no longer send one, and a healthy host's lastSeen grows old.
+  const admitted = out.filter((e) => e.active === true);
+  // Snapshot every admitted entry's declarations before the dial-safety filters —
+  // see declaredById above. Deregistered rows are excluded with the rest: a box
+  // that left declares nothing. (A tunnel row's twin is no longer dropped here an
+  // hour after its last registry write: a tunnel box never heartbeated.)
+  declaredById = new Map(await Promise.all(admitted.map(async (e) =>
     [String(await endpointId(String(e.endpoint || "").replace(/\/+$/, ""))).toLowerCase(),
      { payoutWallet: e.payoutWallet || null, caps: Number(capsOf(e)), region: e.region || null }])));
-  return Promise.all(fresh
+  // platform host policy: one agreed decision per admitted row; a host without an explicit admit is never listed or dialed
+  const policyIds = HOST_POLICY ? (await Promise.all(admitted.map((e) => endpointId(String(e.endpoint || "").replace(/\/+$/, ""))))).map((x) => String(x).toLowerCase()) : null;
+  const policyDecisions = HOST_POLICY ? await HOST_POLICY.admissions(policyIds).catch((e) => { console.error(`[host-policy] ${e.message}`); return {}; }) : null;
+  return Promise.all(admitted
     // B2: only vetted operators (baked default, or the env allowlist). Pass-all
     // ONLY under the explicit TRUSTED_OPERATORS=* opt-in — never by omission.
-    .filter((e) => OPERATORS_UNRESTRICTED || TRUSTED_OPERATORS.includes(String(e.operator || "").toLowerCase()))
+    .filter((e, i) => (OPERATORS_UNRESTRICTED || TRUSTED_OPERATORS.includes(String(e.operator || "").toLowerCase()))
+                      && (!policyDecisions || policyDecisions[policyIds[i]]?.admit === true))
     .map((e) => ({ e, endpoint: e.endpoint.replace(/\/+$/, "") }))
     // B1/B3: never route to a non-https discovered endpoint (real enclaves are https)
     .filter(({ endpoint }) => { const ok = isHttpsEndpoint(endpoint); if (!ok) console.error(`[api-relay] skipping non-https registry endpoint: ${endpoint}`); return ok; })
@@ -730,7 +787,9 @@ async function discoverRegistry() {
     .map(async ({ e, endpoint }) =>
       ({ endpoint, id: await endpointId(endpoint), name: endpointName(endpoint), repo: e.repo,
          lastSeen: Number(e.lastSeen), payoutWallet: e.payoutWallet || null,
-         caps: Number(capsOf(e)), region: e.region || null })));
+         caps: Number(capsOf(e)), region: e.region || null,
+         // what liveness is judged against: the row exactly as registered (registry-liveness.mjs)
+         registryRow: { endpoint: String(e.endpoint), operator: String(e.operator).toLowerCase(), active: e.active === true, lastSeen: Number(e.lastSeen) } })));
 }
 
 // --- EnclaveDeployments ledger (the source of truth for a wallet's work) --------
@@ -941,8 +1000,13 @@ async function fetchJson(url, timeoutMs = 4000) {
   catch { return null; } finally { clearTimeout(t); }
 }
 
-let registry = [];                 // [{endpoint, id, repo, lastSeen}] (id = the registry's keccak256(endpoint))
-let live = [];                     // registry ∩ answering, each + {availability, checkedAt}
+let registry = [];                 // [{endpoint, id, repo, lastSeen, registryRow}] (id = the registry's keccak256(endpoint))
+let live = [];                     // registry ∩ answering ∩ live evidence, each + {availability, checkedAt, liveness}
+// Liveness of a DIRECT registry row: its signed capacity record or its operator's recent registry write. A tunnel row's
+// liveness is its authenticated attach (tunnel.js); a static dev list has no chain and is not judged.
+const registryLiveness = createRegistryLiveness({ chainId: 8453, registry: () => REGISTRY_ADDRESS, fetchJson: (u) => fetchJson(u),
+  registryUpdateWindowSec: STALE_AFTER_SEC, log: (m) => console.warn(`[api-relay] ${m}`) });
+const _livenessSaid = new Map();   // endpoint -> last verdict logged (logs on change only)
 let updatedAt = null;
 
 async function pollRegistry() {
@@ -986,7 +1050,20 @@ async function pollAvailability() {
                        : await fetchJson(`${e.endpoint}/availability`);
       // a pVM CPU row's pool is the relay-verified VM size (pvmCpuAvailability), never the phone host's own word
       if (a && e.tunnel) a = pvmCpuAvailability(e, a);
-      rows[idx] = a ? { ...e, availability: a, relay: hasNoResources(a), checkedAt: new Date().toISOString() } : null;
+      // a direct registry row is listed only on authenticated, bounded-fresh evidence: an answer on its URL is not
+      // proof that its operator is the one running it, and its on-chain lastSeen no longer moves on a timer
+      let liveness = null;
+      if (a && e.registryRow) {
+        liveness = await registryLiveness.judge(e.registryRow);
+        const said = liveness.live ? liveness.evidence : "not live";      // the verdict's class: the reason's age moves every poll
+        if (_livenessSaid.get(e.endpoint) !== said) { _livenessSaid.set(e.endpoint, said); if (!liveness.live) console.warn(`[api-relay] ${e.endpoint} not listed: ${liveness.reason}`); }
+        if (!liveness.live) a = null;
+      }
+      // lastSeen stays what clients have always filtered on (site pricing.js, older CLIs): for a direct row it is now the
+      // newest AUTHENTICATED time (record issue or registry write); the raw registry value rides as registryLastSeen
+      const { registryRow, ...pub } = e;
+      rows[idx] = a ? { ...pub, ...(liveness ? { lastSeen: liveness.seenSec, registryLastSeen: registryRow.lastSeen, liveness: { evidence: liveness.evidence, until: Math.floor(liveness.untilMs / 1000) } } : {}),
+                        availability: a, relay: hasNoResources(a), checkedAt: new Date().toISOString() } : null;
     }
   };
   await Promise.all(Array.from({ length: Math.min(AVAIL_POLL_CONCURRENCY, src.length || 1) }, worker));
@@ -1051,6 +1128,8 @@ const cors = (req) => {
   if (corsAllowed(origin)) {
     h["Access-Control-Allow-Origin"] = origin;
     h["Access-Control-Allow-Credentials"] = "true";
+  } else if (origin && CORS_PUBLIC_ORIGINS.includes(origin)) {
+    h["Access-Control-Allow-Origin"] = origin;                 // exact, no credentials
   } else if (CORS_ORIGINS.includes("*")) {
     h["Access-Control-Allow-Origin"] = "*";                    // wildcard, no credentials
   }
@@ -1428,10 +1507,15 @@ function ownerServedDeployments(row) {
 // needs percent-encoding, backslashes, repeated slashes or dot segments, so any of those refuses. A trailing slash is
 // tolerated. Canonical = percent-decoded (up to three levels), backslashes as slashes, repeated slashes collapsed, dot
 // segments resolved, lower-cased; a path that will not decode is refused. null = allowed.
+// RAD_PATHS (relay/attestation-paths.mjs): the box's raw attestation document under its canonical path and the
+// wire-compatibility alias deployed supervisors and older verifiers use.
+// /v1/host/capacity: the box's operator-signed capacity record, its off-chain liveness evidence for readers that hold no
+// relay trust (docs/network/host-liveness.md); public, read-only, and verified by every reader against the registry row
 const BOX_OWN_SURFACES = new Set(["/availability", "/health", "/v1/health", "/v1/version", "/v1/pricing", "/v1/session-jwks",
-                                  "/v1/net-map", "/v1/udp-map", "/v1/attestation", "/.well-known/Cloud Provider-attestation"]);
+                                  "/v1/net-map", "/v1/udp-map", "/v1/attestation", ...RAD_PATHS, "/v1/host/capacity"]);
 const CUSTODY_SURFACES = new Map([["/v2/custody/info", "GET"], ["/v2/custody/challenge", "POST"], ["/v2/custody/release", "POST"],
-                                   ["/v2/custody/evidence", "POST"], ["/v2/custody/join", "POST"], ["/v2/custody/approve", "POST"]]);
+                                   ["/v2/custody/evidence", "POST"], ["/v2/custody/join", "POST"], ["/v2/custody/approve", "POST"],
+                                   ["/v2/custody/code-approve", "POST"]]);
 function canonicalBoxPath(path) {
   let p = String(path || "/");
   for (let i = 0; i < 3; i++) {
@@ -2323,7 +2407,10 @@ const leaseHolderChipIds = async (endpoint) => {
 // the relay predict another app. SECRETS_RELEASE_CATALOG_RPCS: comma-separated https URLs, distinct hosts.
 const CATALOG_RPCS = [...new Set(String(process.env.SECRETS_RELEASE_CATALOG_RPCS || "").split(",").map((u) => u.trim()).filter((u) => /^https:\/\//.test(u)))];
 const catalogRpcHosts = new Set(CATALOG_RPCS.map((u) => { try { return new URL(u).host; } catch { return u; } }));
-const catalogClients = CATALOG_RPCS.map((url) => { let c = null; return { readContract: async (q) => {
+// Under the relay's verifier authority (RELAY_CHAIN) the catalog, the ledger record and their book entries are its ONE proven
+// answer (agreeingRead's min is the list's length, so one authority, never a vote of providers); the provider list was
+// refused at startup.
+const catalogClients = RELAY_CHAIN ? [RELAY_CHAIN.client] : CATALOG_RPCS.map((url) => { let c = null; return { readContract: async (q) => {
   if (!c) { const { createPublicClient, http: viemHttp } = await import("viem"); const { base } = await import("viem/chains");
             // one retry (enclave-87, 09-26): a read is bounded at ~12 s per provider (6 s x 2), not viem's default 4 attempts (~25 s)
             c = createPublicClient({ chain: base, transport: viemHttp(url, { timeout: 6_000, retryCount: 1 }) }); }
@@ -2362,7 +2449,7 @@ async function confirmedLedger() {
   return addr;
 }
 async function confirmRow(id) {
-  if (catalogRpcHosts.size < 2) throw new Error("fewer than two independent RPCs are configured");
+  if (!RELAY_CHAIN && catalogRpcHosts.size < 2) throw new Error("fewer than two independent RPCs are configured");
   const ledger = await confirmedLedger();
   const pick = (d) => ({ id: String(d.id).toLowerCase(), runner: String(d.runner).toLowerCase(), leaseUntil: String(d.leaseUntil), appRef: d.appRef,
                          owner: String(d.owner).toLowerCase(), isPublic: !!d.isPublic, configCid: d.configCid, active: !!d.active, cpuMilli: Number(d.cpuMilli), gpuMilli: Number(d.gpuMilli) });
@@ -2417,7 +2504,35 @@ const pvmAppFresh = createPvmAppFresh({ hub: tunnelHub, market: pvmMarket, confi
 // a pVM host's secrets: sealed to its VM, signed by the release key, never plaintext to the operator (relay/pvm-secrets.mjs)
 const pvmSecretRelease = createPvmSecretRelease({ hub: tunnelHub, market: pvmMarket, pins: PVM_CPU_POLICY, confirmRow,
   hostForEndpoint: (id) => live.find((e) => String(e.id).toLowerCase() === String(id).toLowerCase()) });
-const shieldSecretRelease=createShieldSecretRelease({hub:tunnelHub,policyFile:process.env.RELAY_SHIELD_MARKET_POLICY||"",confirmRow,
+// Storage writer fencing (relay/lease-generation.mjs; work/storage-front-binding-interface.txt): the writer authority of a
+// deployment's CURRENT lease, from one fresh snapshot the SAME independent RPCs agree on (SECRETS_RELEASE_CATALOG_RPCS, two or
+// more distinct hosts) and its finalized Claimed log, on the ledger this relay confirms (pinned DEPLOYMENTS_ADDRESS or the
+// book's entry through those RPCs). It never blocks a release: fewer than two RPCs (no reader), a quorum or a claim not final
+// yet, and the release goes out with facts.runner only, the guest reading the fact itself (isolation/m2/front).
+// LEASE_GENERATION_STATE: a file for the verified FINALIZED log coverage per lease (so a long-running lease's proof is
+// extended, never re-read from an old block public RPCs no longer serve); unset: memory only (lost on restart).
+const leaseGenerationStore = (() => {
+  const file = (process.env.LEASE_GENERATION_STATE || "").trim();
+  if (!file) return memoryStore();
+  try { return fileStore(file, { fs }); } catch (e) { console.error(`[lease-generation] LEASE_GENERATION_STATE unusable (${e.message}): memory only`); return memoryStore(); }
+})();
+// Under the verifier authority the writer authority is REFUSED, explicitly and per release (code writer_authority_unproven):
+// it needs FINALIZED, COMPLETE lease-log history and the verifier proves neither (the sequencer-signed unsafe tier; eth_getLogs
+// proves inclusion, never completeness). No fact is made from history it cannot prove. Each release that refers to
+// ENCLAVE_WRITER_AUTHORITY logs the refusal and goes out with facts.runner only (the existing contract: never a 503 that would
+// kill the guest), and the guest establishes the authority itself from its own measured chain reads (isolation/m2/front).
+// This is a NARROWER relay: full parity needs finalized + complete verified receipts (logs/claude-relay-consumer-result.md).
+if (RELAY_CHAIN) console.log("[lease-generation] REFUSED under the verifier authority (writer_authority_unproven: needs finalized, complete lease logs; the verifier proves neither): releases that refer to ENCLAVE_WRITER_AUTHORITY carry facts.runner only and the guest establishes the authority itself");
+const leaseGenerationReader = !RELAY_CHAIN && CATALOG_RPCS.length >= 2 && catalogRpcHosts.size >= 2
+  ? createLeaseGenerationReader({ rpcs: CATALOG_RPCS, ledger: () => confirmedLedger(), store: leaseGenerationStore }) : null;
+const writerAuthoritySource = leaseGenerationReader || (RELAY_CHAIN ? refusingWriterAuthority("writer_authority_unproven",
+  "the relay's verifier authority proves neither finality nor log completeness, which the writer authority needs") : null);
+const leaseGeneration = writerAuthoritySource ? (id, opts) => writerAuthoritySource.writerAuthority(id, opts) : undefined;
+// the tracker: every lease asked about (from its first release, final or not) is re-proved every 15 min (read-only), so its
+// coverage keeps up with what public RPCs serve; leases no longer current are dropped. Single-flight, each tick bounded
+// (lease-generation.mjs startTracker): a slow scan never overlaps the next tick.
+if (leaseGenerationReader) startTracker(leaseGenerationReader);
+const shieldSecretRelease=createShieldSecretRelease({hub:tunnelHub,policyFile:process.env.RELAY_SHIELD_MARKET_POLICY||"",confirmRow,leaseGeneration,
   readCatalog:catalogReader(catalogClients,catalogAddress),readConfig:versionConfigReader(catalogClients,catalogAddress),
   fetchVerified:(cid,max)=>predictor().fetchVerified(cid,max),
   hostForEndpoint:id=>live.find(e=>String(e.id).toLowerCase()===String(id).toLowerCase()),
@@ -2463,7 +2578,7 @@ async function resolveConfigCid(cid) {
 }
 const predictorSets = () => predictor().sets;
 const predictorProblems = () => [...predictor().problems,
-  ...(catalogRpcHosts.size < 2 ? ["SECRETS_RELEASE_CATALOG_RPCS (two or more independent Base RPCs)"] : [])];
+  ...(!RELAY_CHAIN && catalogRpcHosts.size < 2 ? ["SECRETS_RELEASE_CATALOG_RPCS (two or more independent Base RPCs)"] : [])];
 // A release document judged by the VENDORED verifier's SNP domain path (verifier/consumer.mjs verifyGuestDomainEvidence:
 // verifier/index.mjs verifyEvidence's SNP branch, bundled because the relay ships relay/** only): the pinned AMD roots, the
 // CRL, the caller's TCB floor and VMPL, report_data = the release binding and the AppID, HOST_DATA = the deployment. AMD
@@ -2496,12 +2611,12 @@ const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex"
 // secret custody (docs/security/secret-custody.md; relay/custody-state.mjs): with CUSTODY_VAULT set, a deployment whose owner
 // moved its secrets to custodians gets no value from this relay on any path. A CUSTODY_VAULT that is set but unusable
 // fails CLOSED: every custody question then answers 503, never "no custody" (which would serve an old plaintext copy).
-const CUSTODY_CFG = custodyConfig();
+const CUSTODY_CFG = custodyConfig(process.env, { authority: RELAY_CHAIN });
 const secretCustody = CUSTODY_CFG.on ? createCustodyReader(CUSTODY_CFG)
   : CUSTODY_CFG.error ? { custodyStateFor: async () => { throw new Error(CUSTODY_CFG.error); }, custodyHeld: async () => { throw new Error(CUSTODY_CFG.error); } }
   : null;
 if (CUSTODY_CFG.error) console.error(`[custody] CUSTODY_VAULT is set but unusable (${CUSTODY_CFG.error}): custody questions answer 503`);
-else if (CUSTODY_CFG.on) console.log(`[custody] vault ${CUSTODY_CFG.vault || "-"}, v2 vault ${CUSTODY_CFG.vault2 || "-"} on chain ${CUSTODY_CFG.chainId}, ${CUSTODY_CFG.rpcs.length} RPCs, ${CUSTODY_CFG.minAgree} must agree`);
+else if (CUSTODY_CFG.on) console.log(`[custody] vault ${CUSTODY_CFG.vault || "-"}, v2 vault ${CUSTODY_CFG.vault2 || "-"} on chain ${CUSTODY_CFG.chainId}, ${CUSTODY_CFG.authority ? "the local verifier (one proven authority)" : `${CUSTODY_CFG.rpcs.length} RPCs, ${CUSTODY_CFG.minAgree} must agree`}`);
 const relayCtx = { shieldSecretRelease, pvmSecretRelease, json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
                    ...(secretCustody ? { custodyStateFor: secretCustody.custodyStateFor, custodyHeld: secretCustody.custodyHeld } : {}),
                    // sessions: the owner wallet behind a SessionVault-held record, and the custody release gate
@@ -2512,6 +2627,7 @@ const relayCtx = { shieldSecretRelease, pvmSecretRelease, json, cors, clientIp, 
                    // (B) does this endpoint id's live row serve this ledger deployment NOW (hv-node owner-only: served owner,
                    // this row's live lease, isolation.require = hyperv-partition-per-app)? certs.js 6b and secrets.js has-secrets
                    ownerServesDeployment: (epId, d) => servesDeploymentUntil(live.find((x) => x.id && String(x.id).toLowerCase() === String(epId || "").toLowerCase()), d) > 0,
+                   leaseGeneration,
                    expectedGuestFor, prepareGuestFor, noteGuestRelease, predictorProblems, predictorSets, runtimeIdOf, confirmRow, verifyGuestEvidence, prewarmCollateral, versionConfigFor, resolveConfigCid,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
@@ -2594,11 +2710,20 @@ async function sweepPlacement() {
   finally { placementSweeping = false; }
 }
 
-// Two of these must agree on every lease and registry answer. Measured from nan
-// 2026-10-04: mainnet.base.org and most free endpoints refuse a relay's rate.
-const networkLeaseReader=ADDRESS_BOOK?new LeaseReader({addressBook:ADDRESS_BOOK,
-  rpc:(process.env.NETWORK_CHAIN_RPCS||'https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org').split(',').map(s=>s.trim()),
-  includeHostPayout:true,includeConnectivity:'auto'}):null;
+// The network lease reader (route leases, registry operators): a provider quorum (relay/chain-sources.mjs
+// networkReaderOptions: two must agree on every answer), or EXPLICITLY the local proof-backed verifier
+// (ENCLAVE_CHAIN_AUTHORITY=verifier, ENCLAVE_CHAIN_VERIFIER=<loopback URL>; then no provider client exists). An explicit
+// verifier that cannot be honoured stops the relay: no address book (its lease and registry reads would go to BASE_RPC
+// instead), a non-local URL, or a runtime bundle whose LeaseReader does not implement the verifier authority.
+let networkLeaseReader=null;
+try{
+  const networkChain=networkReaderOptions(process.env);
+  if(networkChain.authority==='verifier'&&!ADDRESS_BOOK)throw new Error('ENCLAVE_CHAIN_AUTHORITY=verifier needs ADDRESS_BOOK_ADDRESS: without the network lease reader its lease and registry reads would use BASE_RPC');
+  networkLeaseReader=ADDRESS_BOOK?new LeaseReader({addressBook:ADDRESS_BOOK,...networkChain,includeHostPayout:true,includeConnectivity:'auto'}):null;
+  if(networkChain.authority==='verifier'&&networkLeaseReader.authority!=='verifier')throw new Error('this runtime bundle\'s LeaseReader does not implement the verifier authority: rebuild network-runtime.bundle.mjs');
+  if(networkLeaseReader){const a=networkLeaseReader.authorityInfo?.()||{authority:'provider-quorum',tier:'provider-reported'};
+    console.log(`[chain] network lease reader: ${a.authority} (${a.tier} tier${a.authority==='local-verifier'?', proof-backed, no provider fallback':''})`);}
+}catch(e){console.error(`fatal: network chain authority: ${e.message}`);process.exit(1);}
 // WHO OWNS a registry id, from the same agreeing public RPCs as route leases
 // (relay/chain-sources.mjs), not the single metered BASE_RPC; a failed read
 // throws, so each caller keeps its own fail-closed rule.
@@ -2620,6 +2745,8 @@ relayCtx.hostOperator = id => registryOperator(id);
 const routeStateDir = () => (process.env.ROUTE_STATE_DIR || "").trim() || "/var/lib/enclave-relay/route-state";
 networkRoutes = createNetworkRoutes({
   network: networkApi,
+  // platform host policy on the route's lease host (network/route-record.mjs verifyRoute hostAdmission)
+  hostAdmission: HOST_POLICY ? leaseHostAdmission(HOST_POLICY.gate) : null,
   operatorOf: endpoint => relayCtx.operatorOfEndpoint(endpoint), endpointId,
   memory: new DurableState(routeStateDir()),
   leaseOf: async id => {
@@ -2735,6 +2862,15 @@ function handleRequest(req, res) {
 
   if (u.pathname === "/health")
     return json(res, 200, { ok: true, enclaves: live.length, of: registry.length, updatedAt }, req);
+  // the platform host policy as this relay enforces it, and (?host=<registry id>) its decision for one host now
+  if (u.pathname === "/v1/platform-host-policy") {
+    if (!HOST_POLICY) return json(res, 200, { platformHostPolicy: "off", reason: HOST_POLICY_RESOLVED.reason }, req);
+    const host = String(u.searchParams.get("host") || "").toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(host)) return json(res, 200, { platformHostPolicy: "on", ...HOST_POLICY.status() }, req);
+    return HOST_POLICY.admissions([host]).then((d) => ({ admit: d[host]?.admit === true, status: d[host]?.status, reason: d[host]?.reason || null }),
+      (e) => ({ admit: false, status: "unreadable", reason: e.message }))
+      .then((decision) => json(res, 200, { platformHostPolicy: "on", ...HOST_POLICY.status(), host, decision }, req));
+  }
 
   // A FRESH attestation of an attached SEV-SNP box over the CALLER's nonce (verifier/consumer.mjs verifyMetalBox; the site's
   // live verify). The box signs nothing here and neither does the relay: the document is the box's own, AMD-signed, with
@@ -2961,7 +3097,7 @@ function handleRequest(req, res) {
   // untouched over that box's tunnel.
   //
   // This is what makes a tunnel box verifiable. Every attestation verifier
-  // takes a bare HOST and builds /.well-known/Cloud Provider-attestation from it, so
+  // takes a bare HOST and builds the attestation path (RAD_PATHS) from it, so
   // the /t/<name> path form below gets truncated to the relay's own hostname
   // and ends up verifying the RELAY (found 2026-07-28: every metal0-hosted app
   // failed in-browser this way). With a real host the URL survives, and once

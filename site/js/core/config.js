@@ -3,17 +3,31 @@
    addresses. One place to edit when anything is redeployed
    (scripts/sync-contract-addresses.sh rewrites the addresses).
    ============================================================ */
+import { loadProfileState } from "./independent.js";
+import { resolveReadAuthority } from "./read-authority.js";
 
 /* Production API gateway (mirrors openapi.json servers[0].url; the Deploy
    page lets a user point at an enclave directly and persists the override). */
 export const DEFAULT_API_BASE = "https://api.enclave.host/v1";
+
+/* ---- independent mode (js/core/independent.js, docs/network/independent-dashboard.md) ----
+   A saved (or built-in) network profile replaces the API and upload token
+   service with chain reads and storage adapters. An explicit addressBook
+   follows platform administration; otherwise contract bindings stay fixed.
+   INDEPENDENT.state: "off" = the hosted defaults below; "on" = the profile
+   rules every binding; "invalid" = a profile exists but cannot be used, so
+   NO contract is pinned and nothing can be signed until it is fixed - a broken
+   profile never quietly falls back to the central defaults. */
+export const INDEPENDENT = loadProfileState();
+const IND = INDEPENDENT.state === "on" ? INDEPENDENT.profile : null;
+const IND_ANY = INDEPENDENT.state !== "off";
 
 /* Through the gateway each deployment gets its OWN origin:
    https://<label>.app.enclave.host (see appLabel in the deploy page). */
 export const APP_DOMAIN = "app.enclave.host";
 
 export const BASE_CHAIN = 8453, BASE_CHAIN_HEX = "0x2105";
-export const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+export const USDC_BASE = IND ? IND.usdc : "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 /* ---- WalletConnect (optional second transport) -----------------------------
    Injected extensions cannot reach a wallet that is not a browser extension.
@@ -43,7 +57,9 @@ export const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
    rpc.walletconnect.org (unused; rpcMap pins Base to mainnet.base.org),
    pulse.walletconnect.org (telemetry) and verify/secure.walletconnect.org
    (iframes, so frame-src not connect-src), and all degrade silently. */
-export const WALLETCONNECT_PROJECT_ID = "e935970def12ab5d05b6b8ff7abd8d75";
+// Independent mode offers no WalletConnect: its transport is Reown's relay, a third-party origin this mode never
+// contacts on its own. Injected wallets (and Frame/Clef-style local signers) still work.
+export const WALLETCONNECT_PROJECT_ID = IND_ANY ? "" : "e935970def12ab5d05b6b8ff7abd8d75";
 
 /* ---- loopback-only override gate -------------------------------------------
    Two reads below (enclave_addressbook, enclave_rpc) exist ONLY so the e2e
@@ -98,7 +114,7 @@ export const ACCOUNTS_ENABLED = _acct != null ? _acct === "1" : true;
    this address is the root of contract-address resolution, so an attacker who
    sets it chooses every contract the wallet is asked to sign against. */
 const _book = devOverride("enclave_addressbook");
-export const ADDRESS_BOOK_ADDRESS = _book || "0xab214342d5A490150A4A977063A2f88E21F80907"; // EnclaveAddressBook on Base; written by scripts/deploy-address-book.mjs ("" = baked addresses only)
+export const ADDRESS_BOOK_ADDRESS = IND_ANY ? (IND?.addressBook || "") : _book || "0xab214342d5A490150A4A977063A2f88E21F80907";
 // KEEP THESE CURRENT. They are the fallback used before the address book
 // resolves (and if it fails), and a RETIRED EnclaveDeployments still answers
 // get() for the same deployment ids with a stale record — active:false, old
@@ -116,13 +132,26 @@ export let PAYMENT_ROUTER_ADDRESS = "";                         // PaymentRouter
 export let SECRET_VAULT_ADDRESS = "";                           // EnclaveSecretVault (secret custody, docs/security/secret-custody.md); book key "secretVault" only - "" = no custody option in the Secrets panel
 // the custodian committee new custody policies seal to (a bytes32 committee id in EnclaveSecretVault); "" until one exists.
 // An owner's existing policy keeps its own committee whatever this says.
+// Independent mode: the pinned SessionVault factory (zero/"" = wallet sessions off there). Legacy mode resolves its
+// factory through the relay's session config, so this stays "".
+export const SESSION_FACTORY_ADDRESS = IND && !/^0x0{40}$/.test(IND.contracts.sessionVaultFactory) ? IND.contracts.sessionVaultFactory : "";
+// These are initial values for profiles with an addressBook, or fixed bindings
+// otherwise. Invalid/unconfirmed profiles select no contracts. Optional book
+// services start off until a verified platform-book resolve enables them.
+if (IND_ANY){
+  APP_CATALOG_ADDRESS = IND ? IND.contracts.appCatalog : "";
+  DEPLOYMENTS_ADDRESS = IND ? IND.contracts.deployments : "";
+  REGISTRY_ADDRESS = IND ? IND.contracts.registry : "";
+}
 export const CUSTODY_COMMITTEE = "0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b727dbfc8bf0de07fe4f9c";   // the bootstrap committee (3 of 4, Enclave-operated: NOT decentralized)
 export const APP_CATALOG_CHAIN   = 8453;                        // Base mainnet (kept in sync by the deploy script; 84532 = Base Sepolia)
 
 /* apply an address-book map ({appCatalog, deployments}) onto the live
    bindings; returns which names changed. Called by js/core/addressbook.js. */
 export function __applyAddresses(map){
+  if (IND_ANY && !IND?.addressBook) return [];   // fixed profiles retain their explicit bindings
   const ok = (a) => /^0x[0-9a-fA-F]{40}$/.test(a || "");
+  const optional = (a) => ok(a) || (IND?.addressBook && a === "");
   const changed = [];
   if (map && ok(map.appCatalog) && map.appCatalog.toLowerCase() !== APP_CATALOG_ADDRESS.toLowerCase()){
     APP_CATALOG_ADDRESS = map.appCatalog; changed.push("APP_CATALOG_ADDRESS");
@@ -133,24 +162,24 @@ export function __applyAddresses(map){
   if (map && ok(map.registry) && map.registry.toLowerCase() !== REGISTRY_ADDRESS.toLowerCase()){
     REGISTRY_ADDRESS = map.registry; changed.push("REGISTRY_ADDRESS");
   }
-  if (map && ok(map.featured) && map.featured.toLowerCase() !== FEATURED_ADDRESS.toLowerCase()){
+  if (map && optional(map.featured) && map.featured.toLowerCase() !== FEATURED_ADDRESS.toLowerCase()){
     FEATURED_ADDRESS = map.featured; changed.push("FEATURED_ADDRESS");
   }
-  if (map && ok(map.reviews) && map.reviews.toLowerCase() !== REVIEWS_ADDRESS.toLowerCase()){
+  if (map && optional(map.reviews) && map.reviews.toLowerCase() !== REVIEWS_ADDRESS.toLowerCase()){
     REVIEWS_ADDRESS = map.reviews; changed.push("REVIEWS_ADDRESS");
   }
-  if (map && ok(map.hostReviews) && map.hostReviews.toLowerCase() !== HOST_REVIEWS_ADDRESS.toLowerCase()){
+  if (map && optional(map.hostReviews) && map.hostReviews.toLowerCase() !== HOST_REVIEWS_ADDRESS.toLowerCase()){
     HOST_REVIEWS_ADDRESS = map.hostReviews; changed.push("HOST_REVIEWS_ADDRESS");
   }
-  if (map && ok(map.secretVault) && map.secretVault.toLowerCase() !== SECRET_VAULT_ADDRESS.toLowerCase()){
+  if (map && optional(map.secretVault) && map.secretVault.toLowerCase() !== SECRET_VAULT_ADDRESS.toLowerCase()){
     SECRET_VAULT_ADDRESS = map.secretVault; changed.push("SECRET_VAULT_ADDRESS");
   }
-  if (map && ok(map.paymentRouter) && map.paymentRouter.toLowerCase() !== PAYMENT_ROUTER_ADDRESS.toLowerCase()){
+  if (map && optional(map.paymentRouter) && map.paymentRouter.toLowerCase() !== PAYMENT_ROUTER_ADDRESS.toLowerCase()){
     PAYMENT_ROUTER_ADDRESS = map.paymentRouter; changed.push("PAYMENT_ROUTER_ADDRESS");
   }
   return changed;
 }
-if (ADDRESS_BOOK_ADDRESS){
+if (ADDRESS_BOOK_ADDRESS && !IND_ANY){
   try { __applyAddresses(JSON.parse(sessionStorage.getItem("enclave_addrbook") || "null")); } catch(e){}
 }
 export const APP_CATALOG_RPC     = "https://base-rpc.publicnode.com";  // preferred read endpoint (CORS-enabled; browsing needs no wallet). NOTE: deploy-app-catalog.mjs rewrites this to mainnet.base.org on every catalog deploy - restore publicnode after (it rate-limits hard enough to trip one catalog load; kept in the pool as last resort)
@@ -160,15 +189,31 @@ export const APP_CATALOG_RPC     = "https://base-rpc.publicnode.com";  // prefer
    rotate on failure. A localStorage "enclave_rpc" override (absent in
    production; the e2e suite seeds it) points every read at one endpoint, which
    is exactly why it is loopback-origin only - see devOverride above. */
-const _rpc = devOverride("enclave_rpc");
-export const APP_CATALOG_RPCS    = _rpc ? [_rpc] : [APP_CATALOG_RPC, "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
+const _rpc = IND_ANY ? null : devOverride("enclave_rpc");
+const LEGACY_READ_RPCS = [APP_CATALOG_RPC, "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
+/* The release read authority (js/core/read-authority.js): LEGACY (the pool above, or the loopback dev override) unless
+   the build embedded an "own-rpc" authority - then ONLY its endpoints, with no public pool and no dev override; an
+   invalid one leaves the pool EMPTY so every read refuses (chain.js baseRpc). A self-hosted transport, not a proof. */
+export const READ_AUTHORITY = resolveReadAuthority({ independentState: INDEPENDENT.state, legacy: LEGACY_READ_RPCS, devRpc: _rpc });
+export const APP_CATALOG_RPCS    = IND_ANY ? (IND ? [...IND.rpcs] : []) : [...READ_AUTHORITY.rpcs];
 
 /* ---- IPFS ---- */
-export const IPFS_UPLOAD_URL = "https://ipfs.enclave.host/add-wasm"; // validating upload gateway (server validates + pins); empty => paste-a-CID only
-export const IPFS_IMAGE_UPLOAD_URL = "https://ipfs.enclave.host/add-image"; // validating image pin (app thumbnail/banner); empty => image upload off
-export const IPFS_JSON_UPLOAD_URL = "https://ipfs.enclave.host/add-json";   // validating config pin (catalog rev-7 large app configs); empty => configs capped at the on-chain inline limit
-export const IPFS_GATEWAY    = "https://ipfs.io/ipfs/";      // where the "fetch .wasm" links resolve
-export const IPFS_IMG_GATEWAY = "https://ipfs.enclave.host/ipfs/"; // app media (thumbnail/banner) - served from our own gateway for speed/reliability
+// Enable after the configured adapter release supports direct signatures.
+export const IPFS_WALLET_AUDIENCE = "";
+// Independent mode never uses Enclave's adapter or upload tokens: uploads go to every adapter in the profile's storage
+// plan with a wallet signature each (js/core/storage-plan.js), and reads use those adapters' gateways.
+export const STORAGE_PLAN = IND ? IND.storage : null;
+export let IPFS_UPLOAD_URL = "https://ipfs.enclave.host/add-wasm"; // validating upload gateway (server validates + pins); empty => paste-a-CID only
+export let IPFS_IMAGE_UPLOAD_URL = "https://ipfs.enclave.host/add-image"; // validating image pin (app thumbnail/banner); empty => image upload off
+export let IPFS_JSON_UPLOAD_URL = "https://ipfs.enclave.host/add-json";   // validating config pin (catalog rev-7 large app configs); empty => configs capped at the on-chain inline limit
+export let IPFS_GATEWAY    = "https://ipfs.io/ipfs/";      // where the "fetch .wasm" links resolve
+export let IPFS_IMG_GATEWAY = "https://ipfs.enclave.host/ipfs/"; // app media (thumbnail/banner) - served from our own gateway for speed/reliability
+if (IND_ANY){
+  // no hosted upload gateway at all; reads go to the profile's first storage adapter ("" without a plan)
+  const g = STORAGE_PLAN ? STORAGE_PLAN.replicas[0].gateway + "/" : "";
+  IPFS_UPLOAD_URL = ""; IPFS_IMAGE_UPLOAD_URL = ""; IPFS_JSON_UPLOAD_URL = "";
+  IPFS_GATEWAY = g; IPFS_IMG_GATEWAY = g;
+}
 export const MAX_WASM_MB     = 2048;                         // upload ceiling (also enforced server-side by Caddy request_body max_size and the add-wasm gateway)
 export const MAX_WASM_BYTES  = MAX_WASM_MB * 1024 * 1024;
 export const MAX_IMAGE_MB    = 4;                            // thumbnail/banner ceiling (also enforced by the add-image gateway)

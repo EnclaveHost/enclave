@@ -1,0 +1,22 @@
+{
+  "unit": "enclave-snp-verifier-canary-20261025t174309z-607372db.scope",
+  "startedAt": "2026-10-25T17:43:09.217745+00:00",
+  "interrupted": null,
+  "exitCode": 0,
+  "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-snp-verifier-canary-20261025t174309z-607372db.scope",
+  "scopeStop": 5,
+  "scopeActiveState": "inactive",
+  "cgroupEmpty": true,
+  "survivors": [],
+  "ownedAbsenceProven": true,
+  "privatePresentAfterChild": false,
+  "privateAbsent": true,
+  "qemusNow": {
+    "1036966": 112110333,
+    "2129788": 117205091,
+    "2129873": 117205861,
+    "3817658": 32598976
+  },
+  "finishedAt": "2026-10-25T17:43:42.628360+00:00",
+  "code": 0
+}

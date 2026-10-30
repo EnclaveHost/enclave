@@ -199,7 +199,8 @@ func TestRefusesEveryFeatureItCannotHonourInsideTheGuest(t *testing.T) {
 			t.Errorf("%s: got %d %v, want 422", k, code, body)
 		}
 	}
-	if code, body := r.do("POST", "/vms", map[string]any{"image": "file://" + p, "name": "0xa", "volumes": []any{}}); code != 400 {
+	// ("volumes" is a known field since model volumes, modelvol.go: its singular is not)
+	if code, body := r.do("POST", "/vms", map[string]any{"image": "file://" + p, "name": "0xa", "volume": []any{}}); code != 400 {
 		t.Errorf("an unknown field must be refused, not dropped: %d %v", code, body)
 	}
 	if _, list := r.do("GET", "/vms", nil); len(list["vms"].([]any)) != 0 || r.f.builds != 0 {
@@ -411,6 +412,18 @@ func TestHealthStatesWhatATenantDoesNotGet(t *testing.T) {
 	for _, k := range []string{"gpu", "secrets", "egress", "config", "ports", "configCid"} {
 		if sup[k] != false {
 			t.Errorf("health must state %s=false so a claim gate can refuse such deployments", k)
+		}
+	}
+}
+
+// encVolumes is claimed only by a release guestd whose pinned template states it (rt/encvol.enabled).
+func TestHealthStatesEncVolumesOnlyWithTheImageAndARelease(t *testing.T) {
+	for _, c := range []struct{ marker, release, want bool }{{false, false, false}, {true, false, false}, {false, true, false}, {true, true, true}} {
+		r := newRig(t)
+		r.s.RuntimeEncvol, r.s.Release = c.marker, c.release
+		_, h := r.do("GET", "/health", nil)
+		if got := h["supports"].(map[string]any)["encVolumes"]; got != c.want {
+			t.Errorf("marker=%v release=%v: encVolumes=%v, want %v", c.marker, c.release, got, c.want)
 		}
 	}
 }

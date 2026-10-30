@@ -1,0 +1,69 @@
+--- measured24763
++++ settlement-accounting-extraction
+@@ -1272,20 +1272,7 @@
+     /// @dev Credit through the cutoff, return the funded tail, then clear the
+     ///      run. balance6 + spent6 is unchanged; escrow only moves to earned6.
+     function _settleAt(Deployment storage d, uint64 cutoff, bool stopped) private {
+-        _creditRunner(d, cutoff);                // pay for time served through the cutoff; the tail earns nothing
+-        uint256 tail = 0;                        // not `refund` — that names the owner-facing rev-10 call
+-        if (d.leaseUntil > cutoff) {
+-            tail = (d.leaseUntil - cutoff) * d.rate;   // rate unchanged since the burn: no underflow
+-            d.balance6 += tail;
+-            d.spent6 -= tail;
+-        }
+-        if (stopped) { d.active = false; emit ActiveSet(d.id, false); }
+-        emit Released(d.id, d.runner, tail);
+-        d.runner = bytes32(0);
+-        d.runnerOperator = address(0);
+-        d.leaseUntil = 0;
+-        _earn[d.id].creditedUntil = 0;           // meter idles until the next start restarts it
+-        provenUntil[d.id] = 0;                   // and the proof watermark resets with it
++        EnclaveLifecycleAccounting.settle(d,_earn[d.id],earned6,provenUntil,cutoff,proofRequired(),stopped);
+     }
+ 
+     /// @dev Allocate all affordable runtime starting at `from`, without a
+@@ -1996,7 +1983,7 @@
+     event ActiveSet(bytes32 indexed id, bool active);
+     event Refunded(bytes32 indexed id, address indexed to, uint256 amount6);
+     function credit(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e,
+-        mapping(address => uint256) storage earned, uint64 upto, bool requiresProof, uint64 proven) external {
++        mapping(address => uint256) storage earned, uint64 upto, bool requiresProof, uint64 proven) public {
+         if (d.runner == bytes32(0)) return;                  // no lease has ever started, or released
+         if (upto > d.leaseUntil) upto = d.leaseUntil;        // an expired lease earns through its end, no further
+         if (requiresProof) {
+@@ -2011,7 +1998,26 @@
+         e.escrow6 -= uint96(credit);                         // cast safe: credit <= escrow6 (uint96)
+         earned[d.runnerOperator] += credit;
+         emit RunnerCredited(d.id, d.runnerOperator, credit, secs);
++    }
++    event Released(bytes32 indexed id, bytes32 indexed enclaveId, uint256 refunded6);
++    function settle(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e,
++        mapping(address => uint256) storage earned, mapping(bytes32 => uint64) storage provenUntil,
++        uint64 cutoff, bool requiresProof, bool stopped) external {
++        credit(d,e,earned,cutoff,requiresProof,provenUntil[d.id]);                // pay for time served through the cutoff; the tail earns nothing
++        uint256 tail = 0;                        // not `refund` — that names the owner-facing rev-10 call
++        if (d.leaseUntil > cutoff) {
++            tail = (d.leaseUntil - cutoff) * d.rate;   // rate unchanged since the burn: no underflow
++            d.balance6 += tail;
++            d.spent6 -= tail;
+         }
++        if (stopped) { d.active = false; emit ActiveSet(d.id, false); }
++        emit Released(d.id, d.runner, tail);
++        d.runner = bytes32(0);
++        d.runnerOperator = address(0);
++        d.leaseUntil = 0;
++        e.creditedUntil = 0;           // meter idles until the next start restarts it
++        provenUntil[d.id] = 0;                   // and the proof watermark resets with it
++    }
+     function splitFunding(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e,
+         mapping(bytes32 => uint256) storage ownerEscrow, IERC20Auth usdc,
+         address payer, uint256 rate, uint256 value, address feeTo, uint256 cut) external {
+@@ -2032,7 +2038,7 @@
+             _sendUSDC(usdc, router==address(0)?EnclaveDeployments(address(this)).payout():router,platformFee);
+             if(router!=address(0)) IVerificationFeeRouter(router).routeFee(d.id,payer,platformFee);
+         }
+-        }
++    }
+     function finishRefund(EnclaveDeployments.Deployment storage d, EnclaveDeployments.Earn storage e,
+         mapping(bytes32 => uint256) storage ownerEscrow, IERC20Auth usdc, uint256 amount) external {
+         require(amount > 0, EnclaveDeployments.LedgerRefused(17));

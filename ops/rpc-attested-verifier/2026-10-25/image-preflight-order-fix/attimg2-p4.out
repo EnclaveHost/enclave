@@ -1,0 +1,39 @@
+[queue] START available=21609MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[env] ssh/scp/sftp -> /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-image-stage/stub/bin (shell + node child proved)
+[env] private network namespace: interfaces = lo only, no IPv4 route (net:[4026533631])
+[a] FIXED POINT: pass 2 == pass 1
+[a] every builder --check passes
+[b] FIXED POINT: pass 2 == pass 1
+[b] every builder --check passes
+[determinism] clone A export == clone B export
+91d7b85213bff0c61a98521d9107acb963fca5b1cbc78c8acc2c6608b311487e  windows/node/host-admission.bundle.mjs
+ef2c277232298a975fb4e23a23142a7b8b10b619ab980a50370dc408d33d27fb  metal/guest/host-policy.bundle.mjs
+f88f2dc92c261c9f5c25cf069e655951418d00777d785379981346eb2b883339  metal/guest/lease-gas-conduit.bundle.mjs
+2f27b3b54c793d0a1495577624dc1d21201310f57b4cdad095f4082207cfb502  metal/guest/lease-gas-conduit.bundle.mjs.manifest.json
+6dd3f79be4e48f24467fce5bbd6e6ed8281f427aca006f339cad3a5ad7ccdfa7  metal/guest/platform-api.bundle.mjs
+c4556aaa89e81b8a1e273b54ef5d6bfd5493d4805d3fdcaccd136361e50d9596  metal/guest/platform-api.bundle.mjs.manifest.json
+6b5c52b2c74b328de66698a05beb5d5632f9bc9e570d64f4122c72773d57db6f  metal/guest/mcp-server.bundle.mjs
+ac37f270f769ebb080147c90ed53f8d03e58b2f480f46837c648358ac381195c  metal/guest/mcp-server.bundle.mjs.manifest.json
+b69c4765fa01c94d3e5220253d6da5235622e0f50928a9c188f0366b3170c925  relay/network-runtime.bundle.mjs
+[vs b42d6b3e7] windows/node/host-admission.bundle.mjs: unchanged
+[vs b42d6b3e7] metal/guest/host-policy.bundle.mjs: unchanged
+[vs b42d6b3e7] metal/guest/lease-gas-conduit.bundle.mjs: unchanged
+[vs b42d6b3e7] metal/guest/lease-gas-conduit.bundle.mjs.manifest.json: unchanged
+[vs b42d6b3e7] metal/guest/platform-api.bundle.mjs: CHANGES
+[vs b42d6b3e7] metal/guest/platform-api.bundle.mjs.manifest.json: CHANGES
+[vs b42d6b3e7] metal/guest/mcp-server.bundle.mjs: CHANGES
+[vs b42d6b3e7] metal/guest/mcp-server.bundle.mjs.manifest.json: CHANGES
+ metal/guest/mcp-server.bundle.mjs                 | 5881 +++++++--------
+ metal/guest/mcp-server.bundle.mjs.manifest.json   |    6 +-
+ metal/guest/platform-api.bundle.mjs               | 7959 +++++++++++----------
+ metal/guest/platform-api.bundle.mjs.manifest.json |    6 +-
+ 4 files changed, 6931 insertions(+), 6921 deletions(-)
+[ok] clone A clean, no worktree
+[patch] applies cleanly on b42d6b3e7 (checked on clone B)
+[ok] clone B clean
+396b2eb75129a15cfa89866dcf339de0a05a486343f7242534fb561013e1d7de  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-image-stage/receipts/b42d6b3e7-dormant-bundles-reordered.patch
+[ok] no ssh/scp/sftp invocation (0)
+P4-DONE
+[memory-guard] exit=0 peakTreeRssMiB=438 minHostAvailableMiB=21206
+[memory-guard] at peak: esbuild:323 node:109 bash:4 bash:2
+[queue] EXIT 0

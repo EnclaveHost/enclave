@@ -1,0 +1,11 @@
+# RPC route source candidate — October 25
+
+This branch preserves the composed candidate source without importing its older checkpoint archive history. It is a staging snapshot, not a merge into main or a production rollout. Outside checkpoints and this receipt directory, its tracked source matches local candidate dba7b4fdc091441ac8b85cca2738f19efa1003e0. The parent is published main5ca9e61dd; retained checkpoint files are the parent's, not the candidate's older preservation archives. No private deployment configuration is included.
+
+Composition: HTTPS host-service baseline aff1dafdf6f2ed8fe9a425574f7c4fe4bd1c6fa4 plus bounded history b97b661a1 and test-only teardown correction dba7b4fdc. The baseline contains earlier Windows/network/verifier work; this snapshot preserves it for reproduction and is not authority to deploy every change wholesale.
+
+Validation: 66 role/history/TLS tests and10 witness/wallet/browser tests passed. The first lifecycle suite failed on an unhandled RPC fixture teardown rejection. A deterministic regression reproduced that error on the old fixture; after the test-only correction59 lifecycle tests and10 other fixture-user tests passed, with no skips or cancellations.16 package/bundle artifacts reproduced byte-for-byte from independent exports. These are local/synthetic tests, not live Base or public TLS acceptance. Exact logs and artifact pins accompany this receipt.
+
+Remaining: chain sync and historical coverage, agent/transport policy authority integration, lease-relay verified simulation/broadcast, production host-service staging, SNP canary and consumer cutover. Administrator policy controls remain enabled. A local verifier authenticates the sequencer-signed unsafe head; it does not by itself prove L1 finality or omitted-log completeness. Single-site availability and sequencer dependence remain.
+
+Secret-scan review: the crypto hook classified13 dependency SHA256 allowlist strings and the secp256k1 half-order constant as private keys. Each dependency digest was independently recomputed and the half-order checked mathematically; see crypto-scan-review.json. These confirmed false positives use the hook's documented exception. Gitleaks is run separately on the new commit; seven exact public-source/digest lines receive narrow rule+path+line exceptions. No scanner was disabled in repository configuration.

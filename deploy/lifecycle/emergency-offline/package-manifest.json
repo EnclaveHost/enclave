@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "qualification": "source-only prototype; real paired ledger and production unqualified",
+  "packagingChange": "foundry.toml forge-std paths made repository-relative; Solidity source and tests copied byte-for-byte from validated staging candidate/draft",
+  "files": {
+    "BASELINE-AUDIT.md": "a7d8b9a7ee2392f383f6e90e9e6c6fb42252118e397de1ae8ebe03828c155553",
+    "INTEGRATION-NOTES.md": "531ef34703595a88d42e74d00e446a9f0caeb58619b7f37321d62ae7534c2628",
+    "REPORT.md": "3c6cf9d5a4fdbe4c34f86c4d9bd45c42cb9ccf9b63d03976845aaf6a02a07562",
+    "ROOT-REVIEW.md": "27dbc553f2eea35e24d711644588184833d206dea72ecfb621368fb72cf9cdb5",
+    "candidate/contracts/EnclaveDeploymentLifecycleEmergency.sol": "ac4023b9ccac9b6b48536f78f07282e8a08e6669bd983bb292bbe1ea8a8ea677",
+    "candidate/test/LifecycleEmergency.t.sol": "b0553dd8fe6de17aa32763b31666a47e2b0c516aa315857a41a8f525dbd69ef2",
+    "candidate/test/RootReserveRegression.t.sol": "823bf2f0921ee62dd308eb555d564f9b3d4bc46fa08af65f7e816581694e29b1",
+    "candidate/test/mocks/EmergencyMocks.sol": "978717c81337e7b4c15cabbe553086216ce426ebff1da9fd0c0656eaf9ad5e27",
+    "foundry.toml": "31dc3432e1937f9e8287ad173cc07d362089dd0cae2245fc64e4615b15d782a4",
+    "review-baseline/contracts/EnclaveDeploymentLifecycleEmergency.sol": "adfe406f58789ba8759be20d8b5933241fca7c315c11584f5f8c649c10b55359",
+    "review-baseline/foundry.toml": "fda1613614c339ddca009d4967ed92078ba3e7c49542de8f3e768d67c62d678c",
+    "review-baseline/test/LifecycleEmergency.t.sol": "b0553dd8fe6de17aa32763b31666a47e2b0c516aa315857a41a8f525dbd69ef2",
+    "review-baseline/test/RootReserveRegression.t.sol": "823bf2f0921ee62dd308eb555d564f9b3d4bc46fa08af65f7e816581694e29b1",
+    "review-baseline/test/mocks/EmergencyMocks.sol": "978717c81337e7b4c15cabbe553086216ce426ebff1da9fd0c0656eaf9ad5e27",
+    "root-validation/baseline-reserve.txt": "18094497aa2f8f55c6d5e928e553f35048384995d18ae68adff23330f08ff187",
+    "root-validation/corrected.txt": "fcecff021321a2dc7dd84bffdd354b268dcd5b2424f4b918f1378b0ab495caa3",
+    "root-validation/first-cap-attempt.json": "c6b81a52c8ac7f594c82c22e71fd6bb59e731156418ea31c8082bffbb9ff6ad2",
+    "root-validation/result.json": "7787367efecd69ceeb2d34422a7c30ada248b5e9f3ef0faadcbf6a71fd9ec5f0",
+    "source-manifest.json": "326cbaedc7efc6b942fbe9cd92f0731d1d164d683af19171e15ddf1b73593519"
+  }
+}

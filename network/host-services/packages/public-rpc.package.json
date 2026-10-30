@@ -1,0 +1,36 @@
+{
+  "format": "enclave-host-service-package/v1",
+  "role": "public-rpc",
+  "entry": "network/public-rpc.mjs",
+  "bundle": "public-rpc.mjs",
+  "bundleSha256": "24aabe4b6514c6e3a43b1659053ad6f278bbe01bb140004e92f4ff9c514a8c88",
+  "bytes": 31352,
+  "runtime": "node>=22 (host role; not a wasm component)",
+  "kind": null,
+  "serves": "POST / JSON-RPC 2.0 for browser network profiles (eth_chainId, eth_blockNumber, eth_getBlockByNumber, eth_call, eth_estimateGas, eth_getCode, eth_getBalance, eth_getTransactionCount, eth_getStorageAt, eth_getLogs, eth_getTransactionReceipt, eth_getTransactionByHash, eth_sendRawTransaction, eth_getProof, eth_getBlockByHash, eth_maxPriorityFeePerGas, eth_getBlockReceipts; eth_sendRawTransaction only with an operator-stated propagation route), GET /health; reads from the operator's own node, the verifier's methods (eth_chainId, eth_blockNumber, eth_getBlockByNumber, eth_call, eth_getCode, eth_getStorageAt, eth_getBalance) from the local verifier when configured, never a third-party RPC",
+  "state": {
+    "durable": false,
+    "what": "none",
+    "rebuild": "n/a"
+  },
+  "secrets": "none (no key, wallet or signing method; the node and verifier are loopback endpoints)",
+  "cold": [
+    "the operator's own synced Base node on this machine (loopback)",
+    "optionally this host's local verifier (loopback) for the methods it proves"
+  ],
+  "notCold": [
+    "any public RPC provider",
+    "api.enclave.host",
+    "discovery",
+    "directories",
+    "storage adapters",
+    "lease relays",
+    "any app"
+  ],
+  "builder": "scripts/build-host-service-packages.mjs",
+  "inputs": {
+    "network/public-rpc-config.mjs": "85f55e92d5a4b6b2dd9a54fdc49219627034df80fd452063f2330a180cabc1b4",
+    "network/public-rpc.mjs": "ed48b11745e12045f88582a67677c1018787a7887f5dd63bb40c21101030849a",
+    "network/rpc-identity.mjs": "5c5a43355b5bde1542432e26fc71190a04a0ad68a22d43979f83054a292c73b1"
+  }
+}

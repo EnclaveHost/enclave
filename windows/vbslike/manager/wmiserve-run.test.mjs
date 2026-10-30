@@ -150,3 +150,39 @@ test("M4: a domain the monitor recorded WITHOUT the name, or with another one, i
   const e2 = await refusedBy(run("name-changed", { certName: "4e62e60d.app.enclave.host" }));
   assert.match(e2.message, /loaded with the name "00000000\.app\.enclave\.host", not "4e62e60d\.app\.enclave\.host"/);
 });
+
+// nucbox, 2026-10-21 11:27-11:46Z: the Windows manager crashed four times with an unhandled 'error' event,
+// ERR_STREAM_WRITE_AFTER_END, from stopRun (wmiserve-run.mjs) via Manager.remove -> backend.stop -> #closeServed. A failed
+// domain's relay is stopped (run.stop) and the node's DELETE stops it again while the child is still closing. Each crash
+// respawned every partition on the host, so no app finished re-certifying and all of them fell off DNS.
+test("two stops of one run (a failed domain's relay stop, then the node's DELETE) share ONE stop and crash nothing", async () => {
+  const r = await run("ignore-stdin");                      // the child never exits on its own: stop ends at the kill deadline
+  const crashes = []; const onErr = (e) => crashes.push(e);
+  process.on("uncaughtException", onErr);
+  try {
+    // The second stop arrives while stdin is ENDED but not yet destroyed: the state in which production (Windows, Node 24)
+    // emitted ERR_STREAM_WRITE_AFTER_END. On Linux the pipe is destroyed a tick later and a late write is dropped silently,
+    // so the same tick is what reproduces the production path here.
+    const first = r.stop(), second = r.stop();
+    await new Promise((res) => setImmediate(res));
+    const third = r.stop();
+    const [a, b, c] = await Promise.all([first, second, third]);
+    await new Promise((res) => setTimeout(res, 50));        // any deferred stream 'error' event surfaces here
+    assert.deepEqual(crashes.map((e) => e.code || e.message), [], "no unhandled stream error (production: ERR_STREAM_WRITE_AFTER_END)");
+    assert.equal(a.how, "killed after the close deadline"); assert.deepEqual(b, a); assert.deepEqual(c, a);
+    assert.deepEqual(await r.stop(), a, "a stop after the run ended still answers, without writing again");
+  } finally { process.off("uncaughtException", onErr); }
+});
+test("a stop after the child closed its stdin (a closed pipe) crashes nothing and still ends the run", async () => {
+  const r = await run("close-stdin");
+  await new Promise((res) => setTimeout(res, 200));         // the child has destroyed its stdin and keeps running
+  const crashes = []; const onErr = (e) => crashes.push(e);
+  process.on("uncaughtException", onErr);
+  try {
+    const s = await r.stop();
+    await new Promise((res) => setTimeout(res, 50));
+    assert.deepEqual(crashes.map((e) => e.code || e.message), [], "no unhandled EPIPE / write-after-end");
+    assert.match(s.how, /killed after the close deadline|exited/);
+    const ex = await r.exited; assert.ok(ex.code !== null || ex.signal !== null, "the child is gone");
+  } finally { process.off("uncaughtException", onErr); }
+});

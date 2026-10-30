@@ -1,5 +1,5 @@
 import {
-  createPublicClient, decodeErrorResult, hashTypedData, http, keccak256, type Address, type Hex, type PublicClient,
+  createPublicClient, decodeErrorResult, encodeFunctionData, hashTypedData, http, keccak256, type Address, type Hex, type PublicClient,
 } from "viem";
 import { sessionVaultAbi, sessionVaultFactoryAbi, usdcAbi, addressBookAbi } from "./abi.js";
 import { amountOf, encodeArgs, type ActionArgs } from "./args.js";
@@ -174,6 +174,17 @@ export interface SessionHandle {
 
 export interface CallResult { txHash: Hex; result: Hex; fee: bigint }
 
+/** Portable calldata for any gas payer. Preparation signs an intent, but does not
+ * submit it. The caller must check the receipt; preparation does not reserve a nonce. */
+export interface PreparedSessionTransaction { chainId: number; to: Address; data: Hex; value: 0n }
+
+async function directDeadline(pc: PublicClient, chainId: number, seconds = 600): Promise<bigint> {
+  if (!Number.isSafeInteger(seconds) || seconds < 1 || seconds > 3600)
+    throw new SessionError("config", "deadlineSeconds must be an integer from 1 to 3600");
+  if (await pc.getChainId() !== chainId) throw new SessionError("config", "RPC chain does not match the session");
+  return (await pc.getBlock()).timestamp + BigInt(seconds);
+}
+
 export class Session {
   readonly relay: RelayClient;
   private pc?: PublicClient;
@@ -186,6 +197,41 @@ export class Session {
   private chain(): PublicClient { return (this.pc ??= chainClient(this.handle.chainId, this.handle.rpc)); }
 
   status(): Promise<SessionState> { return readSession(this.chain(), this.handle.vault, this.handle.sid); }
+
+  /** Authorize a zero-relay-fee operation using chain reads only. An owner or
+   * independent gas payer can broadcast the returned calldata. The vault remains
+   * authoritative for scope, attestation, budget, revocation and replay checks. */
+  async prepareCall<A extends OnChainAction>(action: A, args: ActionArgs[A],
+    opts: { lane?: bigint; deadlineSeconds?: number } = {}): Promise<PreparedSessionTransaction> {
+    const lane = opts.lane ?? 0n;
+    if (lane < 0n || lane >= (1n << 192n)) throw new SessionError("config", "lane must fit uint192");
+    const deadline = await directDeadline(this.chain(), this.handle.chainId, opts.deadlineSeconds);
+    const s = await this.status();
+    if (!s.live) throw new SessionError("not_live", "this session is not live");
+    if (((s.actions >> BigInt(ACTIONS[action])) & 1n) === 0n)
+      throw new SessionError("not_allowed", `this session may not ${action}`);
+    const amount = amountOf(action, args);
+    if (amount > s.balance6) throw new SessionError("budget", `needs ${amount}, session has ${s.balance6}`);
+    const data = encodeArgs(action, args);
+    const nonce = (lane << 64n) | await this.seq(lane);
+    const digest = digestOf(this.handle.chainId, this.handle.vault, "SessionCall", {
+      sessionId: this.handle.sid, nonce, action: ACTIONS[action], argsHash: keccak256(data), fee: 0n, deadline,
+    });
+    const { r, s: sv } = await this.signer.signDigest(digest);
+    return { chainId: this.handle.chainId, to: this.handle.vault, value: 0n,
+      data: encodeFunctionData({ abi: sessionVaultAbi, functionName: "execute",
+        args: [this.handle.sid, nonce, ACTIONS[action], data, 0n, deadline, this.signer.x, this.signer.y, r, sv] }) };
+  }
+
+  /** End and refund a session through any gas payer, without contacting a relay. */
+  async prepareTermination(opts: { deadlineSeconds?: number } = {}): Promise<PreparedSessionTransaction> {
+    const deadline = await directDeadline(this.chain(), this.handle.chainId, opts.deadlineSeconds);
+    const digest = digestOf(this.handle.chainId, this.handle.vault, "SessionEnd", { sessionId: this.handle.sid, deadline });
+    const { r, s } = await this.signer.signDigest(digest);
+    return { chainId: this.handle.chainId, to: this.handle.vault, value: 0n,
+      data: encodeFunctionData({ abi: sessionVaultAbi, functionName: "terminateBySession",
+        args: [this.handle.sid, deadline, this.signer.x, this.signer.y, r, s] }) };
+  }
 
   /** Check, quote, sign and submit one action. Throws SessionError with a code the
    *  caller can act on (budget -> top-up, expired -> extend, ...). */
@@ -352,6 +398,31 @@ export async function openSession(p: {
   return out;
 }
 
+/** Open a fresh session without relay discovery or submission. The caller chooses
+ * the factory explicitly. A budget uses an owner-signed, grant-bound USDC deposit;
+ * any gas payer may submit, but cannot alter the grant or redirect its funds. */
+export async function prepareSessionOpen(p: {
+  publicClient: PublicClient; factory: Address; owner: OwnerSigner; chainId: number; grant: Grant; usdc?: UsdcDomain;
+}): Promise<PreparedSessionTransaction & { vault: Address; sid: Hex }> {
+  if (await p.publicClient.getChainId() !== p.chainId) throw new SessionError("config", "RPC chain does not match the grant");
+  if (p.grant.budget > 0n && (!p.usdc || p.usdc.chainId !== p.chainId))
+    throw new SessionError("config", "a funded session needs the matching chain's USDC domain");
+  const vault = await vaultAddress(p.publicClient, p.factory, p.owner.address);
+  const ownerSig = await p.owner.signTypedData(typedData(p.chainId, vault, "SessionGrant",
+    p.grant as unknown as Record<string, unknown>) as never);
+  let data: Hex;
+  if (p.grant.budget > 0n) {
+    const deposit = await signDeposit(p.owner, p.usdc!, vault, p.grant.budget,
+      grantDigest(p.chainId, vault, p.grant), p.grant.signBefore);
+    data = encodeFunctionData({ abi: sessionVaultFactoryAbi, functionName: "openWithDepositFor",
+      args: [p.owner.address, p.grant, ownerSig, deposit.validAfter, deposit.validBefore, deposit.sig] });
+  } else {
+    data = encodeFunctionData({ abi: sessionVaultFactoryAbi, functionName: "openFor", args: [p.owner.address, p.grant, ownerSig] });
+  }
+  return { chainId: p.chainId, to: p.factory, data, value: 0n, vault,
+    sid: sessionIdOf(vault, p.grant.sessionKey, p.grant.grantNonce) };
+}
+
 export type OwnerOp =
   | { op: "topUp"; sessionId: Hex; amount: bigint }
   | { op: "extend"; sessionId: Hex; expiresAt: bigint }
@@ -388,6 +459,96 @@ export async function ownerOperation(p: {
   const message = { ...fields, opNonce, signBefore };
   const sig = await p.owner.signTypedData(typedData(p.chainId, p.vault, OP_TYPE[op], message) as never);
   return p.relay.request("POST", "/owner", { owner: p.owner.address, vault: p.vault, op, args: message, sig });
+}
+
+// ============================================================================
+// Owner operations without a relay (SessionVault._ownerAuth): portable calldata
+// ============================================================================
+
+const OWNER_FN: Record<OwnerOp["op"], string> = {
+  topUp: "topUp", extend: "extend", terminate: "terminate", revokeAll: "revokeAll", withdraw: "withdraw",
+  promote: "promote", adopt: "adopt", setEnvironment: "setEnvironment", release: "release",
+};
+
+/** The vault call for one owner operation, in exactly the relay's argument order (relay/sessions.mjs "/owner"). */
+function ownerCallArgs(op: OwnerOp, opNonce: Hex, signBefore: bigint, sig: Hex): readonly unknown[] {
+  switch (op.op) {
+    case "topUp": return [op.sessionId, op.amount, opNonce, signBefore, sig];
+    case "extend": return [op.sessionId, op.expiresAt, opNonce, signBefore, sig];
+    case "terminate": return [op.sessionId, opNonce, signBefore, sig];
+    case "revokeAll": return [op.withdraw, opNonce, signBefore, sig];
+    case "withdraw": return [op.amount, opNonce, signBefore, sig];
+    case "promote": return [op.deployment, op.app, op.publisher, op.appRef, op.configCid, op.versionLabel, op.isPublic, opNonce, signBefore, sig];
+    case "adopt": return [op.deployment, op.environment, opNonce, signBefore, sig];
+    case "setEnvironment": return [op.deployment, op.environment, opNonce, signBefore, sig];
+    case "release": return [op.deployment, op.to, opNonce, signBefore, sig];
+  }
+}
+
+async function chainNow(pc: PublicClient, chainId: number): Promise<bigint> {
+  if (await pc.getChainId() !== chainId) throw new SessionError("config", "RPC chain does not match the vault");
+  return (await pc.getBlock()).timestamp;
+}
+const validWindow = (s: number | undefined) => {
+  const v = s ?? 600;
+  if (!Number.isSafeInteger(v) || v < 1 || v > 3600) throw new SessionError("config", "validSeconds must be an integer from 1 to 3600");
+  return BigInt(v);
+};
+
+/** One owner operation as calldata for the vault, with no relay. The vault, not this function, authorizes it
+ *  (SessionVault._ownerAuth) against its CURRENT owner when the transaction executes:
+ *   - "direct": the vault's owner account itself submits the call. msg.sender == owner authorizes it in that block;
+ *     opNonce and signBefore are ignored and no signature is made.
+ *   - "signed": the owner signs the typed operation (EIP-712 domain of this vault and chain, a fresh random opNonce,
+ *     signBefore = chain time + validSeconds); any gas payer may submit it once, before signBefore. A changed owner,
+ *     a reused nonce or a late submission reverts on chain.
+ *  `expectOwner`, when given, is checked against vault.owner() first so a mistaken wallet fails before signing. */
+export async function prepareOwnerOperation(p: {
+  publicClient: PublicClient; chainId: number; vault: Address; op: OwnerOp; mode: "direct" | "signed";
+  owner?: OwnerSigner; expectOwner?: Address; validSeconds?: number;
+}): Promise<PreparedSessionTransaction & { fn: string; opNonce: Hex; signBefore: bigint; mode: "direct" | "signed" }> {
+  const fn = OWNER_FN[p.op?.op];
+  if (!fn) throw new SessionError("config", "unknown owner operation");
+  const now = await chainNow(p.publicClient, p.chainId);
+  const current = (await p.publicClient.readContract({ address: p.vault, abi: sessionVaultAbi, functionName: "owner" })) as Address;
+  const who = p.mode === "signed" ? p.owner?.address : p.expectOwner;
+  if (p.mode === "signed" && !p.owner) throw new SessionError("config", "a signed owner operation needs the owner's signer");
+  if (p.mode !== "signed" && p.mode !== "direct") throw new SessionError("config", "mode must be direct or signed");
+  if (who && who.toLowerCase() !== current.toLowerCase())
+    throw new SessionError("signature", `this vault belongs to ${current}, not ${who}`);
+  const opNonce = randomNonce();
+  const signBefore = now + validWindow(p.validSeconds);
+  let sig: Hex = "0x";
+  if (p.mode === "signed") {
+    const { op, ...fields } = p.op;
+    sig = (await p.owner!.signTypedData(typedData(p.chainId, p.vault, OP_TYPE[op], { ...fields, opNonce, signBefore }) as never)) as Hex;
+  }
+  return { chainId: p.chainId, to: p.vault, value: 0n, fn, opNonce, signBefore, mode: p.mode,
+    data: encodeFunctionData({ abi: sessionVaultAbi, functionName: fn as never, args: ownerCallArgs(p.op, opNonce, signBefore, sig) as never }) };
+}
+
+/** Add budget to a live session straight from the owner's wallet, with no relay: one USDC EIP-3009
+ *  ReceiveWithAuthorization signed by the owner whose nonce IS the TopUp digest (vault domain, sessionId, amount,
+ *  opNonce, validBefore), so it can fund this top-up and nothing else. Any gas payer submits topUpWithAuthorization;
+ *  USDC pulls from the vault's CURRENT owner, so an authorization signed by anyone else fails on chain. */
+export async function prepareTopUpFromWallet(p: {
+  publicClient: PublicClient; chainId: number; vault: Address; sessionId: Hex; amount: bigint; usdc: UsdcDomain;
+  owner: OwnerSigner; validSeconds?: number;
+}): Promise<PreparedSessionTransaction & { opNonce: Hex; validBefore: bigint }> {
+  if (p.amount <= 0n) throw new SessionError("config", "top-up amount must be positive");
+  if (p.usdc.chainId !== p.chainId) throw new SessionError("config", "USDC domain is for another chain");
+  const now = await chainNow(p.publicClient, p.chainId);
+  const current = (await p.publicClient.readContract({ address: p.vault, abi: sessionVaultAbi, functionName: "owner" })) as Address;
+  if (current.toLowerCase() !== p.owner.address.toLowerCase())
+    throw new SessionError("signature", `this vault belongs to ${current}, not ${p.owner.address}`);
+  const opNonce = randomNonce();
+  const validBefore = now + validWindow(p.validSeconds);
+  const commitment = hashTypedData(typedData(p.chainId, p.vault, "TopUp",
+    { sessionId: p.sessionId, amount: p.amount, opNonce, signBefore: validBefore }) as never);
+  const dep = await signDeposit(p.owner, p.usdc, p.vault, p.amount, commitment, validBefore);
+  return { chainId: p.chainId, to: p.vault, value: 0n, opNonce, validBefore,
+    data: encodeFunctionData({ abi: sessionVaultAbi, functionName: "topUpWithAuthorization",
+      args: [p.sessionId, p.amount, opNonce, dep.validAfter, validBefore, dep.sig] }) };
 }
 
 /** Top up from the owner's WALLET with one signature (USDC authorization whose

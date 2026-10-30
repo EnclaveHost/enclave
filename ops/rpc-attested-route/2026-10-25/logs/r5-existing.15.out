@@ -1,0 +1,20 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/platform-host-policy.test.mjs
+✔ anchor: full 32 bytes in two padded halves; torn, malformed and unpadded values refused; exact unsigned setMany (10.051434ms)
+✔ format binds book, registry and ownership extension; strict bounds (1.716287ms)
+✔ anchored loader: exact digest only; a withheld newer policy cannot be replaced by an older signed one; missing mirror fails closed (33.373056ms)
+✔ minority RPC poisoning cannot change the anchor, the owner or a host fact; a poisoned majority-free read does not count (13.524357ms)
+✔ book owner rotation: the former owner's signature stops verifying; an ERC-1271 owner answers at the snapshot block (21.875964ms)
+✔ persistence: a tampered record is discarded and reported; a persisted newer policy refuses an anchored rollback (21.989233ms)
+✔ decisions use the ACCEPTED owner and operator at the agreed block, deny overrides admit, and a node behind the anchor refuses (13.942954ms)
+✔ expiry never lifts a ban; stale refuses new hosts; unanchored operation is refused unless explicitly allowed; OFF is explicit (10.173083ms)
+✔ runtime: absent config is OFF, malformed config throws, a configured runtime enforces through HTTPS mirrors (43.768907ms)
+✔ anchored NON-EXPIRING mode: no renewal schedule; the fresh anchor alone keeps it current, revokes it and replaces it (49.068827ms)
+✔ core v2: current-owner authority is re-checked at EVERY decision block; rotation or ERC-1271 withdrawal stops admission; re-signing the same document restores it (29.291747ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 450.552004

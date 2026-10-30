@@ -226,11 +226,12 @@ test("registration re-fires when the address book repoints the registry", () => 
   assert.match(onChain[0], /registryRepointed\(\)[\s\S]*?_enclaveId = null/,
     "a repoint must clear the cached enclave id - it does not exist on the new registry");
 
-  // an idle box gets no requests, so the heartbeat is its only chance to notice
-  const heartbeat = /setInterval\(async \(\) => \{[\s\S]*?HEARTBEAT_SEC\) \* 1000\)/.exec(sup);
-  assert.ok(heartbeat, "registry heartbeat loop not found");
-  assert.match(heartbeat[0], /registryRepointed\(\)/,
-    "an idle enclave must notice a repoint from its heartbeat, not only from traffic");
+  // an idle box gets no requests, so the reconcile pass is its only chance to notice (it sends no heartbeat)
+  const reconcile = /setInterval\(async \(\) => \{[\s\S]*?RECONCILE_SEC\) \* 1000\)/.exec(sup);
+  assert.ok(reconcile, "registry reconcile loop not found");
+  assert.match(reconcile[0], /registryRepointed\(\)/,
+    "an idle enclave must notice a repoint from its reconcile pass, not only from traffic");
+  assert.doesNotMatch(reconcile[0], /"heartbeat"/, "the reconcile pass sends no heartbeat transaction");
 });
 
 /* A failed schema sniff must not be cached as "rev 1".

@@ -3,8 +3,12 @@
 # superseded in the concurrency queue are never lost), then each surface deploys
 # only when its files changed:
 #
-#   site/** | cli/install.{sh,ps1}           -> scp to the site box + IPFS publish (site/deploy.sh;
-#                                               the installers land in /opt/enclave-get for Caddy)
+#   site/** | cli/install.{sh,ps1}|host.ps1  -> site: build ONE content-addressed release (site/deploy.sh prepare: old
+#                                               hashed chunks and CSP hashes kept 48h, installers in the tree), verify,
+#                                               upload. site-deliver (environment site-release): mirror that exact CID to
+#                                               every operator target in vars.SITE_DELIVERY_TARGETS (ssh hosts, kubo,
+#                                               local roots), a journalled fenced rollout (pending = resolve), then publish through an owner-
+#                                               approved session, or leave the owner's exact plan (docs/site-release.md)
 #   relay/**                                 -> scp to the relay box + systemd restart (relay/deploy.sh)
 #   contracts/<Name>.sol                     -> deploy that contract to Base (scripts/deploy-*.mjs),
 #                                               gated on the `contract-deploy` environment approval,
@@ -119,6 +123,7 @@ jobs:
             [ -n "$f" ] || continue
             case "$f" in
               site/deploy.sh|relay/deploy.sh) ;;   # deploy tooling runs from a fresh checkout; nothing to redeploy
+              scripts/site-release/*) ;;            # release tooling (site/deploy.sh), likewise
               site/*)                  site=true ;;
               cli/install.sh|cli/install.ps1|cli/host.ps1) site=true ;;   # served from /opt/enclave-get (curl|sh installers; host.ps1 = the Windows host)
               relay/*)                 relay=true ;;
@@ -142,16 +147,6 @@ jobs:
               # release and repoint the fleet (run 32983352553, cancelled) for a
               # file nothing in the image reads.
               wasm/.gitignore|wasm/*/.gitignore) ;;
-              # Benchmark tools and CPU-kernel test harnesses are not build
-              # inputs either. wasm/Dockerfile.wasm copies only
-              # llamacpp-parallel-copy.patch, apps/nn-demo.wasm, wasm_manager.py
-              # and ipfs_fetch.py out of its wasm/ context, and
-              # metal/build-image.mjs compiles a fixed source list from
-              # wasm/ggml-shielded (bench-*.cpp are non-default Makefile targets).
-              # 2026-09-23: seven pushes of exactly such files each cut a measured
-              # release and repointed the fleet (v0.5.832-835, 837-839).
-              wasm/llamacpp-conv-inplace/*) ;;
-              wasm/ggml-shielded/bench-spec.cpp|wasm/ggml-shielded/bench-batch.cpp) ;;
               wasm/*)                  wasm=true ;;
               # Metal guest/launcher code ships ONLY via tags: a metal box's
               # update flow (metal/update.mjs) builds the guest image at the
@@ -321,6 +316,9 @@ jobs:
       (needs.detect.outputs.site == 'true' || needs.contracts.outputs.wired_site == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      cid: ${{ steps.prepare.outputs.cid }}
+      commit: ${{ steps.checkout.outputs.commit }}
 
     steps:
       - name: Checkout main tip (includes any wiring commit)
@@ -329,27 +327,187 @@ jobs:
           ref: main
           persist-credentials: false
 
-      - name: Set up SSH
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
-          SITE_SSH_HOST: ${{ vars.SITE_SSH_HOST }}
-        run: |
-          set -euo pipefail
-          [ -n "$DEPLOY_SSH_KEY" ] || { echo "::error::DEPLOY_SSH_KEY secret is not set (run scripts/ci-setup.sh)"; exit 1; }
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          printf 'Host nan\n  HostName %s\n  User root\n' "$SITE_SSH_HOST" > ~/.ssh/config
-          chmod 600 ~/.ssh/config
+      - name: Record the commit the release is built from
+        id: checkout
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      # the site bundler (scripts/build-site.mjs, run by deploy.sh) needs
+      # the site bundler (scripts/build-site.mjs, run by deploy.sh prepare) needs
       # esbuild + @tailwindcss/cli from devDependencies
       - name: Install build dependencies
         run: npm ci
 
-      - name: Deploy site
-        run: bash site/deploy.sh
+      # The release being replaced, so cached tabs keep their hashed chunks and CSP hashes: fetched by CID from the
+      # operator's gateways, which are untrusted (the CAR must verify to the CID). There is no default host and no
+      # fallback: without a configured base the job fails, unless the operator chose a no-base release explicitly.
+      - name: Fetch the base release (verified by CID)
+        env:
+          BASE_CID: ${{ vars.SITE_RELEASE_BASE_CID }}
+          GATEWAYS: ${{ vars.SITE_RELEASE_GATEWAYS }}
+          BASE_MODE: ${{ vars.SITE_RELEASE_BASE }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_CID" ]; then
+            [ -n "$GATEWAYS" ] || { echo "::error::SITE_RELEASE_BASE_CID is set but SITE_RELEASE_GATEWAYS (comma-separated https gateways) is not"; exit 1; }
+            node scripts/site-release/cli.mjs fetch --cid "$BASE_CID" --gateway "$GATEWAYS" --out "$RUNNER_TEMP/site-base" --as-base
+            echo "SITE_BASE_ARGS=--base $RUNNER_TEMP/site-base/$BASE_CID" >> "$GITHUB_ENV"
+          elif [ "$BASE_MODE" = "none" ]; then
+            echo "::warning::SITE_RELEASE_BASE=none: this release keeps no older hashed chunks or CSP hashes"
+            echo "SITE_BASE_ARGS=--no-base-i-accept-dropping-old-chunks" >> "$GITHUB_ENV"
+          else
+            echo "::error::set SITE_RELEASE_BASE_CID (the release being replaced) and SITE_RELEASE_GATEWAYS, or SITE_RELEASE_BASE=none (docs/site-release.md)"
+            exit 1
+          fi
+
+      - name: Prepare and verify the site release
+        id: prepare
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086  # SITE_BASE_ARGS is a flag and its value
+          bash site/deploy.sh prepare --out "$RUNNER_TEMP/site-release" $SITE_BASE_ARGS | tee "$RUNNER_TEMP/site-release.txt"
+          cid="$(sed -n 's/^site release \(b[a-z2-7]\{58\}\)$/\1/p' "$RUNNER_TEMP/site-release.txt" | head -1)"
+          [ -n "$cid" ] || { echo "::error::no release CID in the prepare output"; exit 1; }
+          node scripts/site-release/cli.mjs verify "$RUNNER_TEMP/site-release/$cid"
+          echo "cid=$cid" >> "$GITHUB_OUTPUT"
+          { echo '### Site release `'"$cid"'`'; echo; echo '```'; cat "$RUNNER_TEMP/site-release.txt"; echo '```'; echo;
+            echo "Mirror and activate on your targets with \`site/deploy.sh mirror|activate --release DIR --targets FILE --approve $cid\`,"
+            echo "then publish with \`site/deploy.sh publish-plan\` and the owner's \`enclave config set\`."; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the release (the reviewed, verified tree and its derived files)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: site-release-${{ steps.prepare.outputs.cid }}
+          path: ${{ runner.temp }}/site-release/${{ steps.prepare.outputs.cid }}
+          include-hidden-files: true   # the tree carries .well-known/ (the release ledger, security.txt)
+          if-no-files-found: error
+          retention-days: 30
+
+  # Delivery of the CID the site job built and reviewed: every operator target holds it (verified there), then every
+  # activatable target serves it (a journalled, fenced rollout: a failure is compensated; an unknown outcome fails this job
+  # as PENDING with the journal uploaded for `site-release resolve`), then publication. Targets and credentials are the
+  # operator's (vars/secrets below); nothing names a host. Add protection rules to the `site-release` environment to
+  # make a person approve the CID shown in the site job's summary before this runs (optional: GitHub is only the
+  # runner here; `site/deploy.sh deliver` does the same from an operator's machine).
+  site-deliver:
+    needs: site
+    if: ${{ !cancelled() && needs.site.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: site-release
+    permissions:
+      contents: read
+      actions: read   # download this run's release artifact
+
+    steps:
+      - name: Checkout the commit the release was built from (the same tool)
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ needs.site.outputs.commit }}
+          persist-credentials: false
+
+      - name: Is delivery configured?
+        id: cfg
+        env:
+          TARGETS: ${{ vars.SITE_DELIVERY_TARGETS }}
+        run: |
+          if [ -z "$TARGETS" ]; then
+            echo "::warning::SITE_DELIVERY_TARGETS is not set: release ${{ needs.site.outputs.cid }} was built and uploaded but NOT delivered or published (docs/site-release.md)"
+            echo "deliver=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deliver=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download and re-verify the reviewed release
+        if: steps.cfg.outputs.deliver == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CID: ${{ needs.site.outputs.cid }}
+        run: |
+          set -euo pipefail
+          # the artifact is transport only: the tree must re-verify to the CID the site job reviewed
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n "site-release-$CID" -D "$RUNNER_TEMP/release/$CID"
+          node scripts/site-release/cli.mjs verify "$RUNNER_TEMP/release/$CID"
+
+      - name: Deliver (mirror every target, then a journalled, fenced rollout)
+        if: steps.cfg.outputs.deliver == 'true'
+        env:
+          TARGETS: ${{ vars.SITE_DELIVERY_TARGETS }}
+          CID: ${{ needs.site.outputs.cid }}
+          # referenced from the targets file BY NAME (keyEnv, knownHostsEnv, authEnv); the tool never prints them
+          SITE_DELIVERY_SSH_KEY: ${{ secrets.SITE_DELIVERY_SSH_KEY }}
+          SITE_DELIVERY_KNOWN_HOSTS: ${{ secrets.SITE_DELIVERY_KNOWN_HOSTS }}
+          SITE_DELIVERY_KUBO_AUTH: ${{ secrets.SITE_DELIVERY_KUBO_AUTH }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$TARGETS" > "$RUNNER_TEMP/targets.json"
+          # exit 0 active; 1 reverted (no target serves it as a result of this rollout); 5 PENDING: an outcome is unknown,
+          # hosts may differ, and the uploaded journal + `site-release resolve` settles it (it never re-sends an activation)
+          set +e
+          node scripts/site-release/cli.mjs deliver --release "$RUNNER_TEMP/release/$CID" --targets "$RUNNER_TEMP/targets.json" --approve "$CID" \
+            --journal "$RUNNER_TEMP/rollouts" > "$RUNNER_TEMP/delivery.txt" 2> "$RUNNER_TEMP/delivery.err"
+          code=$?
+          set -e
+          cat "$RUNNER_TEMP/delivery.txt"; cat "$RUNNER_TEMP/delivery.err" >&2
+          case "$code" in
+            0) title="delivered and active on every target" ;;
+            1) title="NOT delivered: the rollout failed and was reverted" ;;
+            5) title="PENDING: an outcome is unknown; resolve it with the uploaded journal"
+               echo "::error::rollout of $CID is pending: $(tail -2 "$RUNNER_TEMP/delivery.err" | tr '\n' ' ')" ;;
+            *) title="failed (exit $code)" ;;
+          esac
+          { echo '### Site release `'"$CID"'`: '"$title"; echo; echo '```'; cat "$RUNNER_TEMP/delivery.txt" "$RUNNER_TEMP/delivery.err"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$code"
+
+      - name: Install the enclave CLI's dependencies (publication runs the CLI)
+        if: steps.cfg.outputs.deliver == 'true' && vars.SITE_PUBLISH_CONFIG != ''
+        run: npm ci --no-audit --no-fund
+
+      - name: Upload the rollout journal (what resolve needs after any interruption)
+        if: always() && steps.cfg.outputs.deliver == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: site-rollout-journal-${{ needs.site.outputs.cid }}
+          path: ${{ runner.temp }}/rollouts
+          if-no-files-found: ignore
+          retention-days: 90
+
+      # Publication: the IPNS name moves to /ipfs/<CID> under the publisher's EXISTING key. With an owner-approved
+      # session limited to deploy.setConfig (the publisher record held by the owner's vault as staging), this is the
+      # session's config change, through the enclave CLI. Otherwise the owner's exact operation is left as an artifact
+      # and the publication is reported PENDING (the release is already live on every target).
+      - name: Publish (an owner-approved session, or the owner's exact plan)
+        id: publish
+        if: steps.cfg.outputs.deliver == 'true'
+        env:
+          PUBLICATION: ${{ vars.SITE_PUBLISH_CONFIG }}
+          CID: ${{ needs.site.outputs.cid }}
+          ENCLAVE_SESSION: ${{ secrets.SITE_PUBLISH_SESSION }}   # an exported session (enclave session new --env)
+          ENCLAVE_KEY: ${{ secrets.SITE_PUBLISH_GAS_KEY }}       # a gas payer: it authorizes nothing
+        run: |
+          set -uo pipefail
+          if [ -z "$PUBLICATION" ]; then
+            echo "::warning::SITE_PUBLISH_CONFIG is not set: release $CID is live on the targets, but the IPNS name was NOT moved (docs/site-release.md)"
+            exit 0
+          fi
+          printf '%s' "$PUBLICATION" > "$RUNNER_TEMP/publication.json"
+          node scripts/site-release/cli.mjs publish --release "$RUNNER_TEMP/release/$CID" --publish "$RUNNER_TEMP/publication.json" \
+            --approve "$CID" --plan-out "$RUNNER_TEMP/publication-plan" | tee "$RUNNER_TEMP/publish.txt"
+          code=${PIPESTATUS[0]}
+          case "$code" in
+            0) echo "### IPNS publication: the publisher's on-chain config now holds /ipfs/$CID" >> "$GITHUB_STEP_SUMMARY" ;;
+            3) echo "::warning::publication of $CID is PENDING the owner's authorization: the exact plan is the publication-plan artifact"
+               echo "### IPNS publication PENDING the owner (plan uploaded)" >> "$GITHUB_STEP_SUMMARY"; echo "pending=true" >> "$GITHUB_OUTPUT" ;;
+            4) echo "::error::the publication's outcome is unknown (it may have landed): check enclave config show before anything else"; exit 4 ;;
+            *) exit "$code" ;;
+          esac
+
+      - name: Upload the owner's publication plan
+        if: steps.publish.outputs.pending == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: site-publication-plan-${{ needs.site.outputs.cid }}
+          path: ${{ runner.temp }}/publication-plan
+          if-no-files-found: error
+          retention-days: 30
 
   relay:
     needs: detect
@@ -364,39 +522,40 @@ jobs:
           ref: main
           persist-credentials: false
 
+      # The operator selects every target (repository variables; nothing is discovered or defaulted, and there is no
+      # alias fallback). relay/deploy.sh refuses, naming the missing role and variable, before any secret is written.
+      #   RELAY_DEPLOY_ROLES  api | dns | api,dns
+      #   RELAY_API_TARGET / RELAY_API_DIR   user@host of the API host / the installed enclave-api-relay WorkingDirectory
+      #   RELAY_DNS_TARGET / RELAY_DNS_DIR   user@host of the DNS host / the installed enclave-dns WorkingDirectory
+      #   DEPLOY_KNOWN_HOSTS                 those hosts' keys (strict host-key checking; no trust on first use)
+      - name: Check relay targets
+        env:
+          RELAY_DEPLOY_ROLES: ${{ vars.RELAY_DEPLOY_ROLES }}
+          RELAY_API_TARGET: ${{ vars.RELAY_API_TARGET }}
+          RELAY_API_DIR: ${{ vars.RELAY_API_DIR }}
+          RELAY_DNS_TARGET: ${{ vars.RELAY_DNS_TARGET }}
+          RELAY_DNS_DIR: ${{ vars.RELAY_DNS_DIR }}
+        run: bash relay/deploy.sh --check-config
+
       - name: Set up SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
-          RELAY_SSH_HOST: ${{ vars.RELAY_SSH_HOST }}
-          SITE_SSH_HOST: ${{ vars.SITE_SSH_HOST }}
-          EXTRA_RELAY_SSH_HOSTS: ${{ vars.EXTRA_RELAY_SSH_HOSTS }}
         run: |
           set -euo pipefail
           [ -n "$DEPLOY_SSH_KEY" ] || { echo "::error::DEPLOY_SSH_KEY secret is not set (run scripts/ci-setup.sh)"; exit 1; }
+          [ -n "$DEPLOY_KNOWN_HOSTS" ] || { echo "::error::DEPLOY_KNOWN_HOSTS is not set: the relay targets' host keys are required (strict host-key checking)"; exit 1; }
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          # The api relay lives on the site box (ssh alias `nan`); every
-          # DATA-PLANE relay gets a Host block of its own. EXTRA_RELAY_SSH_HOSTS
-          # is "alias=host,alias=host" for the boxes beyond the first - us-west
-          # existed for weeks without one, so relay/** pushes updated every box
-          # except the one carrying the app zone. Unset = the historical single
-          # relay, which is exactly what this did before.
-          printf 'Host nan-relay\n  HostName %s\n  User root\nHost nan\n  HostName %s\n  User root\n' \
-            "$RELAY_SSH_HOST" "$SITE_SSH_HOST" > ~/.ssh/config
-          RELAY_HOSTS=nan-relay
-          IFS=',' read -ra EXTRA <<< "${EXTRA_RELAY_SSH_HOSTS:-}"
-          for e in "${EXTRA[@]}"; do
-            a="${e%%=*}"; h="${e##*=}"
-            [ -n "$a" ] && [ -n "$h" ] && [ "$a" != "$h" ] || continue
-            printf 'Host %s\n  HostName %s\n  User root\n' "$a" "$h" >> ~/.ssh/config
-            RELAY_HOSTS="$RELAY_HOSTS $a"
-          done
-          echo "RELAY_HOSTS=$RELAY_HOSTS" >> "$GITHUB_ENV"
-          chmod 600 ~/.ssh/config
 
       - name: Deploy relay
+        env:
+          RELAY_DEPLOY_ROLES: ${{ vars.RELAY_DEPLOY_ROLES }}
+          RELAY_API_TARGET: ${{ vars.RELAY_API_TARGET }}
+          RELAY_API_DIR: ${{ vars.RELAY_API_DIR }}
+          RELAY_DNS_TARGET: ${{ vars.RELAY_DNS_TARGET }}
+          RELAY_DNS_DIR: ${{ vars.RELAY_DNS_DIR }}
         run: bash relay/deploy.sh
 
   # Builds the wasm-manager image when wasm/** changed and repins its digest

@@ -16,6 +16,10 @@ import { randomBytes, createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import { prepareShieldedShm } from './shielded-shm.mjs';
+import {installMetalHostPolicy} from './host-policy.bundle.mjs';
+import { leaseGasGuest, withLeaseGasEnv } from './lease-gas-conduit.bundle.mjs';
+import { guestOwnerNomination, withOwnerNominationEnv } from './owner-nomination.mjs';
+import { guestChainVerifier, withChainVerifierEnv, writeChainVerifierConfig } from './chain-verifier.mjs';
 
 const log = (...a) => { try { fs.writeSync(1, `[gsup] ${a.join(' ')}\n`); } catch {} };
 const readJson = (p, d) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return d; } };
@@ -37,6 +41,11 @@ const totalGb = os.totalmem() / (1024 ** 3);
 // (out-of-band, NOT measured — so the launch measurement is stable per image).
 const cmdline = (() => { try { return fs.readFileSync('/proc/cmdline', 'utf8'); } catch { return ''; } })();
 const cmdMode = (cmdline.match(/(?:^|\s)metal\.mode=([^\s]+)/) || [])[1];
+// MEASURED independent control (metal.control=direct on the measured cmdline; docs/network/measured-control-guest.md):
+// the supervisor runs ISOLATION_DIRECT_ONLY with the owner's config, which is accepted only when the PSP-signed HOST_DATA
+// binds it, and with keys minted here (metal/guest/measured-control.mjs). Nothing of the legacy relay/fleet path is
+// configured. Absent = the legacy path below, unchanged.
+const CONTROL = (cmdline.match(/(?:^|\s)metal\.control=([^\s]+)/) || [])[1] || '';
 const fw = (() => {
   for (const p of ['/sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.metal/raw']) {
     try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch {}
@@ -44,6 +53,7 @@ const fw = (() => {
   return {};
 })();
 const nominalRamGb = Math.round(Number(fw.nodeRamGb) || 0);
+const HOST_POLICY_ENV=installMetalHostPolicy(fw.hostAdmission);
 const NODE_RAM_GB  = nominalRamGb > 0
   ? Math.min(nominalRamGb, Math.ceil(totalGb) + 3)
   : Math.max(1, Math.floor(totalGb - 1.5));            // measured: reserve ~1.5 GB for the base system
@@ -54,7 +64,8 @@ const NODE_RAM_GB  = nominalRamGb > 0
 const FW_GFLOPS_PER_VCPU = Number(fw.gflopsPerVcpu);
 const GFLOPS_MEASURED = Number.isFinite(FW_GFLOPS_PER_VCPU) && FW_GFLOPS_PER_VCPU > 0 && FW_GFLOPS_PER_VCPU <= 1000;
 const NODE_GFLOPS = Math.max(1, Math.round((GFLOPS_MEASURED ? FW_GFLOPS_PER_VCPU : 1000 / 16) * NODE_VCPUS));
-const MODE         = fw.mode || cmdMode || 'snp';      // snp | tdx | dev
+// snp | tdx | dev. A direct control guest takes the mode from the measured cmdline only (fw_cfg is the host's word).
+const MODE         = CONTROL ? (cmdMode || 'snp') : (fw.mode || cmdMode || 'snp');
 const NAME         = fw.name || 'metal0';
 const PUBLIC_URL   = fw.publicUrl || '';               // e.g. https://api.enclave.host/t/metal0
 const RELAY_URL    = fw.relayUrl || '';                // wss://api.enclave.host/v1/fleet-tunnel
@@ -311,7 +322,8 @@ function snpHostData() {
 const VOL_TABLE = Array.isArray(fw.volumes) ? fw.volumes : [];
 const VOL_BOUND = MODE === 'snp' ? snpHostData() : '';
 let mountedVols = [];
-if (VOL_TABLE.length) {
+if (VOL_TABLE.length && CONTROL) log(`REFUSING all ${VOL_TABLE.length} model volume(s): a control guest runs no apps`);
+else if (VOL_TABLE.length) {
   const computed = volumesDigest(VOL_TABLE);
   if (MODE !== 'snp') {
     // Nothing to check against: an unattested guest cannot prove anything about
@@ -353,7 +365,7 @@ const MODEL_VOLUMES_SD = mountedVols.filter((v) => v.sd).map((v) => v.name).join
 // --- wasm-manager (chroot) ---------------------------------------------------
 const WASM_ROOT = '/opt/roots/wasm';
 const wasmImgEnv = readJson('/opt/metal/wasm-env.json', {});
-if (!ISO_BACKEND) start('wasm-manager',
+if (!ISO_BACKEND && !CONTROL) start('wasm-manager',
   ['/usr/sbin/chroot', WASM_ROOT, '/usr/bin/python3', '/opt/enclave/wasm_manager.py'],
   {
     ...wasmImgEnv,
@@ -393,9 +405,140 @@ if (!ISO_BACKEND) start('wasm-manager',
     SECRET,
   });
 
+// --- measured independent control: the direct-only supervisor, the agent (RAD only) and the control front --------
+async function startDirectControl() {
+  const MC = await import('./measured-control.mjs');
+  const P = MC.GUEST_PATHS;
+  const status = (o) => { try { fs.writeFileSync(P.status, JSON.stringify({ at: new Date().toISOString(), control: CONTROL, mode: MODE, ...o })); } catch {} };
+  const plan = await MC.planDirectBoot({ cmdline, fw, reportHostData: MODE === 'snp' ? snpHostData() : '', flavorEnv, hostPolicyEnv: HOST_POLICY_ENV,
+    capacity: { vcpus: NODE_VCPUS, ramGb: NODE_RAM_GB, gflops: NODE_GFLOPS } });
+  if (!plan.ok) {
+    for (const r of plan.reasons) log(`direct control REFUSED: ${r}`);
+    log('no control service started: this guest serves nothing until it is launched with a config its HOST_DATA binds');
+    status({ ok: false, reasons: plan.reasons });
+    return;
+  }
+  fs.mkdirSync(P.runDir, { recursive: true, mode: 0o700 });
+  for (const [file, text] of Object.entries(plan.files)) { fs.writeFileSync(file, text, { mode: 0o600 }); fs.chmodSync(file, 0o600); }
+  const keys = MC.mintControlKeys();
+  const fileSha = (f) => { try { return MC.sha256Hex(fs.readFileSync(f)); } catch { return null; } };
+  // the platform API role (bound config member platformApi): its per-boot handoff key, named in the statement with its bundle
+  if (plan.platformApi) keys.platformApi = { publicKey: MC.mintPlatformApiKey() };
+  const st = MC.controlStatement({ config: plan.config, digest: plan.digest, hostData: plan.hostData, mode: MODE, keys,
+    runtime: { gsupSha256: fileSha('/opt/metal/gsup.mjs'), helperSha256: fileSha('/opt/metal/measured-control.mjs'), supervisorSha256: fileSha('/app/supervisor.js'),
+      ...(plan.mcp ? { mcpSha256: fileSha(MC.MCP_BUNDLE) } : {}),
+      ...(plan.platformApi ? { platformApiSha256: fileSha(MC.PLATFORM_API_BUNDLE) } : {}),
+      // the bound local chain verifier: the image's pinned runtime record it runs (binaries, glibc runtime, staging)
+      ...(plan.chainVerifier ? { chainVerifierImageSha256: fileSha(P.chainVerifierImage) } : {}) } });
+  fs.writeFileSync(P.statement, st.text, { mode: 0o644 });
+  fs.writeFileSync(P.serveConfig, JSON.stringify({ statement: P.statement, tlsKey: P.tlsKey, tlsCert: P.tlsCert, port: plan.config.controlPort,
+    upstream: { host: '127.0.0.1', port: 8080 }, mode: MODE, vcekB64: typeof fw.vcek === 'string' ? fw.vcek : '',
+    routes: [...(plan.mcp ? [plan.mcp.route] : []), ...(plan.chainVerifier?.route ? [plan.chainVerifier.route] : [])],
+    ...(plan.platformApi ? { hostRoutes: [plan.platformApi.hostRoute], prefixRoutes: [plan.platformApi.prefixRoute], sni: plan.platformApi.sni } : {}),
+    // native control names (bound nativeControl): served only with the control key and a CA leaf over it, installed after boot
+    ...(plan.native ? { native: plan.native } : {}) }), { mode: 0o600 });
+  log(`direct control: config ${plan.digest.slice(0, 16)}… ${plan.bound ? 'BOUND by HOST_DATA' : `NOT BOUND (mode=${MODE} has no report: a lab launch that proves nothing)`}; `
+    + `operator ${plan.config.identity.operator}${plan.selling ? '' : ' (no operator key: not selling)'}; proof key, session key and control TLS key minted in this guest `
+    + `(TLS sha256:${keys.controlTls.spkiSha256.slice(0, 16)}…); front on :${plan.config.controlPort}`
+    + (plan.native ? `; native names ${plan.native.names.join(', ')} wait for a native CA leaf over that key` : ''));
+  status({ ok: true, configDigest: plan.digest, hostData: plan.hostData, bound: plan.bound, controlPort: plan.config.controlPort, controlTlsSpkiSha256: keys.controlTls.spkiSha256 });
+  // the bound local chain verifier, BEFORE the supervisor, as its own supervised child (the same start() and runtime as the
+  // relay-mode block below); the supervisor's names came from the same bound member (plan.env). If it cannot be started the
+  // supervisor's chain reads refuse (no provider fallback); serving of what runs is unaffected.
+  if (plan.chainVerifier) {
+    log(plan.chainVerifier.message);
+    try { start('chain-verifier', plan.chainVerifier.argv(writeChainVerifierConfig(plan.chainVerifier)), plan.chainVerifier.env, { cwd: '/app' }); }
+    catch (e) { log(`chain verifier could not be started (${e.code || e.message}): every verified chain read refuses; no provider fallback`); }
+  }
+  start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], plan.env, { cwd: '/app' });
+  // the agent serves the loopback RAD the supervisor's claim gate reads (teeOk); no relay, no tunnel, no token
+  start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
+    PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', METAL_MODE: MODE, METAL_NAME: NAME, METAL_PUBLIC_URL: plan.config.identity.publicUrl,
+    METAL_RELAY_URL: '', METAL_RELAY_HOST: '', METAL_TUNNEL_TOKEN: '', METAL_REFERRAL: '', METAL_VCEK_B64: typeof fw.vcek === 'string' ? fw.vcek : '',
+    METAL_SUP_URL: 'http://127.0.0.1:8080', METAL_RAD_PORT: '8443', NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt', SECRET: plan.env.SECRET,
+  });
+  // the hosted MCP adapter (docs/network/hosted-mcp.md): loopback only, reached through the front's exact MCP route
+  if (plan.mcp) {
+    fs.mkdirSync(plan.mcp.stateDir, { recursive: true, mode: 0o700 });
+    start('mcp', plan.mcp.argv, plan.mcp.env, { cwd: plan.mcp.stateDir });
+  }
+  // the platform API role (docs/network/hosted-platform-api.md): loopback only, reached through the front's host and prefix routes
+  if (plan.platformApi) {
+    fs.mkdirSync(plan.platformApi.stateDir, { recursive: true, mode: 0o700 });
+    start('platform-api', plan.platformApi.argv, plan.platformApi.env, { cwd: plan.platformApi.stateDir });
+  }
+  start('control-front', ['/usr/local/bin/node', '/opt/metal/measured-control.mjs', 'serve', '--config', P.serveConfig],
+    { PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' });
+}
+if (CONTROL === 'direct') await startDirectControl().catch((e) => log(`direct control FAILED: ${e.message}; no control service started`));
+else if (CONTROL) log(`metal.control=${CONTROL} is not a known control mode; no control service started`);
+
+// --- app-funded lease gas (network/lease-gas-conduit.mjs; work/linux-lease-activation) ----------------------------------
+// The host's reviewed lease-gas configuration rides fw_cfg `leaseGas` (public data: the deployment record and the digest the
+// operator reviewed, RPC and relay origins, the reserve, the quorum) and is checked again here. It becomes the record file
+// and the six lease-gas environment names for the supervisor, which loads it with the shared runtime (network/lease-gas-runtime.mjs) and
+// checks it a third time against its own chain/ledger/registry binding. Absent: off, exactly as before. Present but
+// invalid: the supervisor gets a configuration that cannot load, so every claim, renewal and release REFUSES and the
+// operator's own ETH is never spent on them. These names come ONLY from here (withLeaseGasEnv drops any other source).
+// A direct control guest takes it only from its HOST_DATA-bound config (measured-control.mjs).
+const LEASE_GAS = CONTROL ? null : leaseGasGuest(fw.leaseGas, { verifierBound: fw.chainVerifier !== undefined && fw.chainVerifier !== null });
+if (LEASE_GAS?.configured && LEASE_GAS.ok) {
+  try {
+    for (const [file, bytes] of Object.entries(LEASE_GAS.files)) {
+      fs.mkdirSync(file.slice(0, file.lastIndexOf('/')), { recursive: true, mode: 0o755 });
+      fs.writeFileSync(file, bytes, { mode: 0o644 });
+    }
+    log(`app-funded lease gas: ${LEASE_GAS.summary}`);
+  } catch (e) { log(`app-funded lease gas: the record could not be written (${e.code || e.message}); every claim, renewal and release refuses`); }
+} else if (LEASE_GAS?.configured)
+  log(`app-funded lease gas REFUSED (${LEASE_GAS.reason}): every claim, renewal and release refuses; the operator's ETH is never used for them`);
+
+// --- the operator's owner nomination (metal/guest/owner-nomination.mjs) ---------------------------------------------------
+// fw_cfg `ownerNomination`, from the host controller's own config, checked again here; it becomes the supervisor's
+// ENCLAVE_OWNER_NOMINATION, which the supervisor checks a third time against its own key, chain, registry and endpoint
+// before anything is proposed. Absent: no such name. Invalid: refused here. A direct control guest takes it only from its
+// HOST_DATA-bound config (measured-control.mjs).
+const OWNER_NOMINATION = CONTROL ? { nomination: null, message: null } : guestOwnerNomination(fw.ownerNomination);
+if (OWNER_NOMINATION.message) log(OWNER_NOMINATION.message);
+
+// --- the platform host policy carriers (metal/guest/measured-control.mjs, the measured guest's own schema) ----------------------
+// fw_cfg `platformPolicyCarriers`, from the host controller's own config (metal/enclave-metal.mjs checked it), checked again
+// here: how this guest's platform host policy gate (supervisor.js, the shipped host-admission bundle's createHostServiceGate)
+// obtains the administrator's ANCHORED document without a fleet mirror - other hosts' policy-mirror roles (peers) and/or the
+// pinned service index. It becomes exactly ONE supervisor name (measured-control CARRIERS_ENV), applied last, which no
+// other channel may supply. Untrusted transport: the gate admits only the digest the book anchors, signed by its current owner,
+// at a fresh agreed block. Absent: no such name, exactly as before. Invalid, or a bundle that cannot honour it: a value the
+// gate refuses, so the supervisor refuses work and service. A direct control guest takes it only from its HOST_DATA-bound config.
+const MC_LEGACY = CONTROL ? null : await import('./measured-control.mjs');
+const POLICY_CARRIERS = CONTROL ? null : await MC_LEGACY.guestPolicyCarriers(fw.platformPolicyCarriers, { publicUrl: PUBLIC_URL });
+if (POLICY_CARRIERS?.message) log(POLICY_CARRIERS.message);
+
+// --- chain verifier (opt-in; metal/guest/chain-verifier.mjs) -----------------------------------------------------------------
+// fw_cfg `chainVerifier`, from the host controller's own config (metal/enclave-metal.mjs checked it), checked again here
+// against THIS image's pinned verifier (/opt/rpc-runtime/IMAGE.json). Started BEFORE the supervisor, as its own supervised
+// child (restarted with backoff like the others; the runtime reaps its own orphans and holds a kernel lock on its state
+// directory). The supervisor is not held back for it: its verified readers refuse until the verifier is ready, so adoption
+// and serving of running apps start as before while new verified decisions wait. Absent: no runtime, no names, unchanged.
+const CHAIN_VERIFIER = CONTROL ? null : guestChainVerifier(fw.chainVerifier);
+if (CHAIN_VERIFIER?.message) log(CHAIN_VERIFIER.message);
+if (CHAIN_VERIFIER?.ok) {
+  try { start('chain-verifier', CHAIN_VERIFIER.argv(writeChainVerifierConfig(CHAIN_VERIFIER)), CHAIN_VERIFIER.env, { cwd: '/app' }); }
+  catch (e) { log(`chain verifier could not be started (${e.code || e.message}): every verified chain read refuses; no provider fallback`); }
+}
+// --- end chain verifier -----------------------------------------------------------------------------------------------------
+
+// The shielded workers this box is configured to probe (the probe loop below). Declared here because the supervisor's env
+// states how many cards are EXPECTED (SHIELDED_GPU_EXPECTED): it starts with GPU_COUNT=0 and learns a card only when that card's
+// probe passes, so until then a 0 GPU price means "not discovered yet", not "no card" (supervisor.js gpuPricePending).
+const configuredShieldedWorkers = fw.isolation && fw.isolationShieldedWorkers ? fw.isolationShieldedWorkers : fw.shieldedWorkers ?? (fw.shieldedWorker ? [fw.shieldedWorker] : []);
+const shieldedWorkers = Array.isArray(configuredShieldedWorkers) ? configuredShieldedWorkers.slice(0, 16) : [];
+const SHIELDED_GPU_EXPECTED = shieldedWorkers.filter((sw) => sw && sw.port).length;
+
 // --- supervisor (base root) --------------------------------------------------
+if (!CONTROL) {
 const supEnv = {
   ...flavorEnv,                              // contract addresses, SIWE, CORS, ACME dirs, etc (non-secret)
+  ...HOST_POLICY_ENV,
   // override the baked flavor capacity with THIS VM's actual size (see above)
   NODE_VCPUS: String(NODE_VCPUS),
   NODE_RAM_GB: String(NODE_RAM_GB),
@@ -403,6 +546,7 @@ const supEnv = {
   PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
   PORT: '8080',
   GPU_COUNT: '0',
+  ...(SHIELDED_GPU_EXPECTED > 0 ? { SHIELDED_GPU_EXPECTED: String(SHIELDED_GPU_EXPECTED) } : {}),
   PROVISION_BACKEND: 'vm',
   VMMGR_URL: ISO_BACKEND ? String(ISO_CFG.managerUrl || '') : 'http://127.0.0.1:8091',
   ...(ISO_BACKEND ? { ISOLATION_BACKEND: ISO_BACKEND, GUESTD_KEY_FILE: ISO_KEY_FILE,
@@ -464,6 +608,12 @@ const supEnv = {
   // any deployment hostname on the platform, and on metal it lives in an
   // operator-readable file outside the CVM. So: registry key is enough.
   SECRETS_CAPABLE: (FLEET_SECRET || REGISTRY_KEY) ? '1' : '0',
+  // Secret custody (docs/security/secret-custody.md): the vault whose custodians this box's registry key authorizes
+  // releases to (supervisor authorizeCustody). Measured here, never from fw_cfg: the vault on Base is immutable.
+  CUSTODY_VAULT: '0x08074300f75e78212ae10ebd14984f78e17811a6',
+  CUSTODY_CHAIN_ID: '8453',
+  // custody v2: the host-run custodians' vault (docs/security/secret-custody-v2.md), measured like v1's
+  CUSTODY_VAULT_V2: '0xe48699b8401564aace7a814ae4569b67a3f7eef5',
   // Certificates + keys survive a supervisor restart within one guest boot on
   // the guest's own tmpfs (init mounts /mnt/ramdisk); the supervisor's default
   // (/var/lib/enclave/acme) sits on the initramfs rootfs here, which its
@@ -480,7 +630,7 @@ const supEnv = {
   ADMIN_TOKEN,
   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
 };
-start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], supEnv, { cwd: '/app' });
+start('supervisor', ['/usr/local/bin/node', '/app/supervisor.js'], withChainVerifierEnv(MC_LEGACY.withPolicyCarriersEnv(withOwnerNominationEnv(withLeaseGasEnv(supEnv, LEASE_GAS), OWNER_NOMINATION.nomination), POLICY_CARRIERS), CHAIN_VERIFIER), { cwd: '/app' });
 
 // --- metal-agent -------------------------------------------------------------
 start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
@@ -498,6 +648,7 @@ start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
   NODE_EXTRA_CA_CERTS: '/etc/ssl/certs/ca-certificates.crt',
   SECRET,
 });
+}
 
 // --- shielded GPU: prove the path at boot, then get out of the way -----------
 // If the host advertises a shielded worker, run one real masked field GEMM
@@ -509,8 +660,6 @@ start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
 // It is deliberately at boot rather than on demand. The failure this catches --
 // a worker that is absent, wrong-version, or quietly returning garbage -- is one
 // you want to find before a tenant's request depends on it.
-const configuredShieldedWorkers = fw.isolation && fw.isolationShieldedWorkers ? fw.isolationShieldedWorkers : fw.shieldedWorkers ?? (fw.shieldedWorker ? [fw.shieldedWorker] : []);
-const shieldedWorkers = Array.isArray(configuredShieldedWorkers) ? configuredShieldedWorkers.slice(0, 16) : [];
 const shieldedVerdicts = new Map();
 const VERDICT = '/run/shielded-gpu.json';
 const publishShieldedVerdicts = () => {

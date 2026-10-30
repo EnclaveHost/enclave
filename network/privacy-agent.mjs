@@ -6,13 +6,20 @@
 // settings an older configuration may still carry are ignored.
 import {startingShieldTransport} from './shield-starting-transport.mjs';
 import fs from 'node:fs/promises';
+import fs_sync from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {privateKeyToAccount} from 'viem/accounts';
+import {keccak256,toBytes} from 'viem';
 import {LeaseReader,AdmissionGate} from './lease-reader.mjs';
+import {WalletAllowFile,withWalletAdmission} from './wallet-admission.mjs';
 import {EnclaveNetworkManager} from './wg-manager.mjs';
 import {createNetworkHost} from './enclave-network-host.mjs';
 import {WgControlTransport} from './wg-control.mjs';
+import {HostServiceTransport,validateHostServicesTransport,hostServiceLifecycle} from './host-service-transport.mjs';
+import {createHostServiceGate} from './host-service-gate.mjs';
+import {hostServicesPolicyConfig,hostServicesGateAuthority} from './host-policy-gate-config.mjs';
+import {hostPolicyCarrierGate} from './host-policy-carrier-gate.mjs';
 import {createPaidNetwork} from './paid-network.mjs';
 import {ShieldHostProof} from './shield-host-proof.mjs';
 import {RoutePublisher} from './route-publisher.mjs';
@@ -38,19 +45,30 @@ import {ShieldIngress} from './shield-ingress.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
 import {delegatedIPNS} from './discovery-http.mjs';
 import {validateAppNames} from './app-ingress.mjs';
+import {DirectoryClient} from './directory-client.mjs';
+import {createProviderBootstrap,providerRegistryReader,createNetworkFetch} from './provider-bootstrap.mjs';
 
 // Settings of the retired TUNA transport (and of the TUNA-era direct hosting it carried) that an older configuration may
 // still hold. They are ignored, never acted on: no NKN wallet, provider inventory, control guard or currency conversion runs.
 export const RETIRED_SETTINGS=['nknRpc','inventory','control','runtime','defaults','tunaUSDC','currencyManagement','connectivity','direct'];
+// A stop (SIGTERM/SIGINT) that arrived while the daemon was still starting, thrown only once everything it owns has been
+// released: the stop the operator asked for, not a startup failure, so the command line exits 0 for it (runPrivacyCli)
+export class StartupCancelled extends Error{constructor(){super('privacy agent stopped during startup');this.name='StartupCancelled';this.code='ENCLAVE_STARTUP_CANCELLED';}}
+// Owned resources that could not be released: never reported as a clean stop (runPrivacy, runPrivacyCli)
+// (one failure seen by two releases - the stop's and the startup's unwinding - is one failure)
+const cleanupFailed=(what,all)=>{const failed=[...new Set(all)];
+  return new AggregateError(failed,`${what} failed: ${failed.map(e=>e?.message??String(e)).join('; ')}`);};
 export const NETWORK_REQUIRED='enclaveNetwork configuration required: TUNA is retired, and apps are served only on the Enclave network (docs/design/enclave-network.md)';
 
 // Timely admission is independent of slow allocation and publication work. Even
 // a hung RPC, allocator or distributor cannot extend an old authorization.
 export class PrivacyAgent {
-  constructor({apps,runner,account,leaseReader,probe,distribute,directory,dns,network,qualification,paid=null,chainDeadlineMs=CHAIN_DEADLINE_MS,now=Date.now,log=()=>{}}){
+  // wallet (wallet-admission.mjs WalletAllowFile, enclaveNetwork.walletAdmission): the node's host-wallet allows, a third
+  // admission factor; null admits on the lease and guest proof alone, as before
+  constructor({apps,runner,account,leaseReader,probe,distribute,directory,dns,network,qualification,paid=null,wallet=null,chainDeadlineMs=CHAIN_DEADLINE_MS,now=Date.now,log=()=>{}}){
     if(!network)throw new Error(NETWORK_REQUIRED);
     Object.assign(this,{apps,leaseReader,probe,distribute,directory,now,log,network,chainDeadlineMs});this.refreshing=false;this.closed=false;this.publishing=false;this.configured=[];this.proving=new Map();this.proofFailures=new Map();this.chainRead=null;
-    this.admission=new AdmissionGate({runner,expected:id=>this.apps.find(a=>a.deploymentId===id)?.expected,now});
+    this.admission=withWalletAdmission(new AdmissionGate({runner,expected:id=>this.apps.find(a=>a.deploymentId===id)?.expected,now}),wallet);
     this.manager=new EnclaveNetworkManager({runtime:network.runtime,admission:this.admission,providers:network.providers,byoConfig:network.byoConfig,probeEgress:network.probeEgress,direct:network.direct,hostEgress:network.hostEgress||null,paid,now,log,
       probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),publish:(id,routes)=>this.publisher.publish(id,routes)});
     this.publisher=new RoutePublisher({directory:path.join(directory,'routes'),account,lease:id=>leaseReader.get(id),
@@ -75,7 +93,9 @@ export class PrivacyAgent {
       // round goes on to the policies and guest proofs (2026-10-13 15:21Z: control circuits down ~1 min -> three apps'
       // egress OFF, their leases fine).
       let leases;
-      try{
+      // an app-less host (host services only) has no lease to read: no chain round every 15 s for nothing
+      if(!this.apps.length)leases=[];
+      else try{
         // one read at a time: a read still running from an earlier round is not doubled, and that round's leases are held
         if(this.chainRead)throw new Error('the previous chain read has not finished');
         const began=this.now();
@@ -110,7 +130,8 @@ export class PrivacyAgent {
     if(this.closed)return Promise.resolve();
     for(const app of this.configured){
       const id=app.deploymentId;
-      if(this.proving.has(id)||(this.admission.allows(id)&&this.admission.proofs.get(id).validUntil-this.now()>40000))continue;
+      // the lease and proof alone: an app whose wallet allow is withheld keeps its proof current, and is not asked every 5 s
+      if(this.proving.has(id)||(this.admission.proven(id)&&this.admission.proofs.get(id).validUntil-this.now()>40000))continue;
       // after a failure the app waits 4 s before it is asked again, and the same failure is logged once a minute (a guest
       // that is still starting answers the same thing for many minutes)
       const failure=this.proofFailures.get(id);
@@ -126,22 +147,58 @@ export class PrivacyAgent {
     }
     return Promise.allSettled([...this.proving.values()]);
   }
-  async snapshot(){await this.egress.write();await this.status.set('status',{version:2,updatedAt:this.now(),authorizationRefresh:this.authorizationRefresh,apps:this.manager.status().map(app=>({...app,leaseUntil:this.admission.leases.get(app.deploymentId)?.validUntil||0,proofUntil:this.admission.proofs.get(app.deploymentId)?.validUntil||0}))});}
+  // Reading a wallet revision is not an acknowledgement. applied requires all local circuit closes to succeed,
+  // no allocation in flight, and the egress map committed. Serialize refresh + persistence so a newer revision
+  // cannot be attached to an older map. A failed map write publishes no acknowledgement at all.
+  snapshot(){
+    const op=(this.snapshotTail||Promise.resolve()).catch(()=>{}).then(async()=>{
+      const wallet=this.admission.wallet;wallet?.refresh();this.manager.enforceAdmission();this.router?.revoke(id=>this.admission.allows(id));
+      await this.egress.write();
+      await this.status.set('status',{version:2,updatedAt:this.now(),authorizationRefresh:this.authorizationRefresh,
+        ...(wallet?{walletAdmission:{...wallet.status(),applied:this.manager.admissionSettled()}}:{}),
+        apps:this.manager.status().map(app=>({...app,leaseUntil:this.admission.leases.get(app.deploymentId)?.validUntil||0,proofUntil:this.admission.proofs.get(app.deploymentId)?.validUntil||0,...(wallet?{walletUntil:this.admission.walletUntil(app.deploymentId)}:{})}))});
+    });this.snapshotTail=op;return op;
+  }
+  admit(){return this.snapshot();}
   async start(){
-    await this.refreshAuthorization();await this.refreshProofs();if(this.closed)throw new Error('privacy agent stopped during startup');await this.snapshot();
-    this.timers=[setInterval(()=>{this.manager.enforceAdmission();void this.snapshot().catch(e=>this.log(e.message));},1000),
+    this.admission.wallet?.refresh();await this.refreshAuthorization();await this.refreshProofs();if(this.closed)throw new StartupCancelled();await this.snapshot();
+    // a stop during that last write: close() has run, so no timer may be created now (five intervals held the process forever)
+    if(this.closed)throw new StartupCancelled();
+    this.timers=[setInterval(()=>{void this.admit().catch(e=>this.log(e.message));},1000),
       setInterval(()=>void this.refreshAuthorization(),15000),
       setInterval(()=>void this.refreshProofs(),5000),
       setInterval(()=>{if(this.publishing||this.closed)return;this.publishing=true;void Promise.allSettled([...this.manager.apps.values()].map(app=>this.manager.publishApp(app))).finally(()=>{this.publishing=false;});},10000),
       setInterval(()=>void this.manager.reconcile().catch(e=>this.log('circuits: '+e.message)),5000)];
     void this.manager.reconcile().catch(e=>this.log('circuits: '+e.message));return this;
   }
-  async close(){if(this.closed)return;this.closed=true;for(const timer of this.timers||[])clearInterval(timer);await this.manager.close();await this.snapshot();this.router?.close();}
+  // one close, however often it is asked for: a second caller (a startup unwinding after a stop) waits for the first to finish.
+  // Every step is attempted even when an earlier one fails, and a failure rejects the close once all have run.
+  close(){if(!this.closing){this.closed=true;for(const timer of this.timers||[])clearInterval(timer);
+    this.closing=(async()=>{const failed=[];
+      for(const step of [()=>this.manager.close(),()=>this.snapshot(),()=>this.router?.close()])try{await step();}catch(e){failed.push(e);}
+      if(failed.length)throw cleanupFailed('privacy agent close',failed);})();}
+    return this.closing;}
+}
+
+// The host-service block's preflight (B2/B3/B7, hs-transport-review): -> {config} to start them, {refused} (logged; host
+// services only), or {} when there is none. Refused: a block this release cannot validate; a worker path that is not an
+// existing file (a release that did not ship host-service-ingress.mjs); a runner that is not exactly keccak256 of this
+// host's configured endpoint bytes (the names would not be the registry's - e.g. a trailing slash the gate strips).
+export function hostServicesPreflight({block,workerModule,runner,endpoint,exists=f=>{try{return fs_sync.statSync(f).isFile();}catch{return false;}}}){
+  if(block===undefined)return {};
+  let config;try{config=validateHostServicesTransport(block);}catch(e){return {refused:'invalid hostServices block: '+e.message};}
+  if(typeof workerModule!=='string'||!path.isAbsolute(workerModule)||!exists(workerModule))return {refused:`the host-service ingress worker is missing (${workerModule||'enclaveNetwork.serviceWorkerModule unset'})`};
+  if(!/^0x[0-9a-f]{64}$/.test(String(runner||''))||/^0x0{64}$/.test(runner))return {refused:'the runner is not a registry id'};
+  if(endpoint!==undefined&&keccak256(toBytes(String(endpoint)))!==runner)return {refused:'the runner is not keccak256 of this host\'s endpoint exactly as configured (the derived names would not be its registry names)'};
+  return {config};
 }
 
 export async function runPrivacy(configFile){
   const cfg=JSON.parse(await fs.readFile(configFile,'utf8'));
-  if(cfg.version!==2||!Array.isArray(cfg.apps)||!cfg.apps.length||cfg.apps.length>256||!path.isAbsolute(cfg.directory))throw new Error('version 2 app configuration required');
+  // an EMPTY app list runs only for this host's own public service roles (below: a valid hostServices block and the platform
+  // host policy on); without them it is refused exactly as before
+  if(cfg.version!==2||!Array.isArray(cfg.apps)||cfg.apps.length>256||!path.isAbsolute(cfg.directory))throw new Error('version 2 app configuration required');
+  if(!cfg.apps.length&&cfg.enclaveNetwork?.hostServices===undefined)throw new Error('version 2 app configuration required');
   if(!cfg.enclaveNetwork||typeof cfg.enclaveNetwork!=='object')throw new Error(NETWORK_REQUIRED);
   // each line carries its UTC time: a cut stream has to be matched against circuit events, and the log had none
   const log=message=>console.error(new Date().toISOString().slice(11,19)+' [privacy] '+message);
@@ -189,8 +246,65 @@ export async function runPrivacy(configFile){
   const guestd=cfg.guestd?new GuestdIngress({...cfg.guestd,expected:id=>apps.find(a=>a.deploymentId===id)?.expected}):
     cfg.shield?.ingress?new ShieldIngress({...cfg.shield.ingress,expected:id=>apps.find(a=>a.deploymentId===id)?.expected,key:id=>agent?.admission.proofs.get(id)?.spkiSha256}):null;
   const scheduleProbe=createProbeScheduler();
-  let wgControl=null,paid=null;
-  const close=()=>{hostProof?.close();void Promise.all([agent?.close(),wgControl?.close()]).then(()=>paid?.close()).catch(e=>log(e.message));};
+  // the node agent's host-wallet allows (enclaveNetwork.walletAdmission.file, written by windows/node/host.mjs): an app is
+  // admitted only while its entry is current; a block that is not exactly {file: an absolute path} refuses to start
+  const wa=cfg.enclaveNetwork.walletAdmission;
+  if(wa!==undefined&&(!wa||typeof wa!=='object'||Array.isArray(wa)||Object.keys(wa).join()!=='file'))throw new Error('enclaveNetwork.walletAdmission must be {file}');
+  const wallet=wa?new WalletAllowFile({file:wa.file,runner:cfg.runner,log}):null;
+  let wgControl=null,hostServices=null,hostGateTimer=null,paid=null,stopping=false;   // hostServices: hostServiceLifecycle
+  // this host's own public service roles (cfg.enclaveNetwork.hostServices, host-service-transport.mjs): checked before
+  // anything is bound. A block that does not pass refuses HOST SERVICES only, loudly - the apps this host serves are
+  // never taken down by it (hostServicesPreflight)
+  const pre=hostServicesPreflight({block:cfg.enclaveNetwork.hostServices,workerModule:cfg.enclaveNetwork.serviceWorkerModule,runner:cfg.runner,endpoint:cfg.endpoint});
+  let hostServicesConfig=pre.config;
+  if(pre.refused)log('HOST SERVICES REFUSED (apps unaffected): '+pre.refused);
+  // ...and they run only while THIS host is admitted by the platform host policy: the same gate as the node and
+  // supervisor.js (host-service-gate.mjs), for this host's registry id, on by default for the production chain and address
+  // book. Never before a first authenticated admit in this process (a fresh or restarted host, or one whose policy cannot
+  // be read, holds them); an explicit refusal (ban, allowlist miss, deregistration) closes them and withdraws their grants,
+  // sticky until the admin's admit; a transient outage keeps them within the gate's grace. The exits judge the same policy
+  // before every grant (wg-provider), so this is the host's own half, not the only one.
+  // The operator's EXPLICIT block (enclaveNetwork.hostServicesPolicy, host-policy-gate-config.mjs) names the policy, its RPC
+  // quorum and CARRIERS for the signed document - an imported directory, this host's policy-mirror store (read from disk: the
+  // role need not run, nor be admitted, for its own prerequisite), other hosts' policy mirrors - so a cold host loads the
+  // anchored policy with every fleet mirror down. Untrusted bytes only: the gate still requires the anchored digest, the
+  // book's current owner, the sequence and the bans. Without the block: the platform's default for this chain and book.
+  let hostGate=null;
+  if(hostServicesConfig){try{const hsp=cfg.enclaveNetwork.hostServicesPolicy,stateDir=path.join(cfg.directory,'host-services-policy');
+    const secs=v=>Number(v)>0?Number(v)*1000:null;
+    // the gate's chain authority (the block's chainAuthority: the policy's RPC quorum by default, or EXPLICITLY the local
+    // verifier) must agree with the environment and the agent's own chain verifier: a mismatch refuses host services only
+    const hspc=hsp===undefined?null:hostServicesPolicyConfig(hsp),auth=hostServicesGateAuthority(hspc,{env:process.env,chain:cfg.chain});
+    if(auth.refused)throw new Error(auth.refused);
+    if(auth.warning)log('host services: WARNING: '+auth.warning);
+    if(hspc?.chainAuthority==='verifier')log('host services: platform host policy gate and carriers read through the local chain verifier (no RPC quorum)');
+    hostGate=hsp===undefined?createHostServiceGate({env:process.env,chainId:8453,book:cfg.chain?.addressBook||null,hostId:cfg.runner,stateDir,fetch:globalThis.fetch,log})
+      :await hostPolicyCarrierGate(hspc,{hostId:cfg.runner,stateDir,fetch:globalThis.fetch,log,
+        intervalMs:secs(process.env.ENCLAVE_PLATFORM_HOST_POLICY_INTERVAL_SEC),graceMs:secs(process.env.ENCLAVE_PLATFORM_HOST_POLICY_GRACE_SEC)});}
+   catch(e){pre.refused='platform host policy: '+e.message;log('HOST SERVICES REFUSED (apps unaffected): '+pre.refused);hostServicesConfig=null;}}
+  // an app-less host has nothing else to run: refused (before anything binds) unless its host services can actually run -
+  // a valid block, and a platform host policy that is ON (an "off" policy admits nothing, so it cannot admit host services)
+  if(!apps.length){
+    if(!hostServicesConfig)throw new Error('version 2 app configuration required: an empty app list runs only this host\'s services, and they are refused ('+(pre.refused||'platform host policy')+')');
+    if(!hostGate.enabled)throw new Error('version 2 app configuration required: an empty app list runs only this host\'s services, and they need the platform host policy on ('+hostGate.reason+')');
+    log('no apps: running this host\'s services only (they start once the platform host policy admits this host)');
+  }
+  const stopHostGate=()=>{clearInterval(hostGateTimer);hostGate?.stop();};
+  // Everything this daemon owns, closed and AWAITED; every step is attempted whatever an earlier one did, and -> the failures
+  // (each logged). The network host is closed LAST and always (enclave-network-host.mjs close(), idempotent): its direct
+  // runtime and the qualification canary hold public listeners from startup, and a daemon that keeps them cannot exit. Safe
+  // to run again: each close is idempotent and a second call waits for the first, so a stop during startup and the startup's
+  // own unwinding (below) release the same set.
+  const release=async()=>{const failed=[];
+    const attempt=async(what,step)=>{try{await step();}catch(e){failed.push(e);log(`${what}: ${e?.message??e}`);}};
+    await attempt('host policy gate',stopHostGate);await attempt('host proof',()=>hostProof?.close());
+    await Promise.all([attempt('agent',()=>agent?.close()),attempt('control transport',()=>wgControl?.close()),attempt('host services',()=>hostServices?.close())]);
+    await attempt('paid network',()=>paid?.close());await attempt('network host',()=>networkHost?.close());
+    return failed;};
+  // A stop: everything released, and a release that failed is not a clean stop (exit code 1, after the process is done).
+  let stopped=null;    // the signal's release -> its failures, once one arrived
+  const close=()=>{stopping=true;stopped=release();
+    void stopped.then(failed=>{if(failed.length){log(`stop incomplete: ${failed.length} cleanup step(s) failed`);process.exitCode=1;}});};
   process.once('SIGTERM',close);process.once('SIGINT',close);
   // SIGHUP re-reads the app list: each app's expectation, names and mirror
   // flag, and any new app, and the operator's host-egress offer (enclaveNetwork.hostEgress). Everything is validated before anything changes; no
@@ -225,24 +339,52 @@ export async function runPrivacy(configFile){
   setInterval(()=>void fs.stat(configFile).then(st=>{if(st.mtimeMs!==configStamp){configStamp=st.mtimeMs;return reloadApps();}}).catch(e=>log('config watch: '+e.message)),30000).unref();
   const starting=windows&&cfg.shield?.manager?startingShieldTransport(cfg.shield.manager,id=>apps.find(a=>a.deploymentId===id)?.expected):null;
   if(apps.some(a=>a.startupEgress)&&!starting)throw new Error('startup egress needs the local Shield manager');
-  // The Enclave network, before the lease reader: with enclaveNetwork.control the host's own chain reads and relay calls
-  // leave through two guarded Enclave-network circuits (docs/design/enclave-network.md).
-  let leaseReaderLate;
+  // Provider registry bootstrap precedes control circuits. App authorization
+  // reads use those circuits once available, never the bootstrap reader.
   const directFetch=globalThis.fetch;
-  // through the control circuits when they are up; otherwise (or if they fail) directly, with a fresh deadline (the
-  // caller's signal may already have expired on the failed attempt)
-  const networkFetch=async(url,init={})=>{if(wgControl){try{await wgControl.proxies();return await guardedFetch(wgControl.proxies,{timeoutMs:15000,maxBytes:4194304})(url,init);}catch(e){if(cfg.enclaveNetwork?.controlRequired)throw e;}}
-    return directFetch(url,{...init,signal:AbortSignal.timeout(15000)});};
-  const network=await createNetworkHost({config:cfg.enclaveNetwork,account,runner:cfg.runner,rpc:cfg.chain?.rpc,addressBook:cfg.chain?.addressBook,
-    leaseReader:{registryEntries:(...a)=>leaseReaderLate?leaseReaderLate.registryEntries(...a):Promise.reject(new Error('lease reader not ready yet')),
-      bookAddress:(...a)=>leaseReaderLate?leaseReaderLate.bookAddress(...a):Promise.reject(new Error('lease reader not ready yet'))},directory:cfg.directory,log,fetch:networkFetch,
-    authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),forward:pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream)});
+  const bootstrap=createProviderBootstrap({chain:cfg.chain,network:cfg.enclaveNetwork,fetch:directFetch});
+  const leaseReader=new LeaseReader({...cfg.chain,...(cfg.enclaveNetwork.paid?{includeConnectivity:'auto',includeHostPayout:true}:{}),
+    ...(cfg.enclaveNetwork.control===true?{proxy:async()=>{if(!wgControl)throw Error('control transport not started');return wgControl.proxies();}}:{})});
+  const providerReader=providerRegistryReader({bootstrap,liveReader:leaseReader,control:()=>wgControl,controlEnabled:cfg.enclaveNetwork.control===true});
+  // Prefer control circuits, then the explicitly selected bootstrap. Legacy
+  // optional-control hosts retain their existing direct public-record fallback.
+  const networkFetch=createNetworkFetch({bootstrap,control:()=>wgControl,controlRequired:cfg.enclaveNetwork.controlRequired,fetch:directFetch});
+  // A startup that cannot finish releases what it already holds before it says why: a genuine failure is rethrown as itself
+  // (exit 1), and a stop that arrived meanwhile is StartupCancelled - checked after each step that holds resources, so nothing
+  // new is created once a stop has been asked for (anything a step in flight made is released here, after it returns). A
+  // cancellation whose release failed is not clean: it is that failure (exit 1).
+  const unwind=async e=>{stopping=true;const failed=[...((await stopped)||[]),...await release()];
+    if(e instanceof StartupCancelled&&failed.length)throw cleanupFailed(e.message+', and releasing what it held',failed);
+    throw e;};
+  try{
+  const network=await createNetworkHost({config:cfg.enclaveNetwork,account,runner:cfg.runner,rpc:cfg.chain?.rpc,addressBook:cfg.chain?.addressBook,authorityPins:cfg.chain?.authorityPins,
+    leaseReader,providerReader,directory:cfg.directory,log,fetch:networkFetch,
+    authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),
+    // owner-name routing pins the key of the CURRENT attested local proof (enclave-network-host.mjs direct.ownerNames)
+    attestedKey:id=>!agent?.closed&&agent?.admission.allows(id)?agent.admission.proofs.get(id)?.spkiSha256||null:null,forward:pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream)});
   networkHost=network;
-  if(cfg.enclaveNetwork.control===true){wgControl=new WgControlTransport({runtime:network.runtime,providers:network.providers,log});await wgControl.start();}
+  // a stop that arrived while the host was being created, or a step below that fails, must not leave its listeners open
+  if(stopping)throw new StartupCancelled();
+  if(cfg.enclaveNetwork.control===true){wgControl=new WgControlTransport({runtime:network.runtime,providers:network.providers,
+    probeUrls:(cfg.enclaveNetwork.directories||[cfg.enclaveNetwork.relay]).map(origin=>new URL('/v1/network/providers',origin).href),log});await wgControl.start();
+    if(stopping)throw new StartupCancelled();}
+  // host services never take the agent (its apps) down: a failure here refuses them, loudly. They follow the platform host
+  // policy gate (above): started on its admit, closed (grants withdrawn) on its refusal, started again on the next admit.
+  // The first decision is not awaited: a slow or unreadable policy never holds up the apps.
+  // The switch (hostServiceLifecycle) never waits for a startup before judging again: a refusal during the first round
+  // cancels it (no circuit, grant or timer survives the stop), and only an admit starts a fresh transport.
+  if(hostServicesConfig){
+    hostServices=hostServiceLifecycle({refusal:()=>hostGate.serviceRefusal(),log,
+      create:()=>new HostServiceTransport({runtime:network.runtime,providers:network.providers,grants:network.grants,hostId:cfg.runner,config:hostServicesConfig,log})});
+    const judge=()=>stopping?undefined:hostServices.judge();
+    hostGate.start();
+    void hostGate.check().catch(()=>{}).then(judge);
+    hostGateTimer=setInterval(()=>void judge(),2000);hostGateTimer.unref?.();
+  }
   // paid providers (enclaveNetwork.paid): the lease must carry the on-chain connectivity authorization
-  const leaseReader=new LeaseReader({...cfg.chain,...(cfg.enclaveNetwork.paid?{includeConnectivity:'auto',includeHostPayout:true}:{}),...(wgControl?{proxy:wgControl.proxies}:{})});leaseReaderLate=leaseReader;
-  paid=cfg.enclaveNetwork.paid?await createPaidNetwork({config:cfg.enclaveNetwork.paid,directory:path.join(cfg.directory,'paid'),leaseReader,providers:network.providers,fetchFn:networkFetch,log}):null;
-  agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,directory:cfg.directory,dns:cfg.dns,network,paid,log,
+  paid=cfg.enclaveNetwork.paid?await createPaidNetwork({config:cfg.enclaveNetwork.paid,directory:path.join(cfg.directory,'paid'),leaseReader,chainVerifier:cfg.chain?.authority==='verifier'?cfg.chain.verifier:undefined,providers:network.providers,fetchFn:networkFetch,log}):null;
+  if(stopping)throw new StartupCancelled();
+  agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,directory:cfg.directory,dns:cfg.dns,network,paid,wallet,log,
     // the route publisher attaches the host's direct-hosting qualification to a direct route (v5)
     qualification:network.direct?.envelope,
     distribute:async(id,value)=>{
@@ -250,9 +392,15 @@ export async function runPrivacy(configFile){
       const circuits=agent.manager.apps.get(id)?.circuits.filter(c=>c.healthy&&!c.closed&&c.egress)||[];
       // the paths a publication may leave by: the app's own circuits, else (an app with website-only circuits) the
       // host's Enclave-network control circuits; never the host's own address
-      const paths=circuits.length?circuits.map(c=>c.transport==='direct'?fetch:guardedFetch(c.egress,{timeoutMs:5000})):wgControl?[guardedFetch(wgControl.proxies,{timeoutMs:8000})]:[];
+      const paths=circuits.length?circuits.map(c=>c.transport==='direct'?fetch:guardedFetch(c.egress,{timeoutMs:5000,publicRecords:true})):wgControl?[guardedFetch(wgControl.proxies,{timeoutMs:8000,publicRecords:true})]:[];
       if(!paths.length)return;
       const tasks=[];
+      if(cfg.enclaveNetwork?.directories?.length)tasks.push((async()=>{
+        let error;for(const publishFetch of paths){try{
+          const client=new DirectoryClient({origins:cfg.enclaveNetwork.directories,fetch:publishFetch,timeoutMs:5000});
+          await client.publish('/v1/network/routes',{publication:{version:2,endpoint:cfg.endpoint,policy:value.policy,bundle:value.bundle}});return;
+        }catch(e){error=e;}}throw error;
+      })());
       // Publishing to Nan's DNS mirror moves an app off the shared route for good
       // (the mirror remembers it), so it is opted into per app, never all at once.
       if(cfg.mirror&&apps.find(a=>a.deploymentId===id)?.publishToMirror===true)tasks.push((async()=>{
@@ -278,9 +426,15 @@ export async function runPrivacy(configFile){
       ...(!circuit&&pvm?{pvm}:!circuit&&windows?{shield,hostSession:await hostProof.get()}:!circuit?{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}:{}),
       ...(circuit?{address:circuit.address,direct:circuit.transport==='direct',proxy:circuit.transport==='direct'?undefined:circuit.isolation.guardAddress,domainIndependent:circuit.transport!=='direct'&&apps.find(a=>a.deploymentId===id)?.startupEgress===true}:apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:guestd?{openApp:id=>guestd.open(id)}:pvm?{openApp:()=>openPvmApp(pvm.appPort)}:{localUpstream:cfg.upstream})});
     })});
-  try{await agent.start();}catch(e){hostProof?.close();await agent.close();await wgControl?.close();throw e;}
+  await agent.start();
+  }catch(e){await unwind(e);}
   return agent;
 }
+// The daemon's command line: a genuine startup failure exits 1; a stop during startup (StartupCancelled) exits 0, like a stop
+// after it - only once nothing it started is left running, since that is when the process can exit at all.
+export function runPrivacyCli(configFile){
+  return runPrivacy(configFile).catch(e=>{console.error(e.message);if(!(e instanceof StartupCancelled))process.exitCode=1;});
+}
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){
-  const i=process.argv.indexOf('--config');runPrivacy(process.argv[i+1]).catch(e=>{console.error(e.message);process.exitCode=1;});
+  const i=process.argv.indexOf('--config');void runPrivacyCli(process.argv[i+1]);
 }

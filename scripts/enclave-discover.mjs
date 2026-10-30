@@ -14,10 +14,14 @@
 
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
+import { hostLiveness } from "../network/host-liveness.mjs";
 
 const REGISTRY_ADDRESS = process.env?.REGISTRY_ADDRESS || "0xCB65f487eba6564D57FfB860cF9aE701584cB4a2";
 const RPC_URL          = process.env?.BASE_RPC || "https://mainnet.base.org";
-const STALE_AFTER_SEC  = 3600;  // treat enclaves silent longer than this as down
+// Liveness (network/host-liveness.mjs) is NOT the registry's lastSeen: hosts send no periodic transaction. An active
+// row is up only on authenticated, bounded-fresh evidence: its operator-signed capacity record (verified here against
+// the row; Node only, the verifier needs node:crypto) or its operator's own registry write within this window.
+const REGISTRY_UPDATE_WINDOW_SEC = 3600;
 
 const ENCLAVE_TUPLE_V1 = [
   { name: "endpoint", type: "string" }, { name: "repo", type: "string" },
@@ -116,9 +120,29 @@ export async function readRegistry(address = REGISTRY_ADDRESS) {
       args: [BigInt(start), 50n] });
     out.push(...page);
   }
-  const now = Math.floor(Date.now() / 1000);
-  return out.filter(e => e.active && now - Number(e.lastSeen) <= STALE_AFTER_SEC
-    && isPublicHttpsEndpoint(e.endpoint));
+  // admission only: active, and an endpoint this caller may dial; liveness is per host (hostLivenessOf)
+  return out.filter(e => e.active === true && isPublicHttpsEndpoint(e.endpoint));
+}
+
+// The host's own signed capacity record, verified against the row just read (operator, endpoint, chain, registry,
+// active, unexpired) -> its expiry in ms, or null. Without the Node verifier (a browser) it is null: fewer hosts, never more.
+let _verifier;
+async function signedUntil(e, address, timeoutMs = 4000) {
+  _verifier ??= import("../network/host-capacity.mjs").catch(() => null);
+  const V = await _verifier;
+  if (!V) return null;
+  const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(`${e.endpoint.replace(/\/+$/, "")}/v1/host/capacity`, { signal: ctrl.signal, redirect: "error" });
+    if (!r.ok) return null;
+    const v = await V.verifyHostCapacity(await r.json(), { pins: { chainId: base.id, registry: address },
+      entry: { endpoint: e.endpoint, operator: e.operator, active: e.active } });
+    return v.record.expiresAt;
+  } catch { return null; } finally { clearTimeout(t); }
+}
+/** -> network/host-liveness.mjs's verdict for an admitted row */
+export async function hostLivenessOf(e, address = REGISTRY_ADDRESS) {
+  return hostLiveness(e, { signedUntilMs: await signedUntil(e, address), registryUpdateWindowSec: REGISTRY_UPDATE_WINDOW_SEC });
 }
 
 // 2) fan out to each enclave's /availability (fast-moving truth: free capacity)
@@ -147,8 +171,8 @@ export async function pickEnclave(want = {}, address = REGISTRY_ADDRESS) {
   const { gpuShare = 0, cpuShare = 0 } = want;
   const enclaves = await readRegistry(address);
   const rows = await Promise.all(enclaves.map(async (e) => {
-    const a = await fetchAvailability(e.endpoint);
-    return a ? { endpoint: e.endpoint, repo: e.repo, gpu: !!a.gpu,
+    const [a, liveness] = await Promise.all([fetchAvailability(e.endpoint), hostLivenessOf(e, address)]);
+    return a && liveness.live ? { endpoint: e.endpoint, repo: e.repo, gpu: !!a.gpu, liveness,
                  gpuShareFree: gpuFreeOf(a), cpuShareFree: cpuFreeOf(a),
                  smFree: a.smFree ?? 0, vramFreeGb: a.vramFreeGb ?? 0, avail: a } : null;
   }));

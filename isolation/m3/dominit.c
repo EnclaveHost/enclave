@@ -101,6 +101,17 @@ int main(void) {
         insmod("/tsm_report.ko.zst");
         insmod("/sev-guest.ko.zst");
     }
+    /* MODEL VOLUMES (monitor/modelvol.go): an image built with a measured table carries the disk and device-mapper
+     * modules beside vsock's - Hyper-V's SCSI (virtio's block driver is built in) and dm-verity. Without the table the
+     * image carries neither, and nothing is loaded. */
+    if (access("/plat/rt/model-volumes.table", F_OK) == 0) {
+        insmod("/scsi_transport_fc.ko.zst");
+        insmod("/hv_storvsc.ko.zst");
+        insmod("/dm-mod.ko.zst");
+        insmod("/dm-bufio.ko.zst");
+        insmod("/reed_solomon.ko.zst");
+        insmod("/dm-verity.ko.zst");
+    }
     lo_up();
     /* a domain's share is a child cgroup, so these controllers have to be available in the subtree */
     write_file("/sys/fs/cgroup/cgroup.subtree_control", "+cpu +memory +pids");
@@ -163,7 +174,23 @@ int main(void) {
             close(fd);
         }
     }
-    char *argv[] = {"/monitor", snpflag, hostflag[0] ? hostflag : NULL, NULL};
+    /* Presence is part of the measured image, not an untrusted host switch.
+     * With this driver included, startup requires a normally version-checked
+     * module load and every app report requires the guest TPM report. */
+    char *vtpmflag = NULL;
+    struct stat vtpm_stat;
+    if (stat("/enclave_openhcl_tpm.ko", &vtpm_stat) == 0) {
+        if (snp || !hostflag[0]) return 1;
+        int fd = open("/enclave_openhcl_tpm.ko", O_RDONLY | O_CLOEXEC);
+        if (fd < 0 || syscall(SYS_finit_module, fd, "", 0) != 0) {
+            printf("MON ERROR required guest TPM driver failed: %s\n", strerror(errno));
+            if (fd >= 0) close(fd);
+            return 1;
+        }
+        close(fd);
+        vtpmflag = "-vbs-tpm=/dev/tpm0";
+    }
+    char *argv[] = {"/monitor", snpflag, hostflag[0] ? hostflag : NULL, vtpmflag, NULL};
     char *envp[] = {"HOME=/tmp", "PATH=/plat", NULL};
     execve(argv[0], argv, envp);
     printf("MON ERROR exec /monitor: %s\n", strerror(errno));

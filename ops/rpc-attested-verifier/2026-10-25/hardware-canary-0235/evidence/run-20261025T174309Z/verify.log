@@ -1,0 +1,11 @@
+{
+ "acceptance": {
+  "pass": true,
+  "failed": []
+ },
+ "readiness": {
+  "up": true,
+  "tries": 3
+ },
+ "error": null
+}

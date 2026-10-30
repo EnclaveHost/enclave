@@ -1,0 +1,2 @@
+file	rc	tests	pass	fail	cancelled	skipped	notrun_native	todo	sec	note
+test/hosted-policy-cold-start.test.mjs	0	5	0	0	0	5	0	0	0.2	

@@ -1,0 +1,24 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/service-index.test.mjs
+✔ the pin is reproducible from the reviewed source and the chain; other code is refused (5861.437666ms)
+✔ two operators register independently: directly, and signed with a separate gas payer; both are untrusted candidates (157.212698ms)
+✔ replacement needs a higher sequence; withdrawal removes the ad and revokes older signatures (97.977688ms)
+✔ the former governor (the deployer) cannot take anything down; a wrong signer cannot publish (47.900437ms)
+✔ expired ads are not candidates, and only then may anyone prune them (71.004211ms)
+✔ RPCs that disagree, a single RPC, or the wrong chain yield no candidates at all (26.013283ms)
+✔ enumeration is bounded, and unsafe advertised targets are dropped with a reason (459.252079ms)
+✔ provider bootstrap: legacy is unchanged; explicit names every authority and defaults nothing to Enclave (1.317919ms)
+✔ main.mjs --check-config and install.sh --config-only: explicit authorities, legacy only by opt-in, operator fields kept (1353.158887ms)
+✔ 2 honest + 1 liar, + 1 wrong chain, + 1 hanging, + 1 future head, + 1 reorganizing: the honest pair decides (532.142269ms)
+✔ 1 honest + 1 liar, or + 1 hanging, fails closed with evidence; it is never an empty directory (1731.531917ms)
+✔ pagination resumes at the same block; a known operator is found past any window; a forged cursor is refused (92.832228ms)
+✔ a smart-contract wallet publishes by direct call, and by an ERC-1271 signature a gas payer submits (348.579091ms)
+✔ the independent checker qualifies a community provider on the deployed schema-4 registry, with Enclave blocked (1968.95232ms)
+✔ probe targets: explicit zone and canary in independent mode; the compatibility defaults otherwise (5.749176ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15431.159689

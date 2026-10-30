@@ -1,0 +1,9 @@
+[b1] image source 0235e7d9659f1ccbf9f258bd03593d26f32f3f3a tree d36f220a
+[b1] guest-verify bundles REFRESHED and REPRODUCIBLE from an independent export
+[b1] verify: e0dfe98aa 86a3e099dd5163e3 -> 0235e7d96 00b88784578f5393; inputs 421; changed 1: metal/guest/lease-gas-conduit.bundle.mjs changed
+[b1] guest: e0dfe98aa a9476d411c01c32f -> 0235e7d96 d954ecf8228691f3; inputs 415; changed 1: metal/guest/lease-gas-conduit.bundle.mjs changed
+[b1] input hashes vs git 0235e7d96 / this tree node_modules: 836/836 match
+[b1] consumers REPRODUCIBLE: provider.mjs c248ffe507e4411519e022a97f452fd58d079741b9b219cf245339214106028e manifest 8517a03348289944
+[b1] pinned binaries verified
+[b1] relay-consumer-source ab371cbc22e02575bf4b121ac6358a271f91ae2c dirty=0
+[b1] rc=1

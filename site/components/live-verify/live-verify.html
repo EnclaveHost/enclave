@@ -1,13 +1,12 @@
 <div class="lv">
   <div class="lv-h">
     <div class="lv-txt">
-      <h3>Check a host’s evidence</h3>
-      <p>Your browser checks a live host's hardware attestation itself, with Enclave's source-available <a href="https://github.com/EnclaveHost/enclave/tree/main/verifier" target="_blank" rel="noopener">verifier</a>.</p>
-      <p id="lv-limits">Default verification uses Enclave’s measurement allowlist: a successful check is <b>limited</b>. For the confidential-server check, use <code>enclave attest --expect &lt;measurement&gt;</code> with a measurement you derived independently. This removes reliance on the allowlist for that comparison; other trust assumptions remain.</p>
+      <h3>Don't take our word for it</h3>
+      <p>Your browser checks a live host's hardware attestation itself, with Enclave's open-source <a href="https://github.com/EnclaveHost/enclave/tree/main/verifier" target="_blank" rel="noopener">verifier</a>.</p>
     </div>
     <div class="lv-act">
       <div class="lv-tiers" role="radiogroup" aria-label="Kind of host" hidden></div>
-      <button class="btn btn-primary lv-run" type="button" aria-describedby="lv-limits">Verify a host <span class="arr">→</span></button>
+      <button class="btn btn-primary lv-run" type="button">Verify a host <span class="arr">→</span></button>
     </div>
   </div>
   <div class="lv-body" hidden></div>

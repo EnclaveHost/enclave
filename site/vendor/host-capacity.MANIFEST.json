@@ -1,0 +1,37 @@
+{
+  "file": "site/vendor/host-capacity.js",
+  "sha256": "1df342ef4ae23893b5280d43a047199fcb7de4918565e2eebbd5998c1e08e29d",
+  "bytes": 62022,
+  "entry": "export { verifyHostCapacity, validateHostCapacityRecord, CapacityFloors, chooseRecord, aggregateCapacity, hostIdOf, hostCapacityHash, HOST_CAPACITY_MAX_MS } from \"./network/host-capacity.mjs\";\n",
+  "esbuild": "0.28.1",
+  "deps": {
+    "viem": "2.53.1"
+  },
+  "sources": {
+    "network/canonical.mjs": {
+      "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+      "commit": null,
+      "committedClean": null
+    },
+    "network/host-capacity-record.mjs": {
+      "sha256": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+      "commit": null,
+      "committedClean": null
+    },
+    "network/host-capacity.mjs": {
+      "sha256": "ef92bba48fe197b81e7d7aa59b0daf44dedde849c2a05a79121d1ae42ccc8e72",
+      "commit": null,
+      "committedClean": null
+    },
+    "scripts/host-capacity-vendor/buffer-shim.mjs": {
+      "sha256": "d27be974a41738c96c10035cac7ae1df1459eb62b28e798ca1b0c6fc6402005d",
+      "commit": null,
+      "committedClean": null
+    },
+    "scripts/host-capacity-vendor/node-crypto-shim.mjs": {
+      "sha256": "2afcadc702d29dc6bcfbf969357eaaf5965d958358f7edc5ed0b33ea0daba748",
+      "commit": null,
+      "committedClean": null
+    }
+  }
+}

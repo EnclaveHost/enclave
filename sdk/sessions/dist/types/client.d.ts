@@ -73,6 +73,14 @@ export interface CallResult {
     result: Hex;
     fee: bigint;
 }
+/** Portable calldata for any gas payer. Preparation signs an intent, but does not
+ * submit it. The caller must check the receipt; preparation does not reserve a nonce. */
+export interface PreparedSessionTransaction {
+    chainId: number;
+    to: Address;
+    data: Hex;
+    value: 0n;
+}
 export declare class Session {
     readonly handle: SessionHandle;
     readonly signer: SessionSigner;
@@ -84,6 +92,17 @@ export declare class Session {
     });
     private chain;
     status(): Promise<SessionState>;
+    /** Authorize a zero-relay-fee operation using chain reads only. An owner or
+     * independent gas payer can broadcast the returned calldata. The vault remains
+     * authoritative for scope, attestation, budget, revocation and replay checks. */
+    prepareCall<A extends OnChainAction>(action: A, args: ActionArgs[A], opts?: {
+        lane?: bigint;
+        deadlineSeconds?: number;
+    }): Promise<PreparedSessionTransaction>;
+    /** End and refund a session through any gas payer, without contacting a relay. */
+    prepareTermination(opts?: {
+        deadlineSeconds?: number;
+    }): Promise<PreparedSessionTransaction>;
     /** Check, quote, sign and submit one action. Throws SessionError with a code the
      *  caller can act on (budget -> top-up, expired -> extend, ...). */
     call<A extends OnChainAction>(action: A, args: ActionArgs[A], opts?: {
@@ -156,6 +175,20 @@ export declare function openSession(p: {
     txHash: Hex;
     vault: Address;
 }>;
+/** Open a fresh session without relay discovery or submission. The caller chooses
+ * the factory explicitly. A budget uses an owner-signed, grant-bound USDC deposit;
+ * any gas payer may submit, but cannot alter the grant or redirect its funds. */
+export declare function prepareSessionOpen(p: {
+    publicClient: PublicClient;
+    factory: Address;
+    owner: OwnerSigner;
+    chainId: number;
+    grant: Grant;
+    usdc?: UsdcDomain;
+}): Promise<PreparedSessionTransaction & {
+    vault: Address;
+    sid: Hex;
+}>;
 export type OwnerOp = {
     op: "topUp";
     sessionId: Hex;
@@ -209,6 +242,46 @@ export declare function ownerOperation(p: {
     validSeconds?: number;
 }): Promise<{
     txHash: Hex;
+}>;
+/** One owner operation as calldata for the vault, with no relay. The vault, not this function, authorizes it
+ *  (SessionVault._ownerAuth) against its CURRENT owner when the transaction executes:
+ *   - "direct": the vault's owner account itself submits the call. msg.sender == owner authorizes it in that block;
+ *     opNonce and signBefore are ignored and no signature is made.
+ *   - "signed": the owner signs the typed operation (EIP-712 domain of this vault and chain, a fresh random opNonce,
+ *     signBefore = chain time + validSeconds); any gas payer may submit it once, before signBefore. A changed owner,
+ *     a reused nonce or a late submission reverts on chain.
+ *  `expectOwner`, when given, is checked against vault.owner() first so a mistaken wallet fails before signing. */
+export declare function prepareOwnerOperation(p: {
+    publicClient: PublicClient;
+    chainId: number;
+    vault: Address;
+    op: OwnerOp;
+    mode: "direct" | "signed";
+    owner?: OwnerSigner;
+    expectOwner?: Address;
+    validSeconds?: number;
+}): Promise<PreparedSessionTransaction & {
+    fn: string;
+    opNonce: Hex;
+    signBefore: bigint;
+    mode: "direct" | "signed";
+}>;
+/** Add budget to a live session straight from the owner's wallet, with no relay: one USDC EIP-3009
+ *  ReceiveWithAuthorization signed by the owner whose nonce IS the TopUp digest (vault domain, sessionId, amount,
+ *  opNonce, validBefore), so it can fund this top-up and nothing else. Any gas payer submits topUpWithAuthorization;
+ *  USDC pulls from the vault's CURRENT owner, so an authorization signed by anyone else fails on chain. */
+export declare function prepareTopUpFromWallet(p: {
+    publicClient: PublicClient;
+    chainId: number;
+    vault: Address;
+    sessionId: Hex;
+    amount: bigint;
+    usdc: UsdcDomain;
+    owner: OwnerSigner;
+    validSeconds?: number;
+}): Promise<PreparedSessionTransaction & {
+    opNonce: Hex;
+    validBefore: bigint;
 }>;
 /** Top up from the owner's WALLET with one signature (USDC authorization whose
  *  nonce is the TopUp digest). */
