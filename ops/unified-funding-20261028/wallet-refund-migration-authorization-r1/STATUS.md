@@ -16,3 +16,10 @@ Root opened ONLY DNS Cancel review on existing dashboard Chrome4/tab723101026. B
 Public first release receipt DOM saved as wallet-a62-release-included-20261030.txt. Screenshot attempts produced blank images; native refund-dialog screenshot API refused while confirmation active. Do not present those images as proof. Actual accessibility confirmation text and receipt DOM are authoritative UI observations, not independent fresh RPC finality proof.
 
 Peer read-only exact refund path review finalized at it/work/wallet-refund-migration-review-r1-20261029/REVIEW.md (e192009564d098e069a0c6bccb445022d71e000f1c32feffd2aff2f1cd1eccca). Deactivate->actual runner release->refund may avoid partial refund; session funding requires reactivate first, genuine fund scope/budget/delegation/caps. Owner topUp can allocate refunded vault FREE balance to session. Old gas stays old bucket; no duplicate/reset. Root has not executed any of these. No new author/test/build.
+
+
+## October30 04:23UTC: human approved DNS refund; KVM confirmation prepared
+
+Human said “I clicked ok, now what?” Actual dashboard now DNS59f1273d stopped/Ended, zero runtime (display paid1.48/spent1.48). Scoped live migration Check the chain again removed active blocker; attached expired lease, both escrow nonzero and old gas reserve remain. NO refund retry. Receipt/exact returned amount still requires separate canonical verification; user confirmation and stopped UI alone are not receipt proof.
+
+Root selected ONLY KVM9a28642b and opened Cancel review. Native confirmation now displays refund$4.43 of balance$5.19; final OK UNCLICKED/user handoff. This confirmation sends funds to current-owner vault FREE balance despite UI wallet wording. No KVM refund yet observed; no re-funding. Browser tab723101026 holds KVM confirm, all four tabs preserved. Same screenshot limitation while native dialog active, no misleading blankimage proof. A62 priorincluded tx remains non-repeatable; cab8 unsigned. Peer read-only per-app runner-release/reserve-recovery route review requested; no new author/test/build/financial delegation.
