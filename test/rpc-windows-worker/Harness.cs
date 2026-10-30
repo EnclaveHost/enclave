@@ -1,0 +1,155 @@
+// Inert hosted-CI qualification only. No VM/provider API, service, network or DB.
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Threading;
+using System.Web.Script.Serialization;
+using Enclave.OwnedRpc;
+
+static class Harness {
+    static string Exe { get { return Process.GetCurrentProcess().MainModule.FileName; } }
+    static string Quote(string value) {
+        if (value.IndexOf('"')>=0 || value.IndexOf('\n')>=0) throw new ArgumentException("Unexpected fixture path");
+        return "\""+value+"\"";
+    }
+    static Dictionary<string,string> Env() {
+        return new Dictionary<string,string> {
+            {"SystemRoot",Environment.GetEnvironmentVariable("SystemRoot")},
+            {"WINDIR",Environment.GetEnvironmentVariable("WINDIR")},
+            {"TEMP",Path.GetTempPath()}, {"TMP",Path.GetTempPath()}
+        };
+    }
+    static void Identity(string path) {
+        using (var p=Process.GetCurrentProcess())
+        using (var f=new StreamWriter(new FileStream(path+".pending",FileMode.CreateNew,FileAccess.Write,FileShare.None)))
+            f.Write(p.Id+","+p.StartTime.ToUniversalTime().ToFileTimeUtc());
+        File.Move(path+".pending",path);
+    }
+    static Process Observe(string path,int budget) {
+        var clock=Stopwatch.StartNew();
+        while (clock.ElapsedMilliseconds<budget) {
+            if (File.Exists(path)) {
+                string[] fields=File.ReadAllText(path).Split(',');
+                if (fields.Length==2 && fields[1].Length>0) {
+                    var p=Process.GetProcessById(Int32.Parse(fields[0]));
+                    // Acquire the exact live handle now, before any parent termination.
+                    IntPtr held=p.Handle;
+                    if (p.StartTime.ToUniversalTime().ToFileTimeUtc()!=Int64.Parse(fields[1])) {
+                        p.Dispose(); throw new Exception("Fixture process incarnation differs");
+                    }
+                    return p;
+                }
+            }
+            Thread.Sleep(10);
+        }
+        throw new Exception("Exact fixture identity unavailable");
+    }
+    static WorkerResult Run(string mode,string record,int duration) {
+        return BoundedWorker.Run(Exe,Quote(Exe)+" helper "+mode+" "+Quote(record),
+            Path.GetDirectoryName(Exe),Env(),BoundedWorker.MonotonicMilliseconds()+duration,2000,128UL*1024*1024);
+    }
+    static bool Dead(WorkerResult r) {
+        return r.ProcessCreated && r.ProcessId>0 && r.CreationFileTime>0 && r.ExitCodeKnown &&
+            r.ProcessExited && r.JobEmpty && r.HandleCleanupConfirmed && r.JobLimitsVerified &&
+            r.InitialMembershipVerified && String.IsNullOrEmpty(r.Failure) &&
+            !r.ProviderOperationFenced && !r.ReservationMayRelease;
+    }
+    static void Check(string name,bool passed,object details) {
+        Console.WriteLine(new JavaScriptSerializer().Serialize(new {name=name,passed=passed,details=details}));
+        if (!passed) throw new Exception("Fixture failed: "+name);
+    }
+    static int Helper(string mode,string path) {
+        Identity(path);
+        if (mode=="zero") return 0;
+        if (mode=="seven") return 7;
+        if (mode=="sleep") { Thread.Sleep(5000); return 0; }
+        if (mode=="descendant") {
+            var info=new ProcessStartInfo(Exe,"helper sleep "+Quote(path+".child"));
+            info.UseShellExecute=false; info.CreateNoWindow=true;
+            using (var child=Process.Start(info)) { Thread.Sleep(1500); }
+            return 0;
+        }
+        if (mode=="memory") {
+            // Intrinsically bounded at 192MiB even if the candidate limit fails.
+            try {
+                var blocks=new List<byte[]>();
+                for (int i=0;i<192;i++) { var b=new byte[1024*1024]; b[0]=1; blocks.Add(b); }
+                GC.KeepAlive(blocks); return 0;
+            } catch (OutOfMemoryException) { return 70; }
+        }
+        return 99;
+    }
+    static int Main(string[] args) {
+        try {
+            if (args.Length==3 && args[0]=="helper") return Helper(args[1],args[2]);
+            if (args.Length==2 && args[0]=="supervisor") { Run("sleep",args[1],4000); return 0; }
+            if (args.Length!=1) return 98;
+            string dir=Path.GetFullPath(args[0]); Directory.CreateDirectory(dir);
+            var zero=Run("zero",Path.Combine(dir,"zero"),3000);
+            Check("normal-zero",Dead(zero) && zero.LocalSuccess,zero);
+            var seven=Run("seven",Path.Combine(dir,"seven"),3000);
+            Check("distinct-exit-seven",Dead(seven) && seven.ExitCode==7 && !seven.LocalSuccess,seven);
+            var sleepy=Run("sleep",Path.Combine(dir,"sleep"),700);
+            Check("bounded-timeout",Dead(sleepy) && sleepy.TimedOut && !sleepy.LocalSuccess && sleepy.ElapsedMilliseconds<3200,sleepy);
+            var memory=Run("memory",Path.Combine(dir,"memory"),3000);
+            Check("commit-memory-refusal",Dead(memory) && !memory.TimedOut && memory.ExitCode==70 &&
+                File.Exists(Path.Combine(dir,"memory")) && !memory.LocalSuccess,memory);
+            string childRecord=Path.Combine(dir,"descendant");
+            WorkerResult descendants=null; Exception threadError=null;
+            var thread=new Thread(delegate() { try { descendants=Run("descendant",childRecord,4000); } catch(Exception e) { threadError=e; } });
+            thread.IsBackground=true; thread.Start();
+            using (var child=Observe(childRecord+".child",3000)) {
+                bool joined=thread.Join(6500);
+                bool exited=child.WaitForExit(1000);
+                Check("descendant-after-parent-exit",joined && threadError==null && descendants!=null &&
+                    Dead(descendants) && !descendants.TimedOut && exited && child.ExitCode!=0,
+                    new {worker=descendants,childExited=exited});
+            }
+            string deathRecord=Path.Combine(dir,"parent-death");
+            var info=new ProcessStartInfo(Exe,"supervisor "+Quote(deathRecord));
+            info.UseShellExecute=false; info.CreateNoWindow=true;
+            using (var supervisor=Process.Start(info)) {
+                IntPtr held=supervisor.Handle;
+                Process child=null;
+                try {
+                    child=Observe(deathRecord,3000);
+                    supervisor.Kill(); // Only the exact process created by this fixture.
+                    bool parentExited=supervisor.WaitForExit(3000);
+                    bool childExited=child.WaitForExit(2000);
+                    Check("supervisor-death-kills-private-job",parentExited && childExited && child.ExitCode!=0,
+                        new {supervisor=supervisor.Id,child=child.Id,parentExited=parentExited,childExited=childExited});
+                } finally {
+                    // Dispose is not termination. Own the exact supervisor on every
+                    // path, including failure before a child receipt can be observed.
+                    var cleanupErrors=new List<Exception>();
+                    try {
+                        if (!supervisor.HasExited) supervisor.Kill();
+                        if (!supervisor.WaitForExit(3000)) throw new Exception("Supervisor cleanup unconfirmed");
+                    } catch(Exception e) { cleanupErrors.Add(e); }
+                    finally {
+                        if (child!=null) {
+                            try {
+                                if (!child.HasExited) child.Kill();
+                                if (!child.WaitForExit(3000)) throw new Exception("Bound fixture child cleanup unconfirmed");
+                            } catch(Exception e) { cleanupErrors.Add(e); }
+                            finally {
+                                try { child.Dispose(); } catch(Exception e) { cleanupErrors.Add(e); }
+                            }
+                        }
+                    }
+                    if (cleanupErrors.Count>0) throw new AggregateException("Exact fixture cleanup failed",cleanupErrors);
+                }
+            }
+            var invalid=BoundedWorker.Run(Path.Combine(dir,"absent.exe"),"absent",dir,Env(),
+                BoundedWorker.MonotonicMilliseconds()+1000,1000,128UL*1024*1024);
+            Check("invalid-executable-no-success",!invalid.ProcessCreated && !invalid.ExitCodeKnown &&
+                !invalid.LocalSuccess && !String.IsNullOrEmpty(invalid.Failure),invalid);
+            bool refused=false;
+            try { BoundedWorker.Run(Exe,Quote(Exe),dir,Env(),BoundedWorker.MonotonicMilliseconds()-1,1000,128UL*1024*1024); }
+            catch(ArgumentOutOfRangeException) { refused=true; }
+            Check("expired-absolute-deadline",refused,null);
+            return 0;
+        } catch (Exception error) { Console.Error.WriteLine(error.GetType().Name+": "+error.Message); return 1; }
+    }
+}

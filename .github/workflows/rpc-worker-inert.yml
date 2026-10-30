@@ -1,0 +1,39 @@
+name: RPC worker inert qualification
+run-name: RPC worker inert ${{ inputs.expected_sha }}
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact reviewed commit; mismatch refuses execution
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: rpc-worker-inert
+  cancel-in-progress: false
+jobs:
+  inert:
+    runs-on: windows-2025
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          persist-credentials: false
+      - name: Check exact reviewed source
+        shell: powershell
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          if ($env:EXPECTED_SHA -cnotmatch '^[0-9a-f]{40}$' -or $env:GITHUB_SHA -cne $env:EXPECTED_SHA) { throw 'Source changed; no execution' }
+          if ((git rev-parse HEAD) -cne $env:EXPECTED_SHA) { throw 'Checkout mismatch' }
+      - name: Compile and exercise inert finite processes
+        shell: powershell
+        run: '& ./test/rpc-windows-worker/run-ci.ps1'
+      - name: Preserve bounded results
+        if: always() && env.RPC_WORKER_RESULT != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rpc-worker-inert-results
+          path: ${{ env.RPC_WORKER_RESULT }}
+          retention-days: 7

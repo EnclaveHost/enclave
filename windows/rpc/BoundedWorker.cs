@@ -17,6 +17,8 @@ namespace Enclave.OwnedRpc {
         public bool ProcessCreated;
         public bool ExitCodeKnown;
         public bool HandleCleanupConfirmed;
+        public bool JobLimitsVerified;
+        public bool InitialMembershipVerified;
         public bool TimedOut;
         public bool ProcessExited;
         public bool JobEmpty;
@@ -25,7 +27,7 @@ namespace Enclave.OwnedRpc {
         public bool LocalSuccess {
             get { return ProcessCreated && ProcessId != 0 && CreationFileTime > 0 &&
                 ExitCodeKnown && ExitCode == 0 && !TimedOut && ProcessExited && JobEmpty &&
-                HandleCleanupConfirmed && String.IsNullOrEmpty(Failure); }
+                HandleCleanupConfirmed && JobLimitsVerified && InitialMembershipVerified && String.IsNullOrEmpty(Failure); }
         }
         public bool ProviderOperationFenced { get { return false; } }
         public bool ReservationMayRelease { get { return false; } }
@@ -83,6 +85,10 @@ namespace Enclave.OwnedRpc {
         static extern bool SetInformationJobObject(IntPtr job, int kind, ref ExtendedLimits value, uint size);
         [DllImport("kernel32.dll", SetLastError=true)]
         static extern bool QueryInformationJobObject(IntPtr job, int kind, out Accounting value, uint size, IntPtr returned);
+        [DllImport("kernel32.dll", EntryPoint="QueryInformationJobObject", SetLastError=true)]
+        static extern bool QueryLimits(IntPtr job, int kind, out ExtendedLimits value, uint size, IntPtr returned);
+        [DllImport("kernel32.dll", SetLastError=true)]
+        static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool member);
         [DllImport("kernel32.dll", SetLastError=true)]
         static extern bool InitializeProcThreadAttributeList(IntPtr list, int count, uint flags, ref UIntPtr size);
         [DllImport("kernel32.dll", SetLastError=true)]
@@ -165,6 +171,15 @@ namespace Enclave.OwnedRpc {
                 limits.JobMemory=new UIntPtr(memoryBytes);
                 Check(SetInformationJobObject(job, ExtendedLimitsClass, ref limits,
                     (uint)Marshal.SizeOf(typeof(ExtendedLimits))), "Set private job limits");
+                ExtendedLimits observedLimits;
+                Check(QueryLimits(job,ExtendedLimitsClass,out observedLimits,
+                    (uint)Marshal.SizeOf(typeof(ExtendedLimits)),IntPtr.Zero),"Read private job limits");
+                if (observedLimits.Basic.Flags != limits.Basic.Flags ||
+                    observedLimits.Basic.ActiveProcessLimit != 4 ||
+                    observedLimits.Basic.Affinity.ToUInt64() != 2 ||
+                    observedLimits.JobMemory.ToUInt64() != memoryBytes)
+                    throw new InvalidOperationException("Private job limits differ from request");
+                result.JobLimitsVerified=true;
                 UIntPtr size=UIntPtr.Zero;
                 bool sized=InitializeProcThreadAttributeList(IntPtr.Zero,1,0,ref size);
                 int sizeError=Marshal.GetLastWin32Error();
@@ -190,6 +205,10 @@ namespace Enclave.OwnedRpc {
                 created=true;
                 result.ProcessCreated=true;
                 result.ProcessId=process.ProcessId;
+                bool member;
+                Check(IsProcessInJob(process.Process,job,out member),"Check creation-time membership");
+                if (!member) throw new InvalidOperationException("Worker is outside private job");
+                result.InitialMembershipVerified=true;
                 long exit,kernel,user,creation;
                 Check(GetProcessTimes(process.Process,out creation,out exit,out kernel,out user), "Read exact process identity");
                 result.CreationFileTime=creation;
