@@ -1,0 +1,7 @@
+{
+  "sourceRuntime": "Python standard library plus exact reviewed native CLIs for a FUTURE root-run writer; no execution here",
+  "nativeToolsMetadata": "native-tool-pins.json",
+  "newTests": "Authored only; fake injected effects and small synthetic fixtures. No production paths/import effects.",
+  "referenceFixture": "Root-owned synthetic32MiB actual PASS, independently pinned, not rerun or broadened here",
+  "collector": "Actual terminal unit plus observed main/runner/Claude PIDs required; otherwise manual failure audit, no fabricated PID"
+}

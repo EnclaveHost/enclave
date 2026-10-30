@@ -1,0 +1,9 @@
+## October30 06:46UTC: maintenance VM rejected; real offline fixture PASS; new source author admitted but not yet launched
+
+Fresh authenticated guestd read6317c7745f0f446ca18938113f833b6a terminal0/Main0: instancefcc408be2214d30c, allocated65049MiB, pending5232MiB, floor18432MiB, available33675MiB, unreadUnits0. Maintenance10GiBcap would require33904MiB before helpers/margin; NOT ADMITTED. Existing controller lacks external reservation/live budget update; no restart/pause. Preserve serving guest and relay. Snapshot is not continuous reservation. Full RPC fit remains unproven.
+
+Root synthetic offline fixturefbc24257cc474c34a66e193c9a0c4356 terminal0/Main0 PASS: new32MiBext4, bounded nestedraw/qcow export, exactinode ln/unlink archive, mask, enablement rm, pre/postfsck0, qcowcheck0, unchanged outsidepartition/original, exportersgone.512hard450RSSfloor27648CPU1noswap/sharedqueue, peak21inner98outer/min33452. No productionimage opened/written. Inputs762d0d0fa/results644bf8bf26fb PUSHED. Fullproductionwriter/GPTvalidation/publication not qualified.
+
+Root reviewed new PREPAREDa7e90eb8628bf105088813e2ceb0dabf0f7c8c93662720db6ff30adae6698c37 in it/work/rpc-offline-os-writer-author-r1-20261029: exact5seed/37readonly/6nativepins0drift. Independent current Max preflight terminal0, required steven.r.batchelor@gmail.com Max, no other exactClaude process; known unreadable daemon classification limitation retained. ONE SOURCEONLY author admitted20turn900child1200outer1536hard1408RSSfloor27648CPU1noswap/sharedqueue; not launched at this record. Four new files only, derivative-only source, no tests/images/VM/live/finance. Root must record actual invocation/PIDs; peer collectorONCE only after actual terminal. No publication or normal RPC boot admitted.
+
+Same DNS59f/KVM9a each funded5USDC externally; restoration still unfinished, no duplicate funding/refunds. Source/code work is not RPC-running proof.

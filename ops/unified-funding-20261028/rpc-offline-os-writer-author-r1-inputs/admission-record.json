@@ -1,0 +1,37 @@
+{
+  "unit": "enclave-rpc-offline-os-writer-r1-20261029-author.service",
+  "invocationId": "4309c9293af64b4eac7c44fdd0440ec3",
+  "mainPid": 2402659,
+  "runnerPid": 2402675,
+  "claudePid": 2402691,
+  "identities": {
+    "mainPid": {
+      "pid": 2402659,
+      "startTicks": "164795555",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "cpuAllowed": "Cpus_allowed_list:\t0-31"
+    },
+    "runnerPid": {
+      "pid": 2402675,
+      "startTicks": "164795567",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "cpuAllowed": "Cpus_allowed_list:\t1"
+    },
+    "claudePid": {
+      "pid": 2402691,
+      "startTicks": "164795599",
+      "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+      "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-offline-os-writer-author-r1-20261029",
+      "cpuAllowed": "Cpus_allowed_list:\t1"
+    }
+  },
+  "observedAt": 1793342855.0275116,
+  "preparedSha256": "a7e90eb8628bf105088813e2ceb0dabf0f7c8c93662720db6ff30adae6698c37",
+  "account": {
+    "loggedIn": true,
+    "email": "steven.r.batchelor@gmail.com",
+    "subscriptionType": "max"
+  }
+}

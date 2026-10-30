@@ -1,0 +1,10 @@
+{
+  "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-offline-mask-fixture-r1/run.py": "aa94fc722edade15522ba077a8a284f7687856e69e2f3e687ca45064c1a6c51a",
+  "/usr/bin/mke2fs": "0ad4756fd858ee0a3a7fcaa34875af0c1050b9bccaf0d363c242d87d70575657",
+  "/usr/bin/debugfs": "9b27184084383c8607eee03b43c80eca4ef912acf4887b40a7cc420e267ad8a8",
+  "/usr/bin/e2fsck": "a9ea133a844edd695b5172abadc8bbbbb03aaedad80fc24d039bdbf4563a125c",
+  "/usr/bin/qemu-img": "3a57bce6765bfb73a75591dba2ac40d985cccde97d371e95537ecbf16d949d30",
+  "/usr/bin/nbdfuse": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01",
+  "/usr/bin/qemu-nbd": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934",
+  "/usr/bin/fusermount3": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f"
+}
