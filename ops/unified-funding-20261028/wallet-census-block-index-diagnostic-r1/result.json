@@ -1,0 +1,41 @@
+{
+  "at": "2026-10-30T04:43:14.738Z",
+  "readOnly": true,
+  "providers": [
+    {
+      "url": "https://api.enclave.host/rpc/base",
+      "index": 144,
+      "error": "The method \"eth_getTransactionByBlockHashAndIndex\" does not exist / is not available."
+    },
+    {
+      "url": "https://base-mainnet.public.blastapi.io",
+      "index": 144,
+      "transaction": {
+        "hash": "0xddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89",
+        "blockHash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+        "blockNumber": "0x3215379",
+        "transactionIndex": "0x90",
+        "to": null,
+        "from": "0x120ba39e91395273496c4c7d065733c9db461dbb",
+        "inputHash": "0x74f4b96e1c6269c9bce61bd006b139c1f12e158f772af5b988c217b6c0ef833d",
+        "inputBytes": 25433
+      },
+      "verified": true
+    },
+    {
+      "url": "https://rpc.baseazul.dev",
+      "index": 144,
+      "transaction": {
+        "hash": "0xddc85def2d8bc739831b931a60ae2d0597e7e922812c3c582e9dbd5984609a89",
+        "blockHash": "0x583fbb7a7ea5ce7a05aae1e88c7b8c38c502ce687ed11b9b3e38eb361842b9ce",
+        "blockNumber": "0x3215379",
+        "transactionIndex": "0x90",
+        "to": null,
+        "from": "0x120ba39e91395273496c4c7d065733c9db461dbb",
+        "inputHash": "0x74f4b96e1c6269c9bce61bd006b139c1f12e158f772af5b988c217b6c0ef833d",
+        "inputBytes": 25433
+      },
+      "verified": true
+    }
+  ]
+}

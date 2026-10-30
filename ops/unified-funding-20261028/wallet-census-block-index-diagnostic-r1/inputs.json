@@ -1,0 +1,26 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-census-block-index-diagnostic-r1/read.mjs",
+    "sha256": "8bf4f97dd0d5691553fa410b625e550d701979c8d552b143d972d2c1956ec67d"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-repaired-r3/candidate/enclave/site/js/core/wallet-release-census.js",
+    "sha256": "d5c4e74a651f8153dcffc921fed2c79a17b6488b47a3ea6a184166769718a8e1"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-repaired-r3/candidate/enclave/site/js/core/wallet-release-chain.js",
+    "sha256": "b970d33d117c17c31cc9204d1ef4b060826f881ead28342045a29cb7c6054748"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-prod-root-repaired-r3/candidate/enclave/site/js/core/keccak.js",
+    "sha256": "ee3929ff49bd8c5b054fea158fd7e9e0de9de7f29a540d52748410d9d9049bb8"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+    "sha256": "969d9273e53c79abf8604c363daa58b41a462bc4b7f3d03d813980edb771f6f4"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+    "sha256": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6"
+  }
+]

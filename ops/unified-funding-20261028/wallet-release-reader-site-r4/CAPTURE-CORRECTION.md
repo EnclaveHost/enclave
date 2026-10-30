@@ -1,0 +1,1 @@
+Initial readonly capture stopped before writes because copied verifier still asserted prior r2 CID. Failed script/stderr retained. Corrected exact r3 live CID and fresh r2 capture attempt; no production mutation occurred. Remote activation operation directory and config temp path uniquely renamed before any activation. No old helpers rerun.

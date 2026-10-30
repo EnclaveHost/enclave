@@ -1,0 +1,130 @@
+{
+  "changes": {
+    "CLOSURE-R2.json": {
+      "seedSha256": null,
+      "finalSha256": "4b29b9d917a8f84a08bc8eff117b87cecfb320ab9c376731aa5c28a46c01c00d",
+      "kind": "new"
+    },
+    "REPORT-R2.md": {
+      "seedSha256": null,
+      "finalSha256": "04d0c391e8642c30e9d88b7e85f17a2db837d28c7ca701d327d14f7c06b5627a",
+      "kind": "new"
+    },
+    "enclave/Dockerfile": {
+      "seedSha256": "8370cb5da290f91ba925b9f15ad1599fdd0d54c29d9ff700a82a2b62d9cf67dd",
+      "finalSha256": "3d866a259102c997f2b4ce8980c4e251f4059a06f5b76734c4f650c03513fd87",
+      "kind": "modified"
+    },
+    "enclave/contracts/WalletSessionProfile.sol": {
+      "seedSha256": null,
+      "finalSha256": "54b2d96e754ced2d3c5b86cf154a37f050ab6a480b76627ee21880a1159141d2",
+      "kind": "new"
+    },
+    "enclave/contracts/WalletSessionVault.sol": {
+      "seedSha256": "c6dc12779995c54a4f10090e8a59dec9cd70b6c2d9c71ed2b767ff75e774a660",
+      "finalSha256": "0a7426a3dd133efe9cc20b028ce04698facda25a5393b5b506d208ae3ab89902",
+      "kind": "modified"
+    },
+    "enclave/contracts/foundry/test/WalletSessionVault.t.sol": {
+      "seedSha256": "8e2fb9fbf89ac2bfb94c6a3453904d198ef09ebd5f2f0e9526af84ed32661f97",
+      "finalSha256": "afa1c0362455fe14b4ee3e0551174839e07fc7f32fa55f50687b4beb2b20463f",
+      "kind": "modified"
+    },
+    "enclave/relay/api-relay.js": {
+      "seedSha256": "3559b1505d20c2a44e359726de08861699f97a821d3587307aad57d23a2e214e",
+      "finalSha256": "615b4148555be9e3b89476f62ec9d4551e48e3ce7019ce5a27cd3f8f30a4191d",
+      "kind": "modified"
+    },
+    "enclave/relay/secrets-release.mjs": {
+      "seedSha256": "48cf67ee80a088f3b713eaed401273a97aecb3aeca7204f320e0f22083405715",
+      "finalSha256": "72acb99bbebdf1aa5333ea2580d894da93e1188b277aa54701553286e37a838d",
+      "kind": "modified"
+    },
+    "enclave/relay/secrets.js": {
+      "seedSha256": "4c49127164e716a7431b1e2d62cd703f82b7a849641205e5bdf28d3bd17a198b",
+      "finalSha256": "e1d4b7e570774170584407214cacd32965e492aa1f9c0218feb6a662a3a55675",
+      "kind": "modified"
+    },
+    "enclave/relay/sessions.mjs": {
+      "seedSha256": "04e2007817a6f41af05232faaf7625184d713a0eb7f934703f4da5edcfb6fe53",
+      "finalSha256": "205f733d3960b10029aba032f4466bc41e01e548accb9055108d560fbff5d70c",
+      "kind": "modified"
+    },
+    "enclave/relay/shield-secrets.mjs": {
+      "seedSha256": "12d305cfc59b7f47daf9ee51c245e07f3b63d9a6435bcb5255f67f85a13b6d42",
+      "finalSha256": "06ccfa066ccc0d02e8429687c00407d295093ed14e978326c27f82d6679b19a7",
+      "kind": "modified"
+    },
+    "enclave/relay/wallet-session-manifest.mjs": {
+      "seedSha256": null,
+      "finalSha256": "27631ce3f2a9d45cb3b43f876460894997923419f4489b86a044b3d2097f7276",
+      "kind": "new"
+    },
+    "enclave/relay/wallet-session-policy.mjs": {
+      "seedSha256": "d1d6f1cc1ea396b213ec620f93dc91170d4e698679bf467c11d9afe70f98c0c2",
+      "finalSha256": "35ae879fd613337a1ef882a3f12aa260b5cf89829d5139f290e95f552d2860eb",
+      "kind": "modified"
+    },
+    "enclave/relay/wallet-session-protocol.mjs": {
+      "seedSha256": null,
+      "finalSha256": "811105aaa047978409160a6b317e3f605059b5fd6321622226902f34fb343e97",
+      "kind": "new"
+    },
+    "enclave/sdk/sessions/src/client.ts": {
+      "seedSha256": "5bda84f8fb8e5f7c84ecf59a50f4aa2a2f1b9d34f73f45faf9392df5435dec24",
+      "finalSha256": "69c4553123da74e9367a259f650ea34e3849d27cd921213d53252079d2b307c0",
+      "kind": "modified"
+    },
+    "enclave/sdk/sessions/src/index.ts": {
+      "seedSha256": "194ee455642d5f62db0a46d5aec50ded2d835dd5d94725dafeeda3c93fd42329",
+      "finalSha256": "e991b1839df74694aabf62832f6335c0027a9538fafbfc3c80902c0af5c9a160",
+      "kind": "modified"
+    },
+    "enclave/sdk/sessions/src/wallet.ts": {
+      "seedSha256": "f9b64f5945e305831505e8ec8f5f56e829614014533b59bacb0f86b5aec1de40",
+      "finalSha256": "7040ee6eaa109a92deabbae56b519dcf2aa2f388645c972fc747c183ffc1fbae",
+      "kind": "modified"
+    },
+    "enclave/supervisor.js": {
+      "seedSha256": "a5ed9e3dff5eafc61f2fbc21232f06ea6dd814f864e0a6ad53335d5a34cef1d6",
+      "finalSha256": "687d9893349210d7aa9d53e12b25abf7fbf3791378e2c8727d1dcaa60753fc3e",
+      "kind": "modified"
+    },
+    "enclave/test/wallet-session/consumers.test.mjs": {
+      "seedSha256": "892e276da2ebe72827406c5e9c00d5321a9109dea349dd9ed1782aec46a9d495",
+      "finalSha256": "cddf02497c693a27afeba80c5b74e8ea643f4eca54499e3d6dd185bc060e9213",
+      "kind": "modified"
+    },
+    "enclave/test/wallet-session/discovery-r2.test.mjs": {
+      "seedSha256": null,
+      "finalSha256": "ac9383efc0ca05508c583fe036e1e7cc0bb74e833b68e8f4e67e5055be1f0b12",
+      "kind": "new"
+    },
+    "enclave/test/wallet-session/fixture-protocol.mjs": {
+      "seedSha256": null,
+      "finalSha256": "7954c4b710633db4e902c26935086326228a67605a26966f100c7fe4d3b49b4e",
+      "kind": "new"
+    },
+    "enclave/test/wallet-session/root-discovery.test.mjs": {
+      "seedSha256": "87020120f55b5902cac33802f9e5dc01acf38f57813d303590b83bc885261aba",
+      "finalSha256": "ea0a2b06e37ad9651ba1ddfad0871ddf13b631e7d8c3449614d472470bfcdaf8",
+      "kind": "modified"
+    },
+    "enclave/tools/build-wallet-session-manifest.mjs": {
+      "seedSha256": null,
+      "finalSha256": "da70489d1440c304d8575a0cfa3603206bdcd27d46e8649f7c3d6105fee50757",
+      "kind": "new"
+    },
+    "enclave/windows/node/agent.mjs": {
+      "seedSha256": "29f5096fc16cb09a9a5cdaa4ffb36467668bf029c47e035f1dde611f8a140d5c",
+      "finalSha256": "3f25b28e2f9190b4b69bd4f5d663490c016cde4b5d8e17fd1066a14f76f38542",
+      "kind": "modified"
+    },
+    "enclave/windows/node/session-api-auth.mjs": {
+      "seedSha256": "9faa7e7634703df23eb29be3e6c5aa45ce7b4cadc403ab5d5ee3133a1df3556b",
+      "finalSha256": "e0efaa5207ed69ca89fbb5efef685aefa4746a91139e85214fbadffc6044bb58",
+      "kind": "modified"
+    }
+  },
+  "removed": []
+}

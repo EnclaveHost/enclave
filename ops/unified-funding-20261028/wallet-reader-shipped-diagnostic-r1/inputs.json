@@ -1,0 +1,22 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-reader-shipped-diagnostic-r1/read.mjs",
+    "sha256": "eb285eaf80fe5efec92a4ee89136df8d1fd998f1d81813023848967e6d66808c"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-reader-repair-r4/shipped-sessions.mjs",
+    "sha256": "b61255778aa3a901b2a0807642c37e9e1b8ce5951e8190c17fcbd6bde05008e9"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-reader-repair-r4/candidate/enclave/site/js/core/wallet-release-chain.js",
+    "sha256": "2925e8f130da142a2a4c67778eaf55cd8d78bd22f702e90940c2b8d9b53991f5"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-reader-repair-r4/candidate/enclave/site/js/core/wallet-release-census.js",
+    "sha256": "d5c4e74a651f8153dcffc921fed2c79a17b6488b47a3ea6a184166769718a8e1"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-reader-repair-r4/candidate/enclave/site/js/core/keccak.js",
+    "sha256": "ee3929ff49bd8c5b054fea158fd7e9e0de9de7f29a540d52748410d9d9049bb8"
+  }
+]

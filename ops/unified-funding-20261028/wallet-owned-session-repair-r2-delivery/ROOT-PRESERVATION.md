@@ -1,0 +1,3 @@
+# Frozen r2 delivery preservation — unvalidated
+
+All235 frozen files independently matched manifest49ef78a55123b687c2568956496b5d49e882d2128004e2ca9fd703a195d7f6fc. Same author invocationfaa8e4e6712e49698f57bebce9de0364 terminal0, collector previously done once; NOT rerun. Source only, no tests/build/activation. Prior7P3F and old compile sizes do not qualify this revision. Peer review identifies unfinished relay/CLI/shipped-manifest integration, provenance weaknesses and case-folded content comparison. Preserve incomplete delivery without claiming wallet migration completed. Existing funded-app migration remains first; no follow-on author authorized by this preservation.

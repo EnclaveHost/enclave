@@ -1,0 +1,77 @@
+{
+  "admission": {
+    "unit": "enclave-wallet-owned-session-repair-r2-20261029-author.service",
+    "invocation": "faa8e4e6712e49698f57bebce9de0364",
+    "mainPid": 2246202,
+    "runnerPid": 2246222,
+    "claudePid": 2246232,
+    "identities": {
+      "mainPid": {
+        "pid": 2246202,
+        "startTicks": 163706996,
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "cpu": "0-31",
+        "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-wallet-owned-session-repair-r2-20261029-author.service"
+      },
+      "runnerPid": {
+        "pid": 2246222,
+        "startTicks": 163707009,
+        "exe": "/usr/bin/python3.14",
+        "cwd": "/home/steven",
+        "cpu": "1",
+        "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2246208-i44152936.scope"
+      },
+      "claudePid": {
+        "pid": 2246232,
+        "startTicks": 163707045,
+        "exe": "/home/steven/.local/share/claude/versions/2.1.281",
+        "cwd": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-owned-session-repair-r2-20261029",
+        "cpu": "1",
+        "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2246208-i44152936.scope"
+      }
+    },
+    "at": "2026-10-30T03:46:33.949491+00:00",
+    "preparedSha256": "4890dc0b971a3c718934bbdeffbde05493ddd99e15af72bb5015eb633d644b1d",
+    "account": {
+      "loggedIn": true,
+      "email": "steven.r.batchelor@gmail.com",
+      "subscriptionType": "max"
+    },
+    "sourceOnly": true
+  },
+  "unit": "ActiveState=inactive\nSubState=dead\nInvocationID=\nMainPID=0\nExecMainStatus=0\n",
+  "finished": {
+    "rc": 0,
+    "finishedAt": 1793333330.743349,
+    "inputDrift": []
+  },
+  "currentInputDrift": [],
+  "session": "bb21b79a-f093-44f5-b558-904760bc28ed",
+  "duration_ms": 1373530,
+  "num_turns": 115,
+  "configuredMaxAgenticTurns": 55,
+  "distinctAssistantMessageIds": 43,
+  "transcriptUserRows": 115,
+  "turnMetricNote": "Raw success-result num_turns is a different user-message counter from max-agentic/API-turn limit; retain without conflating. See pinned turn-metric-investigation.json.",
+  "is_error": false,
+  "outputParseFailed": false,
+  "files": 235,
+  "changedFiles": 25,
+  "removedFiles": [],
+  "manifestSha256": "49ef78a55123b687c2568956496b5d49e882d2128004e2ca9fd703a195d7f6fc",
+  "firstMutations": 25,
+  "firstMutationManifestSha256": "2750317ac869d33a480337d8ce664a3cc823e310a7172ab71dfd538df2063c7b",
+  "currentInvocationTools": {
+    "Read": 33,
+    "Grep": 15,
+    "Write": 10,
+    "Edit": 56
+  },
+  "unexpectedTools": [],
+  "outsideCandidateMutationAttempts": [],
+  "mutationReplayIssues": [],
+  "mutationAuditSha256": "4a7e7284c8f3a8539492782e74eed34b4321e6bb5798a39f87bc9280c760df1d",
+  "innerGuard": "[memory-guard] exit=0 peakTreeRssMiB=318 minHostAvailableMiB=31711\n",
+  "outerGuard": "[memory-guard] exit=0 peakTreeRssMiB=385 minHostAvailableMiB=31711\n"
+}

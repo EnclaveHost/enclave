@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../source/enclave/site/js/pages/privacy.js"],
+  "sourcesContent": ["/* ============================================================\n   Privacy Policy - static legal copy. The page module exists\n   so the router can soft-navigate here and the shared chrome\n   (header wallet button, toast) hydrates; there is nothing else\n   to boot. Mirrors pages/terms.js.\n   ============================================================ */\nimport \"../../components/header/header.js\";\nimport \"../../components/footer/footer.js\";\nimport \"../../components/toast/toast.js\";\nimport \"../../components/section-head/section-head.js\";\n\nexport function boot(){}\n"],
+  "mappings": "4PAWO,SAASA,GAAM,CAAC",
+  "names": ["boot"]
+}

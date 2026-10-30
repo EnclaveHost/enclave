@@ -1,0 +1,47 @@
+TAP version 13
+# Subtest: same-provider missing hash lookup recovers exact block-index transaction
+not ok 1 - same-provider missing hash lookup recovers exact block-index transaction
+  ---
+  duration_ms: 1.946173
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-reader-repair-r4/reader-index.test.mjs:17:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + null
+    - {
+    -   blockHash: '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd',
+    -   blockNumber: 42n,
+    -   hash: '0xabababababababababababababababababababababababababababababababab',
+    -   input: '0x1234',
+    -   to: null,
+    -   transactionIndex: 1
+    - }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    hash: '0xabababababababababababababababababababababababababababababababab'
+    blockHash: '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
+    blockNumber: 42n
+    transactionIndex: 1
+    input: '0x1234'
+    to: ~
+  actual: ~
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-reader-repair-r4/reader-index.test.mjs:18:27)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 58.131756
