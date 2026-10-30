@@ -113,8 +113,8 @@ namespace Enclave.Setup
         readonly System.Windows.Forms.Timer tick = new System.Windows.Forms.Timer { Interval = 100 };
         static readonly string[] Spinner = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
         // the install script's steps, in order, each weighted by roughly how long it takes (the join waits on the network)
-        static readonly string[] InstallSteps = { "checks", "hyperv", "identity", "name", "prereq", "files", "release", "shield", "keys", "config", "services", "join", "tray", "enclavedns", "done" };
-        static readonly int[] InstallWeights = { 1, 1, 1, 1, 1, 1, 4, 2, 1, 1, 3, 5, 1, 2, 1 };
+        static readonly string[] InstallSteps = { "checks", "hyperv", "identity", "name", "prereq", "files", "release", "shield", "keys", "config", "updates", "services", "join", "tray", "enclavedns", "done" };
+        static readonly int[] InstallWeights = { 1, 1, 1, 1, 1, 1, 4, 2, 1, 1, 1, 3, 5, 1, 2, 1 };
         static readonly string[] UninstallSteps = { "services", "shield", "tray", "files", "data", "done" };
         static readonly int[] UninstallWeights = { 2, 2, 1, 2, 1, 1 };
         readonly CheckBox removeData = new CheckBox();

@@ -98,9 +98,13 @@ a local branch or dated deployment snapshot is not completion. See root AGENTS.m
 ## Test boundaries
 
 `npm test` runs checkout-local source tests, including wallet and network tests.
-Thirteen native RPC qualification files are listed explicitly in
+Fifteen native RPC qualification files are listed explicitly in
 `test/helpers/rpc-qualification-files.mjs`. Run them with
 `npm run test:rpc-qualification` inside an offline network namespace with the
 pinned binaries and captured Base fixture directories described by each test
 and `scripts/rpc-runtime/closure.json`. The qualification command fails on
 missing inputs; source CI does not claim to qualify those external artifacts.
+
+The PostgreSQL 18/indexd lifecycle test runs via `npm run test:storage-qualification`
+with the reviewed `STORAGE_PACKAGE_TARBALL`. Missing package input fails that
+command. It is not counted as source-only CI coverage.

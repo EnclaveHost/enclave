@@ -67,6 +67,10 @@ jobs:
           timeout 180 "$RUNNER_TEMP/shielded-test-python/bin/python" -m pip install --disable-pip-version-check --no-input 'torch==2.9.1+cpu' --index-url https://download.pytorch.org/whl/cpu
           "$RUNNER_TEMP/shielded-test-python/bin/python" -c 'import numpy, torch; assert torch.version.cuda is None; print("CPU worker dependencies:", numpy.__version__, torch.__version__)'
           echo "$RUNNER_TEMP/shielded-test-python/bin" >> "$GITHUB_PATH"
+      - name: Enable isolated UID fixtures on the disposable runner
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Build local chain artifacts
+        run: forge build
       - name: Build the relay routing bundle
         # api-relay.js imports relay/network-runtime.bundle.mjs, which is gitignored and
         # built by relay/deploy.sh at deploy time; without it every test that starts
@@ -152,12 +156,17 @@ jobs:
       - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903
         with:
           node-version: 22
-      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          (cd relay && npm ci --ignore-scripts --no-audit --no-fund)
+          (cd network && npm ci --ignore-scripts --no-audit --no-fund)
+          node relay/build-network.mjs
       - name: Build the complete hosted site and guest source bundles
         run: |
           npm run build:site
           node scripts/build-mcp-guest-bundle.mjs
           node scripts/build-platform-api-guest-bundle.mjs
+          node verifier/web/build.mjs
       - name: Retain generated source for reproducible synchronization
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -168,6 +177,7 @@ jobs:
             site/css/site.css
             metal/guest/mcp-server.bundle.mjs*
             metal/guest/platform-api.bundle.mjs*
+            verifier/web/dist/
           retention-days: 7
 
   native-source:

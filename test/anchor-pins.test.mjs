@@ -30,6 +30,6 @@ test("anchor pins: explicit mode, fail-closed protected pins, model digest compa
 });
 
 // The pVM CPU build (ANCHOR_TIER_PVM_CPU, PVM-CPU.md): protected needs the model pin only; a split-engine pin is refused.
-test("anchor pins, pvm-cpu tier: model pin only, split-engine pins refused", () => {
+test("anchor pins, pvm-cpu tier: CPU-only, model and split-engine pins refused", () => {
   runPins(["-DANCHOR_TIER_PVM_CPU"], /anchor-pins: ok \(pvm-cpu\)/);
 });

@@ -56,7 +56,10 @@ const stateReader = VERIFIER ? verifiedStateReader({ verifier: VERIFIER.verifier
 // a paged enumeration (allDeployments) gets a longer whole-operation budget: every page is a proof-backed call
 const enumReader = VERIFIER ? verifiedStateReader({ verifier: VERIFIER.verifier, deadlineMs: 120000 }) : null;
 // Cached ordinary reads are separate from independent security witnesses (RPCS).
-const CLIENT_RPCS = [...new Set([process.env.BASE_RPC || "https://api.enclave.host/rpc/base", ...RPCS])];
+// An operator-supplied RPC list is authoritative for ordinary reads too.
+// Add the hosted cache only when the operator has selected no endpoints.
+const CLIENT_RPCS = [...new Set([...(process.env.BASE_RPC ? [process.env.BASE_RPC]
+  : process.env.BASE_RPCS?.trim() ? [] : ["https://api.enclave.host/rpc/base"]), ...RPCS])];
 const rpcTransport = () => CHAIN_AUTHORITY ? CHAIN_AUTHORITY.transport : fallback(CLIENT_RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 })));
 // a diagnostic, so stderr: stdout belongs to the importing program's own output (host-onchain.mjs status / ownership-status
 // print exactly one JSON document there, and before the authority existed nothing else was printed on import)

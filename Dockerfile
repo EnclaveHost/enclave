@@ -42,3 +42,6 @@ COPY metal/guest/owner-nomination.mjs ./metal/guest/
 ENV PORT=8080
 EXPOSE 8080
 CMD ["node", "supervisor.js"]
+
+# Complete supervisor authority/import closure; verified by supervisor-image-closure.test.mjs.
+COPY network/attested-verifier-brand.mjs network/chain-authority.mjs network/verified-chain.mjs ./network/

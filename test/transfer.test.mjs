@@ -62,7 +62,9 @@ test("the ledger exposes end-of-life: retire closes activity, refunds go permiss
   // and refund() relaxes to any caller while STILL paying d.owner.
   const sol = rd("contracts", "EnclaveDeployments.sol");
   assert.match(sol, /_requireActive\(bytes32 id\)[\s\S]{0,200}require\(!retired, "retired"\);/);
-  assert.match(sol, /require\(d\.owner == msg\.sender \|\| retired, "!owner"\);/);
+  assert.match(sol, /EnclaveLedgerBandwidth\.refund\([\s\S]{0,240}retired \|\| _delegated\(_deployments\[id\]\.owner\)/);
+  assert.match(sol, /require\(d\.owner == msg\.sender \|\| open, "!owner"\);/);
+  assert.match(sol, /usdc\.transfer\(d\.owner,amount\)/, "permissionless retirement refunds still pay the owner");
 });
 
 test("mcp encoder: transferDeployment decodes against the ledger ABI, address in the label", () => {

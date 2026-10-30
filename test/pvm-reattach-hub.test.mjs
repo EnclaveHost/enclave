@@ -41,7 +41,7 @@ async function rig() {
   const operator = privateKeyToAccount(generatePrivateKey());
   const hub = createTunnelHub({ allow: [], operatorFor: async (n) => (n === "pixel-owned" ? operator.address.toLowerCase() : null),
     attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")], rootPins: [ca.rootPin] },
-              pvmCpu: pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")], models: [{ sha256: "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", name: "m", selftestSha256: "d".repeat(64), minDecodeTokS: 10 }] }),
+              pvmCpu: pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")] }),
               pvmApp: { appIds: [APP], runtimeIds: [vm.rid] } } });
   const srv = http.createServer((_q, s) => s.end("ok")); srv.on("upgrade", (q, sock, head) => hub.handleUpgrade(q, sock, head));
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));

@@ -14,4 +14,6 @@ export const rpcQualificationFiles = [
   'witness-ancestry.test.mjs',
   'witness-failover.test.mjs',
   'witness-blocks.test.mjs',
+  'witness-deadline.test.mjs',
+  'witness-archive-deadline.test.mjs',
 ];

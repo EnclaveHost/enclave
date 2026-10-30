@@ -43,7 +43,7 @@ test("the validated value is carried unchanged into node-config.cmd and shield-c
 test("a refused value stops setup in the machine checks, before any Enclave task or process is stopped", () => {
   const refuse = code.indexOf('Fail "checks" "NODE_APP_RAM_GB=');
   assert.ok(refuse > 0);
-  assert.ok(refuse < code.indexOf("Stop-ScheduledTask"), "before the services are stopped");
+  assert.ok(refuse < code.indexOf("\nStop-ForInstall\n"), "before the services are stopped");
   assert.ok(refuse < code.indexOf('if ($CheckOnly)'), "and -CheckOnly (setup's first page) reports it");
   // a pool that leaves the host less than the 16 GiB setup used to keep is SAID on the checks line, never refused
   assert.match(code, /Emit "checks" \$\(if \(\$ramNote\) \{ "warn" \} else \{ "ok" \}\)/);

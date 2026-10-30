@@ -173,7 +173,12 @@ static void park_boundary(void) {
      * park/dispatch handshake stopped working even though the answers are
      * still right. */
     fprintf(stderr, "parwork: park boundary %d dispatches in %.0f ms\n", ROUNDS, ms);
-    if (ms > 8000.0) {
+    /* The timing oracle applies to immediate parking. Default spinning deliberately
+     * consumes spare cores; eight spinners oversubscribe small CI runners and
+     * elapsed time then measures scheduler contention, not missed notifications.
+     * Every width also runs with SPINS=0 below the JS harness, keeping the
+     * lost-wakeup clock assertion and watchdog on the actual park boundary. */
+    if (g_spins == 0 && ms > 8000.0) {
         fprintf(stderr, "parwork: park boundary took %.0f ms, expected ~2500: wakeups are being lost "
                         "and recovered by the timeout\n", ms);
         assert(!"park/dispatch handshake is losing wakeups");

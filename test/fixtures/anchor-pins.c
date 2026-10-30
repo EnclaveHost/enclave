@@ -20,22 +20,19 @@ int main(void) {
     char dir[] = "/tmp/anchor-pins-XXXXXX"; assert(mkdtemp(dir));
     anchor_pins p;
 #ifdef ANCHOR_TIER_PVM_CPU
-    /* the pVM CPU tier: a protected build needs the model pin ONLY, and carrying any split-engine pin is refused */
+    /* CPU-only pVM components carry no model or split-engine pins. */
     put(dir, "anchor.mode", "protected\n");
-    assert(!anchor_pins_load(dir, &p) && strstr(p.err, "protected pvm-cpu build without the model pin") && p.mode == ANCHOR_MODE_INVALID);
-    put(dir, "model.sha256", HEX64);
-    assert(anchor_pins_load(dir, &p) && p.mode == ANCHOR_MODE_PROTECTED && p.has_model && !p.has_ledger && !p.has_prefix);
-    put(dir, "ledger.pk", HEX64);
-    assert(!anchor_pins_load(dir, &p) && strstr(p.err, "split-engine pin: ledger") && p.mode == ANCHOR_MODE_INVALID);
-    put(dir, "ledger.pk", NULL); put(dir, "prefix.pk", HEX64);
-    assert(!anchor_pins_load(dir, &p) && strstr(p.err, "split-engine pin: prefix"));
-    put(dir, "prefix.pk", NULL); put(dir, "source-catalog.sha256", HEX64);
-    assert(!anchor_pins_load(dir, &p) && strstr(p.err, "split-engine pin: source-catalog"));
-    put(dir, "source-catalog.sha256", NULL);
-    put(dir, "anchor.mode", "dev\n"); put(dir, "model.sha256", NULL);
-    assert(anchor_pins_load(dir, &p) && p.mode == ANCHOR_MODE_DEV && !p.has_model);   /* dev may be unpinned; the relay never admits dev (PVM-CPU.md) */
+    assert(anchor_pins_load(dir, &p) && p.mode == ANCHOR_MODE_PROTECTED && !p.has_model && !p.has_ledger && !p.has_prefix);
+    const char *unused[] = { "model.sha256", "ledger.pk", "prefix.pk", "source-catalog.sha256", "encoded-catalog.sha256", "converter.sha256" };
+    for (size_t i = 0; i < sizeof unused / sizeof unused[0]; ++i) {
+        put(dir, unused[i], HEX64);
+        assert(!anchor_pins_load(dir, &p) && (strstr(p.err, "pvm-cpu build carries a pin it does not use") || (i == 4 && strstr(p.err, "encoded-catalog.sha256 without"))) && p.mode == ANCHOR_MODE_INVALID);
+        put(dir, unused[i], NULL);
+    }
+    put(dir, "anchor.mode", "dev\n");
+    assert(anchor_pins_load(dir, &p) && p.mode == ANCHOR_MODE_DEV && !p.has_model);
     put(dir, "model.sha256", "not-hex\n");
-    assert(!anchor_pins_load(dir, &p) && strstr(p.err, "model.sha256 present but malformed"));   /* the shared checks still run first */
+    assert(!anchor_pins_load(dir, &p) && strstr(p.err, "model.sha256 present but malformed"));
     { char cmd0[700]; snprintf(cmd0, sizeof cmd0, "rm -rf %s", dir); (void)!system(cmd0); }
     printf("anchor-pins: ok (pvm-cpu)\n");
     return 0;

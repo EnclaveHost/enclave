@@ -167,7 +167,7 @@ test("the BUILT artifacts: 0.5.0 refuses a downgrade by name and never trusts th
     assert.equal(man.version, "0.5.0");
     // 0.4.1, from its own commit: a type-2 policy is not a policy it knows -- it cannot run a bound deployment unbound
     const old = path.join(work, "pvm-client-0.4.1.mjs");
-    fs.writeFileSync(old, execFileSync("git", ["show", "c1341ee3:shielded/anchor/avf/client/dist/pvm-client.mjs"], { cwd: ROOT, maxBuffer: 1 << 24 }));
+    fs.writeFileSync(old, execFileSync("git", ["show", "74e917fbaf464b84a9aea33ac20a7775a943878c:shielded/anchor/avf/client/dist/pvm-client.mjs"], { cwd: ROOT, maxBuffer: 1 << 24 }));
     const ost = path.join(work, "old-state");
     assert.equal((await cli(old, ["install", "--state", ost, "--policy-key-fp", P.fp, "--serial-floor", "1", "--release-key-fp", R.fp])).code, 0);
     const o = await cli(old, ["run", "--state", ost, "--policy", pf, "--relay", `${base}/x/${D1}/pvm`, "--deployment", D1]);

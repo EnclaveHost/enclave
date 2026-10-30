@@ -60,7 +60,7 @@ s.writeHead(200,{'content-type':'application/json'});s.end(JSON.stringify({jsonr
     buildArgs: ({ port }) => ['--max-old-space-size=64', script, values, String(port)],
   };
   f.l1 = await startL1Runtime(f.l1Config, f.l1Options);
-  f.native = path.join(directory, 'echo-native'); fs.writeFileSync(f.native, '#!/bin/sh\nexec /bin/cat "$2"\n', { mode: 0o700 });
+  f.native = path.join(directory, 'echo-native'); fs.writeFileSync(f.native, '#!/bin/sh\n# Keep the native echo alive for the process-identity snapshot.\nsleep 0.05\nexec /bin/cat "$2"\n', { mode: 0o700 });
   f.agreed = anchorOf(header(100, seconds - 120), f.head); f.candidate = header(101, seconds - 2);
   return f;
 }
