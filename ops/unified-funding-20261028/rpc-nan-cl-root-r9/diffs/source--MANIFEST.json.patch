@@ -1,0 +1,173 @@
+--- n8/source/MANIFEST.json
++++ n9/source/MANIFEST.json
+@@ -1,17 +1,17 @@
+ {
+-  "nonce": "5870ca5c-305b-4511-b069-c6ce2325e4dd",
++  "nonce": "6b0ddadd-94f2-4d4e-b687-f0859a4d4780",
+   "unitPrefix": "enclave-rpc-nan-",
+   "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0",
+   "bytes": 4000000000000,
+-  "exportName": "enclave-nan-cl-5870ca5c-305b-4511-b069-c6ce2325e4dd",
+-  "remoteSocket": "/root/rpc-nan-client-n8/export.sock",
++  "exportName": "enclave-nan-cl-6b0ddadd-94f2-4d4e-b687-f0859a4d4780",
++  "remoteSocket": "/root/rpc-nan-client-n9/export.sock",
+   "target": "nan",
+   "knownHosts": "/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts",
+   "bootId": "4b84b9bd-a89d-4b37-94cb-26334dbf4666",
+   "client": {
+     "archiveMember": "sbin/nbd-client",
+     "bytes": 56376,
+-    "path": "/root/rpc-nan-upload-n8/nbd-client",
++    "path": "/root/rpc-nan-upload-n9/nbd-client",
+     "sha256": "0a256b67962d1ffc1ab8bacecd4319b8e459a0535467abb66f83329ce5221167"
+   },
+   "remotePins": [
+@@ -171,8 +171,8 @@
+     "source": "/dev/sda1",
+     "fstype": "ext4"
+   },
+-  "overlayDirectory": "/vm/enclave-volumes/rpc-nan-cl-n8",
+-  "expectedProductionMount": "/srv/enclave-nan-cl-n8/volume",
++  "overlayDirectory": "/vm/enclave-volumes/rpc-nan-cl-n9",
++  "expectedProductionMount": "/srv/enclave-nan-cl-n9/volume",
+   "parent": {
+     "path": "/vm/enclave-volumes/rpc-production/l1-origin.qcow2",
+     "device": 64769,
+@@ -183,8 +183,8 @@
+     "mode": 33152,
+     "header104Sha256": "b06a08884bafb1540f1115ce307ef52c715b66a791665f59f90b52b3b400cb8c"
+   },
+-  "uploadDirectory": "/root/rpc-nan-upload-n8",
+-  "programSha256": "28b2a560acad7ddeec0fe570e10edddaae1865b6847f80c6faea39adff2d087f",
++  "uploadDirectory": "/root/rpc-nan-upload-n9",
++  "programSha256": "3e85358fba5011ab20e9eb77d17f7c1d936df0e1cd288a4f023fcbfef0c43931",
+   "originalTomlSha256": "a93adc65ec30ac1ea6d8f4c59b9ef12e522e07606e038777f93cdbf7e67304c7",
+   "proposedTomlSha256": "63bc71f103c49e06cd661ab410cc7005fd101ca9578cd6cb15fac7be6e35c320",
+   "identities": {
+@@ -212,10 +212,10 @@
+       "sha256": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96"
+     },
+     "manifest.json": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r8/source/payload-manifest.json",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r9/source/payload-manifest.json",
+       "destination": "manifest.json",
+       "bytes": 740,
+-      "sha256": "98dd22728a7a0af53002e41e0009a06bce413721d64a81af1b328ff4f3790525"
++      "sha256": "970b12a1ba99ccafb446ff061b6d338dc5ac73c3db2e40e74cfef330367391fb"
+     },
+     "chain.json": {
+       "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-current-wrapper-r1/installed-chain.json",
+@@ -224,16 +224,16 @@
+       "sha256": "81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7"
+     },
+     "chain_service.py": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r8/source/trial-chain-service.py",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r9/source/trial-chain-service.py",
+       "destination": "chain_service.py",
+       "bytes": 40169,
+-      "sha256": "8a63286b97fd2b7ef01f64386680ba7f554382d56e976cd50c274a633ff4b3d2"
++      "sha256": "9e80692e92e8d74675f4fb1ab1728a33e1abb27163fecf5e93ad298558af81dd"
+     },
+     "disks.json": {
+-      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r8/source/disks.json",
++      "localSource": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r9/source/disks.json",
+       "destination": "disks.json",
+       "bytes": 154,
+-      "sha256": "f8374e7040bf26f4ebc66c34906c4ee621bfa25de820b917a10695834e5de1da"
++      "sha256": "5cc5ff699b41835367503ffb182862044e81293a02f52966a2fc2c1f2e5bc151"
+     }
+   },
+   "metadataOverlayReference": {
+@@ -246,7 +246,7 @@
+     "mode": 33152,
+     "sha256": "ddea119560fa26f6d193adac91c43d6eff03ef89ea4ed69d643c62f175e994bf"
+   },
+-  "overlayPath": "/vm/enclave-volumes/rpc-nan-cl-n8/overlay.qcow2",
++  "overlayPath": "/vm/enclave-volumes/rpc-nan-cl-n9/overlay.qcow2",
+   "lighthouseCacheProfile": {
+     "state": 2,
+     "coldHdiff": 1,
+@@ -255,15 +255,15 @@
+   },
+   "sshUid": 0,
+   "ownedSlices": [
+-    "enclavenantrialn8.slice",
+-    "enclavenanattachn8.slice",
+-    "enclavenanguardn8.slice"
++    "enclavenantrialn9.slice",
++    "enclavenanattachn9.slice",
++    "enclavenanguardn9.slice"
+   ],
+   "localNbdClient": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nbd-local-public-copy-r1/nbd-client",
+   "admission": {
+     "authorized": false,
+     "scope": "nan-cl-only-4096",
+-    "nonce": "5870ca5c-305b-4511-b069-c6ce2325e4dd",
++    "nonce": "6b0ddadd-94f2-4d4e-b687-f0859a4d4780",
+     "observedPendingMiB": null,
+     "osReserveMiB": 2048,
+     "creatorClassification": "two-launches-before-wait-no-repeated-allocator",
+@@ -281,38 +281,39 @@
+     "debugLevel": "debug",
+     "sampleThreadLimit": 64,
+     "sampleTimeBudgetSeconds": 0.25,
+-    "sampleWindowSeconds": 450,
++    "sampleWindowSeconds": 1800,
+     "rawLogEvidence": false,
+     "sameIncarnationRequired": true,
+     "diagnosticIntervalSeconds": 10,
+-    "diagnosticSampleLimit": 46,
++    "diagnosticSampleLimit": 181,
+     "sampleEvidenceByteLimit": 1048576,
+-    "sampleLimit": 226
++    "sampleLimit": 901,
++    "retainLastSampleSeparately": true
+   },
+   "timingPolicy": {
+-    "outerSeconds": 1000,
+-    "freshAdmissionSeconds": 600,
++    "outerSeconds": 2500,
++    "freshAdmissionSeconds": 2100,
+     "preparationSeconds": 90,
+-    "sampleWindowSeconds": 450,
+-    "watchdogDeadlineSeconds": 590,
+-    "watchdogRuntimeSeconds": 730,
++    "sampleWindowSeconds": 1800,
++    "watchdogDeadlineSeconds": 2090,
++    "watchdogRuntimeSeconds": 2230,
+     "watchdogStopSeconds": 70,
+-    "helperRuntimeSeconds": 600,
++    "helperRuntimeSeconds": 2100,
+     "helperStopSeconds": 145,
+-    "mainCaptureSeconds": 755,
++    "mainCaptureSeconds": 2255,
+     "cleanupReceiptWaitSeconds": 140,
+-    "nbdRuntimeSeconds": 740,
++    "nbdRuntimeSeconds": 2240,
+     "nbdStopSeconds": 10,
+     "requestStopCaptureSeconds": 20,
+     "verifyCaptureSeconds": 60,
+     "verifyReceiptWaitSeconds": 1,
+     "socketClearCaptureSeconds": 20,
+     "localReapReserveSeconds": 20,
+-    "nominalSequentialBoundSeconds": 965,
+-    "minimumAdmissionRemainingSeconds": 510,
++    "nominalSequentialBoundSeconds": 2465,
++    "minimumAdmissionRemainingSeconds": 2010,
+     "minimumAdmissionCheck": "immediately-before-main",
+-    "minimumAdmissionRemainingAtSampleSeconds": 455,
+-    "minimumWatchdogRemainingAtSampleSeconds": 455
++    "minimumAdmissionRemainingAtSampleSeconds": 1805,
++    "minimumWatchdogRemainingAtSampleSeconds": 1805
+   },
+   "remoteBinaryReuse": {
+     "name": "lighthouse",
+@@ -329,7 +330,7 @@
+     "manifestImmutable": true,
+     "admissionInMemoryOnly": true,
+     "metadataByteLimit": 1048576,
+-    "minimumAdmissionRemainingAtLoadSeconds": 510
++    "minimumAdmissionRemainingAtLoadSeconds": 2010
+   },
+   "startupRpcPolicy": {
+     "earlyExit": true,

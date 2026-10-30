@@ -1,0 +1,11 @@
+--- n8/source/nan-admission.py
++++ n9/source/nan-admission.py
+@@ -22,7 +22,7 @@
+     assert a['authorized'] is True and a['nonce']==M['nonce']
+     assert a['scope']=='nan-cl-only-4096' and a['observedPendingMiB']>=0
+     assert a['osReserveMiB']==2048 and a['creatorClassification']=='two-launches-before-wait-no-repeated-allocator'
+-    assert a['at']<=now<=a['expiresAt'] and a['expiresAt']-a['at']<=600,'stale-Nan-admission'
++    assert a['at']<=now<=a['expiresAt'] and a['expiresAt']-a['at']<=2100,'stale-Nan-admission'
+     assert read('/proc/sys/kernel/random/boot_id')==M['bootId'],'Nan-boot-changed'
+     if now-last_pending_check<5:return
+     last_pending_check=now

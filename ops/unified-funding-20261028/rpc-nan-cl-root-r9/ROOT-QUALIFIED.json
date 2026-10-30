@@ -1,0 +1,7 @@
+{
+  "sourceOnly": true,
+  "native": false,
+  "sourcePins": "cc0235386e8f8b18790df222b72cc87ede69b5f0a36fc5b69f22bdcd021cfcf5",
+  "runtimePins": "8405e16773f7af3893086cf5a2c6c06e085a3174226bbec126104cd3909dbb52",
+  "inputDrift": []
+}

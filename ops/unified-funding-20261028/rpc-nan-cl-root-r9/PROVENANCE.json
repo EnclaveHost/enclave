@@ -1,0 +1,13 @@
+{
+  "sourceParent": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r8",
+  "parentSourcePinsSha256": "f33e5b584ffafb8bf3be4e91280946551e442ed7648722a4198973c831daf911",
+  "nativeEvidence": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-nan-cl-root-r8/PARSED-MAIN.json",
+    "sha256": "90a25a64b1b0785f85c7f64e1bbef9b916ff2306c6f6e80cb74e07ded37c3417"
+  },
+  "generatedSourceCopiesOmitted": [
+    "source/run.py",
+    "source/remote-program.py"
+  ],
+  "reason": "Root assembler generates runtime composition from explicit parts; no stale precomposed candidates copied."
+}

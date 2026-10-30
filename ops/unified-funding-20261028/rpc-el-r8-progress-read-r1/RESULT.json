@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 0.7068324070423841,
+  "stdout": "{\"at\": 1793381314.2798388, \"sameInvocation\": true, \"unit\": {\"MainPID\": \"309318\", \"ActiveState\": \"active\", \"SubState\": \"running\", \"InvocationID\": \"1cd3fef0768a46409799705c68e96625\"}, \"memory\": {\"memory.current\": \"1499942912\", \"memory.peak\": \"1830318080\", \"memory.events\": \"low 0\\nhigh 0\\nmax 0\\noom 0\\noom_kill 0\\noom_group_kill 0\"}, \"markers\": [{\"marker\": \"database\", \"time\": \"1793380858109596\"}, {\"marker\": \"healing\", \"time\": \"1793380863950849\"}, {\"marker\": \"healing\", \"time\": \"1793380864218571\"}, {\"marker\": \"unwind\", \"time\": \"1793380864345348\"}, {\"marker\": \"healing\", \"time\": \"1793381255425141\"}, {\"marker\": \"unwind\", \"time\": \"1793381255537856\"}], \"readOnly\": true}\n",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n** The server may need to be upgraded. See https://openssh.com/pq.html\r\n",
+  "bytesObserved": {
+    "stdout": 669,
+    "stderr": 222
+  },
+  "stdinBytesWritten": 8504,
+  "stdinBytesRequested": 8504,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}
