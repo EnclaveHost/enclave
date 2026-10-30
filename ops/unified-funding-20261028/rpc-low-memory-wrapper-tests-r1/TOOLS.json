@@ -1,0 +1,30 @@
+[
+  {
+    "path": "/usr/bin/python3",
+    "sha256": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b"
+  },
+  {
+    "path": "/usr/bin/unshare",
+    "sha256": "e4e385ae4accf4af5302c4bb32859355b1c640315bef56ce73d31b8b1f97fdc0"
+  },
+  {
+    "path": "/usr/bin/taskset",
+    "sha256": "8bf4947cca932588598aa0b2413f520df438f6964057edff09a112518decc75d"
+  },
+  {
+    "path": "/usr/bin/node",
+    "sha256": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py",
+    "sha256": "969d9273e53c79abf8604c363daa58b41a462bc4b7f3d03d813980edb771f6f4"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs",
+    "sha256": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-low-memory-wrapper-tests-r1/run.py",
+    "sha256": "a16d95b1ac038917e4f57ec6335b9d1c899c29f6cc0fdbb6215c715f39d65552"
+  }
+]
