@@ -21,6 +21,10 @@ permissions:
 
 jobs:
   unit:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -71,7 +75,7 @@ jobs:
         # npm test verbatim but with CI headroom on the per-file timeout:
         # Compilation fixtures need headroom on small runners; cap file concurrency
         # so independent compiler/browser processes do not exhaust runner memory.
-        run: node --test --test-timeout=120000 --test-concurrency=2 test/*.test.mjs test/wallet-release/*.test.mjs network/test/*.test.mjs
+        run: node --test --test-timeout=120000 --test-concurrency=2 --test-shard=${{ matrix.shard }}/4 test/*.test.mjs test/wallet-release/*.test.mjs network/test/*.test.mjs
 
   contracts:
     runs-on: ubuntu-latest
@@ -138,6 +142,18 @@ jobs:
           GOARCH: amd64
           CGO_ENABLED: '0'
         run: go build -trimpath -o /tmp/enclave-circuit-firewall.exe .
+
+  site-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build the complete hosted site
+        run: npm run build:site
 
   native-source:
     runs-on: ubuntu-latest
