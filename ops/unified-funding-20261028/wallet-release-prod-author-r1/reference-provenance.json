@@ -1,0 +1,118 @@
+{
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/root-boundaries.test.mjs": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-repaired-r2/root-boundaries.test.mjs",
+    "sha256": "f273bfda16dfb1853f21ffbd06af233f278a30906c593b30e8953104ec5921cf"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/shipped-sessions.mjs": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-repaired-r2/shipped-sessions.mjs",
+    "sha256": "b61255778aa3a901b2a0807642c37e9e1b8ce5951e8190c17fcbd6bde05008e9"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/root40/ROOT-DELTA.md": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-repaired-r2/ROOT-DELTA.md",
+    "sha256": "77d15fc06c15d8afcb5227d5593aad851548b7fa15118e775365058b5fbad840"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/root40/result.tap": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-repaired-r2/result.tap",
+    "sha256": "a78bc8c382610fbb56216753907fe46b097d72b5ff62d7b5d806b9a277d6cbe7"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/root40/result.rc": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-repaired-r2/result.rc",
+    "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/root40/test-pins.json": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-repaired-r2/test-pins.json",
+    "sha256": "d056f8928841ef24cd55242b325da14e6bf043a85e2e45be19beca446004b44a"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/root40/run.py": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-census-root-repaired-r2/run.py",
+    "sha256": "e4875427641657af6de18304eac12b32ccd74b05eacdd8d8021697e5177ed497"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/production/ROOT-REVIEW.md": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-site-production-r2/ROOT-REVIEW.md",
+    "sha256": "067efed5027549494af0b3079b50bc19181f3465faa16e945eb0425d97609aa7"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/production/ROOT-INTEGRATION.md": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-site-production-r2/ROOT-INTEGRATION.md",
+    "sha256": "90ad1c4f4799954f00fff006d1a6aa76a9d347a81853e9070537733341242c81"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/production/release.json": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-site-production-r2/release.json",
+    "sha256": "8bd434f896497c5789b17e1bac67cec66a68a75206a1b325756bbefd890ebaae"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/production/source-pins.json": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-site-production-r2/source-pins.json",
+    "sha256": "9c0d85c3fdec616b65728264d235a10ca529910584b8ad666d305353267437ec"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/production/browser-review-a62.txt": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-release-site-production-r2/browser-review-a62.txt",
+    "sha256": "b449db5b916e682a29a6ee8ad9f5f98f3891c5a9c904a99eb0fbfa224c54b82a"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/scope/NEXT-SOURCE-TASK.txt": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-next-paths-r1/NEXT-SOURCE-TASK.txt",
+    "sha256": "5db4dd77a578c4f88cea1e18c83dea1f4a2b805f62e7a67691075cdc86462452"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/scope/ROOT-REVIEW.md": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-next-paths-r1/ROOT-REVIEW.md",
+    "sha256": "6eb8921fec8ec9b61fdec6e63464f506da61127a7a778094a43e2794819bfd20"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/funded-review/REVIEW.md": {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-ownership-migration-review-r1-20261029/funded-review/REVIEW.md",
+    "sha256": "ed804d3b6495611f37384698773f7ce603b3f1a326c24b960602b3f50a4d0a1f"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/funded-review/SOURCE-PINS.json": {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-ownership-migration-review-r1-20261029/funded-review/SOURCE-PINS.json",
+    "sha256": "3a67f0f50e41dbb9eea90243b1fbe850515478dc888cb29280556af71cadd419"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/policy/REVIEW.md": {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-migration-policy-map-r1-20261029/REVIEW.md",
+    "sha256": "ff32c5234848e09aa7f17b6187c0ecae746a53761e521f325d6dbc6cf476849a"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/policy/OWNER-CONTROLLED-PATH.md": {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-migration-policy-map-r1-20261029/OWNER-CONTROLLED-PATH.md",
+    "sha256": "f5a6410a6110c30c988f6557d44bd50b54d2174234910fc86d193427fb95437c"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/installed-relay/ROOT-REVIEW.md": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-installed-policy-r1/ROOT-REVIEW.md",
+    "sha256": "1eaedb6163cf4059e35b04c39b12d940e774d0407f86b0e2e20ac785784d4505"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/installed-relay/sessions.mjs": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-installed-policy-r1/sessions.mjs",
+    "sha256": "483b1c5ef29d83c937a5fd5b15ea3b2e940025d76706a1c5a63867f33c55c4e3"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/installed-relay/secrets.js": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-installed-policy-r1/secrets.js",
+    "sha256": "4c49127164e716a7431b1e2d62cd703f82b7a849641205e5bdf28d3bd17a198b"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/installed-relay/secrets-release.mjs": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-installed-policy-r1/secrets-release.mjs",
+    "sha256": "48cf67ee80a088f3b713eaed401273a97aecb3aeca7204f320e0f22083405715"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/installed-relay/shield-secrets.mjs": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/wallet-migration-installed-policy-r1/shield-secrets.mjs",
+    "sha256": "744e687237a28b23b1e0954b5b408eeb904cb8882b16c8df39fd8e8aeba144e5"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/reviewed-source/sdk/sessions/src/typed.ts": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/typed.ts",
+    "sha256": "c8290663ef822f0c67257b7884747c7e1a8807492dffcce9abda4e5daeba1b9a"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/reviewed-source/sdk/sessions/src/abi.ts": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/abi.ts",
+    "sha256": "b6ad2023bdb9427307fd7d3c61a2aa3f3f413819775f5630c03d4ca5e95eadf7"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/reviewed-source/sdk/sessions/src/client.ts": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/sdk/sessions/src/client.ts",
+    "sha256": "5bda84f8fb8e5f7c84ecf59a50f4aa2a2f1b9d34f73f45faf9392df5435dec24"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/reviewed-source/windows/node/session-api-auth.mjs": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/session-api-auth.mjs",
+    "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/reviewed-source/windows/node/host.mjs": {
+    "source": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/windows/node/host.mjs",
+    "sha256": "84b6a1f474f9b816a98c2f17bee03f88bdc2201a17041fbbbabba910e27ce2d3"
+  },
+  "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-release-prod-r1-20261029/evidence/reviewed-source/catalog-EnclaveAppCatalog.sol": {
+    "source": "/home/steven/Documents/Codex/2026-10-23/it/work/wallet-ownership-migration-review-r1-20261029/catalog-EnclaveAppCatalog.sol",
+    "sha256": "b31744361efbb43fcf60152a5eaaa185d1af07bdc27f077af0a2b48e7de3b191"
+  }
+}
