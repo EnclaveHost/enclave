@@ -1,0 +1,7 @@
+{
+  "runtime": "Existing Python stdlib/native tools; new helpers standard library only",
+  "preserved": "root33 and native7, no execution here",
+  "testSources": "Original test file immutable; new bounded injected regressions only; any real fixture proposal source-only",
+  "holderVisibility": "UNQUALIFIED and unchanged; no successful stub",
+  "collector": "actual terminal unit/main/runner/Claude identities required before once-only freeze"
+}
