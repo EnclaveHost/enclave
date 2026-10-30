@@ -1,0 +1,13 @@
+{
+  "status": "source-only-unqualified",
+  "binarySha256": "11b7bca8df09b3f985a03a72f241ef9e011c99332fe86677b654947eaa1e9e96",
+  "replacementLighthouseLowMemoryArgs": [
+    "--state-cache-size",
+    "2",
+    "--hdiff-buffer-cache-size",
+    "1",
+    "--shuffling-cache-size",
+    "1"
+  ],
+  "changesCustodyHistoryOrProofPolicy": false
+}

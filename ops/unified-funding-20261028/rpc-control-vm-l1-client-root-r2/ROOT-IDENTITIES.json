@@ -1,0 +1,42 @@
+{
+  "at": 1793367862.432569,
+  "unit": "ActiveState=active\nInvocationID=0481622ff7ed4bdc9284906867ba75d2\nMainPID=2830943\nControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-control-vm-l1-client-root-r2-20261030.service\n",
+  "observed": [
+    {
+      "pid": 2830943,
+      "ppid": 1899,
+      "start": "167296495",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "cmd": "/usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 512 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 450 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/run.py ",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-control-vm-l1-client-root-r2-20261030.service"
+    },
+    {
+      "pid": 2830944,
+      "ppid": 2830943,
+      "start": "167296500",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "cmd": "/usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 512 --floor-available-mib 16384 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/outer.log -- /usr/bin/taskset -c 1 /usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 450 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/run.py ",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2830944-i44732020.scope"
+    },
+    {
+      "pid": 2830951,
+      "ppid": 2830944,
+      "start": "167296504",
+      "exe": "/usr/bin/node",
+      "cwd": "/home/steven",
+      "cmd": "/usr/bin/node /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs --max-rss-mib 450 --floor-available-mib 27648 --log /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/inner.log -- /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/run.py ",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2830944-i44732020.scope"
+    },
+    {
+      "pid": 2830958,
+      "ppid": 2830951,
+      "start": "167296507",
+      "exe": "/usr/bin/python3.14",
+      "cwd": "/home/steven",
+      "cmd": "/usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/run.py ",
+      "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-p2830944-i44732020.scope"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "authorized": true,
+  "scope": "actual-l1-bounded-client-r2",
+  "pinsSha256": "de902a05f4ce25e3898b1213d645d5619361411fb255314cd23600089c2cd20e",
+  "at": 1793367851.234116,
+  "hostAvailableMiB": 30297,
+  "review": "Separate corrected implicit-slice admission based on actual readonly result. All r1 artifacts retained. ONE fresh bounded startup, no production consumer switch/no unchangedretry."
+}

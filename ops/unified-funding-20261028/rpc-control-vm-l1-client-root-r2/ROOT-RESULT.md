@@ -1,0 +1,11 @@
+# Actual native L1 trial r2 — failed memory fit, cleanup verified
+
+Invocation0481622ff7ed4bdc9284906867ba75d2 terminated2/MainPID0. Known local PID/start identities are gone; all40 content pins unchanged. Original L1 image unchanged. No Base or production consumer changes, no production RPC readiness.
+
+Actual Reth2.8.0 opened its private COW and loaded the proposed low-memory TOML. It began healing30 blocks between MDBX checkpoint26277866 and static tip26277896. This is configuration parsing and database-open evidence, not completed repair or synchronization. Actual Lighthouse8.3.2 initialized HotColdDB at split slot15517120 and began resuming the beacon chain, then was OOM-killed (invocation7b56a2c1bded41a8908a4c535f7f23b2, PID298720, ExecMainCode2/status9, Resultoom-kill). Both clients shared2304MiB; aggregate samples do not attribute all memory to Lighthouse. Neither HTTP endpoint was observed. The last sampled aggregate2380046336 bytes is not a complete maximum.
+
+Independent watchdog reason client-ended:cl stopped the pair. Separate remote verification confirms both clients dead before unmount/NBD detach, module unloaded, and socket cleared after tunnel termination. Exporter2831090 exited0/reaped; tunnel2831093 exited255/reaped. Retain all raw evidence and the private failed COW /vm/enclave-volumes/rpc-control-l1-client-r2/overlay.qcow2; never reuse it blindly. Original remains unchanged.
+
+Accounts are now created and retained: enclavel1el997:987, enclavel1cl995:986, JWT group50002. Private payload and runtime records remain on control VM; no JWT contents are published. EL transient unit was garbage-collected, so no exact graceful exit status is inferred from its absent unit. Local guard sampled95MiB inner/163MiB outer, host minima30184/30188MiB;512hard450RSSfloor27648CPU1/noSwap/shared queue. No unchanged rerun or cap increase authorized by this result.
+
+Next candidate is source-reviewed split placement on existing control VM and Nan, each with a distinct fresh COW. Fresh Nan service/cgroup/tool accounting is required before choosing any cap. Candidate Lighthouse cache reductions are source-supported only and do not prove startup fit. Full L1/Base finality, custody, history, proofs and production consumer readiness remain outstanding.

@@ -1,0 +1,24 @@
+{
+  "at": 1793368051.1543922,
+  "knownAlive": [],
+  "knownGone": [
+    2830943,
+    2830944,
+    2830951,
+    2830958
+  ],
+  "contentDrift": [],
+  "remoteCleanupVerified": true,
+  "localHelpers": [
+    {
+      "pid": 2831093,
+      "rc": 255,
+      "reaped": true
+    },
+    {
+      "pid": 2831090,
+      "rc": 0,
+      "reaped": true
+    }
+  ]
+}

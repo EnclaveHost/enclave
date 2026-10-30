@@ -1,0 +1,47 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/evidence/sources/lighthouse-v8.3.2/beacon_node/src/cli.rs",
+    "bytes": 79380,
+    "sha256": "a7a9b708d30ff7f3bd7341d5f478a852338ba02ebbf4b62ce31ae66d46a7d6b6"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/evidence/sources/lighthouse-v8.3.2/beacon_node/src/config.rs",
+    "bytes": 63555,
+    "sha256": "961360600c7066ac307dc4d1fbe28f5d8922f8a26b26743159386e8161ec853a"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/evidence/sources/lighthouse-v8.3.2/book/src/advanced_database.md",
+    "bytes": 8067,
+    "sha256": "5049ab00faec9dc1e17cbc1ba45cb4838c42b39fed6a43394e80dc9bc251a1c2"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/evidence/sources/lighthouse-v8.3.2/book/src/help_bn.md",
+    "bytes": 35888,
+    "sha256": "9f0390174e126a9d60f0cf3cec98fc7a5ddf13f905e510559f97c3468786e1b8"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/evidence/sources/fetch.log",
+    "bytes": 4717,
+    "sha256": "12d99cd0470c324ef005422a21019e22a0150cd591d1930963f32ce65acefd3f"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-l1-source-package/evidence/sources/SHA256SUMS",
+    "bytes": 3586,
+    "sha256": "7806ce7d026d371aceb1c08c34cbb13638a136367714e57b18c401c1e9fbc7d8"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-client-help-memory-r1/lighthouse.help.txt",
+    "bytes": 35834,
+    "sha256": "314b685a0e0e0bfc95998ae97cab61dc07cd263214c6174f5f78d755849e4ceb"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/PARSED-MAIN.json",
+    "bytes": 35673,
+    "sha256": "6eb1de87eadcefbb34c5187bf7287774a20042c742d6955de7803264977e9a59"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-control-vm-l1-client-root-r2/trial-chain-service.py",
+    "bytes": 38726,
+    "sha256": "6c01b56151123d8b6238764e06bc2739d8ddd358623b739d0870690dd1e9a664"
+  }
+]

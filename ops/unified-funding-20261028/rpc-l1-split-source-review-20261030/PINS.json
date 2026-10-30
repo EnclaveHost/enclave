@@ -1,0 +1,14 @@
+[
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-l1-split-source-review-20261030/CANDIDATE-CACHE-ARGS.json",
+    "sha256": "7faa142b98abc0c0a0fe977803ff192e8285c495580920733c830c96c11ff5de"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-l1-split-source-review-20261030/REVIEW.md",
+    "sha256": "05341d7f8a2727a0c6db8ce13027fbedfbf4abe1961787e9a69d8b0416dda3c5"
+  },
+  {
+    "path": "/home/steven/Documents/Codex/2026-10-23/it/work/rpc-l1-split-source-review-20261030/SOURCE-PINS.json",
+    "sha256": "d7749059d00cdc990275ac40360dd2d5bd3ebc2df854e3d4740220cc2af35d59"
+  }
+]
