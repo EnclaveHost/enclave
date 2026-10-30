@@ -1,5 +1,9 @@
 [
   {
+    "path": "HANDOFF-excerpt.md",
+    "sha256": "6c7f500965bb6a10ec527ab73af67482c8aa9266103a2ceb10b8e440d99e5ee0"
+  },
+  {
     "path": "PLAN.md",
     "sha256": "2751f7a5ce3b7e2e3e12d05a40d3802bf1ac5223530599051cd1d31a6aed2eed"
   },
@@ -32,8 +36,20 @@
     "sha256": "f7f904f166ddbb3f4c8a0c039b4a520d42823408422fbc2bc8f2861553466d34"
   },
   {
+    "path": "account-verification.json",
+    "sha256": "8f2349ef4dd4bdced4c14177ee787fb2f6bed2014e08ea0937c064d4e3a9dd00"
+  },
+  {
+    "path": "admission-record.json",
+    "sha256": "9ed002e73c978160eadd17dd11f4ac1223354dbf4131e07a2c0830ab71869c06"
+  },
+  {
     "path": "allowed-edit-paths.json",
     "sha256": "7ae6bf7457c04ef0afa4027c1bdcf58628d8659601e7caffbe4b70f0e7e97e99"
+  },
+  {
+    "path": "attempt.json",
+    "sha256": "49f2d9552b647533c738c7086e97df77fd56d86b7be4ca7352fb95061d1dddd5"
   },
   {
     "path": "collect-terminal.py",
@@ -228,12 +244,12 @@
     "sha256": "1f48ab75321467575f2a8dca8cdd668487fbca3c70bba6cc1fde32e8f67b443b"
   },
   {
-    "path": "evidence/preserved-r3/enclave/site/components/code-tabs/code-tabs.js",
-    "sha256": "f1bc4a668c9d9f9efb8e041f99b4180e2e1da62de82d682b22bfc5d3fdabc49a"
-  },
-  {
     "path": "evidence/preserved-r3/enclave/site/components/code/code.js",
     "sha256": "92e87209835582279f8de067e954e4f6f77daf01e3a409c982e923c305dd34ed"
+  },
+  {
+    "path": "evidence/preserved-r3/enclave/site/components/code-tabs/code-tabs.js",
+    "sha256": "f1bc4a668c9d9f9efb8e041f99b4180e2e1da62de82d682b22bfc5d3fdabc49a"
   },
   {
     "path": "evidence/preserved-r3/enclave/site/components/deployments/deployments.js",
@@ -728,16 +744,12 @@
     "sha256": "29a1441b63908204e32aaa7f10fcba91a1b2afb5adbb4b6b25c86f0bae50228b"
   },
   {
+    "path": "root-source-review.json",
+    "sha256": "8070a4cc65e0279dad06f08894161a45da21cb6fe1e9bc06b041b8a2c66d432d"
+  },
+  {
     "path": "run.py",
     "sha256": "eb894da24ff0253e60c2aef5f7db80bb8df6aa7dc39b076793b86e81fb9d540e"
-  },
-  {
-    "path": "seed-pins.json",
-    "sha256": "8f89413485c781cb6475994eb5094d29f5a17faaf6a707b3f2038cbcd63c703e"
-  },
-  {
-    "path": "seed-provenance.json",
-    "sha256": "5c82d98aaabcb7a21f8e662f633e4684d27de31787579f228b20bff7405c1dd2"
   },
   {
     "path": "seed/CLOSURE.json",
@@ -1646,6 +1658,14 @@
   {
     "path": "seed/enclave/windows/vbslike/verify/judge-hv.mjs",
     "sha256": "bae3916e4a9ee1c3f4d67503f76b52d93febfbf356375a3321c7fe1fb9781f7f"
+  },
+  {
+    "path": "seed-pins.json",
+    "sha256": "8f89413485c781cb6475994eb5094d29f5a17faaf6a707b3f2038cbcd63c703e"
+  },
+  {
+    "path": "seed-provenance.json",
+    "sha256": "5c82d98aaabcb7a21f8e662f633e4684d27de31787579f228b20bff7405c1dd2"
   },
   {
     "path": "turn-metric-investigation.json",
