@@ -1,5 +1,9 @@
 [
   {
+    "path": "HANDOFF-ADMISSION.md",
+    "sha256": "edb8106573f4fd39de89cb04b235ea4157673a0932797608785ee6f59bf8f339"
+  },
+  {
     "path": "PREPARED.json",
     "sha256": "24a2c19ad09ec0cb25106ff74c1b38a9c7cc275e52bae3586fadffd56539e7ec"
   },
@@ -18,6 +22,10 @@
   {
     "path": "account-requirements.json",
     "sha256": "36086b787966ec3827a84a082f8c9b2f5f6776b33ae528127c8405f1ccd2423f"
+  },
+  {
+    "path": "admission-record.json",
+    "sha256": "67d1b874415c403e1ac05b1272da8e2e8788f2f2dace1fa63cf1554936a2e1d4"
   },
   {
     "path": "collect-terminal.py",
@@ -230,6 +238,10 @@
   {
     "path": "run.py",
     "sha256": "1fd164fa4780719e79ed397a6f33c92eadb8a06c4d0db1f6babb11d55ce70fe1"
+  },
+  {
+    "path": "runner-account-verification.json",
+    "sha256": "8f2349ef4dd4bdced4c14177ee787fb2f6bed2014e08ea0937c064d4e3a9dd00"
   },
   {
     "path": "seed/REPORT-WALLET-RELEASE-R1.md",
