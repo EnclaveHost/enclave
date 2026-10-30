@@ -3,11 +3,15 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Web.Script.Serialization;
 using Enclave.OwnedRpc;
 
 static class Harness {
+    [DllImport("kernel32.dll",SetLastError=true)] static extern uint GetProcessId(IntPtr handle);
+    [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetProcessTimes(IntPtr handle,out long created,out long exited,out long kernel,out long user);
+    [DllImport("kernel32.dll",SetLastError=true)] static extern uint WaitForSingleObject(IntPtr handle,uint timeout);
     static string Exe { get { return Process.GetCurrentProcess().MainModule.FileName; } }
     static string Quote(string value) {
         if (value.IndexOf('"')>=0 || value.IndexOf('\n')>=0) throw new ArgumentException("Unexpected fixture path");
@@ -49,12 +53,17 @@ static class Harness {
         return BoundedWorker.Run(Exe,Quote(Exe)+" helper "+mode+" "+Quote(record),
             Path.GetDirectoryName(Exe),Env(),BoundedWorker.MonotonicMilliseconds()+duration,2000,128UL*1024*1024);
     }
-    static bool Dead(WorkerResult r) {
+    static WorkerResult Guard(string record,int duration,Func<SuspendedWorkerBinding,bool> bind) {
+        return BoundedWorker.RunGuarded(Exe,Quote(Exe)+" helper zero "+Quote(record),
+            Path.GetDirectoryName(Exe),Env(),BoundedWorker.MonotonicMilliseconds()+duration,2000,128UL*1024*1024,bind);
+    }
+    static bool Closed(WorkerResult r) {
         return r.ProcessCreated && r.ProcessId>0 && r.CreationFileTime>0 && r.ExitCodeKnown &&
             r.ProcessExited && r.JobEmpty && r.HandleCleanupConfirmed && r.JobLimitsVerified &&
-            r.InitialMembershipVerified && String.IsNullOrEmpty(r.Failure) &&
+            r.InitialMembershipVerified &&
             !r.ProviderOperationFenced && !r.ReservationMayRelease;
     }
+    static bool Dead(WorkerResult r) { return Closed(r) && String.IsNullOrEmpty(r.Failure); }
     static void Check(string name,bool passed,object details) {
         Console.WriteLine(new JavaScriptSerializer().Serialize(new {name=name,passed=passed,details=details}));
         if (!passed) throw new Exception("Fixture failed: "+name);
@@ -182,6 +191,35 @@ static class Harness {
                 BoundedWorker.MonotonicMilliseconds()+1000,1000,128UL*1024*1024);
             Check("invalid-executable-no-success",!invalid.ProcessCreated && !invalid.ExitCodeKnown &&
                 !invalid.LocalSuccess && !String.IsNullOrEmpty(invalid.Failure),invalid);
+            string guardedRecord=Path.Combine(dir,"guard-accept");
+            bool boundIdentity=false;
+            var guarded=Guard(guardedRecord,3000,delegate(SuspendedWorkerBinding b) {
+                long creation,exit,kernel,user;
+                boundIdentity=b.BorrowedProcessHandle!=IntPtr.Zero && GetProcessId(b.BorrowedProcessHandle)==b.ProcessId &&
+                    GetProcessTimes(b.BorrowedProcessHandle,out creation,out exit,out kernel,out user) &&
+                    creation==b.CreationFileTime && creation>0 && WaitForSingleObject(b.BorrowedProcessHandle,0)==258 &&
+                    BoundedWorker.MonotonicMilliseconds()<b.AbsoluteDeadlineMilliseconds && !File.Exists(guardedRecord);
+                return boundIdentity;
+            });
+            Check("guarded-binding-before-resume",boundIdentity && Dead(guarded) && guarded.GuardRequired &&
+                guarded.GuardAccepted && guarded.Resumed && guarded.LocalSuccess && File.Exists(guardedRecord),guarded);
+            string deniedRecord=Path.Combine(dir,"guard-deny");
+            var denied=Guard(deniedRecord,3000,delegate(SuspendedWorkerBinding b) {return false;});
+            Check("guarded-refusal-no-resume",Closed(denied) && denied.GuardRequired && !denied.GuardAccepted &&
+                !denied.Resumed && !denied.LocalSuccess && !String.IsNullOrEmpty(denied.Failure) && !File.Exists(deniedRecord),denied);
+            string thrownRecord=Path.Combine(dir,"guard-throw");
+            var thrown=Guard(thrownRecord,3000,delegate(SuspendedWorkerBinding b) {throw new InvalidOperationException("fixture binding failure");});
+            Check("guarded-exception-no-resume",Closed(thrown) && thrown.GuardRequired && !thrown.GuardAccepted &&
+                !thrown.Resumed && !thrown.LocalSuccess && !String.IsNullOrEmpty(thrown.Failure) && !File.Exists(thrownRecord),thrown);
+            string lateRecord=Path.Combine(dir,"guard-late");
+            bool lateInvoked=false;
+            var late=Guard(lateRecord,500,delegate(SuspendedWorkerBinding b) {lateInvoked=true;Thread.Sleep(600);return true;});
+            Check("guarded-late-acceptance-no-resume",lateInvoked && Dead(late) && late.GuardRequired &&
+                late.GuardAccepted && late.TimedOut && !late.Resumed && !late.LocalSuccess && !File.Exists(lateRecord),late);
+            bool nullGuardRefused=false;
+            try {Guard(Path.Combine(dir,"guard-null"),3000,null);}
+            catch(ArgumentNullException) {nullGuardRefused=true;}
+            Check("guarded-null-refused",nullGuardRefused && !File.Exists(Path.Combine(dir,"guard-null")),null);
             bool refused=false;
             try { BoundedWorker.Run(Exe,Quote(Exe),dir,Env(),BoundedWorker.MonotonicMilliseconds()-1,1000,128UL*1024*1024); }
             catch(ArgumentOutOfRangeException) { refused=true; }

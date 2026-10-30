@@ -95,3 +95,23 @@ one-shot refusal and failed-entry work-gate checks. The observed bootstrap priva
 snapshot was12488704B; the harness completed in2.956s. Its inner128MiB allocation
 test does not behaviorally prove exhaustion of the outer256MiB cap. This is hosted
 CI evidence, not target-host or independent guardian qualification.
+
+## Pre-resume binding candidate (source only)
+
+`RunGuarded` requires a trusted callback after creation-time job assignment and
+exact child identity acquisition, while the first thread is still suspended. The
+callback receives a borrowed process handle, PID, creation time and original
+absolute deadline. It may inspect or duplicate the process handle for an observer;
+it must not close or retain the borrowed handle. No thread/job handle is exposed.
+Refusal or exception enters exact job termination/wait cleanup without resume.
+Late acceptance consumes the original budget and also leaves the child suspended.
+`GuardAccepted` records only the caller assertion, not independent observer proof.
+`Resumed` records successful ResumeThread; LocalSuccess now requires it.
+
+The callback may block; this primitive does not supply an independent watchdog.
+The observer-owned owner job, authenticated handshake, observer-loss/deadline
+termination, protected namespace and target SYSTEM qualification are not yet
+implemented here. Default Run remains available for existing inert callers;
+future guarded owner code must never fall back to it. Five new finite CI cases
+cover identity before resume, refusal, exception, late acceptance and null guard.
+They do not prove a cross-process observer exists. No new run has occurred yet.

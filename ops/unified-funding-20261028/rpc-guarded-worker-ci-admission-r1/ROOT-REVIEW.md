@@ -1,0 +1,7 @@
+# Guarded worker CI admission
+
+Root and peer source review passed the narrow pre-resume callback slice. Exact held child identity and membership precede trusted callback; only borrowed process handle exposed, no job/thread handle. False/throw/expiry keep child suspended and use existing termination/exact-wait cleanup. Same absolute deadline is rechecked after callback. GuardAccepted is caller assertion only; Resumed is recorded after successful ResumeThread. LocalSuccess requiresResumed and accepted guard when required. DefaultRun remains for prior inert callers, never a future guarded-owner fallback.
+
+Five finite tests added to prior11: exact identity before release and no early helper record; refusal; exception;500ms absolute deadline with600ms callback delay; null guard. Original cases remain. Source review clears ONE separately dispatched exact pushed commit on disposable WindowsCI, same fixed three-source manifest/3minjobs/compiler20s/harness30s and bounded publication. Callback hang is NOT independently bounded by this method. No actual observer, owner-job topology, protected handshake, target execution/VM/provider/export/financial action admitted.
+
+Prioractual11PASSsource cbe3ac565d6f3e3fc40a37f0c84839b609491fdc and executablecebb955c7bda173f3dfa03110c1301fee68e2c0b3a36a8e011830f911aeaf814 remain immutable. Preservefailedattempts; no automaticretry or completedhelper replay. Rootlocalauthor remainsunadmitted, rootdirectsource only.

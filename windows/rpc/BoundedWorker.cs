@@ -19,6 +19,9 @@ namespace Enclave.OwnedRpc {
         public bool HandleCleanupConfirmed;
         public bool JobLimitsVerified;
         public bool InitialMembershipVerified;
+        public bool GuardRequired;
+        public bool GuardAccepted;
+        public bool Resumed;
         public bool TimedOut;
         public bool ProcessExited;
         public bool JobEmpty;
@@ -26,11 +29,25 @@ namespace Enclave.OwnedRpc {
         public string Failure;
         public bool LocalSuccess {
             get { return ProcessCreated && ProcessId != 0 && CreationFileTime > 0 &&
-                ExitCodeKnown && ExitCode == 0 && !TimedOut && ProcessExited && JobEmpty &&
+                ExitCodeKnown && ExitCode == 0 && Resumed && (!GuardRequired || GuardAccepted) && !TimedOut && ProcessExited && JobEmpty &&
                 HandleCleanupConfirmed && JobLimitsVerified && InitialMembershipVerified && String.IsNullOrEmpty(Failure); }
         }
         public bool ProviderOperationFenced { get { return false; } }
         public bool ReservationMayRelease { get { return false; } }
+    }
+
+    // Trusted callback may inspect/duplicate the process handle while invoked,
+    // but must not close it or retain the borrowed value after returning. No job
+    // or thread handle is exposed. This is not an untrusted callback boundary.
+    public sealed class SuspendedWorkerBinding {
+        public readonly IntPtr BorrowedProcessHandle;
+        public readonly uint ProcessId;
+        public readonly long CreationFileTime;
+        public readonly long AbsoluteDeadlineMilliseconds;
+        internal SuspendedWorkerBinding(IntPtr handle,uint pid,long creation,long deadline) {
+            BorrowedProcessHandle=handle; ProcessId=pid; CreationFileTime=creation;
+            AbsoluteDeadlineMilliseconds=deadline;
+        }
     }
 
     // Receipt covers only allocations after self-assignment. Existing allocations
@@ -234,6 +251,21 @@ namespace Enclave.OwnedRpc {
         // There is deliberately no shell, process lookup by PID or inherited handle.
         public static WorkerResult Run(string application, string commandLine, string directory,
             IDictionary<string,string> environment, long absoluteDeadlineMs, int cleanupMs, ulong memoryBytes) {
+            return RunCore(application,commandLine,directory,environment,absoluteDeadlineMs,cleanupMs,memoryBytes,null);
+        }
+
+        // Independent observer/deadline control must contain a blocking callback.
+        // Passing true is only the trusted caller's assertion, not observer proof.
+        public static WorkerResult RunGuarded(string application,string commandLine,string directory,
+            IDictionary<string,string> environment,long absoluteDeadlineMs,int cleanupMs,ulong memoryBytes,
+            Func<SuspendedWorkerBinding,bool> bindBeforeResume) {
+            if (bindBeforeResume==null) throw new ArgumentNullException("bindBeforeResume");
+            return RunCore(application,commandLine,directory,environment,absoluteDeadlineMs,cleanupMs,memoryBytes,bindBeforeResume);
+        }
+
+        static WorkerResult RunCore(string application,string commandLine,string directory,
+            IDictionary<string,string> environment,long absoluteDeadlineMs,int cleanupMs,ulong memoryBytes,
+            Func<SuspendedWorkerBinding,bool> bindBeforeResume) {
             if (IntPtr.Size != 8 || Environment.OSVersion.Platform != PlatformID.Win32NT)
                 throw new PlatformNotSupportedException("64-bit Windows required");
             if (!Path.IsPathRooted(application) || !Path.IsPathRooted(directory) ||
@@ -251,7 +283,7 @@ namespace Enclave.OwnedRpc {
                 throw new ArgumentOutOfRangeException("Worker bounds");
             string block = EnvironmentBlock(environment);
             var clock = Stopwatch.StartNew();
-            var result = new WorkerResult();
+            var result = new WorkerResult { GuardRequired=bindBeforeResume!=null };
             IntPtr job=IntPtr.Zero, attributes=IntPtr.Zero, jobList=IntPtr.Zero, env=IntPtr.Zero;
             bool attributesInitialized=false, created=false;
             ProcessInfo process = new ProcessInfo();
@@ -306,10 +338,18 @@ namespace Enclave.OwnedRpc {
                 long exit,kernel,user,creation;
                 Check(GetProcessTimes(process.Process,out creation,out exit,out kernel,out user), "Read exact process identity");
                 result.CreationFileTime=creation;
+                if (bindBeforeResume!=null && MonotonicMilliseconds()<absoluteDeadlineMs) {
+                    var binding=new SuspendedWorkerBinding(process.Process,process.ProcessId,creation,absoluteDeadlineMs);
+                    if (!bindBeforeResume(binding)) throw new InvalidOperationException("Pre-resume binding refused");
+                    result.GuardAccepted=true;
+                }
+                // Callback setup/handshake consumes the original budget. Never
+                // restart it, and never resume on refusal/throw/late acceptance.
                 if (MonotonicMilliseconds() >= absoluteDeadlineMs) result.TimedOut=true;
                 else {
                     uint resumed=ResumeThread(process.Thread);
                     if (resumed != 1) throw new InvalidOperationException("Unexpected suspension count");
+                    result.Resumed=true;
                     while (MonotonicMilliseconds() < absoluteDeadlineMs) {
                         uint state=WaitForSingleObject(process.Process,0);
                         if (state==WaitObject) { result.ProcessExited=true; break; }

@@ -1,0 +1,6 @@
+{
+  "windows/rpc/BoundedWorker.cs": "350f1a64d9ec339919c3e4dafb7f4333224a6a9b9b2842cd3bf051767afef540",
+  "test/rpc-windows-worker/Harness.cs": "4d381755ab9df92cab69a82c906be01a8d2f1b79ddc10ad4f65d3bb222f7664a",
+  "test/rpc-windows-worker/run-ci.ps1": "c335ac7c32d5fac5bb6c215acb0384c741776220e06237b466519ec7ce915ce2",
+  ".github/workflows/rpc-worker-inert.yml": "8054be0a249fdce53cea5fe71585cf5e53fe86bb8d6d953485ad6bc0217c7e71"
+}
