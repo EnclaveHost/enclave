@@ -1,0 +1,8 @@
+
+## October30 19:00UTC: supported allocator profile proven on exact binary; ELr9 still ACTIVE
+
+ELr9 SAME7e9733f7884a46cd8b79fda5e93079b2 ACTIVE/Main2996377/bootstrapPASS/newprivateCOW; no resultyet/no additionalobserver. Nativeadmission/source71c23d1794e39d9cd5c88793b72f5498338138af PUSHEDexactremote via296bbed062034c6cb187c6702e4bd28c terminal0.
+
+ONE static publicbinaryread3a2cb8dbf1104dd59840902543d5936c terminal0/Main0: exactLighthouse11b7bca8...105018160bytes unchanged, prefixed_RJEM_MALLOC_CONF andjemalloc5.3.0-1-ge13ca993e8ccb9ba9847cc330696e02839f328f7 confirmed. ONE isolatedcapability0921cde8c2e64eb889afddc8a6cb1415 terminal0/Main0/pinsunchanged: two local --version only, bwrapunshare-all/clearenvironment/publiclibs+binaryreadonly/emptyhome/noDB/network. Actualjemallocstats baseline16arenas/dirty10000ms/backgroundtrue vs proposed1arena/dirty0/muzzy0/backgroundfalse; abort_conftrue, exactsamev8.3.2binary. No workloadRAMsaving/4GiBfitclaim.256hard220RSSfloor27648CPU1noswap smalllane. U/rpc-cl-allocator-capability-r1 ROOT-RESULT authoritative. Source/results9e7b10f0ed809ad7d16810ce8e2b82f5040010ea PUSHEDexactremote via7c421091 terminal0.
+
+PeerSOURCEPREPONLY Nan n10 freshnamespace/same4096+128+128/2048reserve/cache/history/custody/idmap/exactbinary, only explicitallocatorprofile; boundedexactinvocation initializationproof andlateroverride refusal. No stats_print inlongnative. Rootreview/test/freshadmission AFTERELterminal beforeanynative. Noauthor/build/auth/remote/live/finance delegated. Peerbuildclosure finds fullCargo.lock/workspace/dependency/releaseclosureabsent and512MiBbuildunproven; do not tryblindRustbuild. SamefundedDNS/KVMstillnotRunning, no duplicatefinance/restarts orproductionconsumerchanges.
