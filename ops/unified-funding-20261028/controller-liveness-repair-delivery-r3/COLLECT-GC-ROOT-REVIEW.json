@@ -1,0 +1,8 @@
+{
+  "at": 1793360171.8434534,
+  "authorizedCollector": "collect-gc.pre-review.py",
+  "sha256": "0db10eb8f8e9a306171c9e05eeb50315b897e0408cdd086f62c6d8d41eef8920",
+  "rootReview": "Root explicitly authorized one execution of exact0db10e, independently checked exact journal invocation/PID and timestamp1793359920633099us after ROOT-IDENTITIES1793359204s; default notfound Result is not proof. Original collector never executed.",
+  "newerTimestampHardenedCollectorExecuted": false,
+  "testsAuthorized": false
+}

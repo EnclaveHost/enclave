@@ -1,0 +1,20 @@
+{
+  "AUTHOR-NOTES.md": "8e55debd4e94c2460419abe0c852838efa6fb679438002be5fce2211af1a963f",
+  "isolation/m4/guestd/control-client.mjs": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+  "isolation/m4/guestd/share.go": "67f99130d45e69d5149607d30ea6dbc20966952cd5d9fecd37a44be3a203ed30",
+  "isolation/m4/guestd/supervisor-splice.mjs": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+  "isolation/m4/guestd/supervisor-transport.mjs": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75",
+  "metal/enclave-metal.mjs": "d59a6cab9a698ea53f7c6d064588988997bebf748eba42193b0a443be32c1cda",
+  "metal/guest/agent.mjs": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a",
+  "metal/guest/gsup.mjs": "c2896d743e36be8fa1832f1f6f0e41042140b61549fd780f32c1921d5a157e99",
+  "metal/guest/init": "b42c2d995ec32a9610b168805673e213c912946e46a1718cb5ab72cf695baa62",
+  "package.json": "176365e77ddfe0cef859d07a2916e702f177854f34b23abfd1b806df9200de93",
+  "supervisor.js": "94c9eaad4623e041f432cb5102f19885de887091fe720222dcc455f279e4a156",
+  "test/claim-sweep.test.mjs": "c4be6ac8f91052e89feb20ca36da40b248472661638f1849216999c3697950cc",
+  "test/isolation-guest-pool.test.mjs": "9ceef7b150a23e4e2981fe05b91fdc9320751b0f51e7a3194ba79dadcdbaa427",
+  "test/isolation-instance-liveness.test.mjs": "4ddacb7ccedef8d6d26445110bcaeb5338ef0ba27717045275e6c1b6ac937f30",
+  "test/isolation-post-adoption-lease.test.mjs": "af1a3633692b7c5aa5fd0109adb19e96e088c872ca10ba1027c285ce6355dd13",
+  "test/isolation-resume-shield-model.test.mjs": "7f9154f421269b4ccf4f88fd3657de9e49a16613edeeda409bbc333fb81ac1a5",
+  "test/isolation-stale-continuation.test.mjs": "6c262b8705f03a1895a39f896f78774c1a46069bd5c7e9dc7ba07baca92739a7",
+  "test/tenant-lease.test.mjs": "c841b66fc3f6caeb8ec5cc37781c79ff94847728afcebb268f1717e1ad9be296"
+}

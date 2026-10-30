@@ -1,0 +1,68 @@
+{
+  "at": 1793360031.4145932,
+  "invocation": "a1aa5398821646f98c964e94bb753d5d",
+  "outer": {
+    "LoadState": "not-found",
+    "ActiveState": "inactive",
+    "SubState": "dead",
+    "InvocationID": "",
+    "MainPID": "0",
+    "Result": "success",
+    "ExecMainCode": "0",
+    "ExecMainStatus": "0",
+    "ControlGroup": ""
+  },
+  "inner": {
+    "LoadState": "not-found",
+    "ActiveState": "inactive",
+    "SubState": "dead",
+    "InvocationID": "",
+    "Result": "success",
+    "ControlGroup": ""
+  },
+  "processes": [
+    {
+      "pid": 2684335,
+      "originalStartTime": 166429043,
+      "currentStartTime": null,
+      "originalGone": true
+    },
+    {
+      "pid": 2684336,
+      "originalStartTime": 166429049,
+      "currentStartTime": null,
+      "originalGone": true
+    },
+    {
+      "pid": 2684343,
+      "originalStartTime": 166429053,
+      "currentStartTime": null,
+      "originalGone": true
+    },
+    {
+      "pid": 2684350,
+      "originalStartTime": 166429055,
+      "currentStartTime": null,
+      "originalGone": true
+    },
+    {
+      "pid": 2684368,
+      "originalStartTime": 166429150,
+      "currentStartTime": null,
+      "originalGone": true
+    }
+  ],
+  "remainingPids": [],
+  "activeExeCwdAffinityMatchedIndependentlyBeforeTerminal": true,
+  "collectorExecuted": false,
+  "outerCollectedBySystemd": true,
+  "exactInvocationTerminalJournal": [
+    {
+      "__REALTIME_TIMESTAMP": "1793359920633099",
+      "__CURSOR": "s=ad8347689a624e56aea1f7caa3904e0d;i=4e44b5;b=b5382987896d4f01938b12d1bb149fd5;m=183abc7ee7e;t=65f0d2506150b;x=e83ab85145dac34b",
+      "_SYSTEMD_INVOCATION_ID": "a1aa5398821646f98c964e94bb753d5d",
+      "_PID": "2684335",
+      "MESSAGE": "[queue] EXIT 0"
+    }
+  ]
+}

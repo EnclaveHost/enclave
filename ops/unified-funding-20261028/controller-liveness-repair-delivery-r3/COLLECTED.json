@@ -1,0 +1,45 @@
+{
+  "candidatePinsSha256": "d14e65215a33c5b28cb627249b8186409ea524ded3f880eda3800006c8545b92",
+  "changedFiles": [
+    "AUTHOR-NOTES.md",
+    "supervisor.js",
+    "test/isolation-instance-liveness.test.mjs",
+    "test/isolation-stale-continuation.test.mjs"
+  ],
+  "coldControllerRecoveryQualified": false,
+  "eligibleForRootSourceReview": true,
+  "innerScope": {
+    "ActiveState": "inactive",
+    "ControlGroup": "",
+    "Id": "run-p2684336-i44612789.scope",
+    "InvocationID": "",
+    "LoadState": "not-found",
+    "Result": "success",
+    "SubState": "dead"
+  },
+  "outerUnit": {
+    "ActiveState": "inactive",
+    "ControlGroup": "",
+    "ExecMainCode": "0",
+    "ExecMainStatus": "0",
+    "Id": "enclave-rpc-controller-liveness-repair-r3-20261030.service",
+    "InvocationID": "",
+    "LoadState": "not-found",
+    "MainPID": "0",
+    "Result": "success",
+    "SubState": "dead"
+  },
+  "productionReady": false,
+  "remainingPids": [],
+  "runnerStatus": "SOURCE-DELIVERED-UNQUALIFIED",
+  "sourcePatchSha256": "c4e39bcba9e28e33632d1b03fa723566250571bd87fe894795969f4e29520792",
+  "status": "COLLECTED-SOURCE-ONLY",
+  "terminalEvidence": {
+    "cursor": "s=ad8347689a624e56aea1f7caa3904e0d;i=4e44b5;b=b5382987896d4f01938b12d1bb149fd5;m=183abc7ee7e;t=65f0d2506150b;x=e83ab85145dac34b",
+    "invocation": "a1aa5398821646f98c964e94bb753d5d",
+    "kind": "systemd-collected-exact-invocation-journal",
+    "message": "[queue] EXIT 0",
+    "queuePid": 2684335
+  },
+  "testsRun": false
+}
