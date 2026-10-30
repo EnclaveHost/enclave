@@ -1,0 +1,1 @@
+ONE bounded readonly Nan tool/version/hash/manual/capability observation. No install/mount/namespace/client/data mutation, no service signals.256hard220RSSfloor27648CPU1noswap sharedqueue90outer/remote12840s. Root reviewed public-only output and finite capture.

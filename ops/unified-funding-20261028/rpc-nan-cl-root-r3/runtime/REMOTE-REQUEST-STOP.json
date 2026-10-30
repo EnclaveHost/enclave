@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 2.750872221076861,
+  "stdout": "RESULT_JSON={\"action\": \"request-stop\", \"errors\": [], \"ok\": true, \"stopRequested\": true, \"unit:enclave-rpc-nan-watch-n3.service\": {\"bytesObserved\": {\"stderr\": 0, \"stdout\": 238}, \"cleanupErrors\": [], \"deadlineExceeded\": false, \"elapsedSeconds\": 0.10760672017931938, \"localChildReaped\": true, \"localProcessGroupDeathProven\": false, \"ownedGroupKillAttempted\": true, \"rc\": 0, \"reason\": null, \"remoteDeathProven\": false, \"stderr\": \"\", \"stdinBytesRequested\": 0, \"stdinBytesWritten\": 0, \"stdout\": \"MainPID=0\\nResult=success\\nExecMainCode=0\\nExecMainStatus=0\\nControlGroup=\\nUser=\\nGroup=\\nDescription=enclave-rpc-nan-watch-n3.service\\nLoadState=not-found\\nActiveState=inactive\\nSubState=dead\\nFragmentPath=\\nDropInPaths=\\nTransient=no\\nInvocationID=\\n\", \"truncated\": false}}\n",
+  "stderr": "",
+  "bytesObserved": {
+    "stdout": 767,
+    "stderr": 0
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

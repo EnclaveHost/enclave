@@ -1,0 +1,42 @@
+{
+  "at": 1793373992.3285937,
+  "invocation": "7d814d6921c042248c381f8cc9b67086",
+  "processes": [
+    {
+      "pid": 2887018,
+      "start": "167889434",
+      "sameIdentityStillPresent": false
+    },
+    {
+      "pid": 2887019,
+      "start": "167889439",
+      "sameIdentityStillPresent": false
+    },
+    {
+      "pid": 2887026,
+      "start": "167889443",
+      "sameIdentityStillPresent": false
+    },
+    {
+      "pid": 2887033,
+      "start": "167889445",
+      "sameIdentityStillPresent": false
+    },
+    {
+      "pid": 2887063,
+      "start": "167889765",
+      "sameIdentityStillPresent": false
+    },
+    {
+      "pid": 2887064,
+      "start": "167889765",
+      "sameIdentityStillPresent": false
+    }
+  ],
+  "inputDrift": [],
+  "result": "CLIENT_TRIAL_FAILED_NO_RETRY",
+  "mainErrors": [
+    "RuntimeError:ownership-time-bound"
+  ],
+  "independentCleanup": true
+}

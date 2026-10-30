@@ -1,0 +1,600 @@
+{
+  "action": "main",
+  "cleanup": {
+    "clients": {
+      "cl": {
+        "ActiveState": "inactive",
+        "ControlGroup": "",
+        "Description": "enclave-rpc-nan-cl-trial-n3.service",
+        "DropInPaths": "",
+        "ExecMainCode": "0",
+        "ExecMainStatus": "0",
+        "FragmentPath": "",
+        "Group": "",
+        "InvocationID": "",
+        "LoadState": "not-found",
+        "MainPID": "0",
+        "Result": "success",
+        "SubState": "dead",
+        "Transient": "no",
+        "User": ""
+      }
+    },
+    "errors": [],
+    "identityMutationIntents": [],
+    "identityReconciliation": [],
+    "nbdUnit": {
+      "ActiveState": "inactive",
+      "ControlGroup": "",
+      "Description": "enclave-rpc-nan-nbd-n3.service",
+      "DropInPaths": "",
+      "ExecMainCode": "0",
+      "ExecMainStatus": "0",
+      "FragmentPath": "",
+      "Group": "",
+      "InvocationID": "",
+      "LoadState": "not-found",
+      "MainPID": "0",
+      "Result": "success",
+      "SubState": "dead",
+      "Transient": "no",
+      "User": ""
+    },
+    "ok": true,
+    "reason": "main-error",
+    "retainedAccounts": {
+      "groups": [],
+      "users": []
+    }
+  },
+  "errors": [
+    "RuntimeError:ownership-time-bound"
+  ],
+  "exportInfo": {
+    "bytes": 4000000000000,
+    "flags": 3181
+  },
+  "filesystemIdentity": {
+    "bytesRead": 4096,
+    "direct": true,
+    "incompat": 706,
+    "offset": 0,
+    "state": 1,
+    "uuid": "a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0"
+  },
+  "filesystemIdentityRead": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 126
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.8253655526787043,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "{\"uuid\": \"a2f2a8b5-06ac-4612-95a0-f48a00a7f6e0\", \"state\": 1, \"incompat\": 706, \"bytesRead\": 4096, \"offset\": 0, \"direct\": true}\n",
+    "truncated": false
+  },
+  "lastHeadroom": {
+    "available": 7463526400,
+    "floor": 2147483648,
+    "groups": [
+      {
+        "current": 0,
+        "maximum": 4294967296,
+        "path": "/sys/fs/cgroup/enclavenantrialn3.slice"
+      },
+      {
+        "current": 133816320,
+        "maximum": 134217728,
+        "path": "/sys/fs/cgroup/enclavenanattachn3.slice"
+      },
+      {
+        "current": 14884864,
+        "maximum": 134217728,
+        "path": "/sys/fs/cgroup/enclavenanguardn3.slice"
+      }
+    ],
+    "policyNotWorstCaseReservation": true,
+    "remainingTrialAndPending": 4414701568,
+    "residual": 3048824832
+  },
+  "libraryOwner:ld-linux-x86-64.so.2": {
+    "bytesObserved": {
+      "stderr": 86,
+      "stdout": 60
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.12543786503374577,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 1,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2\n",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "libc6:amd64: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2\n",
+    "truncated": false
+  },
+  "libraryOwner:libc.so.6": {
+    "bytesObserved": {
+      "stderr": 75,
+      "stdout": 49
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.12634222023189068,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 1,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libc.so.6\n",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "libc6:amd64: /usr/lib/x86_64-linux-gnu/libc.so.6\n",
+    "truncated": false
+  },
+  "libraryOwner:libgcc_s.so.1": {
+    "bytesObserved": {
+      "stderr": 79,
+      "stdout": 57
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.12267885357141495,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 1,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libgcc_s.so.1\n",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "libgcc-s1:amd64: /usr/lib/x86_64-linux-gnu/libgcc_s.so.1\n",
+    "truncated": false
+  },
+  "libraryOwner:libm.so.6": {
+    "bytesObserved": {
+      "stderr": 75,
+      "stdout": 49
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.12360181845724583,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 1,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libm.so.6\n",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "libc6:amd64: /usr/lib/x86_64-linux-gnu/libm.so.6\n",
+    "truncated": false
+  },
+  "libraryOwner:libstdc++.so.6": {
+    "bytesObserved": {
+      "stderr": 85,
+      "stdout": 64
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.2282591052353382,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 1,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libstdc++.so.6.0.33\n",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "libstdc++6:amd64: /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33\n",
+    "truncated": false
+  },
+  "libraryOwner:libz.so.1": {
+    "bytesObserved": {
+      "stderr": 77,
+      "stdout": 52
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.12641185522079468,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 1,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "dpkg-query: no path found matching pattern /lib/x86_64-linux-gnu/libz.so.1.3\n",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "zlib1g:amd64: /usr/lib/x86_64-linux-gnu/libz.so.1.3\n",
+    "truncated": false
+  },
+  "libraryVersion:ld-linux-x86-64.so.2": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 19
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10590346716344357,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "2.39-0ubuntu8.9\tii ",
+    "truncated": false
+  },
+  "libraryVersion:libc.so.6": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 19
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10743599943816662,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "2.39-0ubuntu8.9\tii ",
+    "truncated": false
+  },
+  "libraryVersion:libgcc_s.so.1": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 27
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10970050655305386,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "14.2.0-4ubuntu2~24.04.1\tii ",
+    "truncated": false
+  },
+  "libraryVersion:libm.so.6": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 19
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10811895318329334,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "2.39-0ubuntu8.9\tii ",
+    "truncated": false
+  },
+  "libraryVersion:libstdc++.so.6": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 27
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.10665543749928474,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "14.2.0-4ubuntu2~24.04.1\tii ",
+    "truncated": false
+  },
+  "libraryVersion:libz.so.1": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 27
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.11007240042090416,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "1:1.3.dfsg-3.1ubuntu2.3\tii ",
+    "truncated": false
+  },
+  "loadModule": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.11535540036857128,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "ok": false,
+  "readOnlyPreflightMount": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 2.304019032046199,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "runtimeLibraries": [
+    {
+      "bytes": 2592224,
+      "installedVersion": "14.2.0-4ubuntu2~24.04.1",
+      "name": "libstdc++.so.6",
+      "package": "libstdc++6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33",
+      "sha256": "1fd75fe70354a416d75aef22bcae68c47bd25d20e2d0568c30b1a9838cf62f11"
+    },
+    {
+      "bytes": 952616,
+      "installedVersion": "2.39-0ubuntu8.9",
+      "name": "libm.so.6",
+      "package": "libc6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "fce00b6f25f459cf4ae0b7fae4257909a1a8a86f9149e7c029a5d617baf1ccd0"
+    },
+    {
+      "bytes": 2129424,
+      "installedVersion": "2.39-0ubuntu8.9",
+      "name": "libc.so.6",
+      "package": "libc6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "3a15d66867d83762c7f2f1e37359cb8f6c5743edb369c65285cb0b1c4f7498bf"
+    },
+    {
+      "bytes": 236616,
+      "installedVersion": "2.39-0ubuntu8.9",
+      "name": "ld-linux-x86-64.so.2",
+      "package": "libc6:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "c20a2dc8917c755f02b94049356320fe1f62ac7d9f8994731f807d9df39302da"
+    },
+    {
+      "bytes": 183024,
+      "installedVersion": "14.2.0-4ubuntu2~24.04.1",
+      "name": "libgcc_s.so.1",
+      "package": "libgcc-s1:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "sha256": "d93224d2b0dab4247598be683adca02f5cf00586f99c187579cd7e92058fb7cb"
+    },
+    {
+      "bytes": 113000,
+      "installedVersion": "1:1.3.dfsg-3.1ubuntu2.3",
+      "name": "libz.so.1",
+      "package": "zlib1g:amd64",
+      "path": "/usr/lib/x86_64-linux-gnu/libz.so.1.3",
+      "sha256": "f61677c7bdb7c2aa2a243ea781bfd16afcb361cede7b4ef76127a9d8eb9a5242"
+    }
+  ],
+  "startNBDUnit": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.12129523605108261,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "startWatchdog": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 0
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.11717341095209122,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "",
+    "truncated": false
+  },
+  "unit:enclave-rpc-nan-cl-trial-n3.service": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 241
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.11049728468060493,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "MainPID=0\nResult=success\nExecMainCode=0\nExecMainStatus=0\nControlGroup=\nUser=\nGroup=\nDescription=enclave-rpc-nan-cl-trial-n3.service\nLoadState=not-found\nActiveState=inactive\nSubState=dead\nFragmentPath=\nDropInPaths=\nTransient=no\nInvocationID=\n",
+    "truncated": false
+  },
+  "unit:enclave-rpc-nan-nbd-n3.service": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 769
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.007574319839477539,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "MainPID=473986\nResult=success\nExecMainCode=0\nExecMainStatus=0\nExecStart={ path=/var/lib/enclave-rpc-nan-client-n3/nbd-client ; argv[]=/var/lib/enclave-rpc-nan-client-n3/nbd-client -n -L -u -N enclave-nan-cl-f14c9500-7b5e-4378-b3aa-4a517c573bc9 -t 5 -b 4096 /root/rpc-nan-client-n3/export.sock /dev/nbd7 ; ignore_errors=no ; start_time=[Fri 2026-10-30 15:23:56 UTC] ; stop_time=[n/a] ; pid=473986 ; code=(null) ; status=0/0 }\nControlGroup=/enclavenanattachn3.slice/enclave-rpc-nan-nbd-n3.service\nUser=root\nGroup=\nDescription=Enclave L1 f14c9500-7b5e-4378-b3aa-4a517c573bc9 nbd\nLoadState=loaded\nActiveState=active\nSubState=running\nFragmentPath=/run/systemd/transient/enclave-rpc-nan-nbd-n3.service\nDropInPaths=\nTransient=yes\nInvocationID=fb9c5027d80141d49640690999a16ecd\n",
+    "truncated": false
+  },
+  "unit:enclave-rpc-nan-watch-n3.service": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 650
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.1094882134348154,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "MainPID=473941\nResult=success\nExecMainCode=0\nExecMainStatus=0\nExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 -B /run/enclave-rpc-nan-client-n3/program.py watchdog ; ignore_errors=no ; start_time=[Fri 2026-10-30 15:23:55 UTC] ; stop_time=[n/a] ; pid=473941 ; code=(null) ; status=0/0 }\nControlGroup=/enclavenanguardn3.slice/enclave-rpc-nan-watch-n3.service\nUser=root\nGroup=\nDescription=Enclave L1 f14c9500-7b5e-4378-b3aa-4a517c573bc9 watchdog\nLoadState=loaded\nActiveState=active\nSubState=running\nFragmentPath=/run/systemd/transient/enclave-rpc-nan-watch-n3.service\nDropInPaths=\nTransient=yes\nInvocationID=ba0b57d6acd64bad8c3e34fc71f36e9f\n",
+    "truncated": false
+  },
+  "unit:enclavenanattachn3.slice": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 302
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.007839025929570198,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "ControlGroup=/enclavenanattachn3.slice\nDescription=Nan CL f14c9500-7b5e-4378-b3aa-4a517c573bc9 enclavenanattachn3.slice\nLoadState=loaded\nActiveState=active\nSubState=active\nFragmentPath=/run/systemd/system/enclavenanattachn3.slice\nDropInPaths=\nTransient=no\nInvocationID=33edc6dbf8274edcb6b2d424b31934ca\n",
+    "truncated": false
+  },
+  "unit:enclavenanguardn3.slice": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 299
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.008108871057629585,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "ControlGroup=/enclavenanguardn3.slice\nDescription=Nan CL f14c9500-7b5e-4378-b3aa-4a517c573bc9 enclavenanguardn3.slice\nLoadState=loaded\nActiveState=active\nSubState=active\nFragmentPath=/run/systemd/system/enclavenanguardn3.slice\nDropInPaths=\nTransient=no\nInvocationID=e480b017b54342d2b29e2b68ebe7f202\n",
+    "truncated": false
+  },
+  "unit:enclavenantrialn3.slice": {
+    "bytesObserved": {
+      "stderr": 0,
+      "stdout": 299
+    },
+    "cleanupErrors": [],
+    "deadlineExceeded": false,
+    "elapsedSeconds": 0.008105862885713577,
+    "localChildReaped": true,
+    "localProcessGroupDeathProven": false,
+    "ownedGroupKillAttempted": true,
+    "rc": 0,
+    "reason": null,
+    "remoteDeathProven": false,
+    "stderr": "",
+    "stdinBytesRequested": 0,
+    "stdinBytesWritten": 0,
+    "stdout": "ControlGroup=/enclavenantrialn3.slice\nDescription=Nan CL f14c9500-7b5e-4378-b3aa-4a517c573bc9 enclavenantrialn3.slice\nLoadState=loaded\nActiveState=active\nSubState=active\nFragmentPath=/run/systemd/system/enclavenantrialn3.slice\nDropInPaths=\nTransient=no\nInvocationID=6818f33049ca42b89454c5982744d76c\n",
+    "truncated": false
+  }
+}

@@ -1,0 +1,190 @@
+{
+  "at": 1793374031.0681345,
+  "readOnly": true,
+  "boot": "4b84b9bd-a89d-4b37-94cb-26334dbf4666",
+  "tools": {
+    "/usr/bin/mount": {
+      "realpath": "/usr/bin/mount",
+      "bytes": 51584,
+      "sha256": "fde2b1540ca79ea42df942653bdfd09b9b3e3ff1d4713602bd280f754033957a"
+    },
+    "/usr/bin/umount": {
+      "realpath": "/usr/bin/umount",
+      "bytes": 39296,
+      "sha256": "186774a008ad69cf60bce6af35a850608d1c6ba410d3eca4113ea55b3a8b54d6"
+    },
+    "/usr/bin/findmnt": {
+      "realpath": "/usr/bin/findmnt",
+      "bytes": 69280,
+      "sha256": "08652d0a79159c9d5b73f9181d3436bf044466e8efffecd0feef5c4cbb4e7670"
+    },
+    "/usr/bin/unshare": {
+      "realpath": "/usr/bin/unshare",
+      "bytes": 43624,
+      "sha256": "a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c"
+    },
+    "/usr/bin/setpriv": {
+      "realpath": "/usr/bin/setpriv",
+      "bytes": 39304,
+      "sha256": "62ec0120791f3afcfb689fed52384ec2b0accc6e118a6b9a1d6fcfa7450aaf37"
+    },
+    "/usr/sbin/mkfs.ext4": {
+      "realpath": "/usr/sbin/mke2fs",
+      "bytes": 133752,
+      "sha256": "07cd24ce58a410cc9cee93c55ae5ac95986df016c5907dc7a49b55389bd41ed2"
+    },
+    "/usr/sbin/losetup": {
+      "realpath": "/usr/sbin/losetup",
+      "bytes": 76304,
+      "sha256": "44ccbcc5573aee3bd40fd3171ec368d62ba373f45263ac1d026c612ed86f0f02"
+    },
+    "/usr/lib/x86_64-linux-gnu/libmount.so.1": {
+      "realpath": "/usr/lib/x86_64-linux-gnu/libmount.so.1.1.0",
+      "bytes": 309960,
+      "sha256": "7472255ae5799059b37ddd544788f5665dbd3e1cb78259f52180293039efc2a5"
+    }
+  },
+  "commands": {
+    "mountVersion": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.0021236594766378403,
+      "stdout": "mount from util-linux 2.39.3 (libmount 2.39.3: selinux, smack, btrfs, verity, namespaces, idmapping, statx, assert, debug)\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 123,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "mountHelp": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.0012550465762615204,
+      "stdout": "\nUsage:\n mount [-lhV]\n mount -a [options]\n mount [options] [--source] <source> | [--target] <directory>\n mount [options] <source> <directory>\n mount <operation> <mountpoint> [<target>]\n\nMount a filesystem.\n\nOptions:\n -a, --all               mount all filesystems mentioned in fstab\n -c, --no-canonicalize   don't canonicalize paths\n -f, --fake              dry run; skip the mount(2) syscall\n -F, --fork              fork off for each device (use with -a)\n -T, --fstab <path>      alternative file to /etc/fstab\n -i, --internal-only     don't call the mount.<type> helpers\n -l, --show-labels       show also filesystem labels\n -m, --mkdir[=<mode>]    alias to '-o X-mount.mkdir[=<mode>]'\n -n, --no-mtab           don't write to /etc/mtab\n     --options-mode <mode>\n                         what to do with options loaded from fstab\n     --options-source <source>\n                         mount options source\n     --options-source-force\n                         force use of options from fstab/mtab\n     --onlyonce          check if filesystem is already mounted\n -o, --options <list>    comma-separated list of mount options\n -O, --test-opts <list>  limit the set of filesystems (use with -a)\n -r, --read-only         mount the filesystem read-only (same as -o ro)\n -t, --types <list>      limit the set of filesystem types\n     --source <src>      explicitly specifies source (path, label, uuid)\n     --target <target>   explicitly specifies mountpoint\n     --target-prefix <path>\n                         specifies path used for all mountpoints\n -v, --verbose           say what is being done\n -w, --rw, --read-write  mount the filesystem read-write (default)\n -N, --namespace <ns>    perform mount in another namespace\n\n -h, --help              display this help\n -V, --version           display version\n\nSource:\n -L, --label <label>     synonym for LABEL=<label>\n -U, --uuid <uuid>       synonym for UUID=<uuid>\n LABEL=<label>           specifies device by filesystem label\n UUID=<uuid>             specifies device by filesystem UUID\n PARTLABEL=<label>       specifies device by partition label\n PARTUUID=<uuid>         specifies device by partition UUID\n ID=<id>                 specifies device by udev hardware ID\n <device>                specifies device by path\n <directory>             mountpoint for bind mounts (see --bind/rbind)\n <file>                  regular file for loopdev setup\n\nOperations:\n -B, --bind              mount a subtree somewhere else (same as -o bind)\n -M, --move              move a subtree to some other place\n -R, --rbind             mount a subtree and all submounts somewhere else\n --make-shared           mark a subtree as shared\n --make-slave            mark a subtree as slave\n --make-private          mark a subtree as private\n --make-unbindable       mark a subtree as unbindable\n --make-rshared          recursively mark a whole subtree as shared\n --make-rslave           recursively mark a whole subtree as slave\n --make-rprivate         recursively mark a whole subtree as private\n --make-runbindable      recursively mark a whole subtree as unbindable\n\nFor more details see mount(8).\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 3133,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "findmntHelp": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.0014934428036212921,
+      "stdout": "\nUsage:\n findmnt [options]\n findmnt [options] <device> | <mountpoint>\n findmnt [options] <device> <mountpoint>\n findmnt [options] [--source <device>] [--target <path> | --mountpoint <dir>]\n\nFind a (mounted) filesystem.\n\nOptions:\n -s, --fstab            search in static table of filesystems\n -m, --mtab             search in table of mounted filesystems\n                          (includes user space mount options)\n -k, --kernel           search in kernel table of mounted\n                          filesystems (default)\n\n -p, --poll[=<list>]    monitor changes in table of mounted filesystems\n -w, --timeout <num>    upper limit in milliseconds that --poll will block\n\n -A, --all              disable all built-in filters, print all filesystems\n -a, --ascii            use ASCII chars for tree formatting\n -b, --bytes            print sizes in bytes rather than in human readable format\n -C, --nocanonicalize   don't canonicalize when comparing paths\n -c, --canonicalize     canonicalize printed paths\n -D, --df               imitate the output of df(1)\n -d, --direction <word> direction of search, 'forward' or 'backward'\n -e, --evaluate         convert tags (LABEL,UUID,PARTUUID,PARTLABEL) \n                          to device names\n -F, --tab-file <path>  alternative file for -s, -m or -k options\n -f, --first-only       print the first found filesystem only\n -i, --invert           invert the sense of matching\n -J, --json             use JSON output format\n -l, --list             use list format output\n -N, --task <tid>       use alternative namespace (/proc/<tid>/mountinfo file)\n -n, --noheadings       don't print column headings\n -O, --options <list>   limit the set of filesystems by mount options\n -o, --output <list>    the output columns to be shown\n     --output-all       output all available columns\n -P, --pairs            use key=\"value\" output format\n     --pseudo           print only pseudo-filesystems\n     --shadowed         print only filesystems over-mounted by another filesystem\n -R, --submounts        print all submounts for the matching filesystems\n -r, --raw              use raw output format\n     --real             print only real filesystems\n -S, --source <string>  the device to mount (by name, maj:min, \n                          LABEL=, UUID=, PARTUUID=, PARTLABEL=)\n -T, --target <path>    the path to the filesystem to use\n     --tree             enable tree format output if possible\n -M, --mountpoint <dir> the mountpoint directory\n -t, --types <list>     limit the set of filesystems by FS types\n -U, --uniq             ignore filesystems with duplicate target\n -u, --notruncate       don't truncate text in columns\n -v, --nofsroot         don't print [/dir] for bind or btrfs mounts\n -y, --shell            use column names to be usable as shell variable identifiers\n\n -x, --verify           verify mount table content (default is fstab)\n     --verbose          print more details\n     --vfs-all          print all VFS options\n\n -h, --help             display this help\n -V, --version          display version\n\nAvailable output columns:\n      ACTION  action detected by --poll\n       AVAIL  filesystem size available\n        FREQ  dump(8) period in days [fstab only]\n      FSROOT  filesystem root\n      FSTYPE  filesystem type\n  FS-OPTIONS  FS specific mount options\n          ID  mount ID\n       LABEL  filesystem label\n     MAJ:MIN  major:minor device number\n OLD-OPTIONS  old mount options saved by --poll\n  OLD-TARGET  old mountpoint saved by --poll\n     OPTIONS  all mount options\n  OPT-FIELDS  optional mount fields\n      PARENT  mount parent ID\n   PARTLABEL  partition label\n    PARTUUID  partition UUID\n      PASSNO  pass number on parallel fsck(8) [fstab only]\n PROPAGATION  VFS propagation flags\n        SIZE  filesystem size\n      SOURCE  source device\n     SOURCES  all possible source devices\n      TARGET  mountpoint\n         TID  task ID\n        USED  filesystem size used\n        USE%  filesystem use percentage\n        UUID  filesystem UUID\n VFS-OPTIONS  VFS specific mount options\n\nFor more details see findmnt(8).\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 4082,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "unshareVersion": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.0006666760891675949,
+      "stdout": "unshare from util-linux 2.39.3\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 31,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "mounts": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.001451464369893074,
+      "stdout": "/sys sysfs sysfs\n/proc proc proc\n/dev udev devtmpfs\n/dev/pts devpts devpts\n/run tmpfs tmpfs\n/ /dev/sda1 ext4\n/sys/kernel/security securityfs securityfs\n/dev/shm tmpfs tmpfs\n/run/lock tmpfs tmpfs\n/sys/fs/cgroup cgroup2 cgroup2\n/sys/fs/pstore pstore pstore\n/sys/fs/bpf bpf bpf\n/proc/sys/fs/binfmt_misc systemd-1 autofs\n/dev/hugepages hugetlbfs hugetlbfs\n/sys/kernel/debug debugfs debugfs\n/dev/mqueue mqueue mqueue\n/sys/kernel/tracing tracefs tracefs\n/sys/fs/fuse/connections fusectl fusectl\n/sys/kernel/config configfs configfs\n/boot/efi /dev/sda15 vfat\n/proc/sys/fs/binfmt_misc binfmt_misc binfmt_misc\n/sys/kernel/debug/tracing tracefs tracefs\n/run/user/0 tmpfs tmpfs\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 667,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "userLimits": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.0008117947727441788,
+      "stdout": "30852\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 6,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    },
+    "memory": {
+      "rc": 0,
+      "reason": null,
+      "elapsedSeconds": 0.0009168852120637894,
+      "stdout": "MemTotal:        7937252 kB\nMemFree:          505008 kB\nMemAvailable:    7279104 kB\nBuffers:          137940 kB\nCached:          6346784 kB\nSwapCached:            0 kB\nActive:          2794688 kB\nInactive:        3725948 kB\nActive(anon):      45944 kB\nInactive(anon):     3924 kB\nActive(file):    2748744 kB\nInactive(file):  3722024 kB\nUnevictable:       31456 kB\nMlocked:           27456 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:               724 kB\nWriteback:             0 kB\nAnonPages:         67464 kB\nMapped:           106012 kB\nShmem:              5196 kB\nKReclaimable:     612084 kB\nSlab:             791948 kB\nSReclaimable:     612084 kB\nSUnreclaim:       179864 kB\nKernelStack:        2732 kB\nPageTables:         2860 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     3968624 kB\nCommitted_AS:     178472 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:       22296 kB\nVmallocChunk:          0 kB\nPercpu:             9728 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nUnaccepted:            0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:      305008 kB\nDirectMap2M:     6838272 kB\nDirectMap1G:     1048576 kB\n",
+      "stderr": "",
+      "bytesObserved": {
+        "stdout": 1531,
+        "stderr": 0
+      },
+      "stdinBytesWritten": 0,
+      "stdinBytesRequested": 0,
+      "truncated": false,
+      "localChildReaped": true,
+      "ownedGroupKillAttempted": true,
+      "cleanupErrors": [],
+      "deadlineExceeded": false,
+      "localProcessGroupDeathProven": false,
+      "remoteDeathProven": false
+    }
+  },
+  "installedIdmapManual": "absent"
+}
