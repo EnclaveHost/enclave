@@ -1,0 +1,17 @@
+# graph-slot matrix, official tree (fix2), host build GGML_NATIVE=OFF; sha256 of each logit dump (slot on = cgt-1, LLAMA_GRAPH_SLOT_ALT=0 = cgt-0)
+ecf37d2e6f725daefd8a73261ac12c2aef39cf41beb8707f6fc8d4b053d8cffd 59596800 kv0-lifetime/cgt-1.bin
+ecf37d2e6f725daefd8a73261ac12c2aef39cf41beb8707f6fc8d4b053d8cffd 59596800 kv0-lifetime/cgt-0.bin
+952a6c636112c0f06e764589fbcbbdee34e4f49a4ff4df71b47e01eee96f320d 45690880 kv0-multi/cgt-1.bin
+952a6c636112c0f06e764589fbcbbdee34e4f49a4ff4df71b47e01eee96f320d 45690880 kv0-multi/cgt-0.bin
+88fa8ecf03ba41503631fe578e06c9ec54b434cdea59da81bf1b835df98885d8 34764800 kv0-plain/cgt-1.bin
+88fa8ecf03ba41503631fe578e06c9ec54b434cdea59da81bf1b835df98885d8 34764800 kv0-plain/cgt-0.bin
+7f959162f694e355e6f839f7c9580c98ce4bc2d9dbffc294b32b8923d17dc5e3 46684160 kv0-spec/cgt-1.bin
+7f959162f694e355e6f839f7c9580c98ce4bc2d9dbffc294b32b8923d17dc5e3 46684160 kv0-spec/cgt-0.bin
+ecf37d2e6f725daefd8a73261ac12c2aef39cf41beb8707f6fc8d4b053d8cffd 59596800 kv1-lifetime/cgt-1.bin
+ecf37d2e6f725daefd8a73261ac12c2aef39cf41beb8707f6fc8d4b053d8cffd 59596800 kv1-lifetime/cgt-0.bin
+952a6c636112c0f06e764589fbcbbdee34e4f49a4ff4df71b47e01eee96f320d 45690880 kv1-multi/cgt-1.bin
+952a6c636112c0f06e764589fbcbbdee34e4f49a4ff4df71b47e01eee96f320d 45690880 kv1-multi/cgt-0.bin
+88fa8ecf03ba41503631fe578e06c9ec54b434cdea59da81bf1b835df98885d8 34764800 kv1-plain/cgt-1.bin
+88fa8ecf03ba41503631fe578e06c9ec54b434cdea59da81bf1b835df98885d8 34764800 kv1-plain/cgt-0.bin
+7f959162f694e355e6f839f7c9580c98ce4bc2d9dbffc294b32b8923d17dc5e3 46684160 kv1-spec/cgt-1.bin
+7f959162f694e355e6f839f7c9580c98ce4bc2d9dbffc294b32b8923d17dc5e3 46684160 kv1-spec/cgt-0.bin
