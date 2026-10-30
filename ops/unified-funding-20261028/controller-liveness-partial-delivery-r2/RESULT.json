@@ -1,0 +1,23 @@
+{
+  "authorResultValid": false,
+  "buildRun": false,
+  "candidateScopeValid": true,
+  "changedFiles": [
+    "supervisor.js",
+    "AUTHOR-NOTES.md",
+    "test/isolation-instance-liveness.test.mjs"
+  ],
+  "cleanupComplete": true,
+  "coldControllerRecoveryQualified": false,
+  "error": "author-exit",
+  "inputsUnchanged": true,
+  "noOom": true,
+  "outputBytes": 1741,
+  "peakWorkBytesObserved": 1896448,
+  "productionActivationPerformedByRunner": false,
+  "rc": 1,
+  "rootMustCollectSameScopeTerminal": true,
+  "seconds": 471.4556245370768,
+  "status": "FAILED",
+  "testsRun": false
+}
